@@ -146,6 +146,9 @@ class JClosedWorldBuilder {
     ClosureData closureData;
     RecordData recordData;
 
+    final recordTypes = Set<RecordType>.from(
+        map.toBackendTypeSet(closedWorld.instantiatedRecordTypes));
+
     if (_options.disableRtiOptimization) {
       rtiNeed = TrivialRuntimeTypesNeed(_elementMap.elementEnvironment);
       closureData = _closureDataBuilder.createClosureEntities(
@@ -153,6 +156,7 @@ class JClosedWorldBuilder {
           map.toBackendMemberMap(closureModels, identity),
           const TrivialClosureRtiNeed(),
           callMethods);
+      recordData = _recordDataBuilder.createRecordData(this, recordTypes);
     } else {
       RuntimeTypesNeedImpl kernelRtiNeed =
           closedWorld.rtiNeed as RuntimeTypesNeedImpl;
@@ -180,6 +184,8 @@ class JClosedWorldBuilder {
               localFunctionsNodesNeedingSignature),
           callMethods);
 
+      recordData = _recordDataBuilder.createRecordData(this, recordTypes);
+
       List<FunctionEntity> callMethodsNeedingSignature = <FunctionEntity>[];
       for (ir.LocalFunction node in localFunctionsNodesNeedingSignature) {
         callMethodsNeedingSignature
@@ -198,9 +204,7 @@ class JClosedWorldBuilder {
     }
 
     (map as JsToFrontendMapImpl)._registerClosureData(closureData);
-    final recordTypes = Set<RecordType>.from(
-        map.toBackendTypeSet(closedWorld.instantiatedRecordTypes));
-    recordData = _recordDataBuilder.createRecordData(this, recordTypes);
+    //(map as JsToFrontendMapImpl)._registerRecordData(recordData);
 
     BackendUsage backendUsage =
         _convertBackendUsage(map, closedWorld.backendUsage as BackendUsageImpl);
@@ -580,9 +584,7 @@ class JsToFrontendMapImpl extends JsToFrontendMap {
     if (typeVariable is KLocalTypeVariable) {
       if (_closureData == null) {
         failedAt(
-            typeVariable,
-            'ClosureData needs to be registered before converting type variable'
-            ' $typeVariable');
+            typeVariable, "Local function type variables are not supported.");
       }
       ClosureRepresentationInfo info =
           _closureData!.getClosureInfo(typeVariable.typeDeclaration.node);

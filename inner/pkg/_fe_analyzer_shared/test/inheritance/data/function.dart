@@ -16,8 +16,7 @@ class B
 /*cfe|cfe:builder.class: C:C,Object,_C&Object&Function*/
 /*analyzer.class: C:C,Object*/
 /*cfe|cfe:builder.class: _C&Object&Function:Object,_C&Object&Function*/
-class /*cfe|cfe:builder.error: SubtypeOfFinalIsNotBaseFinalOrSealed*/ C
-    extends Object
+class C extends Object
     with /*analyzer.error: CompileTimeErrorCode.CLASS_USED_AS_MIXIN*/
         /*cfe|cfe:builder.error: CantUseClassAsMixin*/ Function {}
 

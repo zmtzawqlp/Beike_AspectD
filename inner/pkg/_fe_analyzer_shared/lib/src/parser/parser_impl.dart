@@ -117,7 +117,6 @@ import 'type_info.dart'
         computeType,
         computeTypeParamOrArg,
         computeVariablePatternType,
-        illegalPatternIdentifiers,
         isValidNonRecordTypeReference,
         noType,
         noTypeParamOrArg;
@@ -7921,6 +7920,7 @@ class Parser {
         typeInfo.isNullable &&
         typeInfo.couldBeExpression) {
       assert(optional('?', token));
+      assert(next.isKeywordOrIdentifier);
       if (!looksLikeName(next)) {
         reportRecoverableError(
             next, codes.templateExpectedIdentifier.withArguments(next));
@@ -9774,14 +9774,9 @@ class Parser {
         return parseVariablePattern(token, patternContext);
       case '(':
         // "(" could start a record type (which has to be followed by an
-        // identifier (or ? identifier) though), e.g. `(int, int) foo`
-        // or `(int, int)? bar`.
-        Token afterEndGroup = next.endGroup!.next!;
-        if (afterEndGroup.isIdentifier ||
-            (optional("?", afterEndGroup) &&
-                afterEndGroup.next!.isIdentifier)) {
-          TypeInfo typeInfo =
-              computeVariablePatternType(token, /* required = */ true);
+        // identifier though), e.g. `(int, int) foo`.
+        if (next.endGroup!.next!.isIdentifier) {
+          TypeInfo typeInfo = computeVariablePatternType(token);
           if (typeInfo is ComplexTypeInfo &&
               typeInfo.isRecordType &&
               !typeInfo.recovered) {
@@ -9879,18 +9874,12 @@ class Parser {
       } else if (dot == null) {
         // It's a single identifier.  If it's a wildcard pattern or we're in an
         // irrefutable context, parse it as a variable pattern.
-        String name = firstIdentifier.lexeme;
-        if (!patternContext.isRefutable || name == '_') {
+        if (!patternContext.isRefutable || firstIdentifier.lexeme == '_') {
           // It's a wildcard pattern with no preceding type, so parse it as a
           // variable pattern.
           isLastPatternAllowedInsideUnaryPattern = true;
           return parseVariablePattern(beforeFirstIdentifier, patternContext,
               typeInfo: typeInfo);
-        } else if (illegalPatternIdentifiers.contains(name)) {
-          reportRecoverableError(
-              firstIdentifier,
-              codes.templateIllegalPatternIdentifierName
-                  .withArguments(firstIdentifier));
         }
       }
       // It's not an object pattern so parse it as an expression.
@@ -9974,18 +9963,8 @@ class Parser {
       }
       listener.handleWildcardPattern(keyword, token);
     } else if (inAssignmentPattern && isBareIdentifier) {
-      if (illegalPatternIdentifiers.contains(variableName)) {
-        reportRecoverableError(
-            token,
-            codes.templateIllegalPatternAssignmentVariableName
-                .withArguments(token));
-      }
       listener.handleAssignedVariablePattern(token);
     } else {
-      if (illegalPatternIdentifiers.contains(variableName)) {
-        reportRecoverableError(token,
-            codes.templateIllegalPatternVariableName.withArguments(token));
-      }
       if (isBareIdentifier) {
         listener.handleNoType(token);
       }
@@ -10032,12 +10011,6 @@ class Parser {
         listener.handleRestPattern(dots, hasSubPattern: hasSubPattern);
       } else {
         token = parsePattern(token, patternContext);
-        if (identical(next, token.next)) {
-          // No tokens were consumed (though it's possible that a synthetic
-          // token was inserted). If this happens, go ahead and skip the next
-          // token to ensure that progress is made.
-          token = token.next!;
-        }
       }
       next = token.next!;
       ++count;
@@ -10113,12 +10086,6 @@ class Parser {
               new SyntheticToken(TokenType.COLON, next.charOffset));
         }
         token = parsePattern(colon, patternContext);
-        if (identical(next, token.next)) {
-          // No tokens were consumed (though it's possible that a synthetic
-          // token was inserted). If this happens, go ahead and skip the next
-          // token to ensure that progress is made.
-          token = token.next!;
-        }
         listener.handleMapPatternEntry(colon, token.next!);
       }
       ++count;

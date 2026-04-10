@@ -1922,13 +1922,10 @@ class InferenceVisitorImpl extends InferenceVisitorBase
     int? stackBase;
     assert(checkStackBase(node, stackBase = stackHeight));
 
+    // TODO(scheglov) Pass actual variables, not just `{}`.
     IfCaseStatementResult<DartType, InvalidExpression> analysisResult =
         analyzeIfCaseStatement(node, node.expression, node.patternGuard.pattern,
-            node.patternGuard.guard, node.then, node.otherwise, {
-      for (VariableDeclaration variable
-          in node.patternGuard.pattern.declaredVariables)
-        variable.name!: variable
-    });
+            node.patternGuard.guard, node.then, node.otherwise, {});
 
     node.matchedValueType = analysisResult.matchedExpressionType;
 
@@ -9392,9 +9389,7 @@ class InferenceVisitorImpl extends InferenceVisitorBase
         parent is RelationalPattern && parent.expression == node;
 
     ExpressionInferenceResult expressionResult =
-        // TODO(johnniwinther): Handle [isVoidAllowed] through
-        //  [dispatchExpression].
-        inferExpression(node, context, isVoidAllowed: true).stopShorting();
+        inferExpression(node, context).stopShorting();
 
     if (needsCoercion) {
       expressionResult =
@@ -9403,19 +9398,6 @@ class InferenceVisitorImpl extends InferenceVisitorBase
     }
 
     pushRewrite(expressionResult.expression);
-
-    // The shared analysis logic uses the convention that the expressions passed
-    // to flow analysis are the original (pre-lowered) expressions, whereas the
-    // expressions passed to flow analysis by the CFE are the lowered
-    // expressions. Since the caller of `dispatchExpression` is the shared
-    // analysis logic, we need to use `flow.forwardExpression` let flow analysis
-    // know that in future, we'll be referring to the expression using `node`
-    // (its pre-lowered form) rather than `expressionResult.expression` (its
-    // post-lowered form).
-    //
-    // TODO(paulberry): eliminate the need for this--see
-    // https://github.com/dart-lang/sdk/issues/52189.
-    flow.forwardExpression(node, expressionResult.expression);
     return new SimpleTypeAnalysisResult(type: expressionResult.inferredType);
   }
 
@@ -10076,28 +10058,23 @@ class InferenceVisitorImpl extends InferenceVisitorBase
       for (VariableDeclaration variable in node.left.declaredVariables)
         variable.name!: variable
     };
-    Map<String, VariableDeclaration> jointVariableNames = {
+    Set<String> jointVariableNames = {
       for (VariableDeclaration variable in node.orPatternJointVariables)
-        variable.name!: variable
+        variable.name!
     };
     for (VariableDeclaration rightVariable in node.right.declaredVariables) {
       String rightVariableName = rightVariable.name!;
       VariableDeclaration? leftVariable =
           leftDeclaredVariablesByName[rightVariableName];
-      VariableDeclaration? jointVariable =
-          jointVariableNames[rightVariableName];
-      if (leftVariable != null && jointVariable != null) {
-        if (leftVariable.type != rightVariable.type ||
-            leftVariable.isFinal != rightVariable.isFinal) {
-          helper.addProblem(
-              templateJointPatternVariablesMismatch
-                  .withArguments(rightVariableName),
-              leftVariable.fileOffset,
-              rightVariableName.length);
-        } else {
-          jointVariable.isFinal = rightVariable.isFinal;
-          jointVariable.type = rightVariable.type;
-        }
+      if (leftVariable != null &&
+          jointVariableNames.contains(rightVariableName) &&
+          (leftVariable.type != rightVariable.type ||
+              leftVariable.isFinal != rightVariable.isFinal)) {
+        helper.addProblem(
+            templateJointPatternVariablesMismatch
+                .withArguments(rightVariableName),
+            leftVariable.fileOffset,
+            rightVariableName.length);
       }
     }
 
