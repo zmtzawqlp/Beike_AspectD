@@ -368,34 +368,6 @@ Message _withArgumentsBaseClassImplementedOutsideOfLibrary(String name) {
 }
 
 // DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
-const Template<Message Function(String name, String name2)>
-    templateBaseClassImplementedOutsideOfLibraryCause =
-    const Template<Message Function(String name, String name2)>(
-        problemMessageTemplate:
-            r"""The type '#name' is a subtype of '#name2', and '#name2' is defined here.""",
-        withArguments: _withArgumentsBaseClassImplementedOutsideOfLibraryCause);
-
-// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
-const Code<Message Function(String name, String name2)>
-    codeBaseClassImplementedOutsideOfLibraryCause =
-    const Code<Message Function(String name, String name2)>(
-        "BaseClassImplementedOutsideOfLibraryCause",
-        severity: Severity.context);
-
-// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
-Message _withArgumentsBaseClassImplementedOutsideOfLibraryCause(
-    String name, String name2) {
-  if (name.isEmpty) throw 'No name provided';
-  name = demangleMixinApplicationName(name);
-  if (name2.isEmpty) throw 'No name provided';
-  name2 = demangleMixinApplicationName(name2);
-  return new Message(codeBaseClassImplementedOutsideOfLibraryCause,
-      problemMessage:
-          """The type '${name}' is a subtype of '${name2}', and '${name2}' is defined here.""",
-      arguments: {'name': name, 'name2': name2});
-}
-
-// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
 const Template<
     Message Function(
         String
@@ -420,6 +392,35 @@ Message _withArgumentsBaseMixinImplementedOutsideOfLibrary(String name) {
       problemMessage:
           """The mixin '${name}' can't be implemented outside of its library because it's a base mixin.""",
       arguments: {'name': name});
+}
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Template<Message Function(String name, String name2)>
+    templateBaseOrFinalClassImplementedOutsideOfLibraryCause =
+    const Template<Message Function(String name, String name2)>(
+        problemMessageTemplate:
+            r"""The type '#name' is a subtype of '#name2', and '#name2' is defined here.""",
+        withArguments:
+            _withArgumentsBaseOrFinalClassImplementedOutsideOfLibraryCause);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Code<Message Function(String name, String name2)>
+    codeBaseOrFinalClassImplementedOutsideOfLibraryCause =
+    const Code<Message Function(String name, String name2)>(
+        "BaseOrFinalClassImplementedOutsideOfLibraryCause",
+        severity: Severity.context);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+Message _withArgumentsBaseOrFinalClassImplementedOutsideOfLibraryCause(
+    String name, String name2) {
+  if (name.isEmpty) throw 'No name provided';
+  name = demangleMixinApplicationName(name);
+  if (name2.isEmpty) throw 'No name provided';
+  name2 = demangleMixinApplicationName(name2);
+  return new Message(codeBaseOrFinalClassImplementedOutsideOfLibraryCause,
+      problemMessage:
+          """The type '${name}' is a subtype of '${name2}', and '${name2}' is defined here.""",
+      arguments: {'name': name, 'name2': name2});
 }
 
 // DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
@@ -5682,6 +5683,84 @@ Message _withArgumentsIllegalMixinDueToConstructorsCause(String name) {
       problemMessage:
           """This constructor prevents using '${name}' as a mixin.""",
       arguments: {'name': name});
+}
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Template<
+    Message Function(
+        Token
+            token)> templateIllegalPatternAssignmentVariableName = const Template<
+        Message Function(Token token)>(
+    problemMessageTemplate:
+        r"""A variable assigned by a pattern assignment can't be named '#lexeme'.""",
+    correctionMessageTemplate: r"""Choose a different name.""",
+    withArguments: _withArgumentsIllegalPatternAssignmentVariableName);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Code<Message Function(Token token)>
+    codeIllegalPatternAssignmentVariableName =
+    const Code<Message Function(Token token)>(
+        "IllegalPatternAssignmentVariableName",
+        index: 155);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+Message _withArgumentsIllegalPatternAssignmentVariableName(Token token) {
+  String lexeme = token.lexeme;
+  return new Message(codeIllegalPatternAssignmentVariableName,
+      problemMessage:
+          """A variable assigned by a pattern assignment can't be named '${lexeme}'.""",
+      correctionMessage: """Choose a different name.""",
+      arguments: {'lexeme': token});
+}
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Template<Message Function(Token token)>
+    templateIllegalPatternIdentifierName =
+    const Template<Message Function(Token token)>(
+        problemMessageTemplate:
+            r"""A pattern can't refer to an identifier named '#lexeme'.""",
+        correctionMessageTemplate: r"""Match the identifier using '==""",
+        withArguments: _withArgumentsIllegalPatternIdentifierName);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Code<Message Function(Token token)> codeIllegalPatternIdentifierName =
+    const Code<Message Function(Token token)>("IllegalPatternIdentifierName",
+        index: 156);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+Message _withArgumentsIllegalPatternIdentifierName(Token token) {
+  String lexeme = token.lexeme;
+  return new Message(codeIllegalPatternIdentifierName,
+      problemMessage:
+          """A pattern can't refer to an identifier named '${lexeme}'.""",
+      correctionMessage: """Match the identifier using '==""",
+      arguments: {'lexeme': token});
+}
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Template<
+    Message Function(
+        Token
+            token)> templateIllegalPatternVariableName = const Template<
+        Message Function(Token token)>(
+    problemMessageTemplate:
+        r"""The variable declared by a variable pattern can't be named '#lexeme'.""",
+    correctionMessageTemplate: r"""Choose a different name.""",
+    withArguments: _withArgumentsIllegalPatternVariableName);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+const Code<Message Function(Token token)> codeIllegalPatternVariableName =
+    const Code<Message Function(Token token)>("IllegalPatternVariableName",
+        index: 154);
+
+// DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
+Message _withArgumentsIllegalPatternVariableName(Token token) {
+  String lexeme = token.lexeme;
+  return new Message(codeIllegalPatternVariableName,
+      problemMessage:
+          """The variable declared by a variable pattern can't be named '${lexeme}'.""",
+      correctionMessage: """Choose a different name.""",
+      arguments: {'lexeme': token});
 }
 
 // DO NOT EDIT. THIS FILE IS GENERATED. SEE TOP OF FILE.
