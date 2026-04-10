@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -13,11 +13,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/rasta/typedef.dart:11:3: Error: Couldn't find constructor 'Foo'.
 //   Foo();
 //   ^^^
-//
-// pkg/front_end/testcases/rasta/typedef.dart:10:3: Warning: Operand of null-aware operation '??=' has type 'Type' which excludes null.
-//  - 'Type' is from 'dart:core'.
-//   Foo ??= null;
-//   ^
 //
 import self as self;
 import "dart:core" as core;

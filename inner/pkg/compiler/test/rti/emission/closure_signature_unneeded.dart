@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*class: A:checks=[],instance*/
 class A<T> {
   @pragma('dart2js:noInline')
@@ -11,9 +9,8 @@ class A<T> {
     // TODO(johnniwinther): The signature is not needed since the type isn't a
     // potential subtype of the checked function types.
     return
-
-        /*checks=[$signature],instance*/
-        (T t, String s) {};
+    /*checks=[$signature],instance*/
+    (T t, String s) {};
   }
 }
 

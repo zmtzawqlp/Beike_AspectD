@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -10,17 +10,17 @@ import self as self;
 import "dart:core" as core;
 
 class Enum extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::Enum> values = #C7;
   enum-element static const field self::Enum e1 = #C3;
   enum-element static const field self::Enum e2 = #C6;
-  const constructor •(core::int #index, core::String #name) → self::Enum
+  static const field core::List<self::Enum> values = #C7;
+  const synthetic constructor •(core::int #index, core::String #name) → self::Enum
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "Enum.${this.{core::_Enum::_name}{core::String}}";
 }
 static method method1(self::Enum? e) → core::int {
-  switch(e) {
+  switch(e) /* self::Enum? */ {
     #L1:
     case #C3:
     case #C6:
@@ -33,7 +33,7 @@ int method1(Enum? e) {
     ^" in null;
 }
 static method method2(self::Enum? e) → core::int {
-  switch(e) /*isExplicitlyExhaustive*/ {
+  switch(e) /* isExplicitlyExhaustive, self::Enum? */ {
     #L2:
     case #C3:
     case #C6:
@@ -48,7 +48,7 @@ static method method2(self::Enum? e) → core::int {
   }
 }
 static method method3(self::Enum? e) → core::int {
-  switch(e) {
+  switch(e) /* self::Enum? */ {
     #L4:
     case #C3:
     case #C6:
@@ -63,7 +63,7 @@ static method method3(self::Enum? e) → core::int {
   }
 }
 static method method4(self::Enum? e) → core::int {
-  switch(e) {
+  switch(e) /* self::Enum? */ {
     #L6:
     case #C3:
     case #C6:

@@ -5,13 +5,12 @@
 import '../messages/codes.dart'
     show Message, Template, templateExpectedIdentifier;
 
-import '../scanner/token.dart' show Token, TokenType;
+import '../scanner/token.dart'
+    show Keyword, Token, TokenIsAExtension, TokenType;
 
 import 'identifier_context_impl.dart';
 
 import 'parser_impl.dart' show Parser;
-
-import 'util.dart' show isOneOfOrEof, optional;
 
 /// Information about the parser state that is passed to the listener at the
 /// time an identifier is encountered. It is also used by the parser for error
@@ -54,7 +53,7 @@ abstract class IdentifierContext {
   /// Identifier is part of a name in an annotation that precedes a declaration,
   /// but it appears after type parameters (e.g. `foo` in `@X<Y>.foo()`).
   static const MetadataReferenceIdentifierContext
-      metadataContinuationAfterTypeArguments =
+  metadataContinuationAfterTypeArguments =
       const MetadataReferenceIdentifierContext.continuationAfterTypeArguments();
 
   /// Identifier is the name being declared by a typedef declaration.
@@ -69,7 +68,7 @@ abstract class IdentifierContext {
   /// Identifier is a formal parameter being declared as part of a function,
   /// method, or typedef declaration.
   static const FormalParameterDeclarationIdentifierContext
-      formalParameterDeclaration =
+  formalParameterDeclaration =
       const FormalParameterDeclarationIdentifierContext();
 
   /// Identifier is a record field being declared as part of a record type
@@ -115,14 +114,13 @@ abstract class IdentifierContext {
   /// declaration, or a named mixin application, for example,
   /// `Foo` in `class Foo = X with Y;`.
   static const ClassOrMixinOrExtensionIdentifierContext
-      classOrMixinOrExtensionDeclaration =
+  classOrMixinOrExtensionDeclaration =
       const ClassOrMixinOrExtensionIdentifierContext();
 
   /// Identifier is the name of a type variable being declared (e.g. `Foo` in
   /// `class C<Foo extends num> {}`).
   static const TypeVariableDeclarationIdentifierContext
-      typeVariableDeclaration =
-      const TypeVariableDeclarationIdentifierContext();
+  typeVariableDeclaration = const TypeVariableDeclarationIdentifierContext();
 
   /// Identifier is the start of a reference to a type that starts with prefix.
   static const TypeReferenceIdentifierContext prefixedTypeReference =
@@ -139,8 +137,10 @@ abstract class IdentifierContext {
 
   /// Identifier is a name being declared by a top level variable declaration.
   static const TopLevelDeclarationIdentifierContext
-      topLevelVariableDeclaration = const TopLevelDeclarationIdentifierContext(
-          'topLevelVariableDeclaration', const [';', '=', ',']);
+  topLevelVariableDeclaration = const TopLevelDeclarationIdentifierContext(
+    'topLevelVariableDeclaration',
+    const [TokenType.SEMICOLON, TokenType.EQ, TokenType.COMMA, TokenType.EOF],
+  );
 
   /// Identifier is a name being declared by a field declaration.
   static const FieldDeclarationIdentifierContext fieldDeclaration =
@@ -148,9 +148,18 @@ abstract class IdentifierContext {
 
   /// Identifier is the name being declared by a top level function declaration.
   static const TopLevelDeclarationIdentifierContext
-      topLevelFunctionDeclaration = const TopLevelDeclarationIdentifierContext(
-          'topLevelFunctionDeclaration',
-          const ['<', '(', '{', '=>', 'async', 'sync']);
+  topLevelFunctionDeclaration = const TopLevelDeclarationIdentifierContext(
+    'topLevelFunctionDeclaration',
+    const [
+      TokenType.LT,
+      TokenType.OPEN_PAREN,
+      TokenType.OPEN_CURLY_BRACKET,
+      TokenType.FUNCTION,
+      Keyword.ASYNC,
+      Keyword.SYNC,
+      TokenType.EOF,
+    ],
+  );
 
   /// Identifier is the start of the name being declared by a method
   /// declaration.
@@ -164,7 +173,7 @@ abstract class IdentifierContext {
   /// named constructor which is being declared, e.g. `foo` in
   /// `class C { C.foo(); }`.
   static const MethodDeclarationIdentifierContext
-      methodDeclarationContinuation =
+  methodDeclarationContinuation =
       const MethodDeclarationIdentifierContext.continuation();
 
   /// Identifier appears after the word `operator` in a method declaration.
@@ -178,8 +187,7 @@ abstract class IdentifierContext {
   /// Identifier is the start of the name being declared by a local function
   /// declaration.
   static const LocalFunctionDeclarationIdentifierContext
-      localFunctionDeclaration =
-      const LocalFunctionDeclarationIdentifierContext();
+  localFunctionDeclaration = const LocalFunctionDeclarationIdentifierContext();
 
   /// Identifier is part of the name being declared by a local function
   /// declaration, but it's not the first identifier of the name.
@@ -187,7 +195,7 @@ abstract class IdentifierContext {
   /// TODO(paulberry,ahe): Does this ever occur in valid Dart, or does it only
   /// occur as part of error recovery?
   static const LocalFunctionDeclarationIdentifierContext
-      localFunctionDeclarationContinuation =
+  localFunctionDeclarationContinuation =
       const LocalFunctionDeclarationIdentifierContext.continuation();
 
   /// Identifier is the start of a reference to a constructor declared
@@ -198,15 +206,19 @@ abstract class IdentifierContext {
   /// Identifier is part of a reference to a constructor declared elsewhere, but
   /// it's not the first identifier of the reference.
   static const ConstructorReferenceIdentifierContext
-      constructorReferenceContinuation =
+  constructorReferenceContinuation =
       const ConstructorReferenceIdentifierContext.continuation();
 
   /// Identifier is part of a reference to a constructor declared elsewhere, but
   /// it appears after type parameters (e.g. `foo` in `X<Y>.foo`).
   static const ConstructorReferenceIdentifierContext
-      constructorReferenceContinuationAfterTypeArguments =
-      const ConstructorReferenceIdentifierContext
-          .continuationAfterTypeArguments();
+  constructorReferenceContinuationAfterTypeArguments =
+      // ignore: lines_longer_than_80_chars
+      const ConstructorReferenceIdentifierContext.continuationAfterTypeArguments();
+
+  /// Identifier is the name of a primary constructor declaration.
+  static const IdentifierContext primaryConstructorDeclaration =
+      const MethodDeclarationIdentifierContext.primaryConstructor();
 
   /// Identifier is the declaration of a label (i.e. it is followed by `:` and
   /// then a statement).
@@ -232,30 +244,6 @@ abstract class IdentifierContext {
   static const ExpressionIdentifierContext expressionContinuation =
       const ExpressionIdentifierContext.continuation();
 
-  /// Identifier appears in a show or a hide clause of an extension type
-  /// declaration preceded by 'get'.
-  static const ExtensionShowHideElementIdentifierContext
-      extensionShowHideElementGetter =
-      const ExtensionShowHideElementIdentifierContext.getter();
-
-  /// Identifier appears in a show or a hide clause of an extension type
-  /// declaration, not preceded by 'get', 'set', or 'operator'.
-  static const ExtensionShowHideElementIdentifierContext
-      extensionShowHideElementMemberOrType =
-      const ExtensionShowHideElementIdentifierContext.memberOrType();
-
-  /// Identifier appears in a show or a hide clause of an extension type
-  /// declaration preceded by 'operator'.
-  static const ExtensionShowHideElementIdentifierContext
-      extensionShowHideElementOperator =
-      const ExtensionShowHideElementIdentifierContext.operator();
-
-  /// Identifier appears in a show or a hide clause of an extension type
-  /// declaration preceded by 'set'.
-  static const ExtensionShowHideElementIdentifierContext
-      extensionShowHideElementSetter =
-      const ExtensionShowHideElementIdentifierContext.setter();
-
   /// Identifier is a reference to a named argument of a function or method
   /// invocation (e.g. `foo` in `f(foo: 0);`.
   static const NamedArgumentReferenceIdentifierContext namedArgumentReference =
@@ -264,13 +252,12 @@ abstract class IdentifierContext {
   /// Identifier is a reference to a named record field
   /// (e.g. `foo` in `(42, foo: 42);`.
   static const NamedRecordFieldReferenceIdentifierContext
-      namedRecordFieldReference =
+  namedRecordFieldReference =
       const NamedRecordFieldReferenceIdentifierContext();
 
   /// Identifier is a name being declared by a local variable declaration.
   static const LocalVariableDeclarationIdentifierContext
-      localVariableDeclaration =
-      const LocalVariableDeclarationIdentifierContext();
+  localVariableDeclaration = const LocalVariableDeclarationIdentifierContext();
 
   /// Identifier is a reference to a label (e.g. `foo` in `break foo;`).
   /// Labels have their own scope.
@@ -305,21 +292,22 @@ abstract class IdentifierContext {
 
   final Template<_MessageWithArgument<Token>> recoveryTemplate;
 
-  const IdentifierContext(this._name,
-      {this.inDeclaration = false,
-      this.inLibraryOrPartOfDeclaration = false,
-      this.inSymbol = false,
-      this.isContinuation = false,
-      this.isScopeReference = false,
-      this.isBuiltInIdentifierAllowed = true,
-      bool? allowedInConstantExpression,
-      this.recoveryTemplate = templateExpectedIdentifier})
-      : this.allowedInConstantExpression =
-            // Generally, declarations are legal in constant expressions.  A
-            // continuation doesn't affect constant expressions: if what it's
-            // continuing is a problem, it has already been reported.
-            allowedInConstantExpression ??
-                (inDeclaration || isContinuation || inSymbol);
+  const IdentifierContext(
+    this._name, {
+    this.inDeclaration = false,
+    this.inLibraryOrPartOfDeclaration = false,
+    this.inSymbol = false,
+    this.isContinuation = false,
+    this.isScopeReference = false,
+    this.isBuiltInIdentifierAllowed = true,
+    bool? allowedInConstantExpression,
+    this.recoveryTemplate = templateExpectedIdentifier,
+  }) : this.allowedInConstantExpression =
+           // Generally, declarations are legal in constant expressions.  A
+           // continuation doesn't affect constant expressions: if what it's
+           // continuing is a problem, it has already been reported.
+           allowedInConstantExpression ??
+           (inDeclaration || isContinuation || inSymbol);
 
   @override
   String toString() => _name;
@@ -341,81 +329,100 @@ abstract class IdentifierContext {
   /// Ensure that the next token is an identifier (or keyword which should be
   /// treated as an identifier) and return that identifier.
   /// Report errors as necessary via [parser].
-  /// If [recovered] implementers could allow 'token' to be used as an
+  /// If [isRecovered] implementers could allow 'token' to be used as an
   /// identifier, even if it isn't a valid identifier.
   Token ensureIdentifierPotentiallyRecovered(
-          Token token, Parser parser, bool isRecovered) =>
-      ensureIdentifier(token, parser);
+    Token token,
+    Parser parser,
+    bool isRecovered,
+  ) => ensureIdentifier(token, parser);
 }
 
-/// Return `true` if the given [token] should be treated like the start of
-/// an expression for the purposes of recovery.
+/// Return `true` if [next] should be treated like the start of an expression
+/// for the purposes of recovery.
 bool looksLikeExpressionStart(Token next) =>
     next.isIdentifier ||
     next.isKeyword && !looksLikeStatementStart(next) ||
-    next.type == TokenType.DOUBLE ||
-    next.type == TokenType.HASH ||
-    next.type == TokenType.HEXADECIMAL ||
-    next.type == TokenType.IDENTIFIER ||
-    next.type == TokenType.INT ||
-    next.type == TokenType.STRING ||
-    optional('{', next) ||
-    optional('(', next) ||
-    optional('[', next) ||
-    optional('[]', next) ||
-    optional('<', next) ||
-    optional('!', next) ||
-    optional('-', next) ||
-    optional('~', next) ||
-    optional('++', next) ||
-    optional('--', next);
+    next.isA(TokenType.DOUBLE) ||
+    next.isA(TokenType.DOUBLE_WITH_SEPARATORS) ||
+    next.isA(TokenType.HASH) ||
+    next.isA(TokenType.HEXADECIMAL) ||
+    next.isA(TokenType.HEXADECIMAL_WITH_SEPARATORS) ||
+    next.isA(TokenType.IDENTIFIER) ||
+    next.isA(TokenType.INT) ||
+    next.isA(TokenType.INT_WITH_SEPARATORS) ||
+    next.isA(TokenType.STRING) ||
+    next.isA(TokenType.OPEN_CURLY_BRACKET) ||
+    next.isA(TokenType.OPEN_PAREN) ||
+    next.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+    next.isA(TokenType.INDEX) ||
+    next.isA(TokenType.LT) ||
+    next.isA(TokenType.BANG) ||
+    next.isA(TokenType.MINUS) ||
+    next.isA(TokenType.TILDE) ||
+    next.isA(TokenType.PLUS_PLUS) ||
+    next.isA(TokenType.MINUS_MINUS);
 
-/// Returns `true` if the given [token] should be treated like the start of a
-/// pattern for the purposes of recovery.
+/// Returns `true` if [next] should be treated like the start of a pattern for
+/// the purposes of recovery.
 ///
 /// Note: since the syntax for patterns is very similar to that for expressions,
 /// we mostly re-use [looksLikeExpressionStart].
 bool looksLikePatternStart(Token next) =>
     next.isIdentifier ||
-    next.type == TokenType.DOUBLE ||
-    next.type == TokenType.HASH ||
-    next.type == TokenType.HEXADECIMAL ||
-    next.type == TokenType.IDENTIFIER ||
-    next.type == TokenType.INT ||
-    next.type == TokenType.STRING ||
-    optional('null', next) ||
-    optional('false', next) ||
-    optional('true', next) ||
-    optional('{', next) ||
-    optional('(', next) ||
-    optional('[', next) ||
-    optional('[]', next) ||
-    optional('<', next) ||
-    optional('<=', next) ||
-    optional('>', next) ||
-    optional('>=', next) ||
-    optional('!=', next) ||
-    optional('==', next) ||
-    optional('var', next) ||
-    optional('final', next) ||
-    optional('const', next);
+    next.isA(TokenType.DOUBLE) ||
+    next.isA(TokenType.DOUBLE_WITH_SEPARATORS) ||
+    next.isA(TokenType.HASH) ||
+    next.isA(TokenType.HEXADECIMAL) ||
+    next.isA(TokenType.HEXADECIMAL_WITH_SEPARATORS) ||
+    next.isA(TokenType.IDENTIFIER) ||
+    next.isA(TokenType.INT) ||
+    next.isA(TokenType.INT_WITH_SEPARATORS) ||
+    next.isA(TokenType.STRING) ||
+    next.isA(Keyword.NULL) ||
+    next.isA(Keyword.FALSE) ||
+    next.isA(Keyword.TRUE) ||
+    next.isA(TokenType.OPEN_CURLY_BRACKET) ||
+    next.isA(TokenType.OPEN_PAREN) ||
+    next.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+    next.isA(TokenType.INDEX) ||
+    next.isA(TokenType.LT) ||
+    next.isA(TokenType.LT_EQ) ||
+    next.isA(TokenType.GT) ||
+    next.isA(TokenType.GT_EQ) ||
+    next.isA(TokenType.BANG_EQ) ||
+    next.isA(TokenType.EQ_EQ) ||
+    next.isA(Keyword.VAR) ||
+    next.isA(Keyword.FINAL) ||
+    next.isA(Keyword.CONST);
 
 /// Return `true` if the given [token] should be treated like the start of
 /// a new statement for the purposes of recovery.
-bool looksLikeStatementStart(Token token) => isOneOfOrEof(token, const [
-      '@',
-      'assert', 'break', 'continue', 'do', 'else', 'final', 'for', //
-      'if', 'return', 'switch', 'try', 'var', 'void', 'while', //
-    ]);
+bool looksLikeStatementStart(Token token) =>
+    token.isA(TokenType.AT) ||
+    token.isA(Keyword.ASSERT) ||
+    token.isA(Keyword.BREAK) ||
+    token.isA(Keyword.CONTINUE) ||
+    token.isA(Keyword.DO) ||
+    token.isA(Keyword.ELSE) ||
+    token.isA(Keyword.FINAL) ||
+    token.isA(Keyword.FOR) ||
+    token.isA(Keyword.IF) ||
+    token.isA(Keyword.RETURN) ||
+    token.isA(Keyword.SWITCH) ||
+    token.isA(Keyword.TRY) ||
+    token.isA(Keyword.VAR) ||
+    token.isA(Keyword.VOID) ||
+    token.isA(Keyword.WHILE) ||
+    token.isA(TokenType.EOF);
+
+bool isOkNextValueInFormalParameter(Token token) =>
+    token.isA(TokenType.EQ) ||
+    token.isA(TokenType.COLON) ||
+    token.isA(TokenType.COMMA) ||
+    token.isA(TokenType.CLOSE_PAREN) ||
+    token.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+    token.isA(TokenType.CLOSE_CURLY_BRACKET);
 
 // TODO(ahe): Remove when analyzer supports generalized function syntax.
 typedef _MessageWithArgument<T> = Message Function(T);
-
-const List<String> okNextValueInFormalParameter = const [
-  '=',
-  ':',
-  ',',
-  ')',
-  ']',
-  '}',
-];

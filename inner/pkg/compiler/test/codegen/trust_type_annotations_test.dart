@@ -4,8 +4,8 @@
 
 import 'package:compiler/src/compiler.dart';
 import 'package:compiler/src/elements/names.dart';
+import "package:expect/async_helper.dart";
 import 'package:expect/expect.dart';
-import "package:async_helper/async_helper.dart";
 import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/elements/entities.dart';
 import 'package:compiler/src/inferrer/typemasks/masks.dart';
@@ -55,31 +55,43 @@ void main() {
   runTest() async {
     var options = [Flags.omitImplicitChecks];
     var result = await runCompiler(
-        memorySourceFiles: {'main.dart': TEST}, options: options);
-    Compiler compiler = result.compiler;
+      memorySourceFiles: {'main.dart': TEST},
+      options: options,
+    );
+    Compiler compiler = result.compiler!;
     var results = compiler.globalInference.resultsForTesting!;
     var closedWorld = results.closedWorld;
     var elementEnvironment = closedWorld.elementEnvironment;
+    var domain = closedWorld.abstractValueDomain as CommonMasks;
 
-    ClassEntity classA =
-        elementEnvironment.lookupClass(elementEnvironment.mainLibrary!, "A")!;
+    ClassEntity classA = elementEnvironment.lookupClass(
+      elementEnvironment.mainLibrary!,
+      "A",
+    )!;
 
     checkReturn(String name, TypeMask type) {
-      MemberEntity element =
-          elementEnvironment.lookupClassMember(classA, PublicName(name))!;
+      MemberEntity element = elementEnvironment.lookupClassMember(
+        classA,
+        PublicName(name),
+      )!;
       var mask = results.resultOfMember(element).returnType as TypeMask;
-      Expect.isTrue(type.containsMask(mask, closedWorld));
+      Expect.isTrue(type.containsMask(mask, domain));
     }
 
-    checkType(String name, type) {
-      MemberEntity element =
-          elementEnvironment.lookupClassMember(classA, PublicName(name))!;
+    checkType(String name, TypeMask type) {
+      MemberEntity element = elementEnvironment.lookupClassMember(
+        classA,
+        PublicName(name),
+      )!;
       Expect.isTrue(
-          type.containsMask(results.resultOfMember(element).type, closedWorld));
+        type.containsMask(
+          results.resultOfMember(element).type as TypeMask,
+          domain,
+        ),
+      );
     }
 
-    var intMask =
-        TypeMask.subtype(closedWorld.commonElements.intClass, closedWorld);
+    var intMask = TypeMask.subtype(closedWorld.commonElements.intClass, domain);
 
     checkReturn('foo', intMask);
     checkReturn('faa', intMask);

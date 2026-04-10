@@ -5,9 +5,11 @@
 
 /// Tool that consumes the .dill file of an entire dart-sdk and produces the
 /// corresponding JavaScript module.
+library;
 
 import 'dart:io';
-import 'package:dev_compiler/src/kernel/command.dart';
+
+import 'package:dev_compiler/src/command/command.dart';
 
 void main(List<String> args) async {
   var result = await compileSdkFromDill(args);

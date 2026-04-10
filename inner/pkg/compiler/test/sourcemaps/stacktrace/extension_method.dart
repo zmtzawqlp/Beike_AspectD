@@ -2,14 +2,13 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 class MyClass {
   MyClass();
 
   @pragma('dart2js:noInline')
   set internalSetter(int v) {
-    /*7:MyClass.internalSetter*/ throw "error";
+    /*7:MyClass.internalSetter*/
+    throw "error";
   }
 }
 
@@ -27,7 +26,8 @@ extension Ext on MyClass {
 
   @pragma('dart2js:noInline')
   set propertyA(int v) {
-    /*4:Ext.propertyA*/ propertyB;
+    /*4:Ext.propertyA*/
+    propertyB;
   }
 
   @pragma('dart2js:noInline')

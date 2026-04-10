@@ -8,19 +8,23 @@ import 'package:http/http.dart' as http;
 import 'package:source_maps/source_maps.dart';
 
 ArgParser parser = ArgParser()
-  ..addFlag('inline',
-      abbr: 'i',
-      negatable: true,
-      help: 'Inline untranslatable parts..',
-      defaultsTo: false);
+  ..addFlag(
+    'inline',
+    abbr: 'i',
+    negatable: true,
+    help: 'Inline untranslatable parts..',
+    defaultsTo: false,
+  );
 
 main(List<String> arguments) async {
   ArgResults options = parser.parse(arguments);
 
   if (options.rest.length != 1) {
-    print('Usage: <script.dart> [<options>] <file or url for source map file>\n'
-        'Options:\n'
-        '${parser.usage}');
+    print(
+      'Usage: <script.dart> [<options>] <file or url for source map file>\n'
+      'Options:\n'
+      '${parser.usage}',
+    );
     exit(2);
   }
 

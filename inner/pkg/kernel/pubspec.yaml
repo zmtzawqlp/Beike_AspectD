@@ -6,11 +6,16 @@ name: kernel
 publish_to: none
 
 environment:
-  sdk: '>=2.14.0 <3.0.0'
+  sdk: ^3.6.0
+
+resolution: workspace
+
+# Use 'any' constraints here; we get our versions from the DEPS file.
+dependencies:
+  _fe_analyzer_shared: any
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
 dev_dependencies:
   args: any
   expect: any
-  front_end: any
   test: any

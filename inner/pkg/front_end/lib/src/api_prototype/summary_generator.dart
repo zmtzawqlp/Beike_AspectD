@@ -5,11 +5,13 @@
 /// Defines the front-end API for converting source code to summaries.
 library front_end.summary_generator;
 
-import 'compiler_options.dart';
+import 'dart:typed_data';
 
 import '../base/processed_options.dart';
 import '../kernel_generator_impl.dart';
+import 'compiler_options.dart';
 
+// Coverage-ignore(suite): Not run.
 /// Creates a summary representation of the build unit whose source files are in
 /// [sources].
 ///
@@ -28,7 +30,7 @@ import '../kernel_generator_impl.dart';
 /// was compiled from sources.
 ///
 /// The return value is a list of bytes to write to the summary file.
-Future<List<int>?> summaryFor(List<Uri> sources, CompilerOptions options,
+Future<Uint8List?> summaryFor(List<Uri> sources, CompilerOptions options,
     {bool truncate = false}) async {
   return (await generateKernel(
           new ProcessedOptions(options: options, inputs: sources),

@@ -146,14 +146,18 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
   /// Returns the combined behavior of sequential execution of code having
   /// behavior [first] followed by code having behavior [second].
   static NativeThrowBehavior sequence(
-      NativeThrowBehavior first, NativeThrowBehavior second) {
+    NativeThrowBehavior first,
+    NativeThrowBehavior second,
+  ) {
     return first.then(second);
   }
 
   /// Returns the combined behavior of a choice between two paths with behaviors
   /// [first] and [second].
   static NativeThrowBehavior choice(
-      NativeThrowBehavior first, NativeThrowBehavior second) {
+    NativeThrowBehavior first,
+    NativeThrowBehavior second,
+  ) {
     return first.or(second);
   }
 
@@ -163,42 +167,42 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
 
   @override
   NativeThrowBehavior visitNode(js.Node node) {
-    return NativeThrowBehavior.MAY;
+    return NativeThrowBehavior.may;
   }
 
   @override
   NativeThrowBehavior visitComment(js.Comment node) {
-    return NativeThrowBehavior.NEVER;
+    return NativeThrowBehavior.never;
   }
 
   @override
   NativeThrowBehavior visitLiteral(js.Literal node) {
-    return NativeThrowBehavior.NEVER;
+    return NativeThrowBehavior.never;
   }
 
   @override
   NativeThrowBehavior visitInterpolatedExpression(js.InterpolatedNode node) {
-    return NativeThrowBehavior.NEVER;
+    return NativeThrowBehavior.never;
   }
 
   @override
   NativeThrowBehavior visitInterpolatedSelector(js.InterpolatedNode node) {
-    return NativeThrowBehavior.NEVER;
+    return NativeThrowBehavior.never;
   }
 
   @override
   NativeThrowBehavior visitArrayInitializer(js.ArrayInitializer node) {
-    return node.elements.map(visit).fold(NativeThrowBehavior.NEVER, sequence);
+    return node.elements.map(visit).fold(NativeThrowBehavior.never, sequence);
   }
 
   @override
   NativeThrowBehavior visitArrayHole(js.ArrayHole node) {
-    return NativeThrowBehavior.NEVER;
+    return NativeThrowBehavior.never;
   }
 
   @override
   NativeThrowBehavior visitObjectInitializer(js.ObjectInitializer node) {
-    return node.properties.map(visit).fold(NativeThrowBehavior.NEVER, sequence);
+    return node.properties.map(visit).fold(NativeThrowBehavior.never, sequence);
   }
 
   @override
@@ -209,14 +213,15 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
   @override
   NativeThrowBehavior visitAssignment(js.Assignment node) {
     // TODO(sra): Can we make "#.p = #" be null(1)?
-    return NativeThrowBehavior.MAY;
+    return NativeThrowBehavior.may;
   }
 
   @override
   NativeThrowBehavior visitVariableInitialization(
-      js.VariableInitialization node) {
+    js.VariableInitialization node,
+  ) {
     final value = node.value;
-    if (value == null) return NativeThrowBehavior.NEVER;
+    if (value == null) return NativeThrowBehavior.never;
     return visit(value);
   }
 
@@ -226,20 +231,22 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
     if (target is js.PropertyAccess && _isFirstInterpolatedProperty(target)) {
       // #.f(...): Evaluate selector 'f', dereference, evaluate arguments, and
       // finally call target.
-      NativeThrowBehavior result =
-          sequence(visit(target.selector), NativeThrowBehavior.NULL_NSM);
+      NativeThrowBehavior result = sequence(
+        visit(target.selector),
+        NativeThrowBehavior.nullNsm,
+      );
       for (js.Expression argument in node.arguments) {
         result = sequence(result, visit(argument));
       }
-      return sequence(result, NativeThrowBehavior.MAY); // Target may throw.
+      return sequence(result, NativeThrowBehavior.may); // Target may throw.
     }
-    return NativeThrowBehavior.MAY;
+    return NativeThrowBehavior.may;
   }
 
   @override
   NativeThrowBehavior visitNew(js.New node) {
     // TODO(sra): `new Array(x)` where `x` is a small number.
-    return NativeThrowBehavior.MAY;
+    return NativeThrowBehavior.may;
   }
 
   @override
@@ -281,19 +288,20 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
       case "instanceof":
       case "in":
       default:
-        return NativeThrowBehavior.MAY;
+        return NativeThrowBehavior.may;
     }
   }
 
   @override
   NativeThrowBehavior visitThrow(js.Throw node) {
-    return sequence(visit(node.expression), NativeThrowBehavior.MAY);
+    return sequence(visit(node.expression), NativeThrowBehavior.may);
   }
 
   @override
   NativeThrowBehavior visitPrefix(js.Prefix node) {
-    if (node.op == 'typeof' && node.argument is js.VariableUse)
-      return NativeThrowBehavior.NEVER;
+    if (node.op == 'typeof' && node.argument is js.VariableUse) {
+      return NativeThrowBehavior.never;
+    }
     NativeThrowBehavior result = visit(node.argument);
     switch (node.op) {
       case '+':
@@ -304,7 +312,7 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
       case 'typeof':
         return result;
       default:
-        return NativeThrowBehavior.MAY;
+        return NativeThrowBehavior.may;
     }
   }
 
@@ -318,9 +326,9 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
       case 'Array':
       case 'Math':
       case 'Object':
-        return NativeThrowBehavior.NEVER;
+        return NativeThrowBehavior.never;
       default:
-        return NativeThrowBehavior.MAY;
+        return NativeThrowBehavior.may;
     }
   }
 
@@ -331,9 +339,9 @@ class ThrowBehaviorVisitor extends js.BaseVisitor<NativeThrowBehavior> {
     NativeThrowBehavior second = visit(node.selector);
 
     if (_isFirstInterpolatedProperty(node)) {
-      first = NativeThrowBehavior.NULL_NSM;
+      first = NativeThrowBehavior.nullNsm;
     } else {
-      first = NativeThrowBehavior.MAY;
+      first = NativeThrowBehavior.may;
     }
 
     return sequence(first, second);

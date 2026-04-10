@@ -33,7 +33,7 @@
 /// The names for parts given in the specification YAML file (besides "main")
 /// are arbitrary and just used for reporting when the output does not meet the
 /// specification.
-library dart2js_info.bin.deferred_library_check;
+library;
 
 import 'dart:io';
 
@@ -45,7 +45,7 @@ import 'package:yaml/yaml.dart';
 
 import 'usage_exception.dart';
 
-/// A command that computes the diff between two info files.
+/// A command that verifies that deferred libraries conform to a given spec.
 class DeferredLibraryCheck extends Command<void> with PrintUsageException {
   @override
   final String name = "deferred_check";

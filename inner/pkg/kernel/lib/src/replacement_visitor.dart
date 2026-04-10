@@ -1,62 +1,60 @@
 // Copyright (c) 2017, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import '../ast.dart';
 import '../type_algebra.dart';
 
 /// Helper visitor that clones a type if a nested type is replaced, and
 /// otherwise returns `null`.
-class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
+class ReplacementVisitor implements DartTypeVisitor1<DartType?, Variance> {
   const ReplacementVisitor();
 
   Nullability? visitNullability(DartType node) => null;
 
   @override
-  DartType? visitFunctionType(FunctionType node, int variance) {
+  DartType? visitFunctionType(FunctionType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
 
-    List<TypeParameter>? newTypeParameters;
+    List<StructuralParameter>? newTypeParameters;
     for (int i = 0; i < node.typeParameters.length; i++) {
-      TypeParameter typeParameter = node.typeParameters[i];
+      StructuralParameter typeParameter = node.typeParameters[i];
       // TODO(johnniwinther): Bounds should not be null, even in case of
       // cyclic typedefs. Currently
       //   instantiate_to_bound/non_simple_class_parametrized_typedef_cycle
       // fails with this.
       DartType? newBound = typeParameter.bound
-          .accept1(this, Variance.combine(variance, Variance.invariant));
+          .accept1(this, variance.combine(Variance.invariant));
       DartType? newDefaultType = typeParameter.defaultType
-          .accept1(this, Variance.combine(variance, Variance.invariant));
+          .accept1(this, variance.combine(Variance.invariant));
       if (newBound != null || newDefaultType != null) {
         newTypeParameters ??= node.typeParameters.toList(growable: false);
-        newTypeParameters[i] = new TypeParameter(
+        newTypeParameters[i] = new StructuralParameter(
             typeParameter.name,
             newBound ?? typeParameter.bound,
             newDefaultType ?? typeParameter.defaultType);
       }
     }
 
-    Substitution? substitution;
+    FunctionTypeInstantiator? instantiator;
     if (newTypeParameters != null) {
-      List<TypeParameterType> typeParameterTypes =
-          new List<TypeParameterType>.generate(newTypeParameters.length,
-              (int i) {
-        return new TypeParameterType.forAlphaRenaming(
-            node.typeParameters[i], newTypeParameters![i]);
-      }, growable: false);
-      substitution =
-          Substitution.fromPairs(node.typeParameters, typeParameterTypes);
+      List<DartType> typeParameterTypes = [
+        for (StructuralParameter parameter in newTypeParameters)
+          new StructuralParameterType.withDefaultNullability(parameter)
+      ];
+      instantiator =
+          FunctionTypeInstantiator.fromInstantiation(node, typeParameterTypes);
       for (int i = 0; i < newTypeParameters.length; i++) {
         newTypeParameters[i].bound =
-            substitution.substituteType(newTypeParameters[i].bound);
+            instantiator.substitute(newTypeParameters[i].bound);
       }
     }
 
-    DartType? visitType(DartType? type, int variance) {
+    DartType? visitType(DartType? type, Variance variance) {
       if (type == null) return null;
       DartType? result = type.accept1(this, variance);
-      if (substitution != null) {
-        result = substitution.substituteType(result ?? type);
+      if (instantiator != null) {
+        result = instantiator.substitute(result ?? type);
       }
       return result;
     }
@@ -65,7 +63,7 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
     List<DartType>? newPositionalParameters = null;
     for (int i = 0; i < node.positionalParameters.length; i++) {
       DartType? newType = visitType(node.positionalParameters[i],
-          Variance.combine(variance, Variance.contravariant));
+          variance.combine(Variance.contravariant));
       if (newType != null) {
         newPositionalParameters ??=
             node.positionalParameters.toList(growable: false);
@@ -75,7 +73,7 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
     List<NamedType>? newNamedParameters = null;
     for (int i = 0; i < node.namedParameters.length; i++) {
       DartType? newType = visitType(node.namedParameters[i].type,
-          Variance.combine(variance, Variance.contravariant));
+          variance.combine(Variance.contravariant));
       NamedType? newNamedType =
           createNamedType(node.namedParameters[i], newType);
       if (newNamedType != null) {
@@ -89,10 +87,10 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitRecordType(RecordType node, int variance) {
+  DartType? visitRecordType(RecordType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
 
-    DartType? visitType(DartType? type, int variance) {
+    DartType? visitType(DartType? type, Variance variance) {
       return type?.accept1(this, variance);
     }
 
@@ -128,7 +126,7 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   DartType? createFunctionType(
       FunctionType node,
       Nullability? newNullability,
-      List<TypeParameter>? newTypeParameters,
+      List<StructuralParameter>? newTypeParameters,
       DartType? newReturnType,
       List<DartType>? newPositionalParameters,
       List<NamedType>? newNamedParameters) {
@@ -161,7 +159,7 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitInterfaceType(InterfaceType node, int variance) {
+  DartType? visitInterfaceType(InterfaceType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     List<DartType>? newTypeArguments = null;
     for (int i = 0; i < node.typeArguments.length; i++) {
@@ -180,15 +178,15 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
       // No nullability or type arguments needed to be substituted.
       return null;
     } else {
-      return new InterfaceType(
-          node.classNode,
+      return new InterfaceType.byReference(
+          node.classReference,
           newNullability ?? node.nullability,
           newTypeArguments ?? node.typeArguments);
     }
   }
 
   @override
-  DartType? visitFutureOrType(FutureOrType node, int variance) {
+  DartType? visitFutureOrType(FutureOrType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     DartType? newTypeArgument = node.typeArgument.accept1(this, variance);
     return createFutureOrType(node, newNullability, newTypeArgument);
@@ -224,10 +222,10 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitDynamicType(DynamicType node, int variance) => null;
+  DartType? visitDynamicType(DynamicType node, Variance variance) => null;
 
   @override
-  DartType? visitNeverType(NeverType node, int variance) {
+  DartType? visitNeverType(NeverType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     return createNeverType(node, newNullability);
   }
@@ -242,22 +240,29 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitNullType(NullType node, int variance) => null;
+  DartType? visitNullType(NullType node, Variance variance) => null;
 
   @override
-  DartType? visitInvalidType(InvalidType node, int variance) => null;
+  DartType? visitInvalidType(InvalidType node, Variance variance) => null;
 
   @override
-  DartType? visitVoidType(VoidType node, int variance) => null;
+  DartType? visitVoidType(VoidType node, Variance variance) => null;
 
   @override
-  DartType? visitTypeParameterType(TypeParameterType node, int variance) {
+  DartType? visitTypeParameterType(TypeParameterType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     return createTypeParameterType(node, newNullability);
   }
 
   @override
-  DartType? visitIntersectionType(IntersectionType node, int variance) {
+  DartType? visitStructuralParameterType(
+      StructuralParameterType node, Variance variance) {
+    Nullability? newNullability = visitNullability(node);
+    return createStructuralParameterType(node, newNullability);
+  }
+
+  @override
+  DartType? visitIntersectionType(IntersectionType node, Variance variance) {
     DartType? newLeft = node.left.accept1(this, variance);
     DartType? newRight = node.right.accept1(this, variance);
     return createIntersectionType(
@@ -274,6 +279,16 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
     }
   }
 
+  DartType? createStructuralParameterType(
+      StructuralParameterType node, Nullability? newNullability) {
+    if (newNullability == null) {
+      // No nullability needed to be substituted.
+      return null;
+    } else {
+      return new StructuralParameterType(node.parameter, newNullability);
+    }
+  }
+
   DartType? createIntersectionType(
       IntersectionType node, TypeParameterType? left, DartType? right) {
     if (left == null && right == null) {
@@ -284,14 +299,12 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitTypedefType(TypedefType node, int variance) {
+  DartType? visitTypedefType(TypedefType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     List<DartType>? newTypeArguments = null;
     for (int i = 0; i < node.typeArguments.length; i++) {
       DartType? substitution = node.typeArguments[i].accept1(
-          this,
-          Variance.combine(
-              variance, node.typedefNode.typeParameters[i].variance));
+          this, variance.combine(node.typedefNode.typeParameters[i].variance));
       if (substitution != null) {
         newTypeArguments ??= node.typeArguments.toList(growable: false);
         newTypeArguments[i] = substitution;
@@ -314,14 +327,14 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
   }
 
   @override
-  DartType? visitExtensionType(ExtensionType node, int variance) {
+  DartType? visitExtensionType(ExtensionType node, Variance variance) {
     Nullability? newNullability = visitNullability(node);
     List<DartType>? newTypeArguments = null;
     for (int i = 0; i < node.typeArguments.length; i++) {
       DartType? substitution = node.typeArguments[i].accept1(
           this,
-          Variance.combine(
-              variance, node.extension.typeParameters[i].variance));
+          variance.combine(
+              node.extensionTypeDeclaration.typeParameters[i].variance));
       if (substitution != null) {
         newTypeArguments ??= node.typeArguments.toList(growable: false);
         newTypeArguments[i] = substitution;
@@ -337,42 +350,16 @@ class ReplacementVisitor implements DartTypeVisitor1<DartType?, int> {
       return null;
     } else {
       return new ExtensionType(
-          node.extension,
-          newNullability ?? node.nullability,
+          node.extensionTypeDeclaration,
+          newNullability ?? node.declaredNullability,
           newTypeArguments ?? node.typeArguments);
     }
   }
 
   @override
-  DartType? visitInlineType(InlineType node, int variance) {
-    Nullability? newNullability = visitNullability(node);
-    List<DartType>? newTypeArguments = null;
-    for (int i = 0; i < node.typeArguments.length; i++) {
-      DartType? substitution = node.typeArguments[i].accept1(
-          this,
-          Variance.combine(
-              variance, node.inlineClass.typeParameters[i].variance));
-      if (substitution != null) {
-        newTypeArguments ??= node.typeArguments.toList(growable: false);
-        newTypeArguments[i] = substitution;
-      }
-    }
-    return createInlineType(node, newNullability, newTypeArguments);
+  DartType? visitAuxiliaryType(AuxiliaryType node, Variance variance) {
+    // TODO(johnniwinther): Use [DartTypeVisitor1AuxiliaryFunction] to handle
+    // [AuxiliaryType]s.
+    return null;
   }
-
-  DartType? createInlineType(InlineType node, Nullability? newNullability,
-      List<DartType>? newTypeArguments) {
-    if (newNullability == null && newTypeArguments == null) {
-      // No nullability or type arguments needed to be substituted.
-      return null;
-    } else {
-      return new InlineType(
-          node.inlineClass,
-          newNullability ?? node.nullability,
-          newTypeArguments ?? node.typeArguments);
-    }
-  }
-
-  @override
-  DartType? defaultDartType(DartType node, int variance) => null;
 }

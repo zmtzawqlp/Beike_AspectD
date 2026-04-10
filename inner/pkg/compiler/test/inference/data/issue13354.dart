@@ -2,30 +2,28 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 // Regression test for issue 13354.
 
-/*member: bar:[exact=JSUInt31]*/
+/*member: bar:[exact=JSUInt31|powerset={I}{O}{N}]*/
 bar() => 42;
 
-/*member: baz:[subclass=Closure]*/
+/*member: baz:[subclass=Closure|powerset={N}{O}{N}]*/
 baz() => bar;
 
-/*member: A.:[exact=A]*/
+/*member: A.:[empty|powerset=empty]*/
 class A {
-  /*member: A.foo:[exact=JSUInt31]*/
+  /*member: A.foo:[exact=JSUInt31|powerset={I}{O}{N}]*/
   foo() => 42;
 }
 
-/*member: B.:[exact=B]*/
+/*member: B.:[exact=B|powerset={N}{O}{N}]*/
 class B extends A {
-  /*member: B.foo:[subclass=Closure]*/
+  /*member: B.foo:[subclass=Closure|powerset={N}{O}{N}]*/
   foo() => super.foo;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   baz();
-  B(). /*invoke: [exact=B]*/ foo();
+  B(). /*invoke: [exact=B|powerset={N}{O}{N}]*/ foo();
 }

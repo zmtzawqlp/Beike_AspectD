@@ -1,12 +1,11 @@
 # Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
 # for details. All rights reserved. Use of this source code is governed by a
-# BSD-style license that can be found in the LICENSE.md file.
+# BSD-style license that can be found in the LICENSE file.
 
 # If issuing a "compiling with strong mode but [...]" error, we should be able
 # to get rid of it if the error is fixed.
 
 type: newworld
-nnbdMode: strong
 worlds:
   - entry: package:baz/main.dart
     errors: true
@@ -105,7 +104,7 @@ worlds:
         // This file is in strong mode.
         int x = 42;
     expectedLibraryCount: 3
-    advancedInvalidation: outlineChange
+    advancedInvalidation: problemsInLibrary
 
   # Update the last package to be strong.
   - entry: package:baz/main.dart
@@ -141,4 +140,4 @@ worlds:
         // This file is in strong mode.
         int y = 42;
     expectedLibraryCount: 3
-    advancedInvalidation: outlineChange
+    advancedInvalidation: problemsInLibrary

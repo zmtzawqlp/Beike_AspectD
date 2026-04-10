@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: main:
  static=[
   testAnonymousAsync(0),
@@ -34,11 +32,8 @@ main() {
 }
 
 /*member: testSyncStar:
- static=[
-  _IterationMarker.endOfIteration(0),
-  _IterationMarker.uncaughtError(1),
-  _IterationMarker.yieldStar(1),
-  _makeSyncStarIterable<dynamic>(1)]
+ dynamic=[_yieldStar(1)],
+ static=[_makeSyncStarIterable<dynamic>(1)]
 */
 testSyncStar() sync* {}
 
@@ -67,10 +62,8 @@ testAsync() async {}
 testAsyncStar() async* {}
 
 /*member: testLocalSyncStar:
+ dynamic=[_yieldStar(1)],
  static=[
-  _IterationMarker.endOfIteration(0),
-  _IterationMarker.uncaughtError(1),
-  _IterationMarker.yieldStar(1),
   _makeSyncStarIterable<Null>(1),
   _setArrayType(2),
   def:local],
@@ -136,10 +129,8 @@ testLocalAsyncStar() {
 }
 
 /*member: testAnonymousSyncStar:
+ dynamic=[_yieldStar(1)],
  static=[
-  _IterationMarker.endOfIteration(0),
-  _IterationMarker.uncaughtError(1),
-  _IterationMarker.yieldStar(1),
   _makeSyncStarIterable<Null>(1),
   _setArrayType(2),
   def:<anonymous>],
@@ -213,20 +204,15 @@ testAnonymousAsyncStar() {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _asyncAwait(2),
   _asyncRethrow(2),
@@ -250,7 +236,7 @@ testAnonymousAsyncStar() {
   findType(1),
   instanceType(1)],
  type=[
-  impl:Stream<dynamic>*,
+  impl:Stream<dynamic>,
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
@@ -273,20 +259,15 @@ testAsyncForIn(o) async {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _asyncAwait(2),
   _asyncRethrow(2),
@@ -310,8 +291,8 @@ testAsyncForIn(o) async {
   findType(1),
   instanceType(1)],
  type=[
-  impl:Stream<dynamic>*,
-  impl:int*,
+  impl:Stream<dynamic>,
+  impl:int,
   inst:Closure,
   inst:JSBool,
   inst:JSNull,

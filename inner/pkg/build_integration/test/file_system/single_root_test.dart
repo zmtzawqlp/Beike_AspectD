@@ -2,12 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+// ignore_for_file: implementation_imports
+
 import 'package:build_integration/file_system/single_root.dart';
 import 'package:front_end/src/api_unstable/build_integration.dart';
 import 'package:front_end/src/api_prototype/memory_file_system.dart';
 import 'package:test/test.dart';
 
-main() {
+void main() {
   var root = Uri.parse('org-dartlang-test:///');
   var fileSystem = SingleRootFileSystem(
       'single-root', root.resolve('A/B'), MemoryFileSystem(root));

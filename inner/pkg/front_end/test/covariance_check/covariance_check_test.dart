@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
@@ -19,14 +20,14 @@ Future<void> main(List<String> args) async {
           runTestFor(const CovarianceCheckDataComputer(), [defaultCfeConfig]));
 }
 
-class CovarianceCheckDataComputer extends DataComputer<String> {
+class CovarianceCheckDataComputer extends CfeDataComputer<String> {
   const CovarianceCheckDataComputer();
 
   /// Function that computes a data mapping for [library].
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     new CovarianceCheckDataExtractor(testResultData.compilerResult, actualMap)
@@ -34,7 +35,7 @@ class CovarianceCheckDataComputer extends DataComputer<String> {
   }
 
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     member.accept(new CovarianceCheckDataExtractor(

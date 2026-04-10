@@ -14,8 +14,6 @@
   "canonicalUri": "memory:sdk/tests/web/native/lib.dart"
 }]*/
 
-// @dart = 2.7
-
 /*member: defaultArg:function=[{
   "id": "function/memory:sdk/tests/web/native/lib.dart::defaultArg",
   "kind": "function",
@@ -31,11 +29,11 @@
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "Value([exact=JSString], value: \"\")",
+  "inferredReturnType": "Value([exact=JSString|powerset={I}{O}{I}], value: \"\", powerset: {I}{O}{I})",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
-  "code": "_static_0(A, \"lib__defaultArg$closure\", \"defaultArg\", 0);\n\ndefaultArg() {\n      return \"\";\n    }",
+  "code": "defaultArg() {\n      return \"\";\n    }\n_static_0(A, \"lib__defaultArg$closure\", \"defaultArg\", 0);\n",
   "type": "dynamic Function()",
   "functionKind": 0
 }]*/
@@ -56,17 +54,17 @@ defaultArg() => "";
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[null|subclass=Object]",
+  "inferredReturnType": "[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]",
   "parameters": [
     {
       "name": "x",
-      "type": "[subclass=Closure]",
+      "type": "[subclass=Closure|powerset={N}{O}{N}]",
       "declaredType": "dynamic"
     }
   ],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
-  "code": "_static(A, \"lib__funky$closure\", 0, null, [\"call$1\", \"call$0\"], [\"funky\", function() {\n      return A.funky(A.lib__defaultArg$closure());\n    }], 1, 0);\n\nfunky(x) {\n      return x.call$0();\n    }",
+  "code": "funky(x) {\n      return x.call$0();\n    }\n_static(A, \"lib__funky$closure\", 0, null, [\"call$1\", \"call$0\"], [\"funky\", function() {\n      return A.funky(A.lib__defaultArg$closure());\n    }], 1, 0);\n",
   "type": "dynamic Function([dynamic])",
   "functionKind": 0
 }]*/

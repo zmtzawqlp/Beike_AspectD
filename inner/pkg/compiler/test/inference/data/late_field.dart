@@ -4,18 +4,20 @@
 
 import 'package:compiler/src/util/testing.dart';
 
-/*member: Foo.:[exact=Foo]*/
+/*member: Foo.:[exact=Foo|powerset={N}{O}{N}]*/
 class Foo {
-  /*member: Foo._#Foo#x#AI:[sentinel|exact=JSUInt31]*/
-  /*member: Foo.x:[exact=JSUInt31]*/
-  late int /*[exact=Foo]*/ /*update: [exact=Foo]*/ x = 42;
+  /*member: Foo._#Foo#x#AI:[sentinel|exact=JSUInt31|powerset={late}{I}{O}{N}]*/
+  /*member: Foo.x:[exact=JSUInt31|powerset={I}{O}{N}]*/
+  late int /*[exact=Foo|powerset={N}{O}{N}]*/ /*update: [exact=Foo|powerset={N}{O}{N}]*/
+  x = 42;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 void main() {
   makeLive(test(Foo()));
 }
 
 @pragma('dart2js:noInline')
-/*member: test:[exact=JSUInt31]*/
-int test(Foo /*[exact=Foo]*/ foo) => foo. /*[exact=Foo]*/ x;
+/*member: test:[exact=JSUInt31|powerset={I}{O}{N}]*/
+int test(Foo /*[exact=Foo|powerset={N}{O}{N}]*/ foo) =>
+    foo. /*[exact=Foo|powerset={N}{O}{N}]*/ x;

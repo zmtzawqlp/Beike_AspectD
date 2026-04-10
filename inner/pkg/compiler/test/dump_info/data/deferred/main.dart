@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*library: 
  constant=[
   {
@@ -85,6 +83,9 @@
       "lib": [
         "out_1.part.js"
       ]
+    },
+    "importPrefixToLoadId": {
+      "lib": "lib"
     }
   }
 }],
@@ -93,7 +94,7 @@
   "id": "library/memory:sdk/tests/web/native/main.dart::",
   "kind": "library",
   "name": "<unnamed>",
-  "size": 304,
+  "size": 316,
   "children": [
     "function/memory:sdk/tests/web/native/main.dart::main"
   ],
@@ -104,7 +105,7 @@
   "id": "outputUnit/1",
   "kind": "outputUnit",
   "name": "1",
-  "size": 1112,
+  "size": 1035,
   "filename": "out_1.part.js",
   "imports": [
     "lib"
@@ -126,7 +127,7 @@ import 'lib.dart' deferred as lib;
   "id": "closure/memory:sdk/tests/web/native/main.dart::main.main_closure",
   "kind": "closure",
   "name": "main_closure",
-  "size": 201,
+  "size": 212,
   "outputUnit": "outputUnit/main",
   "parent": "function/memory:sdk/tests/web/native/main.dart::main",
   "function": "function/memory:sdk/tests/web/native/main.dart::main.main_closure.call"
@@ -136,7 +137,7 @@ import 'lib.dart' deferred as lib;
   "id": "function/memory:sdk/tests/web/native/main.dart::main",
   "kind": "function",
   "name": "main",
-  "size": 304,
+  "size": 316,
   "outputUnit": "outputUnit/main",
   "parent": "library/memory:sdk/tests/web/native/main.dart::",
   "children": [
@@ -149,11 +150,11 @@ import 'lib.dart' deferred as lib;
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=_Future]",
+  "inferredReturnType": "[exact=_Future|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
-  "code": "main() {\n      return A.loadDeferredLibrary(\"lib\", 0).then$1$1(new A.main_closure(), type$.Null);\n    }",
+  "code": "main() {\n      return A.loadDeferredLibrary(\"lib\", \"\").then$1$1(new A.main_closure(), type$.Null);\n    }",
   "type": "dynamic Function()",
   "functionKind": 0
 },
@@ -161,7 +162,7 @@ import 'lib.dart' deferred as lib;
   "id": "function/memory:sdk/tests/web/native/main.dart::main.main_closure.call",
   "kind": "function",
   "name": "call",
-  "size": 84,
+  "size": 95,
   "outputUnit": "outputUnit/main",
   "parent": "closure/memory:sdk/tests/web/native/main.dart::main.main_closure",
   "children": [],
@@ -172,17 +173,17 @@ import 'lib.dart' deferred as lib;
     "external": false
   },
   "returnType": "Null",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [
     {
-      "name": "_",
-      "type": "[null|subclass=Object]",
+      "name": "_#wc0#formal",
+      "type": "[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]",
       "declaredType": "dynamic"
     }
   ],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
-  "code": "call$1(_) {\n      A.checkDeferredIsLoaded(\"lib\");\n      C.C_Deferred.call$0();\n    }",
+  "code": "call$1(__wc0_formal) {\n      A.checkDeferredIsLoaded(\"lib\");\n      C.C_Deferred.call$0();\n    }",
   "type": "Null Function(dynamic)",
   "functionKind": 2
 }],
@@ -190,10 +191,10 @@ import 'lib.dart' deferred as lib;
   {"id":"function/dart:_js_helper::loadDeferredLibrary"},
   {"id":"function/dart:_rti::_setArrayType"},
   {"id":"function/dart:_rti::findType"},
-  {"id":"function/dart:async::_Future.then","mask":"[exact=_Future]"},
+  {"id":"function/dart:async::_Future.then","mask":"[exact=_Future|powerset={N}{O}{N}]"},
   {"id":"function/memory:sdk/tests/web/native/main.dart::main.main_closure.call"},
   {"id":"function/memory:sdk/tests/web/native/main.dart::main.main_closure.call"}]
 */
 main() => lib.loadLibrary().then((_) {
-      (lib.funky)();
-    });
+  (lib.funky)();
+});

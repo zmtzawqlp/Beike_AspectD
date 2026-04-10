@@ -2,9 +2,16 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+/// @docImport 'package:compiler/src/io/source_file.dart';
 library _fe_analyzer_shared.scanner.utf8_bytes_scanner;
 
+import 'dart:typed_data' show Uint8List;
+
 import 'dart:convert' show unicodeBomCharacterRune, utf8;
+
+import 'characters.dart';
+
+import 'internal_utils.dart' show isIdentifierCharAllowDollarTableLookup;
 
 import 'token.dart' show LanguageVersionToken, SyntheticStringToken, TokenType;
 
@@ -30,12 +37,9 @@ import 'token_impl.dart'
  * that points to substrings.
  */
 class Utf8BytesScanner extends AbstractScanner {
-  /**
-   * The file content.
-   *
-   * The content is zero-terminated.
-   */
-  final List<int> bytes;
+  /// The raw file content.
+  final Uint8List _bytes;
+  final int _bytesLengthMinusOne;
 
   /**
    * Points to the offset of the last byte returned by [advance].
@@ -82,22 +86,20 @@ class Utf8BytesScanner extends AbstractScanner {
    */
   int utf8Slack = 0;
 
-  /**
-   * Creates a new Utf8BytesScanner. The source file is expected to be a
-   * [Utf8BytesSourceFile] that holds a list of UTF-8 bytes. Otherwise the
-   * string text of the source file is decoded.
-   *
-   * The list of UTF-8 bytes [file.slowUtf8Bytes()] is expected to return an
-   * array whose last element is '0' to signal the end of the file. If this
-   * is not the case, the entire array is copied before scanning.
-   */
-  Utf8BytesScanner(this.bytes,
-      {ScannerConfiguration? configuration,
-      bool includeComments = false,
-      LanguageVersionChanged? languageVersionChanged})
-      : super(configuration, includeComments, languageVersionChanged,
-            numberOfBytesHint: bytes.length) {
-    assert(bytes.last == 0);
+  Utf8BytesScanner(
+    this._bytes, {
+    ScannerConfiguration? configuration,
+    bool includeComments = false,
+    LanguageVersionChanged? languageVersionChanged,
+    bool allowLazyStrings = true,
+  }) : _bytesLengthMinusOne = _bytes.length - 1,
+       super(
+         configuration,
+         includeComments,
+         languageVersionChanged,
+         numberOfBytesHint: _bytes.length,
+         allowLazyStrings: allowLazyStrings,
+       ) {
     // Skip a leading BOM.
     if (containsBomAt(/* offset = */ 0)) {
       byteOffset += 3;
@@ -106,8 +108,9 @@ class Utf8BytesScanner extends AbstractScanner {
   }
 
   Utf8BytesScanner.createRecoveryOptionScanner(Utf8BytesScanner copyFrom)
-      : bytes = copyFrom.bytes,
-        super.recoveryOptionScanner(copyFrom) {
+    : _bytes = copyFrom._bytes,
+      _bytesLengthMinusOne = copyFrom._bytesLengthMinusOne,
+      super.recoveryOptionScanner(copyFrom) {
     this.byteOffset = copyFrom.byteOffset;
     this.scanSlack = copyFrom.scanSlack;
     this.scanSlackOffset = copyFrom.scanSlackOffset;
@@ -122,17 +125,254 @@ class Utf8BytesScanner extends AbstractScanner {
   bool containsBomAt(int offset) {
     const List<int> BOM_UTF8 = const [0xEF, 0xBB, 0xBF];
 
-    return offset + 3 < bytes.length &&
-        bytes[offset] == BOM_UTF8[0] &&
-        bytes[offset + 1] == BOM_UTF8[1] &&
-        bytes[offset + 2] == BOM_UTF8[2];
+    return offset + 2 < _bytes.length &&
+        _bytes[offset] == BOM_UTF8[0] &&
+        _bytes[offset + 1] == BOM_UTF8[1] &&
+        _bytes[offset + 2] == BOM_UTF8[2];
   }
 
   @override
-  int advance() => bytes[++byteOffset];
+  @pragma('vm:unsafe:no-bounds-checks')
+  int advance() {
+    // Always increment so byteOffset goes past the end.
+    ++byteOffset;
+    if (byteOffset > _bytesLengthMinusOne) return $EOF;
+    return _bytes[byteOffset];
+  }
+
+  @pragma('vm:unsafe:no-bounds-checks')
+  @pragma("vm:prefer-inline")
+  int _advanceNoBoundsCheck() {
+    ++byteOffset;
+    return _bytes[byteOffset];
+  }
 
   @override
-  int peek() => bytes[byteOffset + 1];
+  @pragma('vm:unsafe:no-bounds-checks')
+  int current() {
+    if (byteOffset > _bytesLengthMinusOne) return $EOF;
+    return _bytes[byteOffset];
+  }
+
+  @override
+  @pragma('vm:unsafe:no-bounds-checks')
+  int passIdentifierCharAllowDollar() {
+    int localByteOffset = byteOffset;
+    while (localByteOffset + 10 < _bytesLengthMinusOne) {
+      // Here we can access bytes without checks
+      int next = _bytes[++localByteOffset];
+      if (isIdentifierCharAllowDollarTableLookup(next) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          ) &&
+          isIdentifierCharAllowDollarTableLookup(
+            next = _bytes[++localByteOffset],
+          )) {
+        continue;
+      }
+      // If we got here the latest value into next returned false.
+      byteOffset = localByteOffset;
+      return next;
+    }
+
+    // Less than 10 bytes left in stream.
+    while (true) {
+      int next = advance();
+      if (next == $EOF || !isIdentifierCharAllowDollarTableLookup(next)) {
+        return next;
+      }
+    }
+  }
+
+  @pragma("vm:prefer-inline")
+  bool _isEolChar(int next) {
+    const List<bool> table = [
+      // format hack.
+      false, false, false, false, false, false, false, false,
+      false, false, true, false, false, true, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      // format hack.
+    ];
+    return table[next];
+  }
+
+  @override
+  bool scanUntilLineEnd() {
+    // The localByteOffset optimization from [passIdentifierCharAllowDollar]
+    // makes things slower here. (it does reduce the instructions executed, but
+    // seemingly increases the L1 instruction cache misses by ~15% making the
+    // whole thing slower).
+    int nonAsciiCount = 0;
+    while (byteOffset + 10 < _bytesLengthMinusOne) {
+      // Here we can access bytes without checks
+      // 1.
+      int next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 2.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 3.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 4.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 5.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 6.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 7.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 8.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 9.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+
+      // 10.
+      next = _advanceNoBoundsCheck();
+      nonAsciiCount |= next;
+      if (_isEolChar(next)) return nonAsciiCount & 128 == 0;
+    }
+    // Less than 10 bytes left.
+    int next = advance();
+    while (true) {
+      nonAsciiCount |= next;
+      if ($LF == next || $CR == next || $EOF == next) {
+        return nonAsciiCount & 128 == 0;
+      }
+      next = advance();
+    }
+  }
+
+  @override
+  @pragma("vm:prefer-inline")
+  int skipSpaces() {
+    // Not having a loop possibly saves us (at least) a
+    // CheckStackOverflow (2 instructions).
+    if (byteOffset + 10 < _bytesLengthMinusOne) {
+      // Here we can access bytes without checks
+      int next = _advanceNoBoundsCheck();
+      if (next == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE) {
+      } else {
+        // If we got here the latest value into next returned false.
+        return next;
+      }
+    }
+
+    while (byteOffset + 10 < _bytesLengthMinusOne) {
+      // Here we can access bytes without checks
+      int next = _advanceNoBoundsCheck();
+      if (next == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE &&
+          (next = _advanceNoBoundsCheck()) == $SPACE) {
+        continue;
+      }
+      // If we got here the latest value into next returned false.
+      return next;
+    }
+    // Less than 10 bytes left.
+    int next = advance();
+    while (next == $SPACE) {
+      next = advance();
+    }
+    return next;
+  }
+
+  @override
+  @pragma('vm:unsafe:no-bounds-checks')
+  int peek() {
+    int next = byteOffset + 1;
+    if (next > _bytesLengthMinusOne) return $EOF;
+    return _bytes[next];
+  }
 
   /// Returns the unicode code point starting at the byte offset [startOffset]
   /// with the byte [nextByte].
@@ -151,7 +391,9 @@ class Utf8BytesScanner extends AbstractScanner {
     }
     int numBytes = 0;
     for (int i = 0; i < expectedHighBytes; i++) {
-      if (bytes[byteOffset + i] < 0x80) {
+      int next = byteOffset + i;
+      if (next > _bytesLengthMinusOne) break;
+      if (_bytes[next] < 0x80) {
         break;
       }
       numBytes++;
@@ -163,8 +405,10 @@ class Utf8BytesScanner extends AbstractScanner {
     }
     // TODO(lry): measurably slow, decode creates first a Utf8Decoder and a
     // _Utf8Decoder instance. Also the sublist is eagerly allocated.
-    String codePoint =
-        utf8.decode(bytes.sublist(startOffset, end), allowMalformed: true);
+    String codePoint = utf8.decode(
+      _bytes.sublist(startOffset, end),
+      allowMalformed: true,
+    );
     if (codePoint.length == 0) {
       // The UTF-8 decoder discards leading BOM characters.
       // TODO(floitsch): don't just assume that removed characters were the
@@ -208,8 +452,10 @@ class Utf8BytesScanner extends AbstractScanner {
   void handleUnicode(int startScanOffset) {
     int end = byteOffset;
     // TODO(lry): this measurably slows down the scanner for files with unicode.
-    String s =
-        utf8.decode(bytes.sublist(startScanOffset, end), allowMalformed: true);
+    String s = utf8.decode(
+      _bytes.sublist(startScanOffset, end),
+      allowMalformed: true,
+    );
     utf8Slack += (end - startScanOffset) - s.length;
   }
 
@@ -239,46 +485,101 @@ class Utf8BytesScanner extends AbstractScanner {
 
   @override
   analyzer.StringToken createSubstringToken(
-      TokenType type, int start, bool asciiOnly,
-      [int extraOffset = 0]) {
+    TokenType type,
+    int start,
+    bool asciiOnly,
+    int extraOffset,
+    bool allowLazy,
+  ) {
     return new StringTokenImpl.fromUtf8Bytes(
-        type, bytes, start, byteOffset + extraOffset, asciiOnly, tokenStart,
-        precedingComments: comments);
+      type,
+      _bytes,
+      start,
+      byteOffset + extraOffset,
+      asciiOnly,
+      tokenStart,
+      precedingComments: comments,
+      allowLazy: allowLazy,
+    );
   }
 
   @override
   analyzer.StringToken createSyntheticSubstringToken(
-      TokenType type, int start, bool asciiOnly, String syntheticChars) {
-    String value = syntheticChars.length == 0
-        ? canonicalizeUtf8SubString(bytes, start, byteOffset, asciiOnly)
-        : canonicalizeString(
-            decodeString(bytes, start, byteOffset, asciiOnly) + syntheticChars);
+    TokenType type,
+    int start,
+    bool asciiOnly,
+    String syntheticChars,
+  ) {
+    String value =
+        syntheticChars.length == 0
+            ? canonicalizeUtf8SubString(_bytes, start, byteOffset, asciiOnly)
+            : canonicalizeString(
+              decodeString(_bytes, start, byteOffset, asciiOnly) +
+                  syntheticChars,
+            );
     return new SyntheticStringToken(
-        type, value, tokenStart, value.length - syntheticChars.length);
+      type,
+      value,
+      tokenStart,
+      value.length - syntheticChars.length,
+    );
   }
 
   @override
   analyzer.CommentToken createCommentToken(
-      TokenType type, int start, bool asciiOnly,
-      [int extraOffset = 0]) {
+    TokenType type,
+    int start,
+    bool asciiOnly, [
+    int extraOffset = 0,
+  ]) {
     return new CommentTokenImpl.fromUtf8Bytes(
-        type, bytes, start, byteOffset + extraOffset, asciiOnly, tokenStart);
+      type,
+      _bytes,
+      start,
+      byteOffset + extraOffset,
+      asciiOnly,
+      tokenStart,
+    );
   }
 
   @override
-  DartDocToken createDartDocToken(TokenType type, int start, bool asciiOnly,
-      [int extraOffset = 0]) {
+  DartDocToken createDartDocToken(
+    TokenType type,
+    int start,
+    bool asciiOnly, [
+    int extraOffset = 0,
+  ]) {
     return new DartDocToken.fromUtf8Bytes(
-        type, bytes, start, byteOffset + extraOffset, asciiOnly, tokenStart);
+      type,
+      _bytes,
+      start,
+      byteOffset + extraOffset,
+      asciiOnly,
+      tokenStart,
+    );
   }
 
   @override
   LanguageVersionToken createLanguageVersionToken(
-      int start, int major, int minor) {
+    int start,
+    int major,
+    int minor,
+  ) {
     return new LanguageVersionTokenImpl.fromUtf8Bytes(
-        bytes, start, byteOffset, tokenStart, major, minor);
+      _bytes,
+      start,
+      byteOffset,
+      tokenStart,
+      major,
+      minor,
+    );
   }
 
   @override
-  bool atEndOfFile() => byteOffset >= bytes.length - 1;
+  // This class used to require zero-terminated input, so we only return true
+  // once advance has been out of bounds.
+  // TODO(jensj): This should probably change.
+  // It's at least used in tests (where the eof token has its offset reduced
+  // by one to 'fix' this.)
+  bool atEndOfFile() => byteOffset > _bytesLengthMinusOne;
 }

@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   namedLocalFunctionInvoke();
   unnamedLocalFunctionInvoke();
@@ -23,9 +21,10 @@ main() {
 // Invocation of a named local function.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: namedLocalFunctionInvoke:[exact=JSUInt31]*/
+/*member: namedLocalFunctionInvoke:[exact=JSUInt31|powerset={I}{O}{N}]*/
 namedLocalFunctionInvoke() {
-  /*[exact=JSUInt31]*/ local() => 0;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local() => 0;
   return local();
 }
 
@@ -33,9 +32,9 @@ namedLocalFunctionInvoke() {
 // Invocation of an unnamed local function.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: unnamedLocalFunctionInvoke:[null|subclass=JSInt]*/
+/*member: unnamedLocalFunctionInvoke:[subclass=JSInt|powerset={I}{O}{N}]*/
 unnamedLocalFunctionInvoke() {
-  var local = /*[exact=JSUInt31]*/ () => 0;
+  var local = /*[exact=JSUInt31|powerset={I}{O}{N}]*/ () => 0;
   return local();
 }
 
@@ -43,9 +42,10 @@ unnamedLocalFunctionInvoke() {
 // Access of a named local function.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: namedLocalFunctionGet:[subclass=Closure]*/
+/*member: namedLocalFunctionGet:[subclass=Closure|powerset={N}{O}{N}]*/
 namedLocalFunctionGet() {
-  /*[exact=JSUInt31]*/ local() => 0;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local() => 0;
   return local;
 }
 
@@ -53,9 +53,10 @@ namedLocalFunctionGet() {
 // Call a named local function recursively.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: recursiveLocalFunction:[subclass=Closure]*/
+/*member: recursiveLocalFunction:[subclass=Closure|powerset={N}{O}{N}]*/
 recursiveLocalFunction() {
-  /*[subclass=Closure]*/ local() => local;
+  /*[subclass=Closure|powerset={N}{O}{N}]*/
+  local() => local;
   return local();
 }
 
@@ -63,10 +64,11 @@ recursiveLocalFunction() {
 // Call a named local function with a missing argument.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: namedLocalFunctionInvokeMissingArgument:[null|subclass=Object]*/
+/*member: namedLocalFunctionInvokeMissingArgument:[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]*/
 @pragma('dart2js:disableFinal')
 namedLocalFunctionInvokeMissingArgument() {
-  /*[exact=JSUInt31]*/ local(/*[empty]*/ x) => 0;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local(/*[empty|powerset=empty]*/ x) => 0;
   dynamic b = local;
   return b();
 }
@@ -75,10 +77,11 @@ namedLocalFunctionInvokeMissingArgument() {
 // Call a named local function with an extra argument.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: namedLocalFunctionInvokeExtraArgument:[null|subclass=Object]*/
+/*member: namedLocalFunctionInvokeExtraArgument:[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]*/
 @pragma('dart2js:disableFinal')
 namedLocalFunctionInvokeExtraArgument() {
-  /*[exact=JSUInt31]*/ local() => 0;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local() => 0;
   dynamic b = local;
   return b(0);
 }
@@ -87,10 +90,11 @@ namedLocalFunctionInvokeExtraArgument() {
 // Call a named local function with an extra named argument.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: namedLocalFunctionInvokeExtraNamedArgument:[null|subclass=Object]*/
+/*member: namedLocalFunctionInvokeExtraNamedArgument:[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]*/
 @pragma('dart2js:disableFinal')
 namedLocalFunctionInvokeExtraNamedArgument() {
-  /*[exact=JSUInt31]*/ local() => 0;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local() => 0;
   dynamic b = local;
   return b(a: 0);
 }
@@ -99,58 +103,66 @@ namedLocalFunctionInvokeExtraNamedArgument() {
 // Implicit .call on a local variable.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: closureToString:[exact=JSString]*/
+/*member: closureToString:[exact=JSString|powerset={I}{O}{I}]*/
 closureToString() {
-  var local = /*[null]*/ () {};
+  var local = /*[null|powerset={null}]*/ () {};
   local();
-  return local. /*invoke: [subclass=Closure]*/ toString();
+  return local. /*invoke: [subclass=Closure|powerset={N}{O}{N}]*/ toString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Explicit .call on a local variable.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: closureCallToString:[exact=JSString]*/
+/*member: closureCallToString:[exact=JSString|powerset={I}{O}{I}]*/
 closureCallToString() {
-  var local = /*[null]*/ () {};
+  var local = /*[null|powerset={null}]*/ () {};
   local.call();
-  return local. /*invoke: [subclass=Closure]*/ toString();
+  return local. /*invoke: [subclass=Closure|powerset={N}{O}{N}]*/ toString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Operator == on the result of a parameter invocation.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _callCompare:[subclass=Closure]*/
-_callCompare(int /*[subclass=Closure]*/ compare({a, b})) {
-  compare(a: 0, b: 1) /*invoke: [null|subclass=JSInt]*/ == 0;
+/*member: _callCompare:[subclass=Closure|powerset={N}{O}{N}]*/
+_callCompare(int /*[subclass=Closure|powerset={N}{O}{N}]*/ compare({a, b})) {
+  compare(a: 0, b: 1) /*invoke: [subclass=JSInt|powerset={I}{O}{N}]*/ == 0;
   return compare;
 }
 
-/*member: callCompare:[null]*/
+/*member: callCompare:[null|powerset={null}]*/
 callCompare() {
-  _callCompare(/*[subclass=JSInt]*/
-      ({/*[exact=JSUInt31]*/ a, /*[exact=JSUInt31]*/ b}) =>
-          a /*invoke: [exact=JSUInt31]*/ - b);
+  _callCompare(
+    /*[subclass=JSInt|powerset={I}{O}{N}]*/
+    ({
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/ a,
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/ b,
+    }) => a /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ - b,
+  );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Invocation on the result of a parameter invocation.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class1.:[exact=Class1]*/
+/*member: Class1.:[exact=Class1|powerset={N}{O}{N}]*/
 class Class1 {
-  /*member: Class1.method1:[null]*/
+  /*member: Class1.method1:[null|powerset={null}]*/
   method1() {}
 }
 
-/*member: _callClosure:[subclass=Closure]*/
-_callClosure(/*[subclass=Closure]*/ f({c})) {
+/*member: _callClosure:[subclass=Closure|powerset={N}{O}{N}]*/
+_callClosure(/*[subclass=Closure|powerset={N}{O}{N}]*/ f({c})) {
   f(c: Class1()).method1();
   return f;
 }
 
-/*member: callClosure:[null]*/
+/*member: callClosure:[null|powerset={null}]*/
 callClosure() {
-  _callClosure(/*[exact=Class1]*/ ({/*[exact=Class1]*/ c}) => c);
+  _callClosure(
+    /*[exact=Class1|powerset={N}{O}{N}]*/ ({
+      /*[exact=Class1|powerset={N}{O}{N}]*/ c,
+    }) => c,
+  );
 }

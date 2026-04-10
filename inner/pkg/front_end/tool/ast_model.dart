@@ -4,7 +4,6 @@
 
 import 'package:front_end/src/api_prototype/front_end.dart';
 import 'package:front_end/src/api_unstable/ddc.dart';
-import 'package:front_end/src/compute_platform_binaries_location.dart';
 import 'package:front_end/src/kernel_generator_impl.dart';
 import 'package:kernel/ast.dart';
 import 'package:kernel/class_hierarchy.dart';
@@ -13,7 +12,7 @@ import 'package:kernel/src/printer.dart';
 import 'package:kernel/target/targets.dart';
 import 'package:kernel/type_algebra.dart';
 import 'package:kernel/type_environment.dart';
-import 'package:vm/target/vm.dart';
+import 'package:vm/modular/target/vm.dart';
 
 final Uri astLibraryUri = Uri.parse('package:kernel/ast.dart');
 final Uri canonicalNameLibraryUri =
@@ -33,6 +32,7 @@ Uri computePackageConfig(Uri repoDir) =>
 const Map<String, String?> _declarativeClassesNames = const {
   'VariableDeclaration': 'name',
   'TypeParameter': 'name',
+  'StructuralParameter': 'name',
   'LabeledStatement': null,
   'SwitchCase': null,
 };
@@ -43,8 +43,7 @@ const Set<String> _utilityClassesAsValues = const {
   'Version',
 };
 
-/// Names of subclasses of [Node] that do _not_ have `visitX` or `defaultX`
-/// methods.
+/// Names of subclasses of [Node] that do _not_ have a `visitX` method.
 const Set<String> _classesWithoutVisitMethods = const {
   'InvocationExpression',
   'InstanceInvocationExpression',
@@ -67,8 +66,8 @@ const Set<String> _interchangeableClasses = const {
   'Pattern',
 };
 
-/// Names of subclasses of [NamedNode] that do _not_ have `visitXReference` or
-/// `defaultXReference` methods.
+/// Names of subclasses of [NamedNode] that do _not_ have a `visitXReference`
+/// method.
 const Set<String> _classesWithoutVisitReference = const {
   'NamedNode',
   'Library',
@@ -88,7 +87,6 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
   'Component': {
     'root': null,
     '_mainMethodName': FieldRule(name: 'mainMethodName'),
-    '_mode': FieldRule(name: 'mode'),
   },
   'Library': {
     '_languageVersion': FieldRule(name: 'languageVersion'),
@@ -96,7 +94,7 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
     '_classes': FieldRule(name: 'classes'),
     '_typedefs': FieldRule(name: 'typedefs'),
     '_extensions': FieldRule(name: 'extensions'),
-    '_inlineClasses': FieldRule(name: 'inlineClasses'),
+    '_extensionTypeDeclarations': FieldRule(name: 'extensionTypeDeclarations'),
     '_fields': FieldRule(name: 'fields'),
     '_procedures': FieldRule(name: 'procedures'),
   },
@@ -108,8 +106,6 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
     '_fieldsInternal': FieldRule(name: 'fields'),
     '_proceduresView': null,
     '_proceduresInternal': FieldRule(name: 'procedures'),
-    '_redirectingFactoriesView': null,
-    '_redirectingFactoriesInternal': FieldRule(name: 'redirectingFactories'),
     '_onClause': null,
     'lazyBuilder': null,
     'dirty': null,
@@ -117,13 +113,17 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
   'Extension': {
     'typeParameters': FieldRule(isDeclaration: true),
   },
-  'InlineClass': {
+  'ExtensionTypeDeclaration': {
     'typeParameters': FieldRule(isDeclaration: true),
+    '_procedures': FieldRule(name: 'procedures'),
   },
   'Field': {
     'reference': FieldRule(name: 'fieldReference'),
   },
   'TypeParameter': {
+    '_variance': FieldRule(name: 'variance'),
+  },
+  'StructuralParameter': {
     '_variance': FieldRule(name: 'variance'),
   },
   'FunctionNode': {
@@ -136,7 +136,7 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
     'typeParameters': FieldRule(isDeclaration: true),
   },
   'TypedefTearOff': {
-    'typeParameters': FieldRule(isDeclaration: true),
+    'structuralParameters': FieldRule(isDeclaration: true),
   },
   'TypedefTearOffConstant': {
     'parameters': FieldRule(isDeclaration: true),
@@ -184,12 +184,8 @@ const Map<String?, Map<String, FieldRule?>> _fieldRuleMap = {
   'TypeParameterType': {
     'parameter': FieldRule(isDeclaration: false),
   },
-  'ExtensionType': {
-    '_onType': FieldRule(name: 'onType'),
-  },
-  'InlineType': {
-    '_instantiatedRepresentationType':
-        FieldRule(name: 'instantiatedRepresentationType'),
+  'StructuralParameterType': {
+    'parameter': FieldRule(isDeclaration: false),
   },
   'VariableDeclaration': {
     '_name': FieldRule(name: 'name'),
@@ -254,8 +250,7 @@ enum AstClassKind {
   /// The root [Node] class.
   root,
 
-  /// An abstract node class that is a superclass of a public class. Most of
-  /// these have a corresponding `defaultX` visitor method.
+  /// An abstract node class that is a superclass of a public class.
   ///
   /// For instance [Statement] and [Expression].
   inner,
@@ -265,6 +260,13 @@ enum AstClassKind {
   ///
   /// For instance [Procedure] and [VariableGet].
   public,
+
+  /// An abstract node class that is a subclass of sealed class. These classes
+  /// are used to extend the AST and therefore have no known concrete
+  /// subclasses.
+  ///
+  /// For instance [AuxiliaryExpression] and [AuxiliaryType].
+  auxiliary,
 
   /// A concrete node class that serves only as an implementation of public
   /// node class.
@@ -330,7 +332,10 @@ class AstClass {
   AstClassKind get kind {
     if (_kind == null) {
       if (node.isAbstract) {
-        if (subclasses.isNotEmpty) {
+        if (node.name.startsWith("Auxiliary")) {
+          // TODO(johnniwinther): Is there a better way to determine this?
+          _kind = AstClassKind.auxiliary;
+        } else if (subclasses.isNotEmpty) {
           if (subclasses.every(
               (element) => element.kind == AstClassKind.implementation)) {
             _kind = AstClassKind.public;
@@ -351,17 +356,18 @@ class AstClass {
     return _kind!;
   }
 
-  /// Returns `true` if this class has a `visitX` or `defaultX` method.
+  /// Returns `true` if this class has a `visitX` method.
   ///
   /// This is only valid for subclass of [Node].
   bool get hasVisitMethod {
     switch (kind) {
-      case AstClassKind.root:
-      case AstClassKind.inner:
       case AstClassKind.public:
       case AstClassKind.named:
       case AstClassKind.declarative:
+      case AstClassKind.auxiliary:
         return !_classesWithoutVisitMethods.contains(name);
+      case AstClassKind.root:
+      case AstClassKind.inner:
       case AstClassKind.implementation:
       case AstClassKind.interface:
       case AstClassKind.utilityAsStructure:
@@ -370,18 +376,18 @@ class AstClass {
     }
   }
 
-  /// Returns `true` if this class has a `visitXReference` or
-  /// `defaultXReference` method.
+  /// Returns `true` if this class has a `visitXReference` method.
   ///
   /// This is only valid for subclass of [NamedNode] or [Constant].
   bool get hasVisitReferenceMethod {
     switch (kind) {
-      case AstClassKind.root:
-      case AstClassKind.inner:
       case AstClassKind.public:
       case AstClassKind.named:
       case AstClassKind.declarative:
+      case AstClassKind.auxiliary:
         return !_classesWithoutVisitReference.contains(name);
+      case AstClassKind.root:
+      case AstClassKind.inner:
       case AstClassKind.implementation:
       case AstClassKind.interface:
       case AstClassKind.utilityAsStructure:
@@ -558,9 +564,12 @@ Future<AstModel> deriveAstModel(Uri repoDir, {bool printDump = false}) async {
   };
 
   InternalCompilerResult compilerResult = (await kernelForProgramInternal(
-      astLibraryUri, options,
-      retainDataForTesting: true,
-      requireMain: false)) as InternalCompilerResult;
+    astLibraryUri,
+    options,
+    retainDataForTesting: true,
+    requireMain: false,
+    buildComponent: false,
+  )) as InternalCompilerResult;
   if (errorsFound) {
     throw 'Errors found';
   }
@@ -689,12 +698,12 @@ Future<AstModel> deriveAstModel(Uri repoDir, {bool printDump = false}) async {
       if (node == classNode) {
         astClass = new AstClass(node,
             kind: AstClassKind.root, isInterchangeable: isInterchangeable);
-      } else if (classHierarchy.isSubtypeOf(node, classNode)) {
+      } else if (classHierarchy.isSubInterfaceOf(node, classNode)) {
         AstClass? superclass = computeAstClass(node.superclass);
         AstClassKind? kind;
         String? declarativeName;
         if (!node.isAbstract &&
-            classHierarchy.isSubtypeOf(node, classNamedNode)) {
+            classHierarchy.isSubInterfaceOf(node, classNamedNode)) {
           kind = AstClassKind.named;
         } else if (declarativeClasses.contains(node)) {
           kind = AstClassKind.declarative;
@@ -751,8 +760,7 @@ Future<AstModel> deriveAstModel(Uri repoDir, {bool printDump = false}) async {
         bool isDeclarativeType = false;
         for (DartType declarativeType in declarativeTypes) {
           if (type is InterfaceType &&
-              typeEnvironment.isSubtypeOf(
-                  type, declarativeType, SubtypeCheckMode.withNullabilities)) {
+              typeEnvironment.isSubtypeOf(type, declarativeType)) {
             isDeclarativeType = true;
             break;
           }
@@ -770,34 +778,29 @@ Future<AstModel> deriveAstModel(Uri repoDir, {bool printDump = false}) async {
             return new FieldType(type, AstFieldKind.use);
           }
         }
-        if (type is InterfaceType &&
-            typeEnvironment.isSubtypeOf(type, coreTypes.listNullableRawType,
-                SubtypeCheckMode.withNullabilities)) {
+        if (type is TypeDeclarationType &&
+            typeEnvironment.isSubtypeOf(type, coreTypes.listNullableRawType)) {
           DartType elementType = typeEnvironment
               .getTypeArgumentsAsInstanceOf(type, coreTypes.listClass)!
               .single;
           return new ListFieldType(type, computeFieldType(elementType));
-        } else if (type is InterfaceType &&
-            typeEnvironment.isSubtypeOf(type, coreTypes.setNullableRawType,
-                SubtypeCheckMode.withNullabilities)) {
+        } else if (type is TypeDeclarationType &&
+            typeEnvironment.isSubtypeOf(type, coreTypes.setNullableRawType)) {
           DartType elementType = typeEnvironment
               .getTypeArgumentsAsInstanceOf(type, coreTypes.setClass)!
               .single;
           return new SetFieldType(type, computeFieldType(elementType));
-        } else if (type is InterfaceType &&
-            typeEnvironment.isSubtypeOf(type, coreTypes.mapNullableRawType,
-                SubtypeCheckMode.withNullabilities)) {
+        } else if (type is TypeDeclarationType &&
+            typeEnvironment.isSubtypeOf(type, coreTypes.mapNullableRawType)) {
           List<DartType> typeArguments = typeEnvironment
               .getTypeArgumentsAsInstanceOf(type, coreTypes.mapClass)!;
           return new MapFieldType(type, computeFieldType(typeArguments[0]),
               computeFieldType(typeArguments[1]));
         } else if (type is InterfaceType &&
-            typeEnvironment.isSubtypeOf(
-                type, nullableNodeType, SubtypeCheckMode.withNullabilities)) {
+            typeEnvironment.isSubtypeOf(type, nullableNodeType)) {
           return new FieldType(type, AstFieldKind.node);
         } else if (type is InterfaceType &&
-            typeEnvironment.isSubtypeOf(type, nullableReferenceType,
-                SubtypeCheckMode.withNullabilities)) {
+            typeEnvironment.isSubtypeOf(type, nullableReferenceType)) {
           return new FieldType(type, AstFieldKind.reference);
         } else {
           if (type is InterfaceType) {

@@ -101,17 +101,17 @@ class TouchHandler {
   late int _endTouchY;
 
   TouchHandler(Touchable touchable, [Element? element])
-      : _touchable = touchable,
-        _totalMoveY = 0,
-        _totalMoveX = 0,
-        _recentTouchesX = <int>[],
-        _recentTouchesY = <int>[],
-        // TODO(jmesserly): I don't like having to initialize all booleans here
-        // See b/5045736
-        _dragging = false,
-        _tracking = false,
-        _touching = false,
-        _element = element ?? touchable.getElement();
+    : _touchable = touchable,
+      _totalMoveY = 0,
+      _totalMoveX = 0,
+      _recentTouchesX = <int>[],
+      _recentTouchesY = <int>[],
+      // TODO(jmesserly): I don't like having to initialize all booleans here
+      // See b/5045736
+      _dragging = false,
+      _tracking = false,
+      _touching = false,
+      _element = element ?? touchable.getElement();
 
   /// Begin tracking the touchable element, it is eligible for dragging.
   void _beginTracking() {
@@ -147,11 +147,18 @@ class TouchHandler {
       _onEnd(e.timeStamp.toInt(), e);
     }
 
-    _addEventListeners(_element, (e) {
-      _onStart(e as TouchEvent);
-    }, (e) {
-      _onMove(e as TouchEvent);
-    }, onEnd, onEnd, capture);
+    _addEventListeners(
+      _element,
+      (e) {
+        _onStart(e as TouchEvent);
+      },
+      (e) {
+        _onMove(e as TouchEvent);
+      },
+      onEnd,
+      onEnd,
+      capture,
+    );
   }
 
   /// Get the current horizontal drag delta. Drag delta is defined as the deltaX
@@ -258,10 +265,16 @@ class TouchHandler {
       _draggable.onDragMove();
       _lastEvent = e;
       e.preventDefault();
-      _recentTouchesX =
-          _removeTouchesInWrongDirection(_recentTouchesX, _lastMoveX, moveX);
-      _recentTouchesY =
-          _removeTouchesInWrongDirection(_recentTouchesY, _lastMoveY, moveY);
+      _recentTouchesX = _removeTouchesInWrongDirection(
+        _recentTouchesX,
+        _lastMoveX,
+        moveX,
+      );
+      _recentTouchesY = _removeTouchesInWrongDirection(
+        _recentTouchesY,
+        _lastMoveY,
+        moveY,
+      );
       _recentTouchesX = _removeOldTouches(_recentTouchesX, timeStamp);
       _recentTouchesY = _removeOldTouches(_recentTouchesY, timeStamp);
       _recentTouchesX.add(clientX);
@@ -326,7 +339,10 @@ class TouchHandler {
   /// stamp. The x or y component of the most recent move is specified by
   /// [recentMove].
   List<int> _removeTouchesInWrongDirection(
-      List<int> recentTouches, int lastMove, int recentMove) {
+    List<int> recentTouches,
+    int lastMove,
+    int recentMove,
+  ) {
     if (lastMove != 0 &&
         recentMove != 0 &&
         recentTouches.length > 2 &&

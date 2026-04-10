@@ -7,16 +7,14 @@ import "ast.dart"
         Class,
         Constructor,
         Extension,
-        ExtensionMemberDescriptor,
+        ExtensionTypeDeclaration,
         Field,
         Library,
-        Member,
         Name,
         Procedure,
         ProcedureKind,
         Reference,
-        Typedef,
-        InlineClass;
+        Typedef;
 
 class ReferenceFromIndex {
   Map<Library, IndexedLibrary> _indexedLibraries =
@@ -33,15 +31,20 @@ class ReferenceFromIndex {
 }
 
 abstract class IndexedContainer {
-  final Map<Name, Reference> _fieldReferences = new Map<Name, Reference>();
+  Library get library;
+
+  /// Reference to this container node.
+  Reference get reference;
+
+  Reference? lookupConstructorReference(Name name);
+  Reference? lookupFieldReference(Name name);
+  Reference? lookupGetterReference(Name name);
+  Reference? lookupSetterReference(Name name);
+}
+
+mixin _IndexedProceduresMixin {
   final Map<Name, Reference> _getterReferences = new Map<Name, Reference>();
   final Map<Name, Reference> _setterReferences = new Map<Name, Reference>();
-
-  Reference? lookupFieldReference(Name name) => _fieldReferences[name];
-  Reference? lookupGetterReference(Name name) => _getterReferences[name];
-  Reference? lookupSetterReference(Name name) => _setterReferences[name];
-
-  Library get library;
 
   void _addProcedures(List<Procedure> procedures) {
     for (int i = 0; i < procedures.length; i++) {
@@ -50,6 +53,7 @@ abstract class IndexedContainer {
   }
 
   void _addProcedure(Procedure procedure) {
+    procedure.reference.canonicalName = null;
     Name name = procedure.name;
     if (procedure.isSetter) {
       assert(_setterReferences[name] == null);
@@ -62,10 +66,26 @@ abstract class IndexedContainer {
       _getterReferences[name] = procedure.reference;
     }
   }
+}
+
+abstract class IndexedContainerImpl
+    with _IndexedProceduresMixin
+    implements IndexedContainer {
+  final Map<Name, Reference> _fieldReferences = new Map<Name, Reference>();
+
+  @override
+  Reference? lookupFieldReference(Name name) => _fieldReferences[name];
+  @override
+  Reference? lookupGetterReference(Name name) => _getterReferences[name];
+  @override
+  Reference? lookupSetterReference(Name name) => _setterReferences[name];
 
   void _addFields(List<Field> fields) {
     for (int i = 0; i < fields.length; i++) {
       Field field = fields[i];
+      field.fieldReference.canonicalName = null;
+      field.getterReference.canonicalName = null;
+      field.setterReference?.canonicalName = null;
       Name name = field.name;
       assert(_fieldReferences[name] == null);
       _fieldReferences[name] = field.fieldReference;
@@ -79,33 +99,38 @@ abstract class IndexedContainer {
   }
 }
 
-class IndexedLibrary extends IndexedContainer {
-  final Map<String, Typedef> _typedefs = new Map<String, Typedef>();
-  final Map<String, Class> _classes = new Map<String, Class>();
-  final Map<String, IndexedClass> _indexedClasses =
-      new Map<String, IndexedClass>();
-  final Map<String, Extension> _extensions = new Map<String, Extension>();
-  final Map<String, InlineClass> _inlineClasses =
-      new Map<String, InlineClass>();
+class IndexedLibrary extends IndexedContainerImpl {
+  final Map<String, Typedef> _typedefs = {};
+  final Map<String, IndexedClass> _indexedClasses = {};
+  final Map<String, IndexedExtensionTypeDeclaration>
+      _indexedExtensionTypeDeclarations = {};
+  final Map<String, Extension> _extensions = {};
   @override
   final Library library;
 
+  /// Index [library], and clear all canonical names in references in this
+  /// library and its containing classes, procedures etc.
+  /// TODO(jensj): Should this class be renamed to make it more immediately
+  /// clear that it also clears canonical names? And should the class be moved
+  /// as it is more tightly bound with the incremental compiler?
   IndexedLibrary(this.library) {
+    library.reference.canonicalName = null;
     for (int i = 0; i < library.typedefs.length; i++) {
       Typedef typedef = library.typedefs[i];
+      typedef.reference.canonicalName = null;
       assert(_typedefs[typedef.name] == null);
       _typedefs[typedef.name] = typedef;
     }
     for (int i = 0; i < library.classes.length; i++) {
       Class c = library.classes[i];
-      assert(_classes[c.name] == null);
-      _classes[c.name] = c;
+      c.reference.canonicalName = null;
       assert(_indexedClasses[c.name] == null);
       _indexedClasses[c.name] = new IndexedClass._(c, library);
     }
     List<Extension> unnamedExtensions = [];
     for (int i = 0; i < library.extensions.length; i++) {
       Extension extension = library.extensions[i];
+      extension.reference.canonicalName = null;
       if (extension.isUnnamedExtension) {
         unnamedExtensions.add(extension);
       } else {
@@ -113,62 +138,104 @@ class IndexedLibrary extends IndexedContainer {
         _extensions[extension.name] = extension;
       }
     }
-    for (int i = 0; i < library.inlineClasses.length; i++) {
-      InlineClass inlineClass = library.inlineClasses[i];
-      assert(_inlineClasses[inlineClass.name] == null);
-      _inlineClasses[inlineClass.name] = inlineClass;
+    for (int i = 0; i < library.extensionTypeDeclarations.length; i++) {
+      ExtensionTypeDeclaration extensionTypeDeclaration =
+          library.extensionTypeDeclarations[i];
+      extensionTypeDeclaration.reference.canonicalName = null;
+      assert(_indexedExtensionTypeDeclarations[extensionTypeDeclaration.name] ==
+          null);
+      _indexedExtensionTypeDeclarations[extensionTypeDeclaration.name] =
+          new IndexedExtensionTypeDeclaration(this, extensionTypeDeclaration);
     }
     _addProcedures(library.procedures);
     _addFields(library.fields);
-
-    // Unnamed extensions and their members cannot be looked up and reused and
-    // their references should not therefore not be bound to the canonical names
-    // as it would otherwise prevent (new) unnamed extensions and member from
-    // repurposing these canonical names.
-    for (Extension extension in unnamedExtensions) {
-      extension.reference.canonicalName?.unbind();
-      for (ExtensionMemberDescriptor descriptor in extension.members) {
-        Reference reference = descriptor.member;
-        Member member = reference.asMember;
-        if (member is Field) {
-          member.fieldReference.canonicalName?.unbind();
-          member.getterReference.canonicalName?.unbind();
-          member.setterReference?.canonicalName?.unbind();
-        } else {
-          member.reference.canonicalName?.unbind();
-        }
-      }
-    }
   }
 
-  Typedef? lookupTypedef(String name) => _typedefs[name];
-  Class? lookupClass(String name) => _classes[name];
+  @override
+  Reference get reference => library.reference;
+
+  Reference? lookupTypedef(String name) => _typedefs[name]?.reference;
   IndexedClass? lookupIndexedClass(String name) => _indexedClasses[name];
-  Extension? lookupExtension(String name) => _extensions[name];
-  InlineClass? lookupInlineClass(String name) => _inlineClasses[name];
+
+  Reference? lookupExtension(String name) => _extensions[name]?.reference;
+
+  IndexedExtensionTypeDeclaration? lookupIndexedExtensionTypeDeclaration(
+          String name) =>
+      _indexedExtensionTypeDeclarations[name];
+
+  @override
+  Reference? lookupConstructorReference(Name name) {
+    throw new UnsupportedError("$runtimeType.lookupConstructorReference");
+  }
 }
 
-class IndexedClass extends IndexedContainer {
-  final Class cls;
-  final Map<Name, Reference> _constructors = new Map<Name, Reference>();
+class IndexedClass extends IndexedContainerImpl {
+  final Class _cls;
+  final Map<Name, Reference> _constructors = {};
   @override
   final Library library;
 
-  IndexedClass._(this.cls, this.library) {
-    for (int i = 0; i < cls.constructors.length; i++) {
-      Constructor constructor = cls.constructors[i];
+  IndexedClass._(this._cls, this.library) {
+    for (int i = 0; i < _cls.constructors.length; i++) {
+      Constructor constructor = _cls.constructors[i];
+      constructor.reference.canonicalName = null;
       _constructors[constructor.name] = constructor.reference;
     }
-    for (int i = 0; i < cls.procedures.length; i++) {
-      Procedure procedure = cls.procedures[i];
+    for (int i = 0; i < _cls.procedures.length; i++) {
+      Procedure procedure = _cls.procedures[i];
       if (procedure.isFactory) {
+        procedure.reference.canonicalName = null;
         _constructors[procedure.name] = procedure.reference;
       } else {
         _addProcedure(procedure);
       }
     }
-    _addFields(cls.fields);
+    _addFields(_cls.fields);
   }
 
+  @override
+  Reference get reference => _cls.reference;
+
+  @override
   Reference? lookupConstructorReference(Name name) => _constructors[name];
+}
+
+class IndexedExtensionTypeDeclaration
+    with _IndexedProceduresMixin
+    implements IndexedContainer {
+  final IndexedLibrary _indexedLibrary;
+  final ExtensionTypeDeclaration extensionTypeDeclaration;
+
+  IndexedExtensionTypeDeclaration(
+      this._indexedLibrary, this.extensionTypeDeclaration) {
+    _addProcedures(extensionTypeDeclaration.procedures);
+  }
+
+  @override
+  Library get library => _indexedLibrary.library;
+
+  @override
+  Reference get reference => extensionTypeDeclaration.reference;
+
+  @override
+  Reference? lookupConstructorReference(Name name) =>
+      // Constructors are stored as methods in the library.
+      _indexedLibrary.lookupGetterReference(name);
+
+  @override
+  Reference? lookupFieldReference(Name name) =>
+      // Static fields are stored in the library.
+      _indexedLibrary.lookupFieldReference(name);
+
+  @override
+  Reference? lookupGetterReference(Name name) {
+    return _getterReferences[name] ??
+        _indexedLibrary.lookupGetterReference(name);
+  }
+
+  @override
+  Reference? lookupSetterReference(Name name) {
+    return _setterReferences[name] ??
+        _indexedLibrary.lookupSetterReference(name);
+  }
 }

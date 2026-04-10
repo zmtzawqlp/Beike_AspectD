@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/common/elements.dart';
 import 'package:compiler/src/compiler.dart';
@@ -52,62 +52,57 @@ late TypeMask jsInterceptorOrNull;
 late TypeMask jsInterceptorOrComparableOrNull;
 late TypeMask jsTrustedGetRuntimeTypeOrNull;
 
-class Pair {
-  final first;
-  final second;
-  Pair(this.first, this.second);
-  @override
-  int get hashCode => first.hashCode * 47 + second.hashCode;
-  @override
-  bool operator ==(other) =>
-      other is Pair &&
-      identical(first, other.first) &&
-      identical(second, other.second);
-}
+typedef Operator = TypeMask Function(TypeMask, TypeMask);
+typedef Predicate = bool Function(TypeMask);
 
 class RuleSet {
-  final name;
-  final operate;
-  final Set typesSeen = {};
-  final Set pairsSeen = {};
+  final String name;
+  final Operator operate;
+  final CommonMasks masks;
+  final Set<TypeMask> typesSeen = {};
+  final Set<(TypeMask, TypeMask)> pairsSeen = {};
 
-  RuleSet(this.name, this.operate);
+  RuleSet(this.name, this.operate, this.masks);
 
-  void rule(type1, type2, result) {
+  void rule(TypeMask type1, TypeMask type2, TypeMask result) {
     typesSeen
       ..add(type1)
       ..add(type2);
-    var pair1 = Pair(type1, type2);
-    var pair2 = Pair(type2, type1);
+    final pair1 = (type1, type2);
+    final pair2 = (type2, type1);
     if (pairsSeen.contains(pair1)) {
-      Expect.isFalse(true, 'Redundant rule ($type1, $type2, ...)');
+      Expect.fail('Redundant rule ($type1, $type2, ...)');
     }
     pairsSeen
       ..add(pair1)
       ..add(pair2);
 
-    var r1 = operate(type1, type2);
-    var r2 = operate(type2, type1);
-    Expect.equals(result, r1, "Unexpected result of $name($type1,$type2)");
-    Expect.equals(r1, r2, 'Symmetry violation of $name($type1,$type2)');
+    final r1 = operate(type1, type2);
+    final r2 = operate(type2, type1);
+    Expect.equals(
+      result.withOnlySpecialValuesForTesting(masks),
+      r1.withOnlySpecialValuesForTesting(masks),
+      "Unexpected result of $name($type1, $type2)",
+    );
+    Expect.equals(r1, r2, 'Symmetry violation of $name($type1, $type2)');
   }
 
-  void check(type1, type2, predicate) {
+  void check(TypeMask type1, TypeMask type2, Predicate predicate) {
     typesSeen
       ..add(type1)
       ..add(type2);
-    var pair = Pair(type1, type2);
-    pairsSeen..add(pair);
-    var result = operate(type1, type2);
+    final pair = (type1, type2);
+    pairsSeen.add(pair);
+    final result = operate(type1, type2);
     Expect.isTrue(predicate(result));
   }
 
   void validateCoverage() {
-    for (var type1 in typesSeen) {
-      for (var type2 in typesSeen) {
-        var pair = Pair(type1, type2);
+    for (final type1 in typesSeen) {
+      for (final type2 in typesSeen) {
+        final pair = (type1, type2);
         if (!pairsSeen.contains(pair)) {
-          Expect.isTrue(false, 'Missing rule: $name($type1, $type2)');
+          Expect.fail('Missing rule: $name($type1, $type2)');
         }
       }
     }
@@ -117,9 +112,14 @@ class RuleSet {
 void testUnion(JClosedWorld closedWorld) {
   final commonMasks = closedWorld.abstractValueDomain as CommonMasks;
   RuleSet ruleSet = RuleSet(
-      'union', (t1, t2) => simplify(t1.union(t2, commonMasks), commonMasks));
-  rule(type1, type2, result) => ruleSet.rule(type1, type2, result);
-  check(type1, type2, predicate) => ruleSet.check(type1, type2, predicate);
+    'union',
+    (t1, t2) => simplify(t1.union(t2, commonMasks), commonMasks) as TypeMask,
+    commonMasks,
+  );
+  rule(TypeMask type1, TypeMask type2, TypeMask result) =>
+      ruleSet.rule(type1, type2, result);
+  check(TypeMask type1, TypeMask type2, Predicate predicate) =>
+      ruleSet.check(type1, type2, predicate);
 
   rule(emptyType, emptyType, emptyType);
   rule(emptyType, dynamicType, dynamicType);
@@ -418,18 +418,39 @@ void testUnion(JClosedWorld closedWorld) {
 
   rule(jsFixedArray, jsFixedArray, jsFixedArray);
 
-  check(nonPrimitive1, nullType, (type) => type == nonPrimitive1.nullable());
-  check(nonPrimitive2, nullType, (type) => type == nonPrimitive2.nullable());
-  check(nullType, nonPrimitive1, (type) => type == nonPrimitive1.nullable());
-  check(nullType, nonPrimitive2, (type) => type == nonPrimitive2.nullable());
+  check(
+    nonPrimitive1,
+    nullType,
+    (type) => type == nonPrimitive1.nullable(commonMasks),
+  );
+  check(
+    nonPrimitive2,
+    nullType,
+    (type) => type == nonPrimitive2.nullable(commonMasks),
+  );
+  check(
+    nullType,
+    nonPrimitive1,
+    (type) => type == nonPrimitive1.nullable(commonMasks),
+  );
+  check(
+    nullType,
+    nonPrimitive2,
+    (type) => type == nonPrimitive2.nullable(commonMasks),
+  );
 
   ruleSet.validateCoverage();
 }
 
 void testIntersection(JClosedWorld closedWorld) {
-  RuleSet ruleSet = RuleSet('intersection',
-      (t1, t2) => t1.intersection(t2, closedWorld.abstractValueDomain));
-  rule(type1, type2, result) => ruleSet.rule(type1, type2, result);
+  final commonMasks = closedWorld.abstractValueDomain as CommonMasks;
+  RuleSet ruleSet = RuleSet(
+    'intersection',
+    (t1, t2) => t1.intersection(t2, commonMasks),
+    commonMasks,
+  );
+  rule(TypeMask type1, TypeMask type2, TypeMask result) =>
+      ruleSet.rule(type1, type2, result);
 
   rule(emptyType, emptyType, emptyType);
   rule(emptyType, dynamicType, emptyType);
@@ -569,15 +590,21 @@ void testIntersection(JClosedWorld closedWorld) {
   rule(jsIndexable, nonPrimitive1, emptyType);
   rule(jsIndexable, nonPrimitive2, emptyType);
   rule(
-      jsIndexable,
-      potentialArray,
-      TypeMask.nonNullSubtype(
-          closedWorld.commonElements.jsArrayClass, closedWorld));
+    jsIndexable,
+    potentialArray,
+    TypeMask.nonNullSubtype(
+      closedWorld.commonElements.jsArrayClass,
+      commonMasks,
+    ),
+  );
   rule(
-      jsIndexable,
-      potentialString,
-      TypeMask.nonNullSubtype(
-          closedWorld.commonElements.jsStringClass, closedWorld));
+    jsIndexable,
+    potentialString,
+    TypeMask.nonNullSubtype(
+      closedWorld.commonElements.jsStringClass,
+      commonMasks,
+    ),
+  );
   rule(jsIndexable, jsBooleanOrNull, emptyType);
   rule(jsIndexable, jsNumberOrNull, emptyType);
   rule(jsIndexable, jsIntegerOrNull, emptyType);
@@ -742,12 +769,18 @@ void testIntersection(JClosedWorld closedWorld) {
 }
 
 void testRegressions(JClosedWorld closedWorld) {
-  TypeMask nonNullPotentialString =
-      TypeMask.nonNullSubtype(patternClass, closedWorld);
+  final commonMasks = closedWorld.abstractValueDomain as CommonMasks;
+  TypeMask nonNullPotentialString = TypeMask.nonNullSubtype(
+    patternClass,
+    commonMasks,
+  );
   Expect.equals(
-      potentialString,
-      jsStringOrNull.union(nonNullPotentialString,
-          closedWorld.abstractValueDomain as CommonMasks));
+    potentialString,
+    jsStringOrNull.union(
+      nonNullPotentialString,
+      closedWorld.abstractValueDomain as CommonMasks,
+    ),
+  );
 }
 
 void main() {
@@ -758,8 +791,8 @@ void main() {
 
 runTests() async {
   CompilationResult result = await runCompiler(
-      memorySourceFiles: {
-        'main.dart': r'''
+    memorySourceFiles: {
+      'main.dart': r'''
     import 'dart:collection';
     class AList<E> extends ListBase<E> {
       noSuchMethod(_) {}
@@ -769,15 +802,17 @@ runTests() async {
       print('${"".split("")}${new RegExp('')}');
       print('${const []}${const {}}${(){}}${new AList()}');
     }
-    '''
-      },
-      beforeRun: (compiler) =>
-          compiler.stopAfterGlobalTypeInferenceForTesting = true);
+    ''',
+    },
+    beforeRun: (compiler) =>
+        compiler.stopAfterGlobalTypeInferenceForTesting = true,
+  );
   Expect.isTrue(result.isSuccess);
-  Compiler compiler = result.compiler;
+  Compiler compiler = result.compiler!;
   JClosedWorld closedWorld = compiler.backendClosedWorldForTesting!;
   CommonElements commonElements = closedWorld.commonElements;
   ElementEnvironment elementEnvironment = closedWorld.elementEnvironment;
+  final commonMasks = closedWorld.abstractValueDomain as CommonMasks;
 
   // Grab hold of a supertype for String so we can produce potential
   // string types.
@@ -785,85 +820,162 @@ runTests() async {
   patternClass = elementEnvironment.lookupClass(coreLibrary, 'Pattern');
 
   final trustedGetRuntimeTypeInterface = elementEnvironment.lookupClass(
-      commonElements.rtiLibrary, 'TrustedGetRuntimeType')!;
+    commonElements.jsHelperLibrary!,
+    'TrustedGetRuntimeType',
+  )!;
 
-  nonPrimitive1 =
-      TypeMask.nonNullSubtype(closedWorld.commonElements.mapClass, closedWorld);
+  nonPrimitive1 = TypeMask.nonNullSubtype(
+    closedWorld.commonElements.mapClass,
+    commonMasks,
+  );
   nonPrimitive2 = TypeMask.nonNullSubtype(
-      closedWorld.commonElements.functionClass, closedWorld);
-  potentialArray =
-      TypeMask.subtype(closedWorld.commonElements.listClass, closedWorld);
-  potentialString = TypeMask.subtype(patternClass, closedWorld);
+    closedWorld.commonElements.functionClass,
+    commonMasks,
+  );
+  potentialArray = TypeMask.subtype(
+    closedWorld.commonElements.listClass,
+    commonMasks,
+  );
+  potentialString = TypeMask.subtype(patternClass, commonMasks);
   jsInterceptor = TypeMask.nonNullSubclass(
-      closedWorld.commonElements.jsInterceptorClass, closedWorld);
-  jsTrustedGetRuntimeType =
-      TypeMask.nonNullSubtype(trustedGetRuntimeTypeInterface, closedWorld);
-  jsArrayOrNull =
-      TypeMask.subclass(closedWorld.commonElements.jsArrayClass, closedWorld);
+    closedWorld.commonElements.jsInterceptorClass,
+    commonMasks,
+  );
+  jsTrustedGetRuntimeType = TypeMask.nonNullSubtype(
+    trustedGetRuntimeTypeInterface,
+    commonMasks,
+  );
+  jsArrayOrNull = TypeMask.subclass(
+    closedWorld.commonElements.jsArrayClass,
+    commonMasks,
+  );
   jsReadableArray = TypeMask.nonNullSubclass(
-      closedWorld.commonElements.jsArrayClass, closedWorld);
+    closedWorld.commonElements.jsArrayClass,
+    commonMasks,
+  );
   jsMutableArrayOrNull = TypeMask.subclass(
-      closedWorld.commonElements.jsMutableArrayClass, closedWorld);
+    closedWorld.commonElements.jsMutableArrayClass,
+    commonMasks,
+  );
   jsMutableArray = TypeMask.nonNullSubclass(
-      closedWorld.commonElements.jsMutableArrayClass, closedWorld);
-  jsFixedArrayOrNull =
-      TypeMask.exact(closedWorld.commonElements.jsFixedArrayClass, closedWorld);
+    closedWorld.commonElements.jsMutableArrayClass,
+    commonMasks,
+  );
+  jsFixedArrayOrNull = TypeMask.exact(
+    closedWorld.commonElements.jsFixedArrayClass,
+    commonMasks,
+  );
   jsFixedArray = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsFixedArrayClass, closedWorld);
+    closedWorld.commonElements.jsFixedArrayClass,
+    commonMasks,
+  );
   jsExtendableArrayOrNull = TypeMask.exact(
-      closedWorld.commonElements.jsExtendableArrayClass, closedWorld);
+    closedWorld.commonElements.jsExtendableArrayClass,
+    commonMasks,
+  );
   jsExtendableArray = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsExtendableArrayClass, closedWorld);
+    closedWorld.commonElements.jsExtendableArrayClass,
+    commonMasks,
+  );
   jsUnmodifiableArrayOrNull = TypeMask.exact(
-      closedWorld.commonElements.jsUnmodifiableArrayClass, closedWorld);
+    closedWorld.commonElements.jsUnmodifiableArrayClass,
+    commonMasks,
+  );
   jsUnmodifiableArray = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsUnmodifiableArrayClass, closedWorld);
+    closedWorld.commonElements.jsUnmodifiableArrayClass,
+    commonMasks,
+  );
   jsIndexableOrNull = TypeMask.subtype(
-      closedWorld.commonElements.jsIndexableClass, closedWorld);
+    closedWorld.commonElements.jsIndexableClass,
+    commonMasks,
+  );
   jsIndexable = TypeMask.nonNullSubtype(
-      closedWorld.commonElements.jsIndexableClass, closedWorld);
+    closedWorld.commonElements.jsIndexableClass,
+    commonMasks,
+  );
   jsInterceptorOrNull = TypeMask.subclass(
-      closedWorld.commonElements.jsInterceptorClass, closedWorld);
-  jsTrustedGetRuntimeTypeOrNull =
-      TypeMask.subtype(trustedGetRuntimeTypeInterface, closedWorld);
-  jsStringOrNull =
-      TypeMask.exact(closedWorld.commonElements.jsStringClass, closedWorld);
+    closedWorld.commonElements.jsInterceptorClass,
+    commonMasks,
+  );
+  jsTrustedGetRuntimeTypeOrNull = TypeMask.subtype(
+    trustedGetRuntimeTypeInterface,
+    commonMasks,
+  );
+  jsStringOrNull = TypeMask.exact(
+    closedWorld.commonElements.jsStringClass,
+    commonMasks,
+  );
   jsString = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsStringClass, closedWorld);
+    closedWorld.commonElements.jsStringClass,
+    commonMasks,
+  );
   jsBoolean = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsBoolClass, closedWorld);
+    closedWorld.commonElements.jsBoolClass,
+    commonMasks,
+  );
   jsNumber = TypeMask.nonNullSubclass(
-      closedWorld.commonElements.jsNumberClass, closedWorld);
-  jsInteger =
-      TypeMask.nonNullExact(closedWorld.commonElements.jsIntClass, closedWorld);
+    closedWorld.commonElements.jsNumberClass,
+    commonMasks,
+  );
+  jsInteger = TypeMask.nonNullExact(
+    closedWorld.commonElements.jsIntClass,
+    commonMasks,
+  );
   jsNumNotInt = TypeMask.nonNullExact(
-      closedWorld.commonElements.jsNumNotIntClass, closedWorld);
-  jsBooleanOrNull =
-      TypeMask.exact(closedWorld.commonElements.jsBoolClass, closedWorld);
-  jsNumberOrNull =
-      TypeMask.subclass(closedWorld.commonElements.jsNumberClass, closedWorld);
-  jsIntegerOrNull =
-      TypeMask.exact(closedWorld.commonElements.jsIntClass, closedWorld);
-  jsNumNotIntOrNull =
-      TypeMask.exact(closedWorld.commonElements.jsNumNotIntClass, closedWorld);
-  nullType = TypeMask.empty();
+    closedWorld.commonElements.jsNumNotIntClass,
+    commonMasks,
+  );
+  jsBooleanOrNull = TypeMask.exact(
+    closedWorld.commonElements.jsBoolClass,
+    commonMasks,
+  );
+  jsNumberOrNull = TypeMask.subclass(
+    closedWorld.commonElements.jsNumberClass,
+    commonMasks,
+  );
+  jsIntegerOrNull = TypeMask.exact(
+    closedWorld.commonElements.jsIntClass,
+    commonMasks,
+  );
+  jsNumNotIntOrNull = TypeMask.exact(
+    closedWorld.commonElements.jsNumNotIntClass,
+    commonMasks,
+  );
+  nullType = TypeMask.empty(commonMasks);
   objectType = TypeMask.nonNullSubclass(
-      closedWorld.commonElements.objectClass, closedWorld);
-  emptyType = TypeMask.nonNullEmpty();
-  dynamicType =
-      TypeMask.subclass(closedWorld.commonElements.objectClass, closedWorld);
+    closedWorld.commonElements.objectClass,
+    commonMasks,
+  );
+  emptyType = TypeMask.nonNullEmpty(commonMasks);
+  dynamicType = TypeMask.subclass(
+    closedWorld.commonElements.objectClass,
+    commonMasks,
+  );
 
-  jsInterceptorOrComparable =
-      interceptorOrComparable(closedWorld, nullable: false);
-  jsInterceptorOrComparableOrNull =
-      interceptorOrComparable(closedWorld, nullable: true);
+  jsInterceptorOrComparable = interceptorOrComparable(
+    closedWorld,
+    nullable: false,
+  );
+  jsInterceptorOrComparableOrNull = interceptorOrComparable(
+    closedWorld,
+    nullable: true,
+  );
 
   Expect.notEquals(
-      emptyType, nonPrimitive1, "nonPrimitive1 expected to be non-empty.");
-  Expect.notEquals(jsStringOrNull, potentialString,
-      "potentialString expected not to be exact JSString");
-  Expect.notEquals(jsArrayOrNull, potentialArray,
-      "potentialArray expected not to be JSArray subclass");
+    emptyType,
+    nonPrimitive1,
+    "nonPrimitive1 expected to be non-empty.",
+  );
+  Expect.notEquals(
+    jsStringOrNull,
+    potentialString,
+    "potentialString expected not to be exact JSString",
+  );
+  Expect.notEquals(
+    jsArrayOrNull,
+    potentialArray,
+    "potentialArray expected not to be JSArray subclass",
+  );
 
   testUnion(closedWorld);
   testIntersection(closedWorld);

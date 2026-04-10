@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -11,11 +11,11 @@ class Class extends core::Object {
 }
 extension Extension on self::Class {
   method extensionMethod = self::Extension|extensionMethod;
-  tearoff extensionMethod = self::Extension|get#extensionMethod;
+  method tearoff extensionMethod = self::Extension|get#extensionMethod;
 }
-static method Extension|extensionMethod(lowered final self::Class #this) → self::Class
+static extension-member method Extension|extensionMethod(lowered final self::Class #this) → self::Class
   return #this;
-static method Extension|get#extensionMethod(lowered final self::Class #this) → () → self::Class
+static extension-member method Extension|get#extensionMethod(lowered final self::Class #this) → () → self::Class
   return () → self::Class => self::Extension|extensionMethod(#this);
 static method main() → dynamic {
   self::Class? c;

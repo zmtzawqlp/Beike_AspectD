@@ -1,6 +1,6 @@
 // Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, File, Platform, Process, ProcessResult;
 
@@ -34,6 +34,20 @@ String computeRepoDir() {
   String dirPath = (result.stdout as String).trim();
   if (!new Directory(dirPath).existsSync()) {
     throw "The path returned by git ($dirPath) does not actually exist.";
+  }
+  if (dirPath.length > 1 && dirPath[1] == ':') {
+    // Absolute Windows path. Normalize drive letter to match Uri.base.
+    if (Uri.base.path.length < 3 ||
+        Uri.base.path[0] != '/' ||
+        Uri.base.path[2] != ':') {
+      throw "Expected Uri.base=${Uri.base} to be an absolute file path.";
+    }
+    bool isLowerCase = Uri.base.path[1] == Uri.base.path[1].toLowerCase();
+    if (isLowerCase) {
+      dirPath = dirPath[0].toLowerCase() + dirPath.substring(1);
+    } else {
+      dirPath = dirPath[0].toUpperCase() + dirPath.substring(1);
+    }
   }
   return dirPath;
 }

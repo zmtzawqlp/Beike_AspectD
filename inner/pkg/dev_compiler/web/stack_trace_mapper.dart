@@ -18,10 +18,10 @@
 ///
 /// This utility can be compiled to JavaScript using Dart2JS while the rest
 /// of the application is compiled with DDC or could be compiled with DDC.
-
 @JS()
-library stack_trace_mapper;
+library;
 
+// ignore: deprecated_member_use
 import 'package:js/js.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_maps/source_maps.dart';
@@ -46,8 +46,10 @@ typedef SetSourceMapProvider = void Function(SourceMapProvider);
 @JS()
 @anonymous
 class DartStackTraceUtility {
-  external factory DartStackTraceUtility(
-      {StackTraceMapper? mapper, SetSourceMapProvider? setSourceMapProvider});
+  external factory DartStackTraceUtility({
+    StackTraceMapper? mapper,
+    SetSourceMapProvider? setSourceMapProvider,
+  });
 }
 
 @JS('JSON.stringify')
@@ -68,8 +70,12 @@ class LazyMapping extends Mapping {
   List toJson() => _bundle.toJson();
 
   @override
-  SourceMapSpan? spanFor(int line, int column,
-      {Map<String, SourceFile>? files, String? uri}) {
+  SourceMapSpan? spanFor(
+    int line,
+    int column, {
+    Map<String, SourceFile>? files,
+    String? uri,
+  }) {
     if (uri == null) {
       throw ArgumentError.notNull('uri');
     }
@@ -117,6 +123,7 @@ void setSourceMapProvider(SourceMapProvider provider) {
 void main() {
   // Register with DDC.
   dartStackTraceUtility = DartStackTraceUtility(
-      mapper: allowInterop(mapper),
-      setSourceMapProvider: allowInterop(setSourceMapProvider));
+    mapper: allowInterop(mapper),
+    setSourceMapProvider: allowInterop(setSourceMapProvider),
+  );
 }

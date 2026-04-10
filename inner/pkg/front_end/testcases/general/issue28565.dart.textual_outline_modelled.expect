@@ -13,3 +13,12 @@ class C {
 class D {
   external const D.named();
 }
+
+class E {
+  external E() : super();
+  external E.redirect() : this();
+}
+
+class F {
+  external F() {}
+}

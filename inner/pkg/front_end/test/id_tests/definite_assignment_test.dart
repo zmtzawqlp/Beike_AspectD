@@ -6,12 +6,12 @@ import 'dart:io' show Directory, Platform;
 
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
-import 'package:front_end/src/fasta/source/source_loader.dart';
-import 'package:front_end/src/fasta/source/source_member_builder.dart';
-import 'package:front_end/src/fasta/type_inference/type_inference_engine.dart';
+import 'package:front_end/src/source/source_loader.dart';
+import 'package:front_end/src/source/source_member_builder.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
-import 'package:kernel/ast.dart' hide Variance;
+import 'package:front_end/src/type_inference/type_inference_engine.dart';
+import 'package:kernel/ast.dart';
 
 Future<void> main(List<String> args) async {
   Directory dataDir = new Directory.fromUri(Platform.script.resolve(
@@ -22,10 +22,10 @@ Future<void> main(List<String> args) async {
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
       runTest: runTestFor(
-          const DefiniteAssignmentDataComputer(), [cfeNonNullableOnlyConfig]));
+          const DefiniteAssignmentDataComputer(), [defaultCfeConfig]));
 }
 
-class DefiniteAssignmentDataComputer extends DataComputer<String> {
+class DefiniteAssignmentDataComputer extends CfeDataComputer<String> {
   const DefiniteAssignmentDataComputer();
 
   @override
@@ -35,7 +35,7 @@ class DefiniteAssignmentDataComputer extends DataComputer<String> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     SourceMemberBuilder memberBuilder =

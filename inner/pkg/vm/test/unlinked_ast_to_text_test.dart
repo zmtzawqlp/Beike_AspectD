@@ -11,8 +11,9 @@ import 'package:kernel/binary/ast_to_binary.dart';
 import 'package:vm/kernel_front_end.dart';
 
 main() async {
-  final outDir =
-      Directory.systemTemp.createTempSync("incremental_load_from_dill_test");
+  final outDir = Directory.systemTemp.createTempSync(
+    "incremental_load_from_dill_test",
+  );
 
   final dillFile = outDir.uri.resolve("dart2js.dart.dill").toFilePath();
   final unlinkedDillFile =
@@ -20,18 +21,19 @@ main() async {
   final unlinkedDillTxtFile =
       outDir.uri.resolve("dart2js.dart.unlinked dill.txt").toFilePath();
 
-  final executable = Platform.executable;
+  final executable = File(Platform.executable).uri;
+  final executableName = Platform.isWindows ? 'dart.exe' : 'dart';
   late final String platformDill;
-  if (executable.endsWith('ReleaseX64/dart')) {
+  if (executable.path.endsWith('ReleaseX64/$executableName')) {
+    platformDill = executable.resolve('vm_platform.dill').toFilePath();
+  } else if (executable.path.endsWith('dart-sdk/bin/$executableName')) {
     platformDill =
-        Uri.parse(executable).resolve('vm_platform_strong.dill').toFilePath();
-  } else if (executable.endsWith('dart-sdk/bin/dart')) {
-    platformDill = Uri.parse(executable)
-        .resolve('../lib/_internal/vm_platform_strong.dill')
-        .toFilePath();
+        executable.resolve('../lib/_internal/vm_platform.dill').toFilePath();
   } else {
     print(
-        'Skipping test due to not being run .../ReleaseX64/dart or .../dart-sdk/bin/dart.');
+      'Skipping test due to not being run .../ReleaseX64/$executableName '
+      'or .../dart-sdk/bin/$executableName.',
+    );
     return;
   }
 
@@ -44,25 +46,31 @@ main() async {
 
     // Compile dart2js.dart.
     final ArgParser argParser = createCompilerArgParser();
-    final int exitCode =
-        await runCompiler(argParser.parse(arguments), '<usage>');
+    final int exitCode = await runCompiler(
+      argParser.parse(arguments),
+      '<usage>',
+    );
     Expect.equals(0, exitCode);
 
     // Load the dart2js.dart.dill and write the unlinked version.
     final component = loadComponentFromBinary(dillFile);
     final sink = File(unlinkedDillFile).openWrite();
-    final printer = BinaryPrinter(sink,
-        libraryFilter: (lib) => !lib.importUri.isScheme('dart'));
+    final printer = BinaryPrinter(
+      sink,
+      libraryFilter: (lib) => !lib.importUri.isScheme('dart'),
+    );
     printer.writeComponentFile(component);
     await sink.close();
 
     // Ensure we can load the unlinked dill file and ensure it doesn't include
     // core libraries.
     final unlinkedComponent = loadComponentFromBinary(unlinkedDillFile);
-    final coreLibraryCount = unlinkedComponent.libraries
-        .where(
-            (lib) => lib.importUri.isScheme('dart') && lib.members.isNotEmpty)
-        .length;
+    final coreLibraryCount =
+        unlinkedComponent.libraries
+            .where(
+              (lib) => lib.importUri.isScheme('dart') && lib.members.isNotEmpty,
+            )
+            .length;
     Expect.equals(0, coreLibraryCount);
 
     // Ensure we can print the unlinked kernel to text.

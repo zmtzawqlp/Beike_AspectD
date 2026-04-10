@@ -4,7 +4,6 @@
 
 /// TODO(johnniwinther): Move this test to the codegen folder.
 
-import "package:async_helper/async_helper.dart";
 import "package:compiler/src/commandline_options.dart";
 import "package:compiler/src/common/elements.dart";
 import "package:compiler/src/compiler.dart";
@@ -15,6 +14,7 @@ import "package:compiler/src/inferrer/types.dart";
 import 'package:compiler/src/inferrer/typemasks/masks.dart';
 import 'package:compiler/src/js_model/js_strategy.dart';
 import 'package:compiler/src/js_model/js_world.dart' show JClosedWorld;
+import "package:expect/async_helper.dart";
 import "package:expect/expect.dart";
 import 'package:compiler/src/util/memory_compiler.dart';
 
@@ -41,9 +41,10 @@ main() {
 
 Future runTest1() async {
   CompilationResult result = await runCompiler(
-      memorySourceFiles: {'main.dart': TEST1},
-      options: [Flags.disableInlining]);
-  Compiler compiler = result.compiler;
+    memorySourceFiles: {'main.dart': TEST1},
+    options: [Flags.disableInlining],
+  );
+  Compiler compiler = result.compiler!;
   JsBackendStrategy backendStrategy = compiler.backendStrategy;
   GlobalTypeInferenceResults results =
       compiler.globalInference.resultsForTesting!;
@@ -51,18 +52,27 @@ Future runTest1() async {
   JElementEnvironment elementEnvironment = closedWorld.elementEnvironment;
   AbstractValueDomain commonMasks = closedWorld.abstractValueDomain;
   MemberEntity element = elementEnvironment.lookupLibraryMember(
-      elementEnvironment.mainLibrary!, 'foo')!;
+    elementEnvironment.mainLibrary!,
+    'foo',
+  )!;
   AbstractValue mask = results.resultOfMember(element).returnType;
-  AbstractValue falseType =
-      ValueTypeMask(commonMasks.boolType as TypeMask, FalseConstantValue());
+  AbstractValue falseType = ValueTypeMask(
+    commonMasks.boolType as TypeMask,
+    FalseConstantValue(),
+  );
   // 'foo' should always return false
   Expect.equals(falseType, mask);
   // the argument to 'bar' is always false
-  final bar = elementEnvironment.lookupLibraryMember(
-      elementEnvironment.mainLibrary!, 'bar') as FunctionEntity;
-  elementEnvironment.forEachParameterAsLocal(results.globalLocalsMap, bar,
-      (barArg) {
-    AbstractValue barArgMask = results.resultOfParameter(barArg);
+  final bar =
+      elementEnvironment.lookupLibraryMember(
+            elementEnvironment.mainLibrary!,
+            'bar',
+          )
+          as FunctionEntity;
+  elementEnvironment.forEachParameterAsLocal(results.globalLocalsMap, bar, (
+    barArg,
+  ) {
+    AbstractValue barArgMask = results.resultOfParameter(barArg, bar);
     Expect.equals(falseType, barArgMask);
   });
   String barCode = backendStrategy.getGeneratedCodeForTesting(bar)!;
@@ -92,9 +102,10 @@ main() {
 
 Future runTest2() async {
   CompilationResult result = await runCompiler(
-      memorySourceFiles: {'main.dart': TEST2},
-      options: [Flags.disableInlining]);
-  Compiler compiler = result.compiler;
+    memorySourceFiles: {'main.dart': TEST2},
+    options: [Flags.disableInlining],
+  );
+  Compiler compiler = result.compiler!;
   JsBackendStrategy backendStrategy = compiler.backendStrategy;
   GlobalTypeInferenceResults results =
       compiler.globalInference.resultsForTesting!;
@@ -102,15 +113,22 @@ Future runTest2() async {
   AbstractValueDomain commonMasks = closedWorld.abstractValueDomain;
   JElementEnvironment elementEnvironment = closedWorld.elementEnvironment;
   MemberEntity element = elementEnvironment.lookupLibraryMember(
-      elementEnvironment.mainLibrary!, 'foo')!;
+    elementEnvironment.mainLibrary!,
+    'foo',
+  )!;
   AbstractValue mask = results.resultOfMember(element).returnType;
   // Can't infer value for foo's return type, it could be either true or false
   Expect.identical(commonMasks.boolType, mask);
-  final bar = elementEnvironment.lookupLibraryMember(
-      elementEnvironment.mainLibrary!, 'bar') as FunctionEntity;
-  elementEnvironment.forEachParameterAsLocal(results.globalLocalsMap, bar,
-      (barArg) {
-    AbstractValue barArgMask = results.resultOfParameter(barArg);
+  final bar =
+      elementEnvironment.lookupLibraryMember(
+            elementEnvironment.mainLibrary!,
+            'bar',
+          )
+          as FunctionEntity;
+  elementEnvironment.forEachParameterAsLocal(results.globalLocalsMap, bar, (
+    barArg,
+  ) {
+    AbstractValue barArgMask = results.resultOfParameter(barArg, bar);
     // The argument to bar should have the same type as the return type of foo
     Expect.identical(commonMasks.boolType, barArgMask);
   });

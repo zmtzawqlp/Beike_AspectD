@@ -4,6 +4,8 @@
 
 import "dart:math" as math;
 
+import "package:kernel/binary/tag.dart" show numberOfFixedFields;
+
 class BinaryMdDillReader {
   final String _binaryMdContent;
 
@@ -11,8 +13,9 @@ class BinaryMdDillReader {
   final List<int> _dillContent;
 
   String _currentlyUnparsed = "";
-  late Map<String, List<String>> _readingInstructions;
+  late Map<String, List<String>> readingInstructions;
   late Map<String, List<String>> _generics;
+  late Set<String> _abstractTypes;
   late Map<int, String> tagToName;
   late Map<int, String> constantTagToName;
   int? version;
@@ -46,12 +49,13 @@ class BinaryMdDillReader {
 
   /// Initialize the bare essentials, e.g. that a double is 8 bytes.
   void _setupFields() {
-    _readingInstructions = {
+    readingInstructions = {
       "Byte": ["byte"],
       "UInt32": ["byte", "byte", "byte", "byte"],
       "Double": ["byte", "byte", "byte", "byte", "byte", "byte", "byte", "byte"]
     };
     _generics = {};
+    _abstractTypes = {};
     tagToName = {};
     constantTagToName = {};
     _extends = {};
@@ -119,8 +123,7 @@ class BinaryMdDillReader {
     numLibs = _peekUint32();
 
     // Skip to the start of the index.
-    _binaryOffset = _dillContent.length -
-        ((numLibs + 1) + 12 /* number of fixed fields */) * 4;
+    _binaryOffset = _dillContent.length - numberOfFixedFields(numLibs) * 4;
 
     // Read index.
     binaryOffsetForSourceTable = _peekUint32();
@@ -141,13 +144,12 @@ class BinaryMdDillReader {
     _binaryOffset += 4;
     mainMethodReference = _peekUint32();
     _binaryOffset += 4;
-    /*int compilationMode = */ _peekUint32();
 
     _binaryOffset = binaryOffsetForStringTable;
-    var saved = _readingInstructions["ComponentFile"]!;
-    _readingInstructions["ComponentFile"] = ["StringTable strings;"];
+    var saved = readingInstructions["ComponentFile"]!;
+    readingInstructions["ComponentFile"] = ["StringTable strings;"];
     _readBinary("ComponentFile", "");
-    _readingInstructions["ComponentFile"] = saved;
+    readingInstructions["ComponentFile"] = saved;
     _binaryOffset = 0;
     _depth = 0;
     // Hack end.
@@ -155,8 +157,7 @@ class BinaryMdDillReader {
     Map componentFile = _readBinary("ComponentFile", "");
     if (_binaryOffset != _dillContent.length) {
       throw "Didn't read the entire binary: "
-          "Only read $_binaryOffset of ${_dillContent.length} bytes. "
-          "($componentFile)";
+          "Only read $_binaryOffset of ${_dillContent.length} bytes.";
     }
     if (verboseLevel > 0) {
       print("Successfully read the dill file.");
@@ -180,7 +181,11 @@ class BinaryMdDillReader {
     if (s.contains("}")) _binaryMdNestingDepth--;
 
     String name = s.trim();
-    if (name.startsWith("abstract ")) name = name.substring("abstract ".length);
+    bool isAbstract = name.startsWith("abstract ");
+    if (isAbstract) {
+      name = name.substring("abstract ".length);
+    }
+
     if (name.startsWith("type ")) name = name.substring("type ".length);
     bool isEnum = false;
     if (name.startsWith("enum ")) {
@@ -204,9 +209,12 @@ class BinaryMdDillReader {
     }
 
     if (isEnum) {
-      _readingInstructions[name] ??= ["byte"];
+      readingInstructions[name] ??= ["byte"];
     } else {
-      _readingInstructions[name] ??= [];
+      readingInstructions[name] ??= [];
+    }
+    if (isAbstract) {
+      _abstractTypes.add(name);
     }
   }
 
@@ -376,7 +384,7 @@ class BinaryMdDillReader {
           tag = tag.substring(0, tag.indexOf("; // Note: tag is out of order"));
         }
         Map<int, String> tagMap;
-        if (_isA(_binaryMdCurrentClass, "Constant")) {
+        if (isA(_binaryMdCurrentClass, "Constant")) {
           tagMap = constantTagToName;
         } else {
           tagMap = tagToName;
@@ -400,14 +408,14 @@ class BinaryMdDillReader {
       _currentlyUnparsed = "";
     }
 
-    _readingInstructions[_binaryMdCurrentClass]!.add(s.trim());
+    readingInstructions[_binaryMdCurrentClass]!.add(s.trim());
   }
 
   /// Check the all types referenced by reading instructions are types we know
   /// about.
   void _binaryMdCheckHasAllTypes() {
-    for (String key in _readingInstructions.keys) {
-      for (String s in _readingInstructions[key]!) {
+    for (String key in readingInstructions.keys) {
+      for (String s in readingInstructions[key]!) {
         String type = _getType(s);
         if (!_isKnownType(type, key)) {
           throw "Unknown type: $type (used in $key)";
@@ -420,9 +428,9 @@ class BinaryMdDillReader {
   /// to read it.
   bool _isKnownType(String type, String parent) {
     if (type == "byte") return true;
-    if (_readingInstructions[type] != null) return true;
+    if (readingInstructions[type] != null) return true;
     if (type.contains("[") &&
-        _readingInstructions[type.substring(0, type.indexOf("["))] != null) {
+        readingInstructions[type.substring(0, type.indexOf("["))] != null) {
       return true;
     }
 
@@ -430,13 +438,15 @@ class BinaryMdDillReader {
       Set<String> types = _generics[parent]!.toSet();
       if (types.contains(type)) return true;
       if (type.contains("[") &&
-          types.contains(type.substring(0, type.indexOf("[")))) return true;
+          types.contains(type.substring(0, type.indexOf("[")))) {
+        return true;
+      }
     }
     if (type.contains("<")) {
       List<String> types = _getGenerics(type);
       String renamedType =
           type.substring(0, type.indexOf("<")) + "<${types.length}>";
-      if (_readingInstructions[renamedType] != null) {
+      if (readingInstructions[renamedType] != null) {
         bool ok = true;
         for (String type in types) {
           if (!_isKnownType(type, renamedType)) {
@@ -483,7 +493,7 @@ class BinaryMdDillReader {
       return value;
     }
 
-    // Not a 'base type'. Read according to [_readingInstructions] field.
+    // Not a 'base type'. Read according to [readingInstructions] field.
     List<String> types = [];
     List<String> typeNames = [];
     String orgWhat = what;
@@ -494,7 +504,7 @@ class BinaryMdDillReader {
       typeNames = _generics[what]!;
     }
 
-    if (_readingInstructions[what] == null) {
+    if (readingInstructions[what] == null) {
       throw "Didn't find instructions for '$what'";
     }
 
@@ -506,7 +516,7 @@ class BinaryMdDillReader {
       print("".padLeft(_depth * 2) + " -> $what ($orgWhat @ $orgPosition)");
     }
 
-    for (String instruction in _readingInstructions[what]!) {
+    for (String instruction in readingInstructions[what]!) {
       // Special-case a few things that aren't (easily) described in the
       // binary.md file.
       if (what == "Name" && instruction == "LibraryReference library;") {
@@ -526,8 +536,8 @@ class BinaryMdDillReader {
       } else if (what == "ComponentIndex" &&
           instruction == "Byte[] 8bitAlignment;") {
         // Special-case 8-byte alignment.
-        int sizeWithoutPadding = _binaryOffset +
-            ((numLibs + 1) + 10 /* number of fixed fields */) * 4;
+        int sizeWithoutPadding =
+            _binaryOffset + numberOfFixedFields(numLibs) * 4;
         int padding = 8 - sizeWithoutPadding % 8;
         if (padding == 8) padding = 0;
         _binaryOffset += padding;
@@ -687,11 +697,13 @@ class BinaryMdDillReader {
     return type;
   }
 
+  bool isAbstract(String clazz) => _abstractTypes.contains(clazz);
+
   /// Check if [what] is an [a], i.e. if [what] extends [a].
   /// This method uses the [_extends] map and it is thus risky to use it before
   /// the binary.md file has been read in entirety (because the field isn't
   /// completely filled out yet).
-  bool _isA(String what, String a) {
+  bool isA(String what, String a) {
     String? parent = what;
     while (parent != null) {
       if (parent == a) return true;
@@ -705,7 +717,7 @@ class BinaryMdDillReader {
   /// "Block" is actually an "Expression".
   String _remapWhat(String what) {
     Map<int, String> tagMap;
-    if (_isA(what, "Constant")) {
+    if (isA(what, "Constant")) {
       tagMap = constantTagToName;
     } else {
       tagMap = tagToName;
@@ -714,7 +726,7 @@ class BinaryMdDillReader {
     if (what == "Expression") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "Expression")) {
+        if (!isA(what, "Expression")) {
           throw "Expected Expression but found $what";
         }
       } else {
@@ -724,7 +736,7 @@ class BinaryMdDillReader {
     if (what == "IntegerLiteral") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "IntegerLiteral")) {
+        if (!isA(what, "IntegerLiteral")) {
           throw "Expected IntegerLiteral but found $what";
         }
       } else {
@@ -734,7 +746,7 @@ class BinaryMdDillReader {
     if (what == "Statement") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "Statement")) {
+        if (!isA(what, "Statement")) {
           throw "Expected Statement but found $what";
         }
       } else {
@@ -744,7 +756,7 @@ class BinaryMdDillReader {
     if (what == "Initializer") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "Initializer")) {
+        if (!isA(what, "Initializer")) {
           throw "Expected Initializer but found $what";
         }
       } else {
@@ -754,7 +766,7 @@ class BinaryMdDillReader {
     if (what == "DartType") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "DartType")) {
+        if (!isA(what, "DartType")) {
           throw "Expected DartType but found $what";
         }
       } else {
@@ -771,7 +783,7 @@ class BinaryMdDillReader {
     if (what == "Constant") {
       if (tagMap[_dillContent[_binaryOffset]] != null) {
         what = tagMap[_dillContent[_binaryOffset]]!;
-        if (!_isA(what, "Constant")) {
+        if (!isA(what, "Constant")) {
           throw "Expected Constant but found $what";
         }
       } else {

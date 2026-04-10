@@ -3,12 +3,31 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:collection';
+
 import 'package:collection/collection.dart';
 import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart' hide Pattern;
 
+import 'constants.dart';
+
+Never throwUnsupportedInvalidType(InvalidType type) => throw UnsupportedError(
+  'Unsupported invalid type $type (${type.runtimeType}).',
+);
+
+Never throwUnsupportedAuxiliaryType(AuxiliaryType type) =>
+    throw UnsupportedError(
+      'Unsupported auxiliary type $type (${type.runtimeType}).',
+    );
+
 Constructor? unnamedConstructor(Class c) =>
     c.constructors.firstWhereOrNull((c) => c.name.text == '');
+
+/// Returns `true` when a class is eligible to be used as a mixin without
+/// having the mixin class modifier in Dart language versions < 3.0.
+extension ClassExtension on Class {
+  bool isLegacyMixinEligible(CoreTypes coreTypes) =>
+      !isMixinDeclaration && superclass == coreTypes.objectClass;
+}
 
 /// Returns the enclosing library for reference [node].
 Library getLibrary(NamedNode node) {
@@ -20,7 +39,7 @@ Library getLibrary(NamedNode node) {
 
 final Pattern _syntheticTypeCharacters = RegExp('[&^#.|]');
 
-String? escapeIdentifier(String? identifier) {
+String escapeIdentifier(String identifier) {
   // Remove the special characters used to encode mixin application class names
   // and extension method / parameter names which are legal in Kernel, but not
   // in JavaScript.
@@ -28,23 +47,27 @@ String? escapeIdentifier(String? identifier) {
   // Note, there is an implicit assumption here that we won't have
   // collisions since everything is mapped to \$.  That may work out fine given
   // how these are synthesized, but may need to revisit.
-  return identifier?.replaceAll(_syntheticTypeCharacters, r'$');
+  return identifier.replaceAll(_syntheticTypeCharacters, r'$');
 }
 
 /// Returns the escaped name for class [node].
 ///
 /// The caller of this function has to make sure that this name is unique in
 /// the current scope.
-///
-/// In the current encoding, generic classes are generated in a function scope
-/// which avoids name clashes of the escaped class name.
-String getLocalClassName(Class node) => escapeIdentifier(node.name)!;
+String getLocalClassName(Class node) => escapeIdentifier(node.name);
 
 /// Returns the escaped name for the type parameter [node].
-///
-/// In the current encoding, generic classes are generated in a function scope
-/// which avoids name clashes of the escaped parameter name.
-String getTypeParameterName(TypeParameter node) => escapeIdentifier(node.name)!;
+String getTypeParameterName(
+  /* TypeParameter | StructuralParameter */ Object node,
+) {
+  assert(node is TypeParameter || node is StructuralParameter);
+  if (node is TypeParameter) {
+    return escapeIdentifier(node.name!);
+  } else {
+    node as StructuralParameter;
+    return escapeIdentifier(node.name!);
+  }
+}
 
 String getTopLevelName(NamedNode n) {
   if (n is Procedure) return n.name.text;
@@ -88,7 +111,10 @@ Expression? findAnnotation(TreeNode node, bool Function(Expression) test) {
 /// Returns true if [value] represents an annotation for class [className] in
 /// "dart:" library [libraryName].
 bool isBuiltinAnnotation(
-    Expression value, String libraryName, String className) {
+  Expression value,
+  String libraryName,
+  String className,
+) {
   var c = getAnnotationClass(value);
   if (c != null && c.name == className) {
     var uri = c.enclosingLibrary.importUri;
@@ -101,8 +127,9 @@ bool isBuiltinAnnotation(
 ///
 /// For example:
 ///
-/// - `@JS()` would return the "JS" class in "package:js".
-/// - `@anonymous` would return the "_Anonymous" class in "package:js".
+/// - `@JS()` would return the "JS" class in "dart:_js_annotations".
+/// - `@anonymous` would return the "_Anonymous" class in
+/// "dart:_js_annotations".
 ///
 /// This function works regardless of whether the CFE is evaluating constants,
 /// or whether the constant is a field reference (such as "anonymous" above).
@@ -269,7 +296,7 @@ bool hasLabeledContinue(SwitchStatement node) {
   return visitor.found;
 }
 
-class LabelContinueFinder extends RecursiveVisitor<void> {
+class LabelContinueFinder extends RecursiveVisitor {
   var found = false;
 
   void visit(Statement? s) {
@@ -281,24 +308,57 @@ class LabelContinueFinder extends RecursiveVisitor<void> {
       found = true;
 }
 
-/// Ensures that all of the known DartType implementors are handled.
-///
-/// The goal of the function is to catch a new unhandled implementor of
-/// [DartType] in a chain of if-else statements analyzing possibilities for an
-/// object of DartType. It doesn't introduce a run-time overhead in production
-/// code if used in an assert.
-bool isKnownDartTypeImplementor(DartType t) {
-  return t is DynamicType ||
-      t is FunctionType ||
-      t is FutureOrType ||
-      t is InterfaceType ||
-      t is InvalidType ||
-      t is NeverType ||
-      t is NullType ||
-      t is RecordType ||
-      t is TypeParameterType ||
-      t is TypedefType ||
-      t is VoidType;
+/// Returns true if a class contains any 'super' calls.
+bool hasSuper(Class node) {
+  var visitor = SuperFinder();
+  node.accept(visitor);
+  return visitor.found;
+}
+
+class SuperFinder extends RecursiveVisitor {
+  var found = false;
+
+  void visit(Statement? s) {
+    if (!found && s != null) s.accept(this);
+  }
+
+  @override
+  void visitAbstractSuperPropertyGet(AbstractSuperPropertyGet node) =>
+      found = true;
+
+  @override
+  void visitAbstractSuperPropertySet(AbstractSuperPropertySet node) =>
+      found = true;
+
+  @override
+  void visitSuperPropertyGet(SuperPropertyGet node) => found = true;
+
+  @override
+  void visitSuperPropertySet(SuperPropertySet node) => found = true;
+
+  @override
+  void visitAbstractSuperMethodInvocation(AbstractSuperMethodInvocation node) =>
+      found = true;
+
+  @override
+  void visitSuperMethodInvocation(SuperMethodInvocation node) => found = true;
+}
+
+/// Returns `true` if any of [n]s children are a [FunctionExpression] node.
+bool containsFunctionExpression(Node n) {
+  var visitor = _FunctionExpressionFinder.instance;
+  visitor.found = false;
+  n.accept(visitor);
+  return visitor.found;
+}
+
+class _FunctionExpressionFinder extends RecursiveVisitor {
+  var found = false;
+
+  static final instance = _FunctionExpressionFinder();
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) => found = true;
 }
 
 /// Whether [member] is declared native, as in:
@@ -328,7 +388,7 @@ bool _isDartInternal(Uri uri) =>
 
 /// Collects all `TypeParameter`s from the `TypeParameterType`s present in the
 /// visited `DartType`.
-class TypeParameterFinder extends RecursiveVisitor<void> {
+class TypeParameterFinder extends RecursiveVisitor {
   final _found = <TypeParameter>{};
   static TypeParameterFinder? _instance;
 
@@ -347,4 +407,222 @@ class TypeParameterFinder extends RecursiveVisitor<void> {
   @override
   void visitTypeParameterType(TypeParameterType node) =>
       _found.add(node.parameter);
+}
+
+/// Collects [InterfaceType] nodes that appear in in a DartType.
+class InterfaceTypeExtractor extends RecursiveVisitor {
+  final Set<InterfaceType> _found = {};
+
+  @override
+  void visitInterfaceType(InterfaceType node) {
+    _found.add(node);
+    node.visitChildren(this);
+  }
+
+  /// Returns all [InterfaceType]s that appear in [type].
+  Iterable<InterfaceType> extract(DartType type) {
+    type.accept(this);
+    return _found;
+  }
+}
+
+/// Replaces [VariableGet] nodes with a different expression defined by a
+/// replacement map.
+class VariableGetReplacer extends Transformer {
+  final Map<VariableDeclaration, Expression> _replacements;
+
+  VariableGetReplacer(this._replacements);
+
+  @override
+  TreeNode visitVariableGet(VariableGet node) {
+    var replacement = _replacements[node.variable];
+    return replacement ?? node;
+  }
+}
+
+/// Tests a [StaticInvocation] node to determine if it would be safe to inline.
+///
+/// Each static invocation should be inspected individually as this class only
+/// inspects the body of a given invocation target, and does not recurse
+/// transitively into the bodies of other invocations it finds.
+///
+/// The determination of what is safe to inline is specifically targeting simple
+/// methods in the dart:_rti library and has not been validated to use as an
+/// inliner for static methods from any other libraries. Instead of inlining by
+/// introducing let variables that preserve the evaluation order of the call,
+/// only code where it is safe to replace the argument of the call at the
+/// place where it used is considered suitable.
+///
+/// The body of the target method may only contain simple expressions known to
+/// have no side-effects like null, bool or string literals, constants, enum
+/// values, and variable accesses. Additionally some static invocations from the
+/// runtime libraries are permitted in the body when they have been manually
+/// inspected for side effects and annotated as safe with
+/// `@pragma('ddc:trust-inline`). After the last method argument has been used,
+/// this restriction is weakened to allow any static invocations to appear.
+class BasicInlineTester extends TreeVisitorDefault<bool> {
+  /// The constants used to access constant evaluation for annotations.
+  final DevCompilerConstants _constants;
+
+  /// The order that the arguments are expected to used in the body of the
+  /// function for it to be considered safe for inlining.
+  ///
+  /// This is essential to preserve the execution order of the expressions
+  /// passed as arguments.
+  List<VariableDeclaration>? _expectedArgumentOrder;
+
+  /// The position in [_expectedArgumentOrder] to begin looking for the next
+  /// used argument.
+  int _nextArgIndex = 0;
+
+  /// Returns `true` if uses of all the expected arguments have already been
+  /// seen by the visitor.
+  bool get _allArgumentsUsed => _nextArgIndex >= _expectedArgumentOrder!.length;
+
+  BasicInlineTester(this._constants);
+
+  /// Returns `true` when [possibleInline] is considered simple enough to
+  /// be safe to inline.
+  ///
+  /// The considerations for inlining are designed specifically to target select
+  /// invocations in the dart:_rti library.
+  bool canInline(FunctionNode possibleInline) {
+    if (possibleInline.namedParameters.isNotEmpty ||
+        possibleInline.typeParameters.isNotEmpty ||
+        possibleInline.positionalParameters.length !=
+            possibleInline.requiredParameterCount) {
+      // Only consider functions with required positional arguments.
+      return false;
+    }
+    final body = possibleInline.body;
+    // No code available here to inline.
+    if (body == null) return false;
+
+    _expectedArgumentOrder = possibleInline.positionalParameters;
+    _nextArgIndex = 0;
+    // Important to note that the static invocation being considered for inline
+    // is not visited. Instead the body of the target function being invoked is
+    // visited to determine if inlining is feasible. Any other static
+    // invocations appearing within that body *will* be visited.
+    final result = body.accept(this);
+    // Avoid retaining any of the arguments after returning.
+    _expectedArgumentOrder = null;
+    return result;
+  }
+
+  /// Returns `true` when [node] is annotated with
+  /// `@pragma('ddc:trust-inline`)`.
+  bool _hasTrustInlinePragma(NamedNode node) {
+    var annotation = findAnnotation(node, (e) {
+      if (!isBuiltinAnnotation(e, 'core', 'pragma')) return false;
+      var name = _constants.getFieldValueFromAnnotation(e, 'name') as String?;
+      return name == 'ddc:trust-inline';
+    });
+    return annotation != null;
+  }
+
+  @override
+  bool defaultTreeNode(Node _) => false;
+
+  @override
+  bool visitReturnStatement(ReturnStatement node) {
+    var returnExpression = node.expression;
+    return returnExpression == null ? false : returnExpression.accept(this);
+  }
+
+  @override
+  bool visitBlock(Block node) {
+    if (node.statements.length != 1) return false;
+    return node.statements.single.accept(this);
+  }
+
+  @override
+  bool visitStaticInvocation(StaticInvocation node) {
+    // Reaching this visitor means that a static invocation appears in the body
+    // of the function being evaluated for inlining.
+    var positionalArgs = node.arguments.positional;
+    if (isInlineJS(node.target)) {
+      // Ensure JS expressions do not span multiple statements. Since these are
+      // inlined elsewhere we don't want to accidentally combine multiple
+      // Javascript statements into a position where they don't belong. Instead
+      // of inspecting if it is valid, just reject any source templates that
+      // contain ';' characters.
+      var codeLiteral = positionalArgs[1];
+      String? code;
+      if (codeLiteral is StringLiteral) {
+        code = codeLiteral.value;
+      } else if (codeLiteral is ConstantExpression) {
+        var constant = codeLiteral.constant;
+        if (constant is StringConstant) {
+          code = constant.value;
+        }
+      }
+      if (code == null || code.contains(';')) return false;
+    }
+    // Inspect the arguments.
+    for (var argument in positionalArgs) {
+      if (!argument.accept(this)) return false;
+    }
+    // While all of the uses of the arguments are still being discovered,
+    // only allow additional static invocations explicitly annotated as
+    // trusted. This prevents inlining a static invocation that could
+    // change the evaluation order of the expressions passed as arguments.
+    // Example:
+    // ```
+    // echo(s) {
+    //   print(s);
+    //   return s;
+    // }
+    //
+    // dangerous(arg1, arg2) {
+    //   return fn(arg1, echo('third'), arg2);
+    // }
+    // ```
+    // Calls to `dangerous()` should not be inlined without let variables
+    // because the expression evaluation order would be disrupted:
+    // ```
+    // dangerous(echo('first'), echo('second'));
+    //    |   |
+    //    V   V
+    // fn(echo('first'), echo('third'), echo('second')) // INVALID!
+    return _allArgumentsUsed || _hasTrustInlinePragma(node.target);
+  }
+
+  @override
+  bool visitBoolLiteral(BoolLiteral _) => true;
+
+  @override
+  bool visitNullLiteral(NullLiteral _) => true;
+
+  @override
+  bool visitStringLiteral(StringLiteral _) => true;
+
+  @override
+  bool visitConstantExpression(ConstantExpression _) => true;
+
+  @override
+  bool visitVariableGet(VariableGet node) {
+    // The variable is an argument of the function to be inlined. Verify it
+    // appears in an order consistent with the order the arguments appeared
+    // in the call.
+    final location = _expectedArgumentOrder!.indexOf(
+      node.variable,
+      _nextArgIndex,
+    );
+    // Either the variable isn't one of the expected arguments at all, or it is
+    // appearing out of the expected order.
+    if (location == -1) return false;
+    // Advance the start of the expected range past the variable just found to
+    // ensure the variable can only be used once.
+    _nextArgIndex = location + 1;
+    return true;
+  }
+
+  @override
+  bool visitField(Field node) => node.isEnumElement;
+
+  @override
+  bool visitStaticGet(StaticGet node) {
+    return node.target.accept(this);
+  }
 }

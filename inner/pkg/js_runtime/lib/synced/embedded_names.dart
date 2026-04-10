@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// ignore_for_file: constant_identifier_names, library_names
+// ignore_for_file: constant_identifier_names
 
 /// Contains the names of globals that are embedded into the output by the
 /// compiler.
@@ -11,7 +11,7 @@
 /// the `_foreign_helper` library.
 ///
 /// This library is shared between the compiler and the runtime system.
-library dart2js._embedded_names;
+library;
 
 /// The name of the property that is used to find the native superclass of
 /// an extended class.
@@ -159,6 +159,16 @@ const IS_HUNK_INITIALIZED = 'isHunkInitialized';
 /// globals don't clash with it.
 const DEFERRED_INITIALIZED = 'deferredInitialized';
 
+/// Property name for the reference to the initialization event log which is
+/// included in exceptions when deferred loading fails.
+///
+/// The event log is a JS array where each entry is a plain JS object
+/// representing event data. Each entry will be passed to JSON.stringify()
+/// before being appended to the thrown exception.
+///
+/// This embedded global is only used for deferred loading.
+const INITIALIZATION_EVENT_LOG = 'eventLog';
+
 /// An embedded global used to collect and access runtime metrics.
 const RUNTIME_METRICS = 'rm';
 
@@ -172,6 +182,10 @@ const STARTUP_METRICS = 'sm';
 /// type checks.
 // TODO(51016): This might be moved to improve deferred loading.
 const RECORD_TYPE_TEST_COMBINATORS_PROPERTY = 'rttc';
+
+/// An embedded global that contains the value of `globalThis`.  Unlike many
+/// embedded globals, this one has many references, so we choose short name.
+const CACHED_GLOBAL_THIS = 'G';
 
 /// Names of fields of collected tear-off parameters object.
 ///

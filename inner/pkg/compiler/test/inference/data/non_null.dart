@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   nonNullStaticField();
   nonNullInstanceField1();
@@ -12,40 +10,43 @@ main() {
   nonNullLocal();
 }
 
-/*member: staticField:[null|exact=JSUInt31]*/
+/*member: staticField:[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/
 var staticField;
 
-/*member: nonNullStaticField:[exact=JSUInt31]*/
+/*member: nonNullStaticField:[exact=JSUInt31|powerset={I}{O}{N}]*/
 nonNullStaticField() => staticField ??= 42;
 
-/*member: Class1.:[exact=Class1]*/
+/*member: Class1.:[exact=Class1|powerset={N}{O}{N}]*/
 class Class1 {
-  /*member: Class1.field:[null|exact=JSUInt31]*/
+  /*member: Class1.field:[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/
   var field;
 }
 
-/*member: nonNullInstanceField1:[exact=JSUInt31]*/
+/*member: nonNullInstanceField1:[exact=JSUInt31|powerset={I}{O}{N}]*/
 nonNullInstanceField1() {
-  return Class1(). /*[exact=Class1]*/ /*update: [exact=Class1]*/ field ??= 42;
+  return Class1()
+          . /*[exact=Class1|powerset={N}{O}{N}]*/ /*update: [exact=Class1|powerset={N}{O}{N}]*/ field ??=
+      42;
 }
 
-/*member: Class2.:[exact=Class2]*/
+/*member: Class2.:[exact=Class2|powerset={N}{O}{N}]*/
 class Class2 {
-  /*member: Class2.field:[null|exact=JSUInt31]*/
+  /*member: Class2.field:[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/
   var field;
 
-  /*member: Class2.method:[exact=JSUInt31]*/
+  /*member: Class2.method:[exact=JSUInt31|powerset={I}{O}{N}]*/
   method() {
-    return /*[exact=Class2]*/ /*update: [exact=Class2]*/ field ??= 42;
+    return /*[exact=Class2|powerset={N}{O}{N}]*/ /*update: [exact=Class2|powerset={N}{O}{N}]*/ field ??=
+        42;
   }
 }
 
-/*member: nonNullInstanceField2:[exact=JSUInt31]*/
+/*member: nonNullInstanceField2:[exact=JSUInt31|powerset={I}{O}{N}]*/
 nonNullInstanceField2() {
-  return Class2(). /*invoke: [exact=Class2]*/ method();
+  return Class2(). /*invoke: [exact=Class2|powerset={N}{O}{N}]*/ method();
 }
 
-/*member: nonNullLocal:[exact=JSUInt31]*/
+/*member: nonNullLocal:[exact=JSUInt31|powerset={I}{O}{N}]*/
 nonNullLocal() {
   var local = null;
   return local ??= 42;

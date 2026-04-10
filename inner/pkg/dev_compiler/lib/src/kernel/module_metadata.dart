@@ -41,8 +41,10 @@ class ModuleMetadataVersion {
   bool isCompatibleWith(String version) {
     var parts = version.split('.');
     if (parts.length != 3) {
-      throw FormatException('Version: $version'
-          'does not follow simple semantic versioning format');
+      throw FormatException(
+        'Version: $version'
+        'does not follow simple semantic versioning format',
+      );
     }
     var major = int.parse(parts[0]);
     var minor = int.parse(parts[1]);
@@ -79,18 +81,19 @@ class LibraryMetadata {
   LibraryMetadata(this.name, this.importUri, this.fileUri, this.partUris);
 
   LibraryMetadata.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String,
-        importUri = json['importUri'] as String,
-        fileUri = json['fileUri'] as String,
-        partUris =
-            List.castFrom<dynamic, String>(json['partUris'] as List<dynamic>);
+    : name = json['name'] as String,
+      importUri = json['importUri'] as String,
+      fileUri = json['fileUri'] as String,
+      partUris = List.castFrom<dynamic, String>(
+        json['partUris'] as List<dynamic>,
+      );
 
   Map<String, dynamic> toJson() {
     return {
       'name': name,
       'importUri': importUri,
       'fileUri': fileUri,
-      'partUris': [...partUris]
+      'partUris': [...partUris],
     };
   }
 }
@@ -127,14 +130,14 @@ class ModuleMetadata {
 
   final Map<String, LibraryMetadata> libraries = {};
 
-  /// True if the module corresponding to this metadata was compiled with sound
-  /// null safety enabled.
-  final bool soundNullSafety;
-
-  ModuleMetadata(this.name, this.closureName, this.sourceMapUri, this.moduleUri,
-      this.fullDillUri, this.soundNullSafety,
-      {String? version})
-      : version = version ??= ModuleMetadataVersion.current.version;
+  ModuleMetadata(
+    this.name,
+    this.closureName,
+    this.sourceMapUri,
+    this.moduleUri,
+    this.fullDillUri, {
+    String? version,
+  }) : version = version ??= ModuleMetadataVersion.current.version;
 
   /// Add [library] to this metadata.
   ///
@@ -152,13 +155,12 @@ class ModuleMetadata {
   }
 
   ModuleMetadata.fromJson(Map<String, dynamic> json)
-      : version = json['version'] as String,
-        name = json['name'] as String,
-        closureName = json['closureName'] as String,
-        sourceMapUri = json['sourceMapUri'] as String,
-        moduleUri = json['moduleUri'] as String,
-        fullDillUri = json['fullDillUri'] as String,
-        soundNullSafety = json['soundNullSafety'] as bool {
+    : version = json['version'] as String,
+      name = json['name'] as String,
+      closureName = json['closureName'] as String,
+      sourceMapUri = json['sourceMapUri'] as String,
+      moduleUri = json['moduleUri'] as String,
+      fullDillUri = json['fullDillUri'] as String {
     if (!ModuleMetadataVersion.current.isCompatibleWith(version)) {
       throw Exception('Unsupported metadata version $version');
     }
@@ -177,7 +179,6 @@ class ModuleMetadata {
       'moduleUri': moduleUri,
       'fullDillUri': fullDillUri,
       'libraries': [for (var lib in libraries.values) lib.toJson()],
-      'soundNullSafety': soundNullSafety
     };
   }
 }

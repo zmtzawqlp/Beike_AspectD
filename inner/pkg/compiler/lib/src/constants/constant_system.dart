@@ -4,7 +4,7 @@
 
 /// Constant system following the semantics for Dart code that has been
 /// compiled to JavaScript.
-library dart2js.constant_system;
+library;
 
 import '../common/elements.dart' show CommonElements;
 import '../elements/entities.dart';
@@ -91,8 +91,11 @@ BoolConstantValue createBool(bool value) => BoolConstantValue(value);
 
 NullConstantValue createNull() => NullConstantValue();
 
-ListConstantValue createList(CommonElements commonElements,
-    InterfaceType sourceType, List<ConstantValue> values) {
+ListConstantValue createList(
+  CommonElements commonElements,
+  InterfaceType sourceType,
+  List<ConstantValue> values,
+) {
   InterfaceType type = commonElements.getConstantListTypeFor(sourceType);
   return ListConstantValue(type, values);
 }
@@ -141,42 +144,113 @@ bool isSubtype(DartTypes types, DartType s, DartType t) {
   return types.isSubtype(s, t);
 }
 
-SetConstantValue createSet(CommonElements commonElements,
-    InterfaceType sourceType, List<ConstantValue> values) {
-  InterfaceType type = commonElements.getConstantSetTypeFor(sourceType);
-  DartType elementType = type.typeArguments.first;
-  InterfaceType mapType =
-      commonElements.mapType(elementType, commonElements.nullType);
-  List<NullConstantValue> nulls =
-      List<NullConstantValue>.filled(values.length, const NullConstantValue());
-  MapConstantValue entries = createMap(commonElements, mapType, values, nulls);
-  return JavaScriptSetConstant(type, entries);
+SetConstantValue createSet(
+  CommonElements commonElements,
+  InterfaceType sourceType,
+  List<ConstantValue> values,
+) {
+  JavaScriptObjectConstantValue? indexObject = _makeStringIndex(values);
+  InterfaceType type = commonElements.getConstantSetTypeFor(
+    sourceType,
+    onlyStringKeys: indexObject != null,
+  );
+  return JavaScriptSetConstant(type, values, indexObject);
 }
 
 MapConstantValue createMap(
-    CommonElements commonElements,
-    InterfaceType sourceType,
-    List<ConstantValue> keys,
-    List<ConstantValue> values) {
-  bool onlyStringKeys = keys.every((key) =>
-      key is StringConstantValue &&
-      key.stringValue != JavaScriptMapConstant.PROTO_PROPERTY);
-
-  InterfaceType keysType =
-      commonElements.listType(sourceType.typeArguments.first);
+  CommonElements commonElements,
+  InterfaceType sourceType,
+  List<ConstantValue> keys,
+  List<ConstantValue> values,
+) {
+  final JavaScriptObjectConstantValue? indexObject = _makeStringIndex(keys);
+  final onlyStringKeys = indexObject != null;
+  InterfaceType keysType = commonElements.listType(
+    sourceType.typeArguments.first,
+  );
+  InterfaceType valuesType = commonElements.listType(
+    sourceType.typeArguments.last,
+  );
   ListConstantValue keysList = createList(commonElements, keysType, keys);
-  InterfaceType type = commonElements.getConstantMapTypeFor(sourceType,
-      onlyStringKeys: onlyStringKeys);
-  return JavaScriptMapConstant(type, keysList, values, onlyStringKeys);
+  ListConstantValue valuesList = createList(commonElements, valuesType, values);
+
+  InterfaceType type = commonElements.getConstantMapTypeFor(
+    sourceType,
+    onlyStringKeys: onlyStringKeys,
+  );
+
+  return JavaScriptMapConstant(
+    type,
+    keysList,
+    valuesList,
+    onlyStringKeys,
+    indexObject,
+  );
+}
+
+JavaScriptObjectConstantValue? _makeStringIndex(List<ConstantValue> keys) {
+  for (final key in keys) {
+    if (key is! StringConstantValue) return null;
+    if (key.stringValue == JavaScriptMapConstant.protoProperty) return null;
+  }
+
+  // If we generate a JavaScript Object initializer with the keys in order, are
+  // the properties of the Object in the same order? If so, we can generate the
+  // keys of the map using `Object.keys`, otherwise we need to provide the key
+  // ordering explicitly, or sort by position at runtime, or have a Map/Set
+  // subclass for the case where sorting is necessary.  For now we use the
+  // general constant Map/Set for the occasional case where the order is wrong.
+  if (!_valuesInObjectPropertyOrder(keys)) return null;
+
+  return JavaScriptObjectConstantValue(
+    keys,
+    List.generate(keys.length, createIntFromInt),
+  );
+}
+
+final _numberRegExp = RegExp(r'^0$|^[1-9][0-9]*$');
+
+/// If the values are the keys of a JavaScript Object initializer, is the result
+/// of `Object.keys` in the same order as [keys]? This method may conservatively
+/// return `false`.
+///
+/// Object keys are split into 'indexes' and 'names', with all the 'indexes'
+/// before the 'names'. 'indexes' are strings that have the value of
+/// `i.toString()` for some `i` from 0 up to some limit. The indexes are ordered
+/// by their integer value. 'names' are in insertion order. The literal
+/// `{"a":1,"10":2,"2":3,"b":4}` has `Object.keys` of `["2","10","a","b"]`
+/// because `10` and `2` come before `a` and `b`.
+bool _valuesInObjectPropertyOrder(List<ConstantValue> keys) {
+  int lastNumber = -1;
+  bool seenNonNumber = false;
+  for (final key in keys) {
+    if (key is! StringConstantValue) return false;
+    final string = key.stringValue;
+    if (_numberRegExp.hasMatch(string)) {
+      // This index would move before the non-number.
+      if (seenNonNumber) return false;
+      // Sufficiently large digit strings are not considered to be indexes. It
+      // is not clear where the cutoff is or whether it is consistent between
+      // JavaScript implementations.
+      if (string.length > 8) return false;
+      final value = int.parse(string);
+      // Adjacent indexes must be in increasing numerical order.
+      if (value <= lastNumber) return false;
+      lastNumber = value;
+    } else {
+      seenNonNumber = true;
+    }
+  }
+  return true;
 }
 
 ConstructedConstantValue createSymbol(
-    CommonElements commonElements, String text) {
+  CommonElements commonElements,
+  String text,
+) {
   InterfaceType type = commonElements.symbolImplementationType;
   FieldEntity field = commonElements.symbolField;
   ConstantValue argument = createString(text);
-  // TODO(johnniwinther): Use type arguments when all uses no longer expect
-  // a [FieldElement].
   var fields = <FieldEntity, ConstantValue>{field: argument};
   return ConstructedConstantValue(type, fields);
 }
@@ -225,7 +299,7 @@ class NegateOperation implements UnaryOperation {
 
   @override
   NumConstantValue? fold(ConstantValue constant) {
-    NumConstantValue? _fold(ConstantValue constant) {
+    NumConstantValue? fold(ConstantValue constant) {
       if (constant is IntConstantValue) {
         return createInt(-constant.intValue);
       }
@@ -240,7 +314,7 @@ class NegateOperation implements UnaryOperation {
         return createDouble(-0.0);
       }
     }
-    return _fold(constant);
+    return fold(constant);
   }
 }
 
@@ -265,7 +339,7 @@ abstract class BinaryBitOperation implements BinaryOperation {
 
   @override
   IntConstantValue? fold(ConstantValue left, ConstantValue right) {
-    IntConstantValue? _fold(ConstantValue left, ConstantValue right) {
+    IntConstantValue? fold(ConstantValue left, ConstantValue right) {
       if (left is IntConstantValue && right is IntConstantValue) {
         BigInt? resultValue = foldInts(left.intValue, right.intValue);
         if (resultValue == null) return null;
@@ -281,7 +355,7 @@ abstract class BinaryBitOperation implements BinaryOperation {
     if (right.isMinusZero) {
       right = createInt(BigInt.zero);
     }
-    IntConstantValue? result = _fold(left, right);
+    IntConstantValue? result = fold(left, right);
     if (result != null) {
       // We convert the result of bit-operations to 32 bit unsigned integers.
       return _createInt32(result.intValue);
@@ -351,8 +425,9 @@ class ShiftRightOperation extends BinaryBitOperation {
     ConstantValue adjustedLeft = left;
     if (left is IntConstantValue) {
       BigInt value = left.intValue;
-      BigInt truncated =
-          value.isNegative ? value.toSigned(32) : value.toUnsigned(32);
+      BigInt truncated = value.isNegative
+          ? value.toSigned(32)
+          : value.toUnsigned(32);
       if (value != truncated) {
         adjustedLeft = createInt(truncated);
       }
@@ -420,9 +495,9 @@ abstract class ArithmeticNumOperation implements BinaryOperation {
 
   @override
   NumConstantValue? fold(ConstantValue left, ConstantValue right) {
-    NumConstantValue? _fold(ConstantValue left, ConstantValue right) {
+    NumConstantValue? fold(ConstantValue left, ConstantValue right) {
       if (left is NumConstantValue && right is NumConstantValue) {
-        var foldedValue;
+        Object? foldedValue;
         if (left is IntConstantValue && right is IntConstantValue) {
           foldedValue = foldInts(left.intValue, right.intValue);
         } else {
@@ -434,24 +509,23 @@ abstract class ArithmeticNumOperation implements BinaryOperation {
                 right is IntConstantValue &&
                 !isDivide() ||
             isTruncatingDivide()) {
-          assert(foldedValue is BigInt);
-          return createInt(foldedValue);
+          return createInt(foldedValue as BigInt);
         } else {
-          return createDouble(foldedValue);
+          return createDouble(foldedValue as double);
         }
       }
       return null;
     }
 
-    NumConstantValue? result = _fold(left, right);
+    NumConstantValue? result = fold(left, right);
     if (result == null) return result;
     return _convertToJavaScriptConstant(result);
   }
 
   bool isDivide() => false;
   bool isTruncatingDivide() => false;
-  foldInts(BigInt left, BigInt right);
-  foldNums(num left, num right);
+  Object? foldInts(BigInt left, BigInt right);
+  Object? foldNums(num left, num right);
 }
 
 class SubtractOperation extends ArithmeticNumOperation {
@@ -559,7 +633,7 @@ class AddOperation implements BinaryOperation {
 
   @override
   ConstantValue? fold(ConstantValue left, ConstantValue right) {
-    ConstantValue? _fold(ConstantValue left, ConstantValue right) {
+    ConstantValue? fold(ConstantValue left, ConstantValue right) {
       if (left is IntConstantValue && right is IntConstantValue) {
         BigInt result = left.intValue + right.intValue;
         return createInt(result);
@@ -574,7 +648,7 @@ class AddOperation implements BinaryOperation {
       }
     }
 
-    ConstantValue? result = _fold(left, right);
+    ConstantValue? result = fold(left, right);
     if (result is NumConstantValue) {
       return _convertToJavaScriptConstant(result);
     }
@@ -594,7 +668,6 @@ abstract class RelationalNumOperation implements BinaryOperation {
       } else {
         foldedValue = foldNums(left.doubleValue, right.doubleValue);
       }
-      assert((foldedValue as dynamic) != null);
       return createBool(foldedValue);
     }
     return null;
@@ -771,7 +844,8 @@ class RoundOperation implements UnaryOperation {
       double rounded2 = (value * (1.0 - severalULP)).roundToDouble();
       if (rounded != rounded1 || rounded != rounded2) return null;
       return _convertToJavaScriptConstant(
-          IntConstantValue(BigInt.from(value.round())));
+        IntConstantValue(BigInt.from(value.round())),
+      );
     }
 
     if (constant is IntConstantValue) {
@@ -859,48 +933,76 @@ class UnfoldedUnaryOperation implements UnaryOperation {
 }
 
 class JavaScriptSetConstant extends SetConstantValue {
-  final MapConstantValue entries;
+  static const String dartStringClass = "ConstantStringSet";
+  static const String dartGeneralClass = "GeneralConstantSet";
 
-  JavaScriptSetConstant(InterfaceType type, this.entries)
-      : super(type, entries.keys);
+  /// Index for all-string Sets.
+  final JavaScriptObjectConstantValue? indexObject;
 
-  @override
-  List<ConstantValue> getDependencies() => [entries];
-}
-
-class JavaScriptMapConstant extends MapConstantValue {
-  /// The [PROTO_PROPERTY] must not be used as normal property in any JavaScript
-  /// object. It would change the prototype chain.
-  static const String PROTO_PROPERTY = "__proto__";
-
-  /// The dart class implementing constant map literals.
-  static const String DART_CLASS = "ConstantMap";
-  static const String DART_STRING_CLASS = "ConstantStringMap";
-  static const String DART_GENERAL_CLASS = "GeneralConstantMap";
-  static const String LENGTH_NAME = "_length";
-  static const String JS_OBJECT_NAME = "_jsObject";
-  static const String KEYS_NAME = "_keys";
-  static const String JS_DATA_NAME = "_jsData";
-
-  final ListConstantValue keyList;
-  final bool onlyStringKeys;
-
-  JavaScriptMapConstant(InterfaceType type, ListConstantValue keyList,
-      List<ConstantValue> values, this.onlyStringKeys)
-      : this.keyList = keyList,
-        super(type, keyList.entries, values);
+  JavaScriptSetConstant(super.type, super.elements, this.indexObject);
 
   @override
   List<ConstantValue> getDependencies() {
-    List<ConstantValue> result = <ConstantValue>[];
-    if (onlyStringKeys) {
-      result.add(keyList);
+    if (indexObject == null) {
+      // For a general constant Set the values are emitted as a literal array.
+      return [...values];
     } else {
-      // Add the keys individually to avoid generating an unused list constant
-      // for the keys.
-      result.addAll(keys);
+      // For a ConstantStringSet, the index contains the elements.
+      return [indexObject!];
     }
-    result.addAll(values);
-    return result;
+  }
+}
+
+class JavaScriptMapConstant extends MapConstantValue {
+  /// The [protoProperty] must not be used as normal property in any JavaScript
+  /// object. It would change the prototype chain.
+  static const String protoProperty = "__proto__";
+
+  /// The dart class implementing constant map literals.
+  static const String dartClass = "ConstantMap";
+  static const String dartStringClass = "ConstantStringMap";
+  static const String dartGeneralClass = "GeneralConstantMap";
+
+  static const String lengthName = "_length";
+  static const String jsObjectName = "_jsObject";
+  static const String keysName = "_keys";
+  static const String jsDataName = "_jsData";
+
+  static const String jsIndexName = '_jsIndex';
+  static const String valuesName = '_values';
+
+  final ListConstantValue keyList;
+  final ListConstantValue valueList;
+  final bool onlyStringKeys;
+  final JavaScriptObjectConstantValue? indexObject;
+
+  JavaScriptMapConstant(
+    InterfaceType type,
+    this.keyList,
+    this.valueList,
+    this.onlyStringKeys,
+    this.indexObject,
+  ) : super(type, keyList.entries, valueList.entries);
+
+  @override
+  List<ConstantValue> getDependencies() {
+    if (onlyStringKeys) {
+      // TODO(25230): If we use `valueList` instead of `...values`, that creates
+      // a constant list that has a name in the constant pool and the list has
+      // Dart type attached. The Map constant has a reference to the list. If we
+      // knew that the `valueList` was the only reference to the list, we could
+      // generate the array in-place and omit the type. See [here][1] for more
+      // on the idea of building constants with unnamed subexpressions.
+      //
+      // [1]: https://github.com/dart-lang/sdk/issues/25230
+      //
+      // For now the values are generated in a fresh Array, so add the values.
+      return [indexObject!, ...values];
+    } else {
+      // The general representation uses a list of key/value pairs, so add the
+      // keys and values individually to avoid generating an unused list
+      // constant for the keys and values.
+      return [...keys, ...values];
+    }
   }
 }

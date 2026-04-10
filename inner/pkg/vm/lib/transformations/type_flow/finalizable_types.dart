@@ -7,7 +7,7 @@ import 'package:kernel/class_hierarchy.dart';
 import 'package:kernel/core_types.dart';
 import 'package:kernel/library_index.dart';
 import 'package:kernel/type_environment.dart';
-import 'package:vm/transformations/ffi/finalizable.dart'
+import 'package:vm/modular/transformations/ffi/finalizable.dart'
     show FinalizableDartType;
 
 /// Provides insights into `Finalizable`s.
@@ -19,8 +19,8 @@ class FinalizableTypes {
     CoreTypes coreTypes,
     LibraryIndex index,
     ClassHierarchy classHierarchy,
-  )   : _env = TypeEnvironment(coreTypes, classHierarchy),
-        _finalizableClass = index.getClass('dart:ffi', 'Finalizable');
+  ) : _env = TypeEnvironment(coreTypes, classHierarchy),
+      _finalizableClass = index.getClass('dart:ffi', 'Finalizable');
 
   bool isFieldFinalizable(Field field) => _isFinalizable(field.type);
 
@@ -29,8 +29,8 @@ class FinalizableTypes {
 
   /// Whether [type] is something that subtypes `FutureOr<Finalizable?>?`.
   bool _isFinalizable(DartType type) => type.isFinalizable(
-        finalizableClass: _finalizableClass,
-        typeEnvironment: _env,
-        cache: _isFinalizableCache,
-      );
+    finalizableClass: _finalizableClass,
+    typeEnvironment: _env,
+    cache: _isFinalizableCache,
+  );
 }

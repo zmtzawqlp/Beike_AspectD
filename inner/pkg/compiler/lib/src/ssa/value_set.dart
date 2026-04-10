@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../universe/side_effects.dart' show SideEffects;
+import '../util/bitset.dart';
 import 'nodes.dart';
 
 class ValueSet {
@@ -49,24 +50,28 @@ class ValueSet {
     return null;
   }
 
-  void kill(int flags) {
-    if (flags == 0) return;
-    int depends = SideEffects.computeDependsOnFlags(flags);
-    // Kill in the hash table.
+  void kill(Bitset flags) {
+    if (flags.isEmpty) return;
+    final depends = SideEffects.computeDependsOnFlags(flags);
+    // Remove entries from the hash table that depend on the 'killed' effect
+    // flags. Keep idempotent (allowCSE) entries.
     for (int index = 0, length = table.length; index < length; index++) {
       HInstruction? instruction = table[index];
-      if (instruction != null && instruction.sideEffects.dependsOn(depends)) {
-        table[index] = null;
-        size--;
+      if (instruction != null) {
+        if (!instruction.allowCSE &&
+            instruction.sideEffects.dependsOn(depends)) {
+          table[index] = null;
+          size--;
+        }
       }
     }
     // Kill in the collisions list.
-    ValueSetNode? previous = null;
+    ValueSetNode? previous;
     ValueSetNode? current = collisions;
     while (current != null) {
       ValueSetNode? next = current.next;
       HInstruction cached = current.value;
-      if (cached.sideEffects.dependsOn(depends)) {
+      if (!cached.allowCSE && cached.sideEffects.dependsOn(depends)) {
         if (previous == null) {
           collisions = next;
         } else {
@@ -102,7 +107,10 @@ class ValueSet {
   // by iterating through the hash table and the collisions list and
   // calling [:other.add:].
   static ValueSet copyTo(
-      ValueSet other, List<HInstruction?> table, ValueSetNode? collisions) {
+    ValueSet other,
+    List<HInstruction?> table,
+    ValueSetNode? collisions,
+  ) {
     // Copy elements from the hash table.
     for (final instruction in table) {
       if (instruction != null) other.add(instruction);
@@ -163,4 +171,7 @@ class ValueSetNode {
   int get hashCode => hash;
   ValueSetNode? next;
   ValueSetNode(this.value, this.hash, this.next);
+
+  @override
+  bool operator ==(other) => identical(this, other);
 }

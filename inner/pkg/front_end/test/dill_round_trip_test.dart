@@ -2,19 +2,18 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
+import 'dart:typed_data';
 
+import 'package:front_end/src/kernel/utils.dart' show serializeComponent;
 import 'package:kernel/ast.dart' show Component;
-
 import 'package:kernel/binary/ast_from_binary.dart' show BinaryBuilder;
-
 import 'package:kernel/target/targets.dart' show NoneTarget, TargetFlags;
 
 import 'incremental_suite.dart'
     show checkIsEqual, getOptions, normalCompilePlain;
 
 Future<void> main() async {
-  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/bin/dart2js.dart");
+  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/lib/src/dart2js.dart");
   Stopwatch stopwatch = new Stopwatch()..start();
   Component compiledComponent = await normalCompilePlain(dart2jsUrl,
       options: getOptions()
@@ -23,7 +22,7 @@ Future<void> main() async {
   print("Compiled dart2js in ${stopwatch.elapsedMilliseconds} ms");
   stopwatch.reset();
 
-  List<int> bytes = serializeComponent(compiledComponent);
+  Uint8List bytes = serializeComponent(compiledComponent);
   print("Serialized dart2js in ${stopwatch.elapsedMilliseconds} ms");
   print("Output is ${bytes.length} bytes long.");
   print("");

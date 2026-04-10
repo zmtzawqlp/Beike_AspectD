@@ -1,14 +1,14 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
 class E extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E> values = #C4;
   enum-element static const field self::E a = #C3;
+  static const field core::List<self::E> values = #C4;
   const constructor b(core::int #index, core::String #name) → self::E
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E.${this.{core::_Enum::_name}{core::String}}";
 }
 static method main() → dynamic {}

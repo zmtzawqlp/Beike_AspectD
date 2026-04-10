@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "comment": "Recorded usages of objects tagged with a `RecordUse` annotation",
+    "version": "0.2.0"
+  },
+  "constants": [
+    {
+      "type": "int",
+      "value": 42
+    }
+  ],
+  "locations": [
+    {
+      "uri": "complex.dart"
+    }
+  ],
+  "recordings": [
+    {
+      "definition": {
+        "identifier": {
+          "uri": "complex.dart",
+          "scope": "OtherClass",
+          "name": "generate"
+        },
+        "loading_unit": "1"
+      },
+      "calls": [
+        {
+          "type": "with_arguments",
+          "positional": [
+            null,
+            null,
+            null,
+            null,
+            0
+          ],
+          "loading_unit": "1",
+          "@": 0
+        }
+      ]
+    }
+  ]
+}

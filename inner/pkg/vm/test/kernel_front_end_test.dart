@@ -13,17 +13,20 @@ import 'package:vm/kernel_front_end.dart';
 
 final String sdkDir = Platform.script.resolve('../../..').toFilePath();
 
-String platformPath() => computePlatformBinariesLocation()
-    .resolve('vm_platform_strong.dill')
-    .toFilePath();
+String platformPath() =>
+    computePlatformBinariesLocation()
+        .resolve('vm_platform.dill')
+        .toFilePath();
 
 const String mainScript = 'pkg/vm/bin/gen_kernel.dart';
 const String mainScriptPackageUri = 'package:vm/kernel_front_end.dart';
 const String packageConfigFile = '.dart_tool/package_config.json';
 
 Future<void> testCompile(List<String> args) async {
-  final compilerExitCode =
-      await runCompiler(createCompilerArgParser().parse(args), '');
+  final compilerExitCode = await runCompiler(
+    createCompilerArgParser().parse(args),
+    '',
+  );
   expect(compilerExitCode, successExitCode);
 }
 
@@ -49,6 +52,7 @@ main() {
 
   String outputDill() => new File('${tempDir.path}/foo.dill').path;
   String outputManifest() => new File('${tempDir.path}/foo.manifest').path;
+  String outputDepfile() => new File('${tempDir.path}/foo.d').path;
 
   test('compile-simple', () async {
     await testCompile([
@@ -162,4 +166,28 @@ main() {
     expect(containsLibrary(component, 'src1.dart'), equals(true));
     expect(containsLibrary(component, 'src2.dart'), equals(true));
   }, timeout: Timeout.none);
+
+  for (bool packageArgument in [true, false]) {
+    final without = packageArgument ? 'with' : 'without';
+    test('depfile $without packages argument', () async {
+      await testCompile([
+        '--platform',
+        platformPath(),
+        if (packageArgument) ...['--packages', '$sdkDir/$packageConfigFile'],
+        '--depfile',
+        outputDepfile(),
+        '--output',
+        outputDill(),
+        '$sdkDir/$mainScript',
+      ]);
+      expect(
+        File(outputDepfile()).readAsStringSync(),
+        stringContainsInOrder(
+          // Don't check for any path separators to avoid having to deal with
+          // different slashes and back-slash escaping.
+          '$sdkDir/$packageConfigFile'.replaceAll(r'\', '/').split('/'),
+        ),
+      );
+    }, timeout: Timeout.none);
+  }
 }

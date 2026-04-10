@@ -19,8 +19,7 @@ exhaustiveBoundedTypeVariableByValue<T extends bool>(T x1, T x2) {
    checkingOrder={bool,true,false},
    subtypes={true,false},
    type=bool
-  */
-      switch (x2) {
+  */ switch (x2) {
     true /*space=true*/ => 0,
     false /*space=false*/ => 1,
   };
@@ -41,8 +40,7 @@ exhaustiveBoundedTypeVariableByType<T extends bool>(T x1, T x2) {
    checkingOrder={bool,true,false},
    subtypes={true,false},
    type=bool
-  */
-      switch (x2) {
+  */ switch (x2) {
     T() /*space=bool*/ => 0,
   };
 }
@@ -64,8 +62,7 @@ nonExhaustiveBoundedTypeVariable<T extends bool>(T x1, T x2) {
    error=non-exhaustive:false,
    subtypes={true,false},
    type=bool
-  */
-      switch (x2) {
+  */ switch (x2) {
     true /*space=true*/ => 0,
   };
 }
@@ -85,17 +82,18 @@ exhaustiveBoundedTypeVariableByBound<T extends bool>(T x1, T x2) {
    checkingOrder={bool,true,false},
    subtypes={true,false},
    type=bool
-  */
-      switch (x2) {
+  */ switch (x2) {
     bool() /*space=bool*/ => 0,
   };
 }
 
 nonExhaustiveBoundedTypeVariableByOtherType<T extends bool, S extends bool>(
-    T x1, T x2) {
+  T x1,
+  T x2,
+) {
   /*
    checkingOrder={bool,true,false},
-   error=non-exhaustive:true,
+   error=non-exhaustive:true;false,
    subtypes={true,false},
    type=bool
   */
@@ -106,11 +104,10 @@ nonExhaustiveBoundedTypeVariableByOtherType<T extends bool, S extends bool>(
   }
   return /*
    checkingOrder={bool,true,false},
-   error=non-exhaustive:true,
+   error=non-exhaustive:true;false,
    subtypes={true,false},
    type=bool
-  */
-      switch (x2) {
+  */ switch (x2) {
     S() /*space=bool*/ => 0,
   };
 }
@@ -135,8 +132,7 @@ exhaustivePromotedTypeVariableByValue<T>(T x1, T x2) {
      checkingOrder={bool,true,false},
      subtypes={true,false},
      type=bool
-    */
-        switch (x2) {
+    */ switch (x2) {
       true /*space=true*/ => 0,
       false /*space=false*/ => 1,
     };
@@ -161,8 +157,7 @@ exhaustivePromotedTypeVariableByType<T>(T x1, T x2) {
      checkingOrder={bool,true,false},
      subtypes={true,false},
      type=bool
-    */
-        switch (x2) {
+    */ switch (x2) {
       T() /*space=bool*/ => 0,
     };
   }
@@ -188,8 +183,7 @@ nonExhaustivePromotedTypeVariable<T>(T x1, T x2) {
      error=non-exhaustive:false,
      subtypes={true,false},
      type=bool
-    */
-        switch (x2) {
+    */ switch (x2) {
       true /*space=true*/ => 0,
     };
   }
@@ -213,8 +207,7 @@ exhaustivePromotedTypeVariableByBound<T>(T x1, T x2) {
      checkingOrder={bool,true,false},
      subtypes={true,false},
      type=bool
-    */
-        switch (x2) {
+    */ switch (x2) {
       bool() /*space=bool*/ => 0,
     };
   }
@@ -224,7 +217,7 @@ nonExhaustivePromotedTypeVariableByOtherType<T, S extends bool>(T x1, T x2) {
   if (x1 is bool) {
     /*
      checkingOrder={bool,true,false},
-     error=non-exhaustive:true,
+     error=non-exhaustive:true;false,
      subtypes={true,false},
      type=bool
     */
@@ -237,11 +230,10 @@ nonExhaustivePromotedTypeVariableByOtherType<T, S extends bool>(T x1, T x2) {
   if (x2 is bool) {
     var a = /*
      checkingOrder={bool,true,false},
-     error=non-exhaustive:true,
+     error=non-exhaustive:true;false,
      subtypes={true,false},
      type=bool
-    */
-        switch (x2) {
+    */ switch (x2) {
       S() /*space=bool*/ => 0,
     };
   }

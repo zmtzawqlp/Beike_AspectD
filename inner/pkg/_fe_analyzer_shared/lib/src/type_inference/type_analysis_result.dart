@@ -2,11 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import '../types/shared_type.dart';
 import 'type_analyzer.dart';
 
 /// Result for analyzing an assigned variable pattern in
 /// [TypeAnalyzer.analyzeAssignedVariablePattern].
-class AssignedVariablePatternResult<Error> {
+class AssignedVariablePatternResult<Error> extends PatternResult {
   /// Error for when a variable was assigned multiple times within a pattern.
   final Error? duplicateAssignmentPatternVariableError;
 
@@ -14,16 +15,18 @@ class AssignedVariablePatternResult<Error> {
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  AssignedVariablePatternResult(
-      {required this.duplicateAssignmentPatternVariableError,
-      required this.patternTypeMismatchInIrrefutableContextError});
+  AssignedVariablePatternResult({
+    required this.duplicateAssignmentPatternVariableError,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a constant pattern in
 /// [TypeAnalyzer.analyzeConstantPattern].
-class ConstantPatternResult<Type extends Object, Error> {
+class ConstantPatternResult<Error> extends PatternResult {
   /// The static type of the constant expression.
-  final Type expressionType;
+  final SharedTypeView expressionType;
 
   /// Error for when the pattern occurred in an irrefutable context.
   final Error? refutablePatternInIrrefutableContextError;
@@ -32,74 +35,65 @@ class ConstantPatternResult<Type extends Object, Error> {
   /// have a valid type wrt. the switch expression type.
   final Error? caseExpressionTypeMismatchError;
 
-  ConstantPatternResult(
-      {required this.expressionType,
-      required this.refutablePatternInIrrefutableContextError,
-      required this.caseExpressionTypeMismatchError});
+  ConstantPatternResult({
+    required this.expressionType,
+    required this.refutablePatternInIrrefutableContextError,
+    required this.caseExpressionTypeMismatchError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a declared variable pattern in
 /// [TypeAnalyzer.analyzeDeclaredVariablePattern].
-class DeclaredVariablePatternResult<Type extends Object, Error> {
+class DeclaredVariablePatternResult<Error> extends PatternResult {
   /// The static type of the variable.
-  final Type staticType;
+  final SharedTypeView staticType;
 
   /// Error for when the matched value type is not assignable to the static
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  DeclaredVariablePatternResult(
-      {required this.staticType,
-      required this.patternTypeMismatchInIrrefutableContextError});
+  DeclaredVariablePatternResult({
+    required this.staticType,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Container for the result of running type analysis on an expression.
 ///
-/// This class keeps track of a provisional type of the expression (prior to
-/// resolving null shorting) as well as the information necessary to resolve
-/// null shorting.
-abstract class ExpressionTypeAnalysisResult<Type extends Object> {
-  /// Type of the expression before resolving null shorting.
-  ///
-  /// For example, if `this` is the result of analyzing `(... as int?)?.isEven`,
-  /// [provisionalType] will be `bool`, because the `isEven` getter returns
-  /// `bool`, and it is not yet known (until looking at the surrounding code)
-  /// whether there will be additional selectors after `isEven` that should act
-  /// on the `bool` type.
-  Type get provisionalType;
+/// This class keeps track of the type of the expression. Derived classes expose
+/// other results of type analysis that are specific to certain expression
+/// types.
+class ExpressionTypeAnalysisResult {
+  /// The static type of the expression.
+  final SharedTypeView type;
 
-  /// Resolves any pending null shorting.  For example, if `this` is the result
-  /// of analyzing `(... as int?)?.isEven`, then calling [resolveShorting] will
-  /// cause the `?.` to be desugared (if code generation is occurring) and will
-  /// return the type `bool?`.
-  ///
-  /// TODO(paulberry): document what calls back to the client might be made by
-  /// invoking this method.
-  Type resolveShorting();
+  ExpressionTypeAnalysisResult({required this.type});
 }
 
 /// Result for analyzing an if-case statement or element in
 /// [TypeAnalyzer.analyzeIfCaseStatement] and
 /// [TypeAnalyzer.analyzeIfCaseElement].
-class IfCaseStatementResult<Type extends Object, Error> {
+class IfCaseStatementResult<Error> {
   /// The static type of the matched expression.
-  final Type matchedExpressionType;
+  final SharedTypeView matchedExpressionType;
 
   /// Error for when the guard has a non-bool type.
   final Error? nonBooleanGuardError;
 
   /// The type of the guard expression, if present.
-  final Type? guardType;
+  final SharedTypeView? guardType;
 
-  IfCaseStatementResult(
-      {required this.matchedExpressionType,
-      required this.nonBooleanGuardError,
-      required this.guardType});
+  IfCaseStatementResult({
+    required this.matchedExpressionType,
+    required this.nonBooleanGuardError,
+    required this.guardType,
+  });
 }
 
 /// Container for the result of running type analysis on an integer literal.
-class IntTypeAnalysisResult<Type extends Object>
-    extends SimpleTypeAnalysisResult<Type> {
+class IntTypeAnalysisResult extends ExpressionTypeAnalysisResult {
   /// Whether the integer literal was converted to a double.
   final bool convertedToDouble;
 
@@ -107,9 +101,9 @@ class IntTypeAnalysisResult<Type extends Object>
 }
 
 /// Result for analyzing a list pattern in [TypeAnalyzer.analyzeListPattern].
-class ListPatternResult<Type extends Object, Error> {
+class ListPatternResult<Error> extends PatternResult {
   /// The required type of the list pattern.
-  final Type requiredType;
+  final SharedTypeView requiredType;
 
   /// Errors for when multiple rest patterns occurred within the list pattern.
   ///
@@ -122,26 +116,30 @@ class ListPatternResult<Type extends Object, Error> {
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  ListPatternResult(
-      {required this.requiredType,
-      required this.duplicateRestPatternErrors,
-      required this.patternTypeMismatchInIrrefutableContextError});
+  ListPatternResult({
+    required this.requiredType,
+    required this.duplicateRestPatternErrors,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a logical or pattern in
 /// [TypeAnalyzer.analyzeLogicalOrPattern].
-class LogicalOrPatternResult<Error> {
+class LogicalOrPatternResult<Error> extends PatternResult {
   /// Error for when the pattern occurred in an irrefutable context.
   final Error? refutablePatternInIrrefutableContextError;
 
-  LogicalOrPatternResult(
-      {required this.refutablePatternInIrrefutableContextError});
+  LogicalOrPatternResult({
+    required this.refutablePatternInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a map pattern in [TypeAnalyzer.analyzeMapPattern].
-class MapPatternResult<Type extends Object, Error> {
+class MapPatternResult<Error> extends PatternResult {
   /// The required type of the map pattern.
-  final Type requiredType;
+  final SharedTypeView requiredType;
 
   /// Error for when the matched value type is not assignable to the required
   /// type in an irrefutable context.
@@ -155,25 +153,29 @@ class MapPatternResult<Type extends Object, Error> {
   /// The key is the indices it which the rest pattern occurred.
   final Map<int, Error>? restPatternErrors;
 
-  MapPatternResult(
-      {required this.requiredType,
-      required this.patternTypeMismatchInIrrefutableContextError,
-      required this.emptyMapPatternError,
-      required this.restPatternErrors});
+  MapPatternResult({
+    required this.requiredType,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required this.emptyMapPatternError,
+    required this.restPatternErrors,
+    required super.matchedValueType,
+  });
 }
 
 /// Information about the code context surrounding a pattern match.
-class MatchContext<Node extends Object, Expression extends Node,
-    Pattern extends Node, Type extends Object, Variable extends Object> {
+class MatchContext<
+  Node extends Object,
+  Expression extends Node,
+  Pattern extends Node,
+  Type extends Object,
+  Variable extends Object
+> {
   /// If non-`null`, the match is being done in an irrefutable context, and this
   /// is the surrounding AST node that establishes the irrefutable context.
   final Node? irrefutableContext;
 
   /// Indicates whether variables declared in the pattern should be `final`.
   final bool isFinal;
-
-  /// Indicates whether variables declared in the pattern should be `late`.
-  final bool isLate;
 
   /// The switch scrutinee, or `null` if this pattern does not occur in a switch
   /// statement or switch expression, or this pattern is not the top-level
@@ -199,7 +201,6 @@ class MatchContext<Node extends Object, Expression extends Node,
   MatchContext({
     this.irrefutableContext,
     required this.isFinal,
-    this.isLate = false,
     this.switchScrutinee,
     this.assignedVariables,
     required this.componentVariables,
@@ -214,39 +215,36 @@ class MatchContext<Node extends Object, Expression extends Node,
       irrefutableContext == null
           ? this
           : new MatchContext(
-              isFinal: isFinal,
-              isLate: isLate,
-              switchScrutinee: switchScrutinee,
-              assignedVariables: assignedVariables,
-              componentVariables: componentVariables,
-              patternVariablePromotionKeys: patternVariablePromotionKeys,
-            );
+            isFinal: isFinal,
+            switchScrutinee: switchScrutinee,
+            assignedVariables: assignedVariables,
+            componentVariables: componentVariables,
+            patternVariablePromotionKeys: patternVariablePromotionKeys,
+          );
 
   /// Returns a modified version of `this`, with a new value of
   /// [patternVariablePromotionKeys].
   MatchContext<Node, Expression, Pattern, Type, Variable> withPromotionKeys(
-          Map<String, int> patternVariablePromotionKeys) =>
-      new MatchContext(
-        irrefutableContext: irrefutableContext,
-        isFinal: isFinal,
-        isLate: isLate,
-        switchScrutinee: null,
-        assignedVariables: assignedVariables,
-        componentVariables: componentVariables,
-        patternVariablePromotionKeys: patternVariablePromotionKeys,
-        unnecessaryWildcardKind: unnecessaryWildcardKind,
-      );
+    Map<String, int> patternVariablePromotionKeys,
+  ) => new MatchContext(
+    irrefutableContext: irrefutableContext,
+    isFinal: isFinal,
+    switchScrutinee: null,
+    assignedVariables: assignedVariables,
+    componentVariables: componentVariables,
+    patternVariablePromotionKeys: patternVariablePromotionKeys,
+    unnecessaryWildcardKind: unnecessaryWildcardKind,
+  );
 
-  /// Returns a modified version of `this`, with both [initializer] and
-  /// [switchScrutinee] set to `null` (because this context is not for a
-  /// top-level pattern anymore).
+  /// Returns a modified version of `this`, with [switchScrutinee] set to `null`
+  /// (because this context is not for a top-level pattern anymore).
   MatchContext<Node, Expression, Pattern, Type, Variable>
-      withUnnecessaryWildcardKind(
-          UnnecessaryWildcardKind? unnecessaryWildcardKind) {
+  withUnnecessaryWildcardKind(
+    UnnecessaryWildcardKind? unnecessaryWildcardKind,
+  ) {
     return new MatchContext(
       irrefutableContext: irrefutableContext,
       isFinal: isFinal,
-      isLate: isLate,
       assignedVariables: assignedVariables,
       switchScrutinee: null,
       componentVariables: componentVariables,
@@ -258,23 +256,25 @@ class MatchContext<Node extends Object, Expression extends Node,
 
 /// Result for analyzing a null check or null assert pattern in
 /// [TypeAnalyzer.analyzeNullCheckOrAssertPattern].
-class NullCheckOrAssertPatternResult<Error> {
+class NullCheckOrAssertPatternResult<Error> extends PatternResult {
   /// Error for when the pattern occurred in an irrefutable context.
   final Error? refutablePatternInIrrefutableContextError;
 
   /// Error for when the matched type is known to be non-null.
   final Error? matchedTypeIsStrictlyNonNullableError;
 
-  NullCheckOrAssertPatternResult(
-      {required this.refutablePatternInIrrefutableContextError,
-      required this.matchedTypeIsStrictlyNonNullableError});
+  NullCheckOrAssertPatternResult({
+    required this.refutablePatternInIrrefutableContextError,
+    required this.matchedTypeIsStrictlyNonNullableError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing an object pattern in
 /// [TypeAnalyzer.analyzeObjectPattern].
-class ObjectPatternResult<Type extends Object, Error> {
+class ObjectPatternResult<Error> extends PatternResult {
   /// The required type of the object pattern.
-  final Type requiredType;
+  final SharedTypeView requiredType;
 
   /// Errors for when the same property name was used multiple times in the
   /// object pattern.
@@ -288,17 +288,18 @@ class ObjectPatternResult<Type extends Object, Error> {
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  ObjectPatternResult(
-      {required this.requiredType,
-      required this.duplicateRecordPatternFieldErrors,
-      required this.patternTypeMismatchInIrrefutableContextError});
+  ObjectPatternResult({
+    required this.requiredType,
+    required this.duplicateRecordPatternFieldErrors,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Container for the result of running type analysis on a pattern assignment.
-class PatternAssignmentAnalysisResult<Type extends Object>
-    extends SimpleTypeAnalysisResult<Type> {
+class PatternAssignmentAnalysisResult extends ExpressionTypeAnalysisResult {
   /// The type schema of the pattern on the left hand size of the assignment.
-  final Type patternSchema;
+  final SharedTypeSchemaView patternSchema;
 
   PatternAssignmentAnalysisResult({
     required this.patternSchema,
@@ -309,17 +310,50 @@ class PatternAssignmentAnalysisResult<Type extends Object>
 /// Result for analyzing a pattern-for-in statement or element in
 /// [TypeAnalyzer.analyzePatternForIn].
 class PatternForInResult<Error> {
+  /// The static type of the elements of the for in expression.
+  final SharedTypeView elementType;
+
+  /// The static type of the collection of elements of the for in expression.
+  final SharedTypeView expressionType;
+
   /// Error for when the expression is not an iterable.
   final Error? patternForInExpressionIsNotIterableError;
 
-  PatternForInResult({required this.patternForInExpressionIsNotIterableError});
+  PatternForInResult({
+    required this.elementType,
+    required this.expressionType,
+    required this.patternForInExpressionIsNotIterableError,
+  });
+}
+
+/// Result for analyzing a pattern in [TypeAnalyzer].
+class PatternResult {
+  /// The matched value type that was used to type check the pattern.
+  final SharedTypeView matchedValueType;
+
+  PatternResult({required this.matchedValueType});
+}
+
+/// Container for the result of running type analysis on a pattern variable
+/// declaration.
+class PatternVariableDeclarationAnalysisResult {
+  /// The type schema of the pattern on the left hand size of the declaration.
+  final SharedTypeSchemaView patternSchema;
+
+  /// The type of the initializer expression.
+  final SharedTypeView initializerType;
+
+  PatternVariableDeclarationAnalysisResult({
+    required this.patternSchema,
+    required this.initializerType,
+  });
 }
 
 /// Result for analyzing a record pattern in
 /// [TypeAnalyzer.analyzeRecordPattern].
-class RecordPatternResult<Type extends Object, Error> {
+class RecordPatternResult<Error> extends PatternResult {
   /// The required type of the record pattern.
-  final Type requiredType;
+  final SharedTypeView requiredType;
 
   /// Errors for when the same property name was used multiple times in the
   /// record pattern.
@@ -333,17 +367,19 @@ class RecordPatternResult<Type extends Object, Error> {
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  RecordPatternResult(
-      {required this.requiredType,
-      required this.duplicateRecordPatternFieldErrors,
-      required this.patternTypeMismatchInIrrefutableContextError});
+  RecordPatternResult({
+    required this.requiredType,
+    required this.duplicateRecordPatternFieldErrors,
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a relational pattern in
 /// [TypeAnalyzer.analyzeRelationalPattern].
-class RelationalPatternResult<Type extends Object, Error> {
+class RelationalPatternResult<Error> extends PatternResult {
   /// The static type of the operand.
-  final Type operandType;
+  final SharedTypeView operandType;
 
   /// Error for when the pattern occurred in an irrefutable context.
   final Error? refutablePatternInIrrefutableContextError;
@@ -355,33 +391,18 @@ class RelationalPatternResult<Type extends Object, Error> {
   /// Error for when the relational operator does not return a bool.
   final Error? operatorReturnTypeNotAssignableToBoolError;
 
-  RelationalPatternResult(
-      {required this.operandType,
-      required this.refutablePatternInIrrefutableContextError,
-      required this.argumentTypeNotAssignableError,
-      required this.operatorReturnTypeNotAssignableToBoolError});
-}
-
-/// Container for the result of running type analysis on an expression that does
-/// not contain any null shorting.
-class SimpleTypeAnalysisResult<Type extends Object>
-    implements ExpressionTypeAnalysisResult<Type> {
-  /// The static type of the expression.
-  final Type type;
-
-  SimpleTypeAnalysisResult({required this.type});
-
-  @override
-  Type get provisionalType => type;
-
-  @override
-  Type resolveShorting() => type;
+  RelationalPatternResult({
+    required this.operandType,
+    required this.refutablePatternInIrrefutableContextError,
+    required this.argumentTypeNotAssignableError,
+    required this.operatorReturnTypeNotAssignableToBoolError,
+    required super.matchedValueType,
+  });
 }
 
 /// Result for analyzing a switch expression in
 /// [TypeAnalyzer.analyzeSwitchExpression].
-class SwitchExpressionResult<Type extends Object, Error>
-    extends SimpleTypeAnalysisResult<Type> {
+class SwitchExpressionResult<Error> extends ExpressionTypeAnalysisResult {
   /// Errors for non-bool guards.
   ///
   /// The key is the case index of the erroneous guard.
@@ -394,16 +415,17 @@ class SwitchExpressionResult<Type extends Object, Error>
   /// The key is the case index of the guard.
   ///
   /// This is `null` if no such guards where present.
-  final Map<int, Type>? guardTypes;
+  final Map<int, SharedTypeView>? guardTypes;
 
-  SwitchExpressionResult(
-      {required super.type,
-      required this.nonBooleanGuardErrors,
-      required this.guardTypes});
+  SwitchExpressionResult({
+    required super.type,
+    required this.nonBooleanGuardErrors,
+    required this.guardTypes,
+  });
 }
 
 /// Container for the result of running type analysis on an integer literal.
-class SwitchStatementTypeAnalysisResult<Type extends Object, Error> {
+class SwitchStatementTypeAnalysisResult<Error> {
   /// Whether the switch statement had a `default` clause.
   final bool hasDefault;
 
@@ -422,7 +444,7 @@ class SwitchStatementTypeAnalysisResult<Type extends Object, Error> {
   final bool requiresExhaustivenessValidation;
 
   /// The static type of the scrutinee expression.
-  final Type scrutineeType;
+  final SharedTypeView scrutineeType;
 
   /// Errors for the cases that don't complete normally.
   ///
@@ -441,7 +463,7 @@ class SwitchStatementTypeAnalysisResult<Type extends Object, Error> {
   /// The keys of the maps are case and head indices of the guard.
   ///
   /// This is `null` if no such guards where present.
-  final Map<int, Map<int, Type>>? guardTypes;
+  final Map<int, Map<int, SharedTypeView>>? guardTypes;
 
   SwitchStatementTypeAnalysisResult({
     required this.hasDefault,
@@ -469,11 +491,13 @@ enum UnnecessaryWildcardKind {
 
 /// Result for analyzing a wildcard pattern
 /// [TypeAnalyzer.analyzeWildcardPattern].
-class WildcardPatternResult<Error> {
+class WildcardPatternResult<Error> extends PatternResult {
   /// Error for when the matched value type is not assignable to the wildcard
   /// type in an irrefutable context.
   final Error? patternTypeMismatchInIrrefutableContextError;
 
-  WildcardPatternResult(
-      {required this.patternTypeMismatchInIrrefutableContextError});
+  WildcardPatternResult({
+    required this.patternTypeMismatchInIrrefutableContextError,
+    required super.matchedValueType,
+  });
 }

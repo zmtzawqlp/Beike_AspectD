@@ -4,6 +4,8 @@
 
 library _fe_analyzer_shared.scanner.token;
 
+import 'dart:typed_data' show Uint8List;
+
 import 'token.dart'
     show
         DocumentationCommentToken,
@@ -33,33 +35,48 @@ class StringTokenImpl extends SimpleToken implements StringToken {
    */
   static const int LAZY_THRESHOLD = 4;
 
-  dynamic /* String | LazySubstring */ valueOrLazySubstring;
+  late Object /* String | LazySubstring */ valueOrLazySubstring;
 
   /**
    * Creates a non-lazy string token. If [canonicalize] is true, the string
    * is canonicalized before the token is created.
    */
-  StringTokenImpl.fromString(TokenType type, String value, int charOffset,
-      {bool canonicalize = false, CommentToken? precedingComments})
-      : valueOrLazySubstring = canonicalize ? canonicalizeString(value) : value,
-        super(type, charOffset, precedingComments);
+  StringTokenImpl.fromString(
+    TokenType type,
+    String value,
+    int charOffset, {
+    bool canonicalize = false,
+    CommentToken? precedingComments,
+  }) : valueOrLazySubstring = canonicalize ? canonicalizeString(value) : value,
+       super(type, charOffset, precedingComments);
 
   /**
    * Creates a lazy string token. If [canonicalize] is true, the string
    * is canonicalized before the token is created.
    */
   StringTokenImpl.fromSubstring(
-      TokenType type, String data, int start, int end, int charOffset,
-      {bool canonicalize = false, CommentToken? precedingComments})
-      : super(type, charOffset, precedingComments) {
+    TokenType type,
+    String data,
+    int start,
+    int end,
+    int charOffset, {
+    bool canonicalize = false,
+    CommentToken? precedingComments,
+    bool allowLazy = true,
+  }) : super(type, charOffset, precedingComments) {
     int length = end - start;
-    if (length <= LAZY_THRESHOLD) {
-      valueOrLazySubstring = canonicalize
-          ? canonicalizeSubString(data, start, end)
-          : data.substring(start, end);
-    } else {
+    if (!allowLazy || length <= LAZY_THRESHOLD) {
       valueOrLazySubstring =
-          new _LazySubstring(data, start, length, canonicalize);
+          canonicalize
+              ? canonicalizeSubString(data, start, end)
+              : data.substring(start, end);
+    } else {
+      valueOrLazySubstring = new _LazySubstring(
+        data,
+        start,
+        length,
+        canonicalize,
+      );
     }
   }
 
@@ -67,44 +84,34 @@ class StringTokenImpl extends SimpleToken implements StringToken {
    * Creates a lazy string token. If [asciiOnly] is false, the byte array
    * is passed through a UTF-8 decoder.
    */
-  StringTokenImpl.fromUtf8Bytes(TokenType type, List<int> data, int start,
-      int end, bool asciiOnly, int charOffset,
-      {CommentToken? precedingComments})
-      : super(type, charOffset, precedingComments) {
+  StringTokenImpl.fromUtf8Bytes(
+    TokenType type,
+    Uint8List data,
+    int start,
+    int end,
+    bool asciiOnly,
+    int charOffset, {
+    CommentToken? precedingComments,
+    bool allowLazy = true,
+  }) : super(type, charOffset, precedingComments) {
     int length = end - start;
-    if (length <= LAZY_THRESHOLD) {
-      valueOrLazySubstring =
-          canonicalizeUtf8SubString(data, start, end, asciiOnly);
+    if (!allowLazy || length <= LAZY_THRESHOLD) {
+      valueOrLazySubstring = canonicalizeUtf8SubString(
+        data,
+        start,
+        end,
+        asciiOnly,
+      );
     } else {
       valueOrLazySubstring = new _LazySubstring(data, start, length, asciiOnly);
     }
   }
 
   @override
-  String get lexeme {
-    if (valueOrLazySubstring is String) {
-      return valueOrLazySubstring;
-    } else {
-      assert(valueOrLazySubstring is _LazySubstring);
-      dynamic data = valueOrLazySubstring.data;
-      int start = valueOrLazySubstring.start;
-      int end = start + (valueOrLazySubstring as _LazySubstring).length;
-      if (data is String) {
-        final bool canonicalize = valueOrLazySubstring.boolValue;
-        valueOrLazySubstring = canonicalize
-            ? canonicalizeSubString(data, start, end)
-            : data.substring(start, end);
-      } else {
-        final bool isAscii = valueOrLazySubstring.boolValue;
-        valueOrLazySubstring =
-            canonicalizeUtf8SubString(data, start, end, isAscii);
-      }
-      return valueOrLazySubstring;
-    }
-  }
+  String get lexeme => valueOrLazySubstring = valueOrLazySubstring.toString();
 
   @override
-  bool get isIdentifier => identical(kind, IDENTIFIER_TOKEN);
+  bool get isIdentifier => kind == IDENTIFIER_TOKEN;
 
   @override
   String toString() => lexeme;
@@ -122,23 +129,32 @@ class CommentTokenImpl extends StringTokenImpl implements CommentToken {
    * is canonicalized before the token is created.
    */
   CommentTokenImpl.fromSubstring(
-      super.type, super.data, super.start, super.end, super.charOffset,
-      {super.canonicalize})
-      : super.fromSubstring();
+    super.type,
+    super.data,
+    super.start,
+    super.end,
+    super.charOffset, {
+    super.canonicalize,
+  }) : super.fromSubstring();
 
   /**
    * Creates a non-lazy comment token.
    */
   CommentTokenImpl.fromString(super.type, super.lexeme, super.charOffset)
-      : super.fromString();
+    : super.fromString();
 
   /**
    * Creates a lazy string token. If [asciiOnly] is false, the byte array
    * is passed through a UTF-8 decoder.
    */
-  CommentTokenImpl.fromUtf8Bytes(super.type, super.data, super.start, super.end,
-      super.asciiOnly, super.charOffset)
-      : super.fromUtf8Bytes();
+  CommentTokenImpl.fromUtf8Bytes(
+    super.type,
+    super.data,
+    super.start,
+    super.end,
+    super.asciiOnly,
+    super.charOffset,
+  ) : super.fromUtf8Bytes();
 }
 
 class LanguageVersionTokenImpl extends CommentTokenImpl
@@ -150,19 +166,40 @@ class LanguageVersionTokenImpl extends CommentTokenImpl
   int minor;
 
   LanguageVersionTokenImpl.from(String text, int offset, this.major, this.minor)
-      : super.fromString(TokenType.SINGLE_LINE_COMMENT, text, offset);
+    : super.fromString(TokenType.SINGLE_LINE_COMMENT, text, offset);
 
   LanguageVersionTokenImpl.fromSubstring(
-      String string, int start, int end, int tokenStart, this.major, this.minor,
-      {bool canonicalize = false})
-      : super.fromSubstring(
-            TokenType.SINGLE_LINE_COMMENT, string, start, end, tokenStart,
-            canonicalize: canonicalize);
+    String string,
+    int start,
+    int end,
+    int tokenStart,
+    this.major,
+    this.minor, {
+    bool canonicalize = false,
+  }) : super.fromSubstring(
+         TokenType.SINGLE_LINE_COMMENT,
+         string,
+         start,
+         end,
+         tokenStart,
+         canonicalize: canonicalize,
+       );
 
-  LanguageVersionTokenImpl.fromUtf8Bytes(List<int> bytes, int start, int end,
-      int tokenStart, this.major, this.minor)
-      : super.fromUtf8Bytes(
-            TokenType.SINGLE_LINE_COMMENT, bytes, start, end, true, tokenStart);
+  LanguageVersionTokenImpl.fromUtf8Bytes(
+    Uint8List bytes,
+    int start,
+    int end,
+    int tokenStart,
+    this.major,
+    this.minor,
+  ) : super.fromUtf8Bytes(
+        TokenType.SINGLE_LINE_COMMENT,
+        bytes,
+        start,
+        end,
+        true,
+        tokenStart,
+      );
 }
 
 class DartDocToken extends CommentTokenImpl
@@ -172,27 +209,36 @@ class DartDocToken extends CommentTokenImpl
    * is canonicalized before the token is created.
    */
   DartDocToken.fromSubstring(
-      super.type, super.data, super.start, super.end, super.charOffset,
-      {super.canonicalize})
-      : super.fromSubstring();
+    super.type,
+    super.data,
+    super.start,
+    super.end,
+    super.charOffset, {
+    super.canonicalize,
+  }) : super.fromSubstring();
 
   /**
    * Creates a lazy string token. If [asciiOnly] is false, the byte array
    * is passed through a UTF-8 decoder.
    */
-  DartDocToken.fromUtf8Bytes(super.type, super.data, super.start, super.end,
-      super.asciiOnly, super.charOffset)
-      : super.fromUtf8Bytes();
+  DartDocToken.fromUtf8Bytes(
+    super.type,
+    super.data,
+    super.start,
+    super.end,
+    super.asciiOnly,
+    super.charOffset,
+  ) : super.fromUtf8Bytes();
 }
 
 /**
  * This class represents the necessary information to compute a substring
  * lazily. The substring can either originate from a string or from
- * a [:List<int>:] of UTF-8 bytes.
+ * a [:Uint8List:] of UTF-8 bytes.
  */
 abstract class _LazySubstring {
-  /** The original data, either a string or a List<int> */
-  get data;
+  /** The original data, either a string or a Uint8List */
+  Object get data;
 
   int get start;
   int get length;
@@ -209,7 +255,7 @@ abstract class _LazySubstring {
 
   _LazySubstring.internal();
 
-  factory _LazySubstring(data, int start, int length, bool b) {
+  factory _LazySubstring(Object data, int start, int length, bool b) {
     // See comment on [CompactLazySubstring].
     if (start < 0x100000 && length < 0x200) {
       int fields = (start << 9);
@@ -221,6 +267,25 @@ abstract class _LazySubstring {
       return new _FullLazySubstring(data, start, length, b);
     }
   }
+
+  String _resolve() {
+    Object data = this.data;
+    int start = this.start;
+    int end = start + this.length;
+    if (data is String) {
+      final bool canonicalize = this.boolValue;
+      return canonicalize
+          ? canonicalizeSubString(data, start, end)
+          : data.substring(start, end);
+    } else {
+      final Uint8List bytes = data as Uint8List;
+      final bool isAscii = this.boolValue;
+      return canonicalizeUtf8SubString(bytes, start, end, isAscii);
+    }
+  }
+
+  @override
+  String toString() => _resolve();
 }
 
 /**
@@ -232,7 +297,7 @@ abstract class _LazySubstring {
  */
 class _CompactLazySubstring extends _LazySubstring {
   @override
-  final dynamic data;
+  final Object data;
   final int fields;
 
   _CompactLazySubstring(this.data, this.fields) : super.internal();
@@ -247,7 +312,7 @@ class _CompactLazySubstring extends _LazySubstring {
 
 class _FullLazySubstring extends _LazySubstring {
   @override
-  final dynamic data;
+  final Object data;
   @override
   final int start;
   @override
@@ -255,7 +320,7 @@ class _FullLazySubstring extends _LazySubstring {
   @override
   final bool boolValue;
   _FullLazySubstring(this.data, this.start, this.length, this.boolValue)
-      : super.internal();
+    : super.internal();
 }
 
 bool isUserDefinableOperator(String value) {

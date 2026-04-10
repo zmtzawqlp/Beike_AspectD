@@ -5,7 +5,7 @@
 /// Defines [StringEditBuffer], a buffer that can be used to apply edits on a
 /// string.
 // TODO(sigmund): this should move to a separate package.
-library dart2js.src.string_edit_buffer;
+library;
 
 /// A buffer meant to apply edits on a string (rather than building a string
 /// from scratch). Each change is described using the location information on
@@ -96,7 +96,7 @@ class _StringEdit implements Comparable<_StringEdit> {
   final String string;
 
   _StringEdit(this.begin, this.end, this.string, [int? sortId])
-      : sortId = sortId ?? begin;
+    : sortId = sortId ?? begin;
 
   int get length => end - begin;
 

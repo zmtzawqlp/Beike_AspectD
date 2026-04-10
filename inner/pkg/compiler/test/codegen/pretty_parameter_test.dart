@@ -4,8 +4,8 @@
 
 // Test that parameters keep their names in the output.
 
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
-import 'package:async_helper/async_helper.dart';
 import '../helpers/compiler_helper.dart';
 
 const String FOO = r"""
@@ -62,7 +62,7 @@ foo(param1, param2, param3) {
 """;
 
 const String PARAMETER_INIT = r"""
-int foo(var start, var test) {
+void foo(var start, var test) {
   var result = start;
   if (test) {
     foo(1, 2);
@@ -74,30 +74,53 @@ int foo(var start, var test) {
 
 main() {
   runTests() async {
-    await compile(FOO, entry: 'foo', check: (String generated) {
-      Expect.isTrue(generated.contains(r"function(a, b) {"));
-    });
-    await compile(BAR, entry: 'bar', check: (String generated) {
-      Expect.isTrue(generated.contains(r"function($eval, $$eval) {"));
-    });
-    await compile(PARAMETER_AND_TEMP, entry: 'bar', check: (String generated) {
-      Expect.isTrue(generated.contains(r"print(t00)"));
-      // Check that the second 't0' got another name.
-      Expect.isTrue(generated.contains(r"print(t01)"));
-    });
-    await compile(MULTIPLE_PHIS_ONE_LOCAL, entry: 'foo',
-        check: (String generated) {
-      Expect.isTrue(generated.contains("var a;"));
-      // Check that there is only one var declaration.
-      checkNumberOfMatches(new RegExp("var").allMatches(generated).iterator, 1);
-    });
-    await compile(NO_LOCAL, entry: 'foo', check: (String generated) {
-      Expect.isFalse(generated.contains('var'));
-    });
-    await compile(PARAMETER_INIT, entry: 'foo', check: (String generated) {
-      // Check that there is only one var declaration.
-      checkNumberOfMatches(new RegExp("var").allMatches(generated).iterator, 1);
-    });
+    await compile(
+      FOO,
+      entry: 'foo',
+      check: (String generated) {
+        Expect.isTrue(generated.contains(r"function(a, b) {"));
+      },
+    );
+    await compile(
+      BAR,
+      entry: 'bar',
+      check: (String generated) {
+        Expect.isTrue(generated.contains(r"function($eval, $$eval) {"));
+      },
+    );
+    await compile(
+      PARAMETER_AND_TEMP,
+      entry: 'bar',
+      check: (String generated) {
+        Expect.isTrue(generated.contains(r"print(t00)"));
+        // Check that the second 't0' got another name.
+        Expect.isTrue(generated.contains(r"print(t01)"));
+      },
+    );
+    await compile(
+      MULTIPLE_PHIS_ONE_LOCAL,
+      entry: 'foo',
+      check: (String generated) {
+        Expect.isTrue(generated.contains(RegExp(r'var a(;| = 2;)')));
+        // Check that there is only one var declaration.
+        checkNumberOfMatches(RegExp("var").allMatches(generated).iterator, 1);
+      },
+    );
+    await compile(
+      NO_LOCAL,
+      entry: 'foo',
+      check: (String generated) {
+        Expect.isFalse(generated.contains('var'));
+      },
+    );
+    await compile(
+      PARAMETER_INIT,
+      entry: 'foo',
+      check: (String generated) {
+        // Check that there is only one var declaration.
+        checkNumberOfMatches(RegExp("var").allMatches(generated).iterator, 1);
+      },
+    );
   }
 
   asyncTest(() async {

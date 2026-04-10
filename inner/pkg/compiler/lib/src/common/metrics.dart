@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.common.metrics;
+library;
 
 /// A collection of metrics that is normally associated with a task.
 abstract class Metrics {
@@ -34,14 +34,14 @@ class MetricsBase implements Metrics {
 
   /// Setter method that is usually called in a subclass constructor to define
   /// the primary metrics.
-  void set primary(Iterable<Metric> metrics) {
+  set primary(Iterable<Metric> metrics) {
     assert(_primary.isEmpty);
     _primary.addAll(metrics);
   }
 
   /// Setter method that is usually called in a subclass constructor to define
   /// the secondary metrics.
-  void set secondary(Iterable<Metric> metrics) {
+  set secondary(Iterable<Metric> metrics) {
     assert(_secondary.isEmpty);
     _secondary.addAll(metrics);
   }
@@ -53,12 +53,12 @@ class MetricsBase implements Metrics {
   Iterable<Metric> get secondary => _secondary;
 }
 
-abstract class Metric<T> {
+abstract class Metric {
   String get name;
   String formatValue();
 }
 
-class DurationMetric implements Metric<Duration> {
+class DurationMetric implements Metric {
   @override
   final String name;
   Duration _duration = Duration.zero;
@@ -78,14 +78,14 @@ class DurationMetric implements Metric<Duration> {
 
   @override
   String formatValue() {
-    return (_duration.inMilliseconds / 1000).toStringAsFixed(3) + 's';
+    return '${(_duration.inMilliseconds / 1000).toStringAsFixed(3)}s';
   }
 
   @override
   String toString() => 'DurationMetric("$name", $_duration)';
 }
 
-class CountMetric implements Metric<int> {
+class CountMetric implements Metric {
   @override
   final String name;
   int _count = 0;

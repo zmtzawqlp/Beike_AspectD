@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-part of masks;
+part of 'masks.dart';
 
 /// A [TypeMask] for a specific allocation site of a container (currently only
 /// List) that will get specialized once the [TypeGraphInferrer] phase finds an
@@ -28,12 +28,19 @@ class ContainerTypeMask extends AllocationTypeMask {
   // The length of the container.
   final int? length;
 
-  const ContainerTypeMask(this.forwardTo, this._allocationNode,
-      this.allocationElement, this.elementType, this.length);
+  const ContainerTypeMask(
+    this.forwardTo,
+    this._allocationNode,
+    this.allocationElement,
+    this.elementType,
+    this.length,
+  );
 
   /// Deserializes a [ContainerTypeMask] object from [source].
   factory ContainerTypeMask.readFromDataSource(
-      DataSourceReader source, CommonMasks domain) {
+    DataSourceReader source,
+    CommonMasks domain,
+  ) {
     source.begin(tag);
     final forwardTo = TypeMask.readFromDataSource(source, domain);
     final allocationElement = source.readMemberOrNull();
@@ -41,7 +48,12 @@ class ContainerTypeMask extends AllocationTypeMask {
     final length = source.readIntOrNull();
     source.end(tag);
     return ContainerTypeMask(
-        forwardTo, null, allocationElement, elementType, length);
+      forwardTo,
+      null,
+      allocationElement,
+      elementType,
+      length,
+    );
   }
 
   /// Serializes this [ContainerTypeMask] to [sink].
@@ -57,40 +69,37 @@ class ContainerTypeMask extends AllocationTypeMask {
   }
 
   @override
-  ContainerTypeMask withFlags({bool? isNullable, bool? hasLateSentinel}) {
-    isNullable ??= this.isNullable;
-    hasLateSentinel ??= this.hasLateSentinel;
-    if (isNullable == this.isNullable &&
-        hasLateSentinel == this.hasLateSentinel) {
-      return this;
-    }
+  ContainerTypeMask withPowerset(Bitset powerset, CommonMasks domain) {
+    if (powerset == this.powerset) return this;
     return ContainerTypeMask(
-        forwardTo.withFlags(
-            isNullable: isNullable, hasLateSentinel: hasLateSentinel),
-        allocationNode,
-        allocationElement,
-        elementType,
-        length);
+      forwardTo.withPowerset(powerset, domain),
+      allocationNode,
+      allocationElement,
+      elementType,
+      length,
+    );
   }
 
   @override
   bool get isExact => true;
 
   @override
-  TypeMask? _unionSpecialCases(TypeMask other, CommonMasks domain,
-      {required bool isNullable, required bool hasLateSentinel}) {
+  TypeMask? _unionSpecialCases(
+    TypeMask other,
+    CommonMasks domain,
+    Bitset powerset,
+  ) {
     if (other is ContainerTypeMask) {
       final newElementType = elementType.union(other.elementType, domain);
       final newLength = (length == other.length) ? length : null;
       final newForwardTo = forwardTo.union(other.forwardTo, domain);
       return ContainerTypeMask(
-          newForwardTo,
-          allocationNode == other.allocationNode ? allocationNode : null,
-          allocationElement == other.allocationElement
-              ? allocationElement
-              : null,
-          newElementType,
-          newLength);
+        newForwardTo,
+        allocationNode == other.allocationNode ? allocationNode : null,
+        allocationElement == other.allocationElement ? allocationElement : null,
+        newElementType,
+        newLength,
+      );
     }
     return null;
   }
@@ -106,10 +115,13 @@ class ContainerTypeMask extends AllocationTypeMask {
 
   @override
   int get hashCode => Hashing.objectHash(
-      length, Hashing.objectHash(elementType, super.hashCode));
+    length,
+    Hashing.objectHash(elementType, super.hashCode),
+  );
 
   @override
   String toString() {
-    return 'Container($forwardTo, element: $elementType, length: $length)';
+    return 'Container($forwardTo, element: $elementType, length: $length, '
+        'powerset: ${TypeMask.powersetToString(powerset)})';
   }
 }

@@ -10,10 +10,6 @@ library from "org-dartlang-test:///main.dart" as main {
 //   void bar() {
 //        ^^^
 //
-// org-dartlang-test:///main.dart:9:5: Error: Can't use 'bar' because it is declared more than once.
-//     bar();
-//     ^
-//
 
   class Foo extends dart.core::Object {
     synthetic constructor •() → main::Foo
@@ -23,7 +19,7 @@ library from "org-dartlang-test:///main.dart" as main {
       dart.core::print("bar 1");
     }
     method callBar() → void {
-      invalid-expression "org-dartlang-test:///main.dart:9:5: Error: Can't use 'bar' because it is declared more than once.\n    bar();\n    ^"{dynamic}.call();
+      invalid-expression "org-dartlang-test:///main.dart:9:5: Error: Can't use 'bar' because it is declared more than once.\n    bar();\n    ^"{dynamic}();
     }
   }
 }

@@ -1,27 +1,21 @@
 // Copyright (c) 2017, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import 'dart:convert' show utf8;
-
 import 'dart:io' show File;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
-
 import 'package:_fe_analyzer_shared/src/scanner/io.dart' show readBytesFromFile;
-
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
     show ScannerResult, Token, scan;
-
 import 'package:_fe_analyzer_shared/src/scanner/token.dart' as analyzer
     show Token;
-
+import 'package:front_end/src/base/compiler_context.dart' show CompilerContext;
 import 'package:front_end/src/base/instrumentation.dart'
     show Instrumentation, InstrumentationValue;
-
-import 'package:front_end/src/fasta/compiler_context.dart' show CompilerContext;
-
-import 'package:front_end/src/fasta/messages.dart'
+import 'package:front_end/src/base/messages.dart'
     show noLength, templateUnspecified;
 
 /// Implementation of [Instrumentation] which checks property/value pairs
@@ -45,6 +39,10 @@ class ValidatingInstrumentation implements Instrumentation {
       'genericContravariant',
     ],
   };
+
+  final CompilerContext compilerContext;
+
+  ValidatingInstrumentation(this.compilerContext);
 
   /// Map from file URI to the as-yet unsatisfied expectations from that file,
   /// organized by file offset.
@@ -126,7 +124,7 @@ class ValidatingInstrumentation implements Instrumentation {
   /// Should be called before [finish].
   Future<Null> loadExpectations(Uri uri) async {
     uri = Uri.base.resolveUri(uri);
-    List<int> bytes = await readBytesFromFile(uri);
+    Uint8List bytes = await readBytesFromFile(uri);
     Map<int, List<_Expectation>> expectations =
         _unsatisfiedExpectations.putIfAbsent(uri, () => {});
     Map<int, Set<String>> testedFeaturesState =
@@ -226,7 +224,7 @@ class ValidatingInstrumentation implements Instrumentation {
 
   String _formatProblem(
       Uri uri, int offset, String desc, StackTrace? stackTrace) {
-    return CompilerContext.current
+    return compilerContext
         .format(
             templateUnspecified
                 .withArguments(

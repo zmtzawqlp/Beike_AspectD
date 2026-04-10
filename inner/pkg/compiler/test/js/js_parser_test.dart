@@ -16,37 +16,13 @@ testExpression(String expression, [String expect = ""]) {
   }
 }
 
-/// Tests an arrow expression with implicit returns allowed and disallowed.
-///
-/// Only checks the immediate, outermost arrow function.
-testArrowFunction(String arrowExpression,
-    [String implicitReturnExpect = "", String noImplicitReturnExpect = ""]) {
-  jsAst.ArrowFunction fun = js(arrowExpression) as jsAst.ArrowFunction;
-  jsAst.ArrowFunction implicitReturnFun = jsAst.ArrowFunction(
-      fun.params, fun.body,
-      asyncModifier: fun.asyncModifier, implicitReturnAllowed: true);
-  jsAst.ArrowFunction noImplicitReturnFun = jsAst.ArrowFunction(
-      fun.params, fun.body,
-      asyncModifier: fun.asyncModifier, implicitReturnAllowed: false);
-  String implicitReturnText =
-      jsAst.prettyPrint(implicitReturnFun, allowVariableMinification: false);
-  String noImplicitReturnText =
-      jsAst.prettyPrint(noImplicitReturnFun, allowVariableMinification: false);
-  String comparison =
-      implicitReturnExpect == "" ? arrowExpression : implicitReturnExpect;
-  Expect.stringEquals(comparison, implicitReturnText);
-  if (noImplicitReturnExpect == "") {
-    Expect.stringEquals(comparison, noImplicitReturnText);
-  } else {
-    Expect.stringEquals(noImplicitReturnExpect, noImplicitReturnText);
-  }
-}
-
 testError(String expression, [String expect = ""]) {
   bool doCheck(exception) {
     final exceptionText = '$exception';
-    Expect.isTrue(exceptionText.contains(expect),
-        'Missing "$expect" in "$exceptionText"');
+    Expect.isTrue(
+      exceptionText.contains(expect),
+      'Missing "$expect" in "$exceptionText"',
+    );
     return true;
   }
 
@@ -65,7 +41,9 @@ void main() {
   testExpression('x = a + b * c + d');
   testExpression('x = a * b + c * d');
   testExpression(
-      'remaining = (remaining / 88) | 0', 'remaining = remaining / 88 | 0');
+    'remaining = (remaining / 88) | 0',
+    'remaining = remaining / 88 | 0',
+  );
   // Binary operators have left associativity.
   testExpression('x = a + b + c');
   // We can cope with relational operators and non-relational.
@@ -101,7 +79,9 @@ void main() {
   testExpression('new Frobinator().frobinate()');
   // The prettyprinter strips some superfluous parentheses.
   testExpression(
-      '(new Frobinator()).frobinate()', 'new Frobinator().frobinate()');
+    '(new Frobinator()).frobinate()',
+    'new Frobinator().frobinate()',
+  );
   // *We want a bracket on 'new'.
   testError('new Foo', 'Parentheses are required');
   testError('(new Foo)', 'Parentheses are required');
@@ -125,7 +105,7 @@ void main() {
   testExpression('var false = 42');
   testExpression('var new = 42');
   // Bad keyword.
-  testError('var typeof = 42', "Expected ALPHA");
+  testError('var typeof = 42', "Expected _Category.alpha");
   // Malformed decimal/hex.
   testError('var x = 1.1.1', "Unparseable number");
   testError('var x = 0xabcdefga', "Unparseable number");
@@ -216,15 +196,15 @@ void main() {
   // Stacked assignment.
   testExpression("a = b = c");
   testExpression("var a = b = c");
+
   // Arrow functions.
-  testArrowFunction("(x) => x", "x => x");
-  testArrowFunction(
-      "(x) => {\n  return x;\n}", "x => x", "x => {\n  return x;\n}");
-  testArrowFunction("(x, y) => {\n  return x + y;\n}", "(x, y) => x + y",
-      "(x, y) => {\n  return x + y;\n}");
-  testArrowFunction("() => 42");
-  testArrowFunction('() => ({foo: "bar"})');
-  testArrowFunction("() => {}", """
+  testExpression("(x) => x", "x => x");
+  testExpression("(x) => {\n  return x;\n}", "x => {\n  return x;\n}");
+  testExpression("(x, y) => {\n  return x + y;\n}");
+  testExpression("(x, y) => x + y");
+  testExpression("() => 42");
+  testExpression('() => ({foo: "bar"})');
+  testExpression("() => {}", """
 () => {
 }""");
   // Arrow function invocation.

@@ -9,13 +9,20 @@ import 'package:path/path.dart' as path;
 
 List<String> dart2JsCommand(List<String> args) {
   String basePath = path.fromUri(Platform.script);
-  while (path.basename(basePath) != 'sdk') {
-    basePath = path.dirname(basePath);
+  const dart2jsEntry = 'pkg/compiler/lib/src/dart2js.dart';
+  String dart2jsPath;
+  while (true) {
+    dart2jsPath = path.normalize(path.join(basePath, dart2jsEntry));
+    if (File(dart2jsPath).existsSync()) {
+      break;
+    }
+    String parentPath = path.dirname(basePath);
+    if (parentPath == basePath) {
+      throw Exception('Failed to find $dart2jsEntry');
+    }
+    basePath = parentPath;
   }
-  String dart2jsPath =
-      path.normalize(path.join(basePath, 'pkg/compiler/lib/src/dart2js.dart'));
   final command = <String>[];
-  command.add('--no-sound-null-safety');
   if (Platform.packageConfig != null) {
     command.add('--packages=${Platform.packageConfig}');
   }
@@ -26,8 +33,11 @@ List<String> dart2JsCommand(List<String> args) {
 
 Future<ProcessResult> launchDart2Js(args, {bool noStdoutEncoding = false}) {
   if (noStdoutEncoding) {
-    return Process.run(Platform.executable, dart2JsCommand(args),
-        stdoutEncoding: null);
+    return Process.run(
+      Platform.executable,
+      dart2JsCommand(args),
+      stdoutEncoding: null,
+    );
   } else {
     return Process.run(Platform.executable, dart2JsCommand(args));
   }

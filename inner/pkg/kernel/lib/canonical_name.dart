@@ -77,7 +77,7 @@ import 'src/printer.dart' show AstPrinter, AstTextStrategy;
 ///
 /// The "qualified name" allows a member to have a name that is private to
 /// a library other than the one containing that member.
-class CanonicalName {
+class CanonicalName implements Comparable<CanonicalName?> {
   CanonicalName? _parent;
 
   CanonicalName? get parent => _parent;
@@ -94,10 +94,6 @@ class CanonicalName {
   int index = -1;
 
   CanonicalName._(CanonicalName parent, this.name) : _parent = parent {
-    // ignore: unnecessary_null_comparison
-    assert(name != null);
-    // ignore: unnecessary_null_comparison
-    assert(parent != null);
     _nonRootTop = parent.isRoot ? this : parent._nonRootTop;
   }
 
@@ -114,10 +110,6 @@ class CanonicalName {
       _children?.values ?? const <CanonicalName>[];
 
   Iterable<CanonicalName>? get childrenOrNull => _children?.values;
-
-  bool hasChild(String name) {
-    return _children != null && _children!.containsKey(name);
-  }
 
   CanonicalName getChild(String name) {
     Map<String, CanonicalName> map = _children ??= <String, CanonicalName>{};
@@ -159,22 +151,12 @@ class CanonicalName {
         .getChildFromQualifiedName(constructor.name);
   }
 
-  CanonicalName getChildFromRedirectingFactory(
-      RedirectingFactory redirectingFactory) {
-    return getChild(factoriesName)
-        .getChildFromQualifiedName(redirectingFactory.name);
-  }
-
   CanonicalName getChildFromFieldWithName(Name name) {
     return getChild(fieldsName).getChildFromQualifiedName(name);
   }
 
   CanonicalName getChildFromFieldGetterWithName(Name name) {
     return getChild(gettersName).getChildFromQualifiedName(name);
-  }
-
-  CanonicalName getChildFromFieldSetterWithName(Name name) {
-    return getChild(settersName).getChildFromQualifiedName(name);
   }
 
   CanonicalName getChildFromTypedef(Typedef typedef_) {
@@ -215,10 +197,6 @@ class CanonicalName {
   }
 
   void bindTo(Reference target) {
-    // ignore: unnecessary_null_comparison
-    if (target == null) {
-      throw '$this cannot be bound to null';
-    }
     if (_reference == target) return;
     if (_reference != null) {
       StringBuffer sb = new StringBuffer();
@@ -299,37 +277,41 @@ class CanonicalName {
     return _reference ??= (new Reference()..canonicalName = this);
   }
 
+  Reference? get referenceOrNull {
+    return _reference;
+  }
+
+  void checkThisCanonicalName() {
+    if (isSymbolicName(name)) return;
+    if (_reference == null) {
+      // OK for "if private: URI of library" part of "Qualified name"...
+      // TODO(johnniwinther): This wrongfully skips checking of variable
+      // synthesized by the VM transformations. The kind of canonical
+      // name types maybe should be directly available.
+      if (parent?.parent != null && name.contains(':')) {
+        // OK then.
+        return;
+      } else {
+        throw buildCanonicalNameError(
+            "Null reference (${name}) ($this).", this);
+      }
+    }
+    if (_reference!.canonicalName != this) {
+      throw buildCanonicalNameError(
+          "Canonical name and reference doesn't agree.", this);
+    }
+    if (_reference!.node == null) {
+      throw buildCanonicalNameError(
+          "Reference is null (${name}) ($this).", this);
+    }
+  }
+
   void checkCanonicalNameChildren() {
-    CanonicalName parent = this;
+    final CanonicalName parent = this;
     Iterable<CanonicalName>? parentChildren = parent.childrenOrNull;
     if (parentChildren != null) {
       for (CanonicalName child in parentChildren) {
-        if (!isSymbolicName(child.name)) {
-          bool checkReferenceNode = true;
-          if (child._reference == null) {
-            // OK for "if private: URI of library" part of "Qualified name"...
-            // TODO(johnniwinther): This wrongfully skips checking of variable
-            // synthesized by the VM transformations. The kind of canonical
-            // name types maybe should be directly available.
-            if (parent.parent != null && child.name.contains(':')) {
-              // OK then.
-              checkReferenceNode = false;
-            } else {
-              throw buildCanonicalNameError(
-                  "Null reference (${child.name}) ($child).", child);
-            }
-          }
-          if (checkReferenceNode) {
-            if (child._reference!.canonicalName != child) {
-              throw buildCanonicalNameError(
-                  "Canonical name and reference doesn't agree.", child);
-            }
-            if (child._reference!.node == null) {
-              throw buildCanonicalNameError(
-                  "Reference is null (${child.name}) ($child).", child);
-            }
-          }
-        }
+        child.checkThisCanonicalName();
         child.checkCanonicalNameChildren();
       }
     }
@@ -389,26 +371,18 @@ class CanonicalName {
     typedefsName,
   };
 
-  static bool isSymbolicName(String name) => symbolicNames.contains(name);
+  static const int $AT = 64;
+
+  static bool isSymbolicName(String name) =>
+      name.isNotEmpty &&
+      name.codeUnitAt(0) == $AT &&
+      symbolicNames.contains(name);
 
   static String getProcedureQualifier(Procedure procedure) {
     if (procedure.isGetter) return gettersName;
     if (procedure.isSetter) return settersName;
     if (procedure.isFactory) return factoriesName;
     return methodsName;
-  }
-
-  /// Returns `true` if [node] is orphaned through its [reference].
-  ///
-  /// A [NamedNode] is orphaned if the canonical name of its reference doesn't
-  /// point back to the node itself. This can occur if the [reference] is
-  /// repurposed for a new [NamedNode]. In this case, the reference will be
-  /// updated to point the new node.
-  ///
-  /// This method assumes that `reference.canonicalName` is this canonical name.
-  bool isOrphaned(NamedNode node, Reference reference) {
-    assert(reference.canonicalName == this);
-    return _reference?._node != node;
   }
 
   /// Returns a description of the orphancy, if [node] is orphaned through its
@@ -427,37 +401,53 @@ class CanonicalName {
     }
     return null;
   }
+
+  @override
+  int compareTo(CanonicalName? other) {
+    if (identical(this, other)) return 0;
+    if (other == null) return -1;
+    int result = name.compareTo(other.name);
+    if (result != 0) return result;
+    if (parent == null) {
+      if (other.parent == null) return 0;
+      return -1;
+    }
+    return parent!.compareTo(other.parent);
+  }
 }
 
 /// Indirection between a reference and its definition.
 ///
 /// There is only one reference object per [NamedNode].
-class Reference {
+class Reference implements Comparable<Reference> {
   CanonicalName? canonicalName;
 
   NamedNode? _node;
 
   NamedNode? get node {
-    if (_node == null) {
-      // Either this is an unbound reference or it belongs to a lazy-loaded
-      // (and not yet loaded) class. If it belongs to a lazy-loaded class,
-      // load the class.
+    return _node ?? _tryLoadNode();
+  }
 
-      CanonicalName? canonicalNameParent = canonicalName?.parent;
-      while (canonicalNameParent != null) {
-        if (canonicalNameParent.name.startsWith("@")) {
-          break;
-        }
-        canonicalNameParent = canonicalNameParent.parent;
+  /// If the node belongs to a lazy-loaded class load the class.
+  ///
+  /// Should only be called if [_node] is null, meaning that either this
+  /// is an unbound reference or it belongs to a lazy-loaded
+  /// (and not yet loaded) class. If it belongs to a lazy-loaded class this call
+  /// will load the class and set [_node].
+  NamedNode? _tryLoadNode() {
+    CanonicalName? canonicalNameParent = canonicalName?.parent;
+    while (canonicalNameParent != null) {
+      if (canonicalNameParent.name.startsWith("@")) {
+        break;
       }
-      if (canonicalNameParent != null) {
-        NamedNode? parentNamedNode =
-            canonicalNameParent.parent?.reference._node;
-        if (parentNamedNode is Class) {
-          Class parentClass = parentNamedNode;
-          if (parentClass.lazyBuilder != null) {
-            parentClass.ensureLoaded();
-          }
+      canonicalNameParent = canonicalNameParent.parent;
+    }
+    if (canonicalNameParent != null) {
+      NamedNode? parentNamedNode = canonicalNameParent.parent?.reference._node;
+      if (parentNamedNode is Class) {
+        Class parentClass = parentNamedNode;
+        if (parentClass.lazyBuilder != null) {
+          parentClass.ensureLoaded();
         }
       }
     }
@@ -499,13 +489,24 @@ class Reference {
   }
 
   Library get asLibrary {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A library was expected';
     }
     return node as Library;
   }
 
+  TypeDeclaration get asTypeDeclaration {
+    NamedNode? node = this.node;
+    if (node == null) {
+      throw '$this is not bound to an AST node. '
+          'A type declaration was expected';
+    }
+    return node as TypeDeclaration;
+  }
+
   Class get asClass {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A class was expected';
     }
@@ -513,6 +514,7 @@ class Reference {
   }
 
   Member get asMember {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A member was expected';
     }
@@ -520,6 +522,7 @@ class Reference {
   }
 
   Field get asField {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A field was expected';
     }
@@ -527,6 +530,7 @@ class Reference {
   }
 
   Constructor get asConstructor {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A constructor was expected';
     }
@@ -534,6 +538,7 @@ class Reference {
   }
 
   Procedure get asProcedure {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A procedure was expected';
     }
@@ -541,24 +546,20 @@ class Reference {
   }
 
   Typedef get asTypedef {
+    NamedNode? node = this.node;
     if (node == null) {
       throw '$this is not bound to an AST node. A typedef was expected';
     }
     return node as Typedef;
   }
 
-  Extension get asExtension {
+  ExtensionTypeDeclaration get asExtensionTypeDeclaration {
+    NamedNode? node = this.node;
     if (node == null) {
-      throw '$this is not bound to an AST node. An extension was expected';
+      throw '$this is not bound to an AST node. An extension type declaration '
+          'was expected';
     }
-    return node as Extension;
-  }
-
-  InlineClass get asInlineClass {
-    if (node == null) {
-      throw '$this is not bound to an AST node. An inline class was expected';
-    }
-    return node as InlineClass;
+    return node as ExtensionTypeDeclaration;
   }
 
   bool get isConsistent {
@@ -615,19 +616,6 @@ class Reference {
     return sb.toString();
   }
 
-  /// Returns `true` if [node] is orphaned through this reference.
-  ///
-  /// A [NamedNode] is orphaned if its reference doesn't point back to the node
-  /// itself. This can occur if the [reference] is repurposed for a new
-  /// [NamedNode]. In this case, the reference will be updated to point the new
-  /// node.
-  ///
-  /// This method assumes that this reference is the reference, possibly
-  /// getter or setter reference for a field, of [node].
-  bool isOrphaned(NamedNode node) {
-    return _node != node;
-  }
-
   /// Returns a description of the orphancy, if [node] is orphaned through this
   /// reference. Otherwise `null`.
   ///
@@ -649,6 +637,16 @@ class Reference {
       return sb.toString();
     }
     return null;
+  }
+
+  @override
+  int compareTo(Reference other) {
+    final CanonicalName? thisCanonicalName = canonicalName;
+    final CanonicalName? otherCanonicalName = other.canonicalName;
+    if (thisCanonicalName == null && otherCanonicalName == null) return 0;
+    if (thisCanonicalName == null) return -1;
+    if (otherCanonicalName == null) return 1;
+    return thisCanonicalName.compareTo(otherCanonicalName);
   }
 }
 

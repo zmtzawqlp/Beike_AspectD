@@ -14,27 +14,44 @@ import '../js_ast/js_ast.dart' show js;
 import 'kernel_helpers.dart';
 
 /// Returns all non-locally defined type parameters referred to by [t].
-Set<TypeParameter> freeTypeParameters(DartType t) {
-  assert(isKnownDartTypeImplementor(t));
-  var result = <TypeParameter>{};
+Set</* TypeParameter | StructuralParameter */ Object> freeTypeParameters(
+  DartType t,
+) {
+  var result = </* TypeParameter | StructuralParameter */ Object>{};
   void find(DartType t) {
-    if (t is TypeParameterType) {
-      result.add(t.parameter);
-    } else if (t is InterfaceType) {
-      t.typeArguments.forEach(find);
-    } else if (t is FutureOrType) {
-      find(t.typeArgument);
-    } else if (t is TypedefType) {
-      t.typeArguments.forEach(find);
-    } else if (t is FunctionType) {
-      find(t.returnType);
-      t.positionalParameters.forEach(find);
-      t.namedParameters.forEach((n) => find(n.type));
-      t.typeParameters.forEach((p) => find(p.bound));
-      t.typeParameters.forEach(result.remove);
-    } else if (t is RecordType) {
-      t.positional.forEach((p) => find(p));
-      t.named.forEach((n) => find(n.type));
+    switch (t) {
+      case TypeParameterType():
+        result.add(t.parameter);
+      case StructuralParameterType():
+        result.add(t.parameter);
+      case InterfaceType():
+        t.typeArguments.forEach(find);
+      case FutureOrType():
+        find(t.typeArgument);
+      case TypedefType():
+        t.typeArguments.forEach(find);
+      case FunctionType():
+        find(t.returnType);
+        t.positionalParameters.forEach(find);
+        t.namedParameters.forEach((n) => find(n.type));
+        t.typeParameters.forEach((p) => find(p.bound));
+        t.typeParameters.forEach(result.remove);
+      case RecordType():
+        t.positional.forEach((p) => find(p));
+        t.named.forEach((n) => find(n.type));
+      case ExtensionType():
+        find(t.extensionTypeErasure);
+      case AuxiliaryType():
+        throwUnsupportedAuxiliaryType(t);
+      case InvalidType():
+        throwUnsupportedInvalidType(t);
+      case DynamicType():
+      case VoidType():
+      case NeverType():
+      case NullType():
+      case IntersectionType():
+      // Nothing to do, intentionally left empty.
+      // Cases should be exhaustive, do not change to `default:`.
     }
   }
 
@@ -44,65 +61,71 @@ Set<TypeParameter> freeTypeParameters(DartType t) {
 
 /// A name for a type made of JS identifier safe characters.
 ///
-/// 'L' and 'N' are appended to a type name to represent a legacy or nullable
-/// flavor of a type.
+/// 'N' is appended to a type name to represent a nullable flavor of a type.
 String _typeString(DartType type, {bool flat = false}) {
-  var nullability = type.declaredNullability == Nullability.legacy
-      ? 'L'
-      : type.declaredNullability == Nullability.nullable
-          ? 'N'
-          : '';
-  assert(isKnownDartTypeImplementor(type));
-  if (type is InterfaceType) {
-    var name = '${type.classNode.name}$nullability';
-    var typeArgs = type.typeArguments;
-    if (typeArgs.isEmpty) return name;
-    if (typeArgs.every((p) => p == const DynamicType())) return name;
-    return "${name}Of${typeArgs.map(_typeString).join("\$")}";
+  var nullability = type.declaredNullability == Nullability.nullable ? 'N' : '';
+  switch (type) {
+    case InterfaceType():
+      var name = '${type.classNode.name}$nullability';
+      var typeArgs = type.typeArguments;
+      if (typeArgs.isEmpty) return name;
+      if (typeArgs.every((p) => p == const DynamicType())) return name;
+      return "${name}Of${typeArgs.map(_typeString).join("\$")}";
+    case FutureOrType():
+      var name = 'FutureOr$nullability';
+      if (type.typeArgument == const DynamicType()) return name;
+      return '${name}Of${_typeString(type.typeArgument)}';
+    case TypedefType():
+      var name = '${type.typedefNode.name}$nullability';
+      var typeArgs = type.typeArguments;
+      if (typeArgs.isEmpty) return name;
+      if (typeArgs.every((p) => p == const DynamicType())) return name;
+      return "${name}Of${typeArgs.map(_typeString).join("\$")}";
+    case FunctionType():
+      if (flat) return 'Fn';
+      var rType = _typeString(type.returnType, flat: true);
+      var params = type.positionalParameters
+          .take(3)
+          .map((p) => _typeString(p, flat: true));
+      var paramList = params.join('And');
+      var count = type.positionalParameters.length;
+      if (count > 3 || type.namedParameters.isNotEmpty) {
+        paramList = '${paramList}__';
+      } else if (count == 0) {
+        paramList = 'Void';
+      }
+      return '${paramList}To$nullability$rType';
+    case TypeParameterType():
+      return '${type.parameter.name}$nullability';
+    case StructuralParameterType():
+      return '${type.parameter.name}$nullability';
+    case IntersectionType():
+      return '${type.left.parameter.name}$nullability';
+    case DynamicType():
+      return 'dynamic';
+    case VoidType():
+      return 'void';
+    case NeverType():
+      return 'Never$nullability';
+    case NullType():
+      return 'Null';
+    case RecordType():
+      if (flat) return 'Rec';
+      var positional = type.positional
+          .take(3)
+          .map((p) => _typeString(p, flat: true));
+      var elements = positional.join('And');
+      if (type.positional.length > 3 || type.named.isNotEmpty) {
+        elements = '${elements}__';
+      }
+      return 'Rec${nullability}Of$elements';
+    case ExtensionType():
+      return _typeString(type.extensionTypeErasure);
+    case AuxiliaryType():
+      throwUnsupportedAuxiliaryType(type);
+    case InvalidType():
+      throwUnsupportedInvalidType(type);
   }
-  if (type is FutureOrType) {
-    var name = 'FutureOr$nullability';
-    if (type.typeArgument == const DynamicType()) return name;
-    return '${name}Of${_typeString(type.typeArgument)}';
-  }
-  if (type is TypedefType) {
-    var name = '${type.typedefNode.name}$nullability';
-    var typeArgs = type.typeArguments;
-    if (typeArgs.isEmpty) return name;
-    if (typeArgs.every((p) => p == const DynamicType())) return name;
-    return "${name}Of${typeArgs.map(_typeString).join("\$")}";
-  }
-  if (type is FunctionType) {
-    if (flat) return 'Fn';
-    var rType = _typeString(type.returnType, flat: true);
-    var params = type.positionalParameters
-        .take(3)
-        .map((p) => _typeString(p, flat: true));
-    var paramList = params.join('And');
-    var count = type.positionalParameters.length;
-    if (count > 3 || type.namedParameters.isNotEmpty) {
-      paramList = '${paramList}__';
-    } else if (count == 0) {
-      paramList = 'Void';
-    }
-    return '${paramList}To$nullability$rType';
-  }
-  if (type is TypeParameterType) return '${type.parameter.name}$nullability';
-  if (type is DynamicType) return 'dynamic';
-  if (type is VoidType) return 'void';
-  if (type is NeverType) return 'Never$nullability';
-  if (type is NullType) return 'Null';
-  if (type is RecordType) {
-    if (flat) return 'Rec';
-    var positional =
-        type.positional.take(3).map((p) => _typeString(p, flat: true));
-    var elements = positional.join('And');
-    if (type.positional.length > 3 || type.named.isNotEmpty) {
-      elements = '${elements}__';
-    }
-    return 'Rec${nullability}Of$elements';
-  }
-  return 'invalid';
 }
 
 class TypeTable {
@@ -110,7 +133,8 @@ class TypeTable {
   /// cache/generator variables discharged at the binding site for the
   /// type variable since the type definition depends on the type
   /// parameter.
-  final _scopeDependencies = <TypeParameter, List<DartType>>{};
+  final _scopeDependencies =
+      </* TypeParameter | StructuralParameter */ Object, List<DartType>>{};
 
   /// Contains types with any free type parameters and maps them to a unique
   /// JS identifier.
@@ -120,12 +144,15 @@ class TypeTable {
   final _unboundTypeIds = HashMap<DartType, js_ast.Identifier>();
 
   /// Holds JS type generators keyed by their underlying DartType.
-  final typeContainer = ModuleItemContainer<DartType>.asObject('T',
-      keyToString: (DartType t) => escapeIdentifier(_typeString(t))!);
+  final ModuleItemContainer<DartType> typeContainer;
 
   final js_ast.Expression Function(String, [List<Object>]) _runtimeCall;
 
-  TypeTable(this._runtimeCall);
+  TypeTable(String name, this._runtimeCall)
+    : typeContainer = ModuleItemContainer<DartType>.asObject(
+        name,
+        keyToString: (DartType t) => escapeIdentifier(_typeString(t)),
+      );
 
   /// Returns true if [type] is already recorded in the table.
   bool _isNamed(DartType type) =>
@@ -148,7 +175,7 @@ class TypeTable {
       var access = js.call('#.#', [data.id, data.jsKey]);
       return js.call('() => ((# = #)())', [
         access,
-        _runtimeCall('constFn(#)', [data.jsValue])
+        _runtimeCall('constFn(#)', [data.jsValue]),
       ]);
     }
 
@@ -169,7 +196,7 @@ class TypeTable {
     return js.statement('var # = () => ((# = #)());', [
       id,
       id,
-      _runtimeCall('constFn(#)', [init])
+      _runtimeCall('constFn(#)', [init]),
     ]);
   }
 
@@ -178,8 +205,16 @@ class TypeTable {
   ///
   /// If [formals] is present, only emit the definitions which depend on the
   /// formals.
-  List<js_ast.Statement> dischargeFreeTypes(
-      [Iterable<TypeParameter>? formals]) {
+  List<js_ast.Statement> dischargeFreeTypes([
+    Iterable</* TypeParameter | StructuralTypeParameter */ Object>? formals,
+  ]) {
+    assert(
+      formals == null ||
+          formals.every(
+            (parameter) =>
+                parameter is TypeParameter || parameter is StructuralParameter,
+          ),
+    );
     var decls = <js_ast.Statement>[];
     var types = formals == null
         ? typeContainer.keys.where((p) => freeTypeParameters(p).isNotEmpty)
@@ -219,7 +254,11 @@ class TypeTable {
     // readability to little or no benefit.  It would be good to do this
     // when we know that we can hoist it to an outer scope, but for
     // now we just disable it.
-    if (freeVariables.any((i) => i.parent is FunctionNode)) {
+    if (freeVariables.any(
+      (i) =>
+          i is TypeParameter && i.declaration is GenericFunction ||
+          i is StructuralParameter,
+    )) {
       return true;
     }
 
@@ -232,8 +271,9 @@ class TypeTable {
     if (freeVariables.isNotEmpty) {
       // TODO(40273) Remove prepended text when we have a better way to hide
       // these names from debug tools.
-      _unboundTypeIds[type] =
-          js_ast.TemporaryId(escapeIdentifier('__t\$${_typeString(type)}')!);
+      _unboundTypeIds[type] = js_ast.ScopedId(
+        escapeIdentifier('__t\$${_typeString(type)}'),
+      );
     }
 
     for (var free in freeVariables) {
@@ -262,8 +302,10 @@ class TypeTable {
   /// type itself. This allows better integration with `lazyFn`, avoiding an
   /// extra level of indirection.
   js_ast.Expression nameFunctionType(
-      FunctionType type, js_ast.Expression typeRep,
-      {bool lazy = false}) {
+    FunctionType type,
+    js_ast.Expression typeRep, {
+    bool lazy = false,
+  }) {
     if (recordScopeDependencies(type)) {
       return lazy ? js_ast.ArrowFun([], typeRep) : typeRep;
     }

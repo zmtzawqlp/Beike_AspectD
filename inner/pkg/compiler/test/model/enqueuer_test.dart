@@ -5,7 +5,6 @@
 // Test that the enqueuers are not dependent upon in which order impacts are
 // applied.
 
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/compiler.dart';
 import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/common/elements.dart';
@@ -16,10 +15,11 @@ import 'package:compiler/src/enqueue.dart';
 import 'package:compiler/src/inferrer/typemasks/masks.dart';
 import 'package:compiler/src/universe/call_structure.dart';
 import 'package:compiler/src/universe/selector.dart';
+import 'package:compiler/src/universe/world_builder.dart';
 import 'package:compiler/src/universe/world_impact.dart';
 import 'package:compiler/src/universe/use.dart';
-import 'package:compiler/src/universe/world_builder.dart';
 import 'package:compiler/src/js_model/js_world.dart' show JClosedWorld;
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
 
@@ -29,11 +29,12 @@ class Test {
   final List<Impact> impacts;
   final Map<String, List<String>> expectedLiveMap;
 
-  const Test(
-      {required this.name,
-      required this.code,
-      required this.impacts,
-      required this.expectedLiveMap});
+  const Test({
+    required this.name,
+    required this.code,
+    required this.impacts,
+    required this.expectedLiveMap,
+  });
 
   Map<String, List<String>> get expectedLiveResolutionMap {
     Map<String, List<String>> map = {};
@@ -71,9 +72,9 @@ class Impact {
   final String memberName;
 
   const Impact.instantiate(this.clsName, [this.memberName = ''])
-      : this.kind = ImpactKind.instantiate;
+    : this.kind = ImpactKind.instantiate;
   const Impact.invoke(this.clsName, this.memberName)
-      : this.kind = ImpactKind.invoke;
+    : this.kind = ImpactKind.invoke;
 
   @override
   String toString() =>
@@ -81,43 +82,58 @@ class Impact {
 }
 
 const List<Test> tests = const <Test>[
-  const Test(name: 'Instantiate class', code: '''
+  const Test(
+    name: 'Instantiate class',
+    code: '''
 class A {
   void method() {}
 }
-''', impacts: const [
-    const Impact.instantiate('A'),
-    const Impact.invoke('A', 'method'),
-  ], expectedLiveMap: const {
-    'A': const ['', 'method'],
-  }),
-  const Test(name: 'Instantiate subclass', code: '''
-class A {
-  void method() {}
-}
-class B extends A {
-}
-''', impacts: const [
-    const Impact.instantiate('B'),
-    const Impact.invoke('B', 'method'),
-  ], expectedLiveMap: const {
-    'A': const ['?', 'method'],
-    'B': const [''],
-  }),
-  const Test(name: 'Instantiate superclass/subclass', code: '''
+''',
+    impacts: const [
+      const Impact.instantiate('A'),
+      const Impact.invoke('A', 'method'),
+    ],
+    expectedLiveMap: const {
+      'A': const ['', 'method'],
+    },
+  ),
+  const Test(
+    name: 'Instantiate subclass',
+    code: '''
 class A {
   void method() {}
 }
 class B extends A {
 }
-''', impacts: const [
-    const Impact.instantiate('A'),
-    const Impact.instantiate('B'),
-    const Impact.invoke('B', 'method'),
-  ], expectedLiveMap: const {
-    'A': const ['', 'method'],
-    'B': const [''],
-  }),
+''',
+    impacts: const [
+      const Impact.instantiate('B'),
+      const Impact.invoke('B', 'method'),
+    ],
+    expectedLiveMap: const {
+      'A': const ['?', 'method'],
+      'B': const [''],
+    },
+  ),
+  const Test(
+    name: 'Instantiate superclass/subclass',
+    code: '''
+class A {
+  void method() {}
+}
+class B extends A {
+}
+''',
+    impacts: const [
+      const Impact.instantiate('A'),
+      const Impact.instantiate('B'),
+      const Impact.invoke('B', 'method'),
+    ],
+    expectedLiveMap: const {
+      'A': const ['', 'method'],
+      'B': const [''],
+    },
+  ),
 ];
 
 main() {
@@ -154,73 +170,106 @@ Iterable<List<Impact>> permutations(List<Impact> impacts) sync* {
 }
 
 runTestPermutation(Test test, List<Impact> impacts) async {
-  Compiler compiler = compilerFor(memorySourceFiles: {
-    'main.dart': '''
+  Compiler compiler = compilerFor(
+    memorySourceFiles: {
+      'main.dart':
+          '''
 ${test.code}
 main() {}
-'''
-  }, options: [
-    Flags.disableInlining,
-  ], entryPoint: Uri.parse('memory:main.dart'));
+''',
+    },
+    options: [Flags.disableInlining],
+    entryPoint: Uri.parse('memory:main.dart'),
+  );
 
   void checkInvariant(
-      Enqueuer enqueuer, ElementEnvironment elementEnvironment) {
-    for (MemberEntity member
-        in compiler.resolutionEnqueuerForTesting.processedEntities) {
+    Enqueuer enqueuer,
+    ElementEnvironment elementEnvironment,
+  ) {
+    for (MemberEntity member in enqueuer.processedEntities) {
       Expect.isTrue(
-          member == elementEnvironment.mainFunction ||
-              member.library != elementEnvironment.mainLibrary,
-          "Unexpected member $member in ${enqueuer}.");
+        member == elementEnvironment.mainFunction ||
+            member.library != elementEnvironment.mainLibrary,
+        "Unexpected member $member in ${enqueuer}.",
+      );
     }
   }
 
   void instantiate(
-      Enqueuer enqueuer, ElementEnvironment elementEnvironment, String name) {
-    ClassEntity cls =
-        elementEnvironment.lookupClass(elementEnvironment.mainLibrary!, name)!;
-    ConstructorEntity constructor =
-        elementEnvironment.lookupConstructor(cls, '')!;
+    Enqueuer enqueuer,
+    ElementEnvironment elementEnvironment,
+    String name,
+  ) {
+    ClassEntity cls = elementEnvironment.lookupClass(
+      elementEnvironment.mainLibrary!,
+      name,
+    )!;
+    ConstructorEntity constructor = elementEnvironment.lookupConstructor(
+      cls,
+      '',
+    )!;
     InterfaceType type = elementEnvironment.getRawType(cls);
     WorldImpact impact = WorldImpactBuilderImpl()
-      ..registerStaticUse(new StaticUse.typedConstructorInvoke(constructor,
-          constructor.parameterStructure.callStructure, type, null));
+      ..registerStaticUse(
+        new StaticUse.typedConstructorInvoke(
+          constructor,
+          constructor.parameterStructure.callStructure,
+          type,
+          null,
+        ),
+      );
     enqueuer.applyImpact(impact);
   }
 
   void invoke(
-      Enqueuer enqueuer,
-      ElementEnvironment elementEnvironment,
-      String className,
-      String methodName,
-      Object Function(ClassEntity cls) createConstraint) {
+    Enqueuer enqueuer,
+    ElementEnvironment elementEnvironment,
+    String className,
+    String methodName,
+    Object Function(ClassEntity cls) createConstraint,
+  ) {
     ClassEntity cls = elementEnvironment.lookupClass(
-        elementEnvironment.mainLibrary!, className)!;
+      elementEnvironment.mainLibrary!,
+      className,
+    )!;
     Selector selector = Selector.call(
-        Name(methodName, elementEnvironment.mainLibrary!.canonicalUri),
-        CallStructure.NO_ARGS);
+      Name(methodName, elementEnvironment.mainLibrary!.canonicalUri),
+      CallStructure.noArgs,
+    );
     WorldImpact impact = WorldImpactBuilderImpl()
       ..registerDynamicUse(
-          DynamicUse(selector, createConstraint(cls), const <DartType>[]));
+        DynamicUse(selector, createConstraint(cls), const <DartType>[]),
+      );
     enqueuer.applyImpact(impact);
   }
 
-  void applyImpact(Enqueuer enqueuer, ElementEnvironment elementEnvironment,
-      Impact impact, Object Function(ClassEntity cls) createConstraint) {
+  void applyImpact(
+    Enqueuer enqueuer,
+    ElementEnvironment elementEnvironment,
+    Impact impact,
+    Object Function(ClassEntity cls) createConstraint,
+  ) {
     switch (impact.kind) {
       case ImpactKind.instantiate:
         instantiate(enqueuer, elementEnvironment, impact.clsName);
         break;
       case ImpactKind.invoke:
-        invoke(enqueuer, elementEnvironment, impact.clsName, impact.memberName,
-            createConstraint);
+        invoke(
+          enqueuer,
+          elementEnvironment,
+          impact.clsName,
+          impact.memberName,
+          createConstraint,
+        );
         break;
     }
   }
 
   void checkLiveMembers(
-      Enqueuer enqueuer,
-      ElementEnvironment elementEnvironment,
-      Map<String, List<String>> expectedLiveMap) {
+    Enqueuer enqueuer,
+    ElementEnvironment elementEnvironment,
+    Map<String, List<String>> expectedLiveMap,
+  ) {
     Map<String, List<String>> actualLiveMap = {};
     for (MemberEntity member in enqueuer.processedEntities) {
       if (member != elementEnvironment.mainFunction &&
@@ -232,19 +281,21 @@ main() {}
     }
 
     Expect.setEquals(
-        expectedLiveMap.keys,
-        actualLiveMap.keys,
-        "Unexpected live classes in $enqueuer\n "
-        "Expected: ${expectedLiveMap.keys}\n "
-        "Actual  : ${actualLiveMap.keys}");
+      expectedLiveMap.keys,
+      actualLiveMap.keys,
+      "Unexpected live classes in $enqueuer\n "
+      "Expected: ${expectedLiveMap.keys}\n "
+      "Actual  : ${actualLiveMap.keys}",
+    );
     expectedLiveMap.forEach((String clsName, List<String> expectedMembers) {
       List<String> actualMembers = actualLiveMap[clsName]!;
       Expect.setEquals(
-          expectedMembers,
-          actualMembers,
-          "Unexpected live members for $clsName in $enqueuer\n "
-          "Expected: $expectedMembers\n "
-          "Actual  : $actualMembers");
+        expectedMembers,
+        actualMembers,
+        "Unexpected live members for $clsName in $enqueuer\n "
+        "Expected: $expectedMembers\n "
+        "Actual  : $actualMembers",
+      );
     });
   }
 
@@ -255,8 +306,11 @@ main() {}
     checkInvariant(enqueuer, elementEnvironment);
 
     Object createConstraint(ClassEntity cls) {
-      return StrongModeConstraint(compiler.frontendStrategy.commonElements,
-          compiler.frontendStrategy.elementMap.nativeBasicData, cls);
+      return defaultReceiverClass(
+        compiler.frontendStrategy.commonElements,
+        compiler.frontendStrategy.elementMap.nativeBasicData,
+        cls,
+      );
     }
 
     for (Impact impact in impacts) {
@@ -268,10 +322,11 @@ main() {}
     JClosedWorld closedWorld = compiler.backendClosedWorldForTesting!;
     ElementEnvironment elementEnvironment =
         compiler.backendClosedWorldForTesting!.elementEnvironment;
+    final domain = closedWorld.abstractValueDomain as CommonMasks;
     checkInvariant(enqueuer, elementEnvironment);
 
     Object createConstraint(ClassEntity cls) {
-      return TypeMask.subtype(cls, closedWorld);
+      return TypeMask.subtype(cls, domain);
     }
 
     for (Impact impact in impacts) {
@@ -282,12 +337,14 @@ main() {}
   await compiler.run();
 
   checkLiveMembers(
-      compiler.resolutionEnqueuerForTesting,
-      compiler.frontendStrategy.elementEnvironment,
-      test.expectedLiveResolutionMap);
+    compiler.resolutionEnqueuerForTesting,
+    compiler.frontendStrategy.elementEnvironment,
+    test.expectedLiveResolutionMap,
+  );
 
   checkLiveMembers(
-      compiler.codegenEnqueuerForTesting,
-      compiler.backendClosedWorldForTesting!.elementEnvironment,
-      test.expectedLiveCodegenMap);
+    compiler.codegenEnqueuerForTesting,
+    compiler.backendClosedWorldForTesting!.elementEnvironment,
+    test.expectedLiveCodegenMap,
+  );
 }

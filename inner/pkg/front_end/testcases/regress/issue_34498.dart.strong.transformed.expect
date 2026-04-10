@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -13,14 +13,14 @@ library /*isNonNullableByDefault*/;
 //   foo foo() {}
 //       ^^^
 //
+// pkg/front_end/testcases/regress/issue_34498.dart:12:3: Error: Type 'Missing' not found.
+//   Missing bar() {}
+//   ^^^^^^^
+//
 // pkg/front_end/testcases/regress/issue_34498.dart:20:3: Error: Can't use type arguments with type variable 'T'.
 // Try removing the type arguments.
 //   T<String> foo() {}
 //   ^
-//
-// pkg/front_end/testcases/regress/issue_34498.dart:12:3: Error: Type 'Missing' not found.
-//   Missing bar() {}
-//   ^^^^^^^
 //
 import self as self;
 import "dart:core" as core;
@@ -50,7 +50,7 @@ class C<T extends core::Object? = dynamic> extends core::Object {
 static final field self::A? a = null;
 static method main() → dynamic {}
 
-library /*isNonNullableByDefault*/;
+library;
 import self as self2;
 import "dart:core" as core;
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2016, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 library _fe_analyzer_shared.parser;
 
@@ -29,7 +29,7 @@ export 'identifier_context.dart' show IdentifierContext;
 
 export 'listener.dart' show Listener;
 
-export 'declaration_kind.dart' show DeclarationKind;
+export 'declaration_kind.dart' show DeclarationHeaderKind, DeclarationKind;
 
 export 'directive_context.dart' show DirectiveContext;
 
@@ -41,28 +41,44 @@ export 'parser_error.dart' show ParserError;
 
 export 'top_level_parser.dart' show TopLevelParser;
 
-export 'util.dart' show lengthForToken, lengthOfSpan, optional;
+export 'util.dart'
+    show
+        boolFromToken,
+        doubleFromToken,
+        intFromToken,
+        lengthForToken,
+        lengthOfSpan,
+        optional,
+        stripSeparators;
 
 class ErrorCollectingListener extends Listener {
   final List<ParserError> recoverableErrors = <ParserError>[];
 
   @override
   void handleRecoverableError(
-      Message message, Token startToken, Token endToken) {
+    Message message,
+    Token startToken,
+    Token endToken,
+  ) {
     /// TODO(danrubel): Ignore this error until we deprecate `native` support.
     if (message == messageNativeClauseShouldBeAnnotation) {
       return;
     }
-    recoverableErrors
-        .add(new ParserError.fromTokens(startToken, endToken, message));
+    recoverableErrors.add(
+      new ParserError.fromTokens(startToken, endToken, message),
+    );
   }
 }
 
-List<ParserError> parse(Token tokens,
-    {bool useImplicitCreationExpression = true}) {
+List<ParserError> parse(
+  Token tokens, {
+  bool useImplicitCreationExpression = true,
+}) {
   ErrorCollectingListener listener = new ErrorCollectingListener();
-  Parser parser = new Parser(listener,
-      useImplicitCreationExpression: useImplicitCreationExpression);
+  Parser parser = new Parser(
+    listener,
+    useImplicitCreationExpression: useImplicitCreationExpression,
+  );
   parser.parseUnit(tokens);
   return listener.recoverableErrors;
 }

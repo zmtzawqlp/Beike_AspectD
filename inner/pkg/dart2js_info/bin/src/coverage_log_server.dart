@@ -19,7 +19,7 @@
 ///      flag provided to dart2js.
 ///    * start this server, and proxy requests from your normal frontend
 ///      server to this one.
-library dart2js_info.bin.coverage_log_server;
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -41,16 +41,24 @@ class CoverageLogServerCommand extends Command<void> with PrintUsageException {
   CoverageLogServerCommand() {
     argParser
       ..addOption('port', abbr: 'p', help: 'port number', defaultsTo: "8080")
-      ..addOption('host',
-          help: 'host name (use 0.0.0.0 for all interfaces)',
-          defaultsTo: 'localhost')
-      ..addOption('uri-prefix',
-          help:
-              'uri path prefix that will hit this server. This will be injected'
-              ' into the .js file',
-          defaultsTo: '')
-      ..addOption('out',
-          abbr: 'o', help: 'output log file', defaultsTo: _defaultOutTemplate);
+      ..addOption(
+        'host',
+        help: 'host name (use 0.0.0.0 for all interfaces)',
+        defaultsTo: 'localhost',
+      )
+      ..addOption(
+        'uri-prefix',
+        help:
+            'uri path prefix that will hit this server. This will be injected'
+            ' into the .js file',
+        defaultsTo: '',
+      )
+      ..addOption(
+        'out',
+        abbr: 'o',
+        help: 'output log file',
+        defaultsTo: _defaultOutTemplate,
+      );
   }
 
   @override
@@ -67,8 +75,14 @@ class CoverageLogServerCommand extends Command<void> with PrintUsageException {
     }
     var outPath = args['out'];
     if (outPath == _defaultOutTemplate) outPath = '$jsPath.coverage.json';
-    var server = _Server(args['host'], int.parse(args['port']), jsPath,
-        htmlPath, outPath, args['uri-prefix']);
+    var server = _Server(
+      args['host'],
+      int.parse(args['port']),
+      jsPath,
+      htmlPath,
+      outPath,
+      args['uri-prefix'],
+    );
     await server.run();
   }
 }
@@ -108,19 +122,26 @@ class _Server {
 
   String get _serializedData => JsonEncoder.withIndent(' ').convert(data);
 
-  _Server(this.hostname, this.port, this.jsPath, this.htmlPath, this.outPath,
-      String prefix)
-      : jsCode = _adjustRequestUrl(File(jsPath).readAsStringSync(), prefix),
-        prefix = _normalize(prefix);
+  _Server(
+    this.hostname,
+    this.port,
+    this.jsPath,
+    this.htmlPath,
+    this.outPath,
+    String prefix,
+  ) : jsCode = _adjustRequestUrl(File(jsPath).readAsStringSync(), prefix),
+      prefix = _normalize(prefix);
 
   Future<void> run() async {
     await shelf.serve(_handler, hostname, port);
     var urlBase = "http://$hostname:$port${prefix == '' ? '/' : '/$prefix/'}";
     var htmlFilename = htmlPath == null ? '' : path.basename(htmlPath!);
-    print("Server is listening\n"
-        "  - html page: $urlBase$htmlFilename\n"
-        "  - js code: $urlBase${path.basename(jsPath)}\n"
-        "  - coverage reporting: ${urlBase}coverage\n");
+    print(
+      "Server is listening\n"
+      "  - html page: $urlBase$htmlFilename\n"
+      "  - js code: $urlBase${path.basename(jsPath)}\n"
+      "  - coverage reporting: ${urlBase}coverage\n",
+    );
   }
 
   String _expectedPath(String tail) => prefix == '' ? tail : '$prefix/$tail';
@@ -180,9 +201,11 @@ class _Server {
       await Future.delayed(Duration(seconds: 3));
       await File(outPath).writeAsString(_serializedData);
       var diff = data.length - _total;
-      print(diff == 0
-          ? ' - no new element covered'
-          : ' - $diff new elements covered');
+      print(
+        diff == 0
+            ? ' - no new element covered'
+            : ' - $diff new elements covered',
+      );
       _savePending = false;
       _total = data.length;
     }
@@ -198,7 +221,8 @@ String _normalize(String uriPath) {
 
 String _adjustRequestUrl(String code, String prefix) {
   var url = prefix == '' ? 'coverage' : '$prefix/coverage';
-  var hook = '''
+  var hook =
+      '''
       self.dartCallInstrumentation = function(id, name) {
         if (!this.traceBuffer) {
           this.traceBuffer = [];

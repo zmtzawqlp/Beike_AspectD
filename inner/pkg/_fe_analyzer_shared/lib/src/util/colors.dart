@@ -49,7 +49,8 @@ const String WHITE_COLOR = "\x1b[37m";
 /// All the above codes. This is used to compare the above codes to the
 /// terminal's. Printing this string should have the same effect as just
 /// printing [DEFAULT_COLOR].
-const String ALL_CODES = BLACK_COLOR +
+const String ALL_CODES =
+    BLACK_COLOR +
     RED_COLOR +
     GREEN_COLOR +
     YELLOW_COLOR +
@@ -87,8 +88,6 @@ bool get enableColors => _enableColors ??= _computeEnableColors();
 /// Allows the client to override the decision of whether to disable ANSI
 /// colors.
 void set enableColors(bool value) {
-  // ignore: unnecessary_null_comparison
-  assert(value != null);
   _enableColors = value;
 }
 
@@ -105,18 +104,6 @@ String magenta(String string) => wrap(string, MAGENTA_COLOR);
 String cyan(String string) => wrap(string, CYAN_COLOR);
 String white(String string) => wrap(string, WHITE_COLOR);
 
-/// Returns whether [sink] supports ANSI escapes or `null` if it could not be
-/// determined.
-bool? _supportsAnsiEscapes(sink) {
-  try {
-    return sink.supportsAnsiEscapes;
-  } on NoSuchMethodError {
-    // Ignored: We're running on an older version of the Dart VM which doesn't
-    // implement `supportsAnsiEscapes`.
-    return null;
-  }
-}
-
 /// Callback used by [_computeEnableColors] to report why it has or hasn't
 /// chosen to use ANSI colors.
 void Function(String) printEnableColorsReason = (_) {};
@@ -130,30 +117,22 @@ void Function(String) printEnableColorsReason = (_) {};
 /// `true`.
 ///
 /// Note: do not call this method directly, as it is expensive to
-/// compute. Instead, use [CompilerContext.enableColors].
+/// compute. Instead, use [enableColors].
 bool _computeEnableColors() {
-  bool? stderrSupportsColors = _supportsAnsiEscapes(stdout);
-  bool? stdoutSupportsColors = _supportsAnsiEscapes(stderr);
-
-  if (stdoutSupportsColors == false) {
+  if (!stdout.supportsAnsiEscapes) {
     printEnableColorsReason(
-        "Not enabling colors, stdout does not support ANSI colors.");
+      "Not enabling colors, stdout does not support ANSI colors.",
+    );
     return false;
   }
-  if (stderrSupportsColors == false) {
+  if (!stderr.supportsAnsiEscapes) {
     printEnableColorsReason(
-        "Not enabling colors, stderr does not support ANSI colors.");
+      "Not enabling colors, stderr does not support ANSI colors.",
+    );
     return false;
   }
 
   if (Platform.isWindows) {
-    if (stderrSupportsColors != true || stdoutSupportsColors != true) {
-      // In this case, either [stdout] or [stderr] did not support the
-      // property `supportsAnsiEscapes`. Since we do not have another way
-      // to determine support for colors, we disable them.
-      printEnableColorsReason("Not enabling colors as ANSI is not supported.");
-      return false;
-    }
     printEnableColorsReason("Enabling colors as OS is Windows.");
     return true;
   }
@@ -164,8 +143,10 @@ bool _computeEnableColors() {
 
   // The `-S` option of `tput` allows us to query multiple capabilities at
   // once.
-  ProcessResult result = Process.runSync(
-      "/bin/sh", ["-c", "printf '%s' '$TERMINAL_CAPABILITIES' | tput -S"]);
+  ProcessResult result = Process.runSync("/bin/sh", [
+    "-c",
+    "printf '%s' '$TERMINAL_CAPABILITIES' | tput -S",
+  ]);
 
   if (result.exitCode != 0) {
     printEnableColorsReason("Not enabling colors, running tput failed.");
@@ -175,23 +156,28 @@ bool _computeEnableColors() {
   List<String> lines = result.stdout.split("\n");
 
   if (lines.length != 2) {
-    printEnableColorsReason("Not enabling colors, unexpected output from tput: "
-        "${jsonEncode(result.stdout)}.");
+    printEnableColorsReason(
+      "Not enabling colors, unexpected output from tput: "
+      "${jsonEncode(result.stdout)}.",
+    );
     return false;
   }
 
   String numberOfColors = lines[0];
   if ((int.tryParse(numberOfColors) ?? -1) < 8) {
     printEnableColorsReason(
-        "Not enabling colors, less than 8 colors supported: "
-        "${jsonEncode(numberOfColors)}.");
+      "Not enabling colors, less than 8 colors supported: "
+      "${jsonEncode(numberOfColors)}.",
+    );
     return false;
   }
 
   String allCodes = lines[1].trim();
   if (ALL_CODES != allCodes) {
-    printEnableColorsReason("Not enabling colors, color codes don't match: "
-        "${jsonEncode(ALL_CODES)} != ${jsonEncode(allCodes)}.");
+    printEnableColorsReason(
+      "Not enabling colors, color codes don't match: "
+      "${jsonEncode(ALL_CODES)} != ${jsonEncode(allCodes)}.",
+    );
     return false;
   }
 

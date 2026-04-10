@@ -13,7 +13,8 @@ import 'util.dart' show recordShapeOfRecordType;
 
 /// Visitor that converts string literals and concatenations of string literals
 /// into the string value.
-class Stringifier extends ir.ExpressionVisitor<String?> {
+class Stringifier extends ir.ExpressionVisitor<String?>
+    with ir.ExpressionVisitorDefaultMixin<String?> {
   @override
   String visitStringLiteral(ir.StringLiteral node) => node.value;
 
@@ -44,29 +45,33 @@ class Stringifier extends ir.ExpressionVisitor<String?> {
 /// Visitor that converts kernel dart types into [DartType].
 class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
   final IrToElementMap elementMap;
-  final Map<ir.TypeParameter, DartType> currentFunctionTypeParameters =
-      <ir.TypeParameter, DartType>{};
+  final Map<ir.StructuralParameter, DartType> currentFunctionTypeParameters =
+      <ir.StructuralParameter, DartType>{};
 
   DartTypeConverter(this.elementMap);
 
   DartTypes get _dartTypes => elementMap.commonElements.dartTypes;
 
   DartType _convertNullability(
-      DartType baseType, ir.DartType nullabilitySource) {
-    final nullability = nullabilitySource.nullability;
+    DartType baseType,
+    ir.DartType nullabilitySource,
+  ) {
+    final nullability = nullabilitySource.declaredNullability;
     switch (nullability) {
       case ir.Nullability.nonNullable:
         return baseType;
       case ir.Nullability.nullable:
         return _dartTypes.nullableType(baseType);
-      case ir.Nullability.legacy:
-        return _dartTypes.legacyType(baseType);
       case ir.Nullability.undetermined:
         // Type parameters may have undetermined nullability since it is derived
         // from the intersection of the declared nullability with the
         // nullability of the bound. We don't need a nullability wrapper in this
         // case.
-        if (nullabilitySource is ir.TypeParameterType) return baseType;
+        if (nullabilitySource is ir.TypeParameterType ||
+            nullabilitySource is ir.StructuralParameterType ||
+            nullabilitySource is ir.ExtensionType) {
+          return baseType;
+        }
 
         // Iff `T` has undetermined nullability, then so will `FutureOr<T>`
         // since it's the union of `T`, which has undetermined nullability, and
@@ -80,7 +85,8 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
         }
 
         throw UnsupportedError(
-            'Undetermined nullability on $nullabilitySource');
+          'Undetermined nullability on $nullabilitySource',
+        );
     }
   }
 
@@ -94,23 +100,28 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
 
   List<DartType> visitTypes(List<ir.DartType> types) {
     return List.generate(
-        types.length, (int index) => types[index].accept(this));
+      types.length,
+      (int index) => types[index].accept(this),
+    );
   }
 
   @override
   DartType visitTypeParameterType(ir.TypeParameterType node) {
-    DartType? typeParameter = currentFunctionTypeParameters[node.parameter];
-    if (typeParameter != null) {
-      return _convertNullability(typeParameter, node);
-    }
-    if (node.parameter.parent is ir.Typedef) {
+    if (node.parameter.declaration is ir.Typedef) {
       // Typedefs are only used in type literals so we never need their type
       // variables.
       return _dartTypes.dynamicType();
     }
     return _convertNullability(
-        _dartTypes.typeVariableType(elementMap.getTypeVariable(node.parameter)),
-        node);
+      _dartTypes.typeVariableType(elementMap.getTypeVariable(node.parameter)),
+      node,
+    );
+  }
+
+  @override
+  DartType visitStructuralParameterType(ir.StructuralParameterType node) {
+    DartType typeParameter = currentFunctionTypeParameters[node.parameter]!;
+    return _convertNullability(typeParameter, node);
   }
 
   @override
@@ -122,9 +133,10 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
   DartType visitFunctionType(ir.FunctionType node) {
     int index = 0;
     List<FunctionTypeVariable>? typeVariables;
-    for (ir.TypeParameter typeParameter in node.typeParameters) {
-      FunctionTypeVariable typeVariable =
-          _dartTypes.functionTypeVariable(index);
+    for (ir.StructuralParameter typeParameter in node.typeParameters) {
+      FunctionTypeVariable typeVariable = _dartTypes.functionTypeVariable(
+        index,
+      );
       currentFunctionTypeParameters[typeParameter] = typeVariable;
       typeVariables ??= <FunctionTypeVariable>[];
       typeVariables.add(typeVariable);
@@ -132,28 +144,30 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
     }
     if (typeVariables != null) {
       for (int index = 0; index < typeVariables.length; index++) {
-        typeVariables[index].bound =
-            node.typeParameters[index].bound.accept(this);
+        typeVariables[index].bound = node.typeParameters[index].bound.accept(
+          this,
+        );
       }
     }
 
     FunctionType functionType = _dartTypes.functionType(
-        visitType(node.returnType),
-        visitTypes(node.positionalParameters
-            .take(node.requiredParameterCount)
-            .toList()),
-        visitTypes(node.positionalParameters
-            .skip(node.requiredParameterCount)
-            .toList()),
-        node.namedParameters.map((n) => n.name).toList(),
-        node.namedParameters
-            .where((n) => n.isRequired)
-            .map((n) => n.name)
-            .toSet(),
-        node.namedParameters.map((n) => visitType(n.type)).toList(),
-        typeVariables ?? const <FunctionTypeVariable>[]);
+      visitType(node.returnType),
+      visitTypes(
+        node.positionalParameters.take(node.requiredParameterCount).toList(),
+      ),
+      visitTypes(
+        node.positionalParameters.skip(node.requiredParameterCount).toList(),
+      ),
+      node.namedParameters.map((n) => n.name).toList(),
+      node.namedParameters
+          .where((n) => n.isRequired)
+          .map((n) => n.name)
+          .toSet(),
+      node.namedParameters.map((n) => visitType(n.type)).toList(),
+      typeVariables ?? const <FunctionTypeVariable>[],
+    );
     DartType type = _convertNullability(functionType, node);
-    for (ir.TypeParameter typeParameter in node.typeParameters) {
+    for (ir.StructuralParameter typeParameter in node.typeParameters) {
       currentFunctionTypeParameters.remove(typeParameter);
     }
     return type;
@@ -163,7 +177,9 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
   DartType visitInterfaceType(ir.InterfaceType node) {
     ClassEntity cls = elementMap.getClass(node.classNode);
     return _convertNullability(
-        _dartTypes.interfaceType(cls, visitTypes(node.typeArguments)), node);
+      _dartTypes.interfaceType(cls, visitTypes(node.typeArguments)),
+      node,
+    );
   }
 
   @override
@@ -171,7 +187,7 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
     final shape = recordShapeOfRecordType(node);
     List<DartType> fields = [
       for (final type in node.positional) visitType(type),
-      for (final namedType in node.named) visitType(namedType.type)
+      for (final namedType in node.named) visitType(namedType.type),
     ].toList(growable: false);
     return _convertNullability(_dartTypes.recordType(shape, fields), node);
   }
@@ -179,7 +195,9 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
   @override
   DartType visitFutureOrType(ir.FutureOrType node) {
     return _convertNullability(
-        _dartTypes.futureOrType(visitType(node.typeArgument)), node);
+      _dartTypes.futureOrType(visitType(node.typeArgument)),
+      node,
+    );
   }
 
   @override
@@ -210,12 +228,19 @@ class DartTypeConverter extends ir.DartTypeVisitor<DartType> {
   }
 
   @override
-  DartType visitInlineType(ir.InlineType node) {
-    return node.instantiatedRepresentationType.accept(this);
+  DartType visitExtensionType(ir.ExtensionType node) {
+    return node.extensionTypeErasure.accept(this);
   }
 
   @override
-  DartType defaultDartType(ir.DartType node) {
+  DartType visitAuxiliaryType(ir.AuxiliaryType node) {
+    throw UnsupportedError(
+      'Unsupported auxiliary type $node (${node.runtimeType}).',
+    );
+  }
+
+  @override
+  DartType visitTypedefType(ir.TypedefType node) {
     throw UnsupportedError('Unsupported type $node (${node.runtimeType})');
   }
 }
@@ -225,10 +250,7 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
 
   ConstantValuefier(this.elementMap);
 
-  DartTypes get _dartTypes => elementMap.commonElements.dartTypes;
-
-  @override
-  ConstantValue defaultConstant(ir.Constant node) {
+  static Never _unexpectedConstant(ir.Constant node) {
     throw UnsupportedError("Unexpected constant $node (${node.runtimeType}).");
   }
 
@@ -239,7 +261,7 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
 
   @override
   ConstantValue visitTypeLiteralConstant(ir.TypeLiteralConstant node) {
-    DartType type = _dartTypes.eraseLegacy(elementMap.getDartType(node.type));
+    DartType type = elementMap.getDartType(node.type);
     return constant_system.createType(elementMap.commonElements, type);
   }
 
@@ -264,8 +286,10 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
 
   @override
   ConstantValue visitInstanceConstant(ir.InstanceConstant node) {
-    InterfaceType type =
-        elementMap.createInterfaceType(node.classNode, node.typeArguments);
+    InterfaceType type = elementMap.createInterfaceType(
+      node.classNode,
+      node.typeArguments,
+    );
     Map<FieldEntity, ConstantValue> fields = {};
     node.fieldValues.forEach((ir.Reference reference, ir.Constant value) {
       FieldEntity field = elementMap.getField(reference.asField);
@@ -280,10 +304,14 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
     for (ir.Constant element in node.entries) {
       elements.add(visitConstant(element));
     }
-    final type = elementMap.commonElements
-        .listType(elementMap.getDartType(node.typeArgument));
+    final type = elementMap.commonElements.listType(
+      elementMap.getDartType(node.typeArgument),
+    );
     return constant_system.createList(
-        elementMap.commonElements, type, elements);
+      elementMap.commonElements,
+      type,
+      elements,
+    );
   }
 
   @override
@@ -292,8 +320,9 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
     for (ir.Constant element in node.entries) {
       elements.add(visitConstant(element));
     }
-    final type = elementMap.commonElements
-        .setType(elementMap.getDartType(node.typeArgument));
+    final type = elementMap.commonElements.setType(
+      elementMap.getDartType(node.typeArgument),
+    );
     return constant_system.createSet(elementMap.commonElements, type, elements);
   }
 
@@ -306,10 +335,15 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
       values.add(visitConstant(element.value));
     }
     final type = elementMap.commonElements.mapType(
-        elementMap.getDartType(node.keyType),
-        elementMap.getDartType(node.valueType));
+      elementMap.getDartType(node.keyType),
+      elementMap.getDartType(node.valueType),
+    );
     return constant_system.createMap(
-        elementMap.commonElements, type, keys, values);
+      elementMap.commonElements,
+      type,
+      keys,
+      values,
+    );
   }
 
   @override
@@ -317,7 +351,7 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
     final shape = recordShapeOfRecordType(node.recordType);
     final fieldValues = [
       for (final value in node.positional) visitConstant(value),
-      for (final value in node.named.values) visitConstant(value)
+      for (final value in node.named.values) visitConstant(value),
     ];
     return RecordConstantValue(shape, fieldValues);
   }
@@ -351,4 +385,21 @@ class ConstantValuefier extends ir.ComputeOnceConstantVisitor<ConstantValue> {
   ConstantValue visitNullConstant(ir.NullConstant node) {
     return constant_system.createNull();
   }
+
+  @override
+  Never visitConstructorTearOffConstant(ir.ConstructorTearOffConstant node) =>
+      _unexpectedConstant(node);
+
+  @override
+  Never visitRedirectingFactoryTearOffConstant(
+    ir.RedirectingFactoryTearOffConstant node,
+  ) => _unexpectedConstant(node);
+
+  @override
+  Never visitTypedefTearOffConstant(ir.TypedefTearOffConstant node) =>
+      _unexpectedConstant(node);
+
+  @override
+  Never visitAuxiliaryConstant(ir.AuxiliaryConstant node) =>
+      _unexpectedConstant(node);
 }

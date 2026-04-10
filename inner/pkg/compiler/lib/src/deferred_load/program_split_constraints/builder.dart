@@ -35,16 +35,20 @@ class Constraint {
   }
 
   Constraint(this.name, this.imports, this.combinerType) {
-    assert((this.imports.length == 1 && combinerType == null) ||
-        (this.imports.length > 1 && combinerType != null));
+    assert(
+      (imports.length == 1 && combinerType == null) ||
+          (imports.length > 1 && combinerType != null),
+    );
   }
 
   @override
   String toString() {
-    var predecessorNames =
-        predecessors.map((constraint) => constraint.name).join(', ');
-    var successorNames =
-        successors.map((constraint) => constraint.name).join(', ');
+    var predecessorNames = predecessors
+        .map((constraint) => constraint.name)
+        .join(', ');
+    var successorNames = successors
+        .map((constraint) => constraint.name)
+        .join(', ');
     return 'Constraint(imports=$imports, predecessors={$predecessorNames}, '
         'successors={$successorNames})';
   }
@@ -79,14 +83,14 @@ class Builder {
     for (var import in imports) {
       var libraryUri = import.enclosingLibraryUri;
       var prefix = import.name;
-      Map<String, ImportEntity> uriNodes =
-          importsByUriAndPrefix[libraryUri] ??= {};
+      Map<String, ImportEntity> uriNodes = importsByUriAndPrefix[libraryUri] ??=
+          {};
       uriNodes[prefix!] = import;
     }
 
     // A helper function for looking up an [ImportEntity] from a
     // [ReferenceNode].
-    ImportEntity _lookupReference(ReferenceNode node) {
+    ImportEntity lookupReference(ReferenceNode node) {
       var uri = node.uri;
       if (!importsByUriAndPrefix.containsKey(uri)) {
         throw 'Uri for constraint not found $uri';
@@ -102,21 +106,24 @@ class Builder {
     // index each [Constraint] by [NamedNode].
     Map<NamedNode, Constraint> nodeToConstraintMap = {};
     for (var constraint in nodes.named) {
-      CombinerType? combinerType = null;
+      CombinerType? combinerType;
       Set<ImportEntity> imports = {};
       if (constraint is ReferenceNode) {
-        imports.add(_lookupReference(constraint));
+        imports.add(lookupReference(constraint));
       } else if (constraint is CombinerNode) {
         combinerType = constraint.type;
         for (var child in constraint.nodes) {
-          imports.add(_lookupReference(child));
+          imports.add(lookupReference(child));
         }
       } else {
         throw 'Unexpected Node Type $constraint';
       }
 
-      nodeToConstraintMap[constraint] =
-          Constraint(constraint.name, imports, combinerType);
+      nodeToConstraintMap[constraint] = Constraint(
+        constraint.name,
+        imports,
+        combinerType,
+      );
     }
 
     // 3) Build a graph of [Constraint]s by processing user constraints and
@@ -151,8 +158,9 @@ class Builder {
     Map<ImportEntity, Set<ImportEntity>> singletonTransitions = {};
     Map<Constraint, SetTransition> setTransitions = {};
     Map<Constraint, Set<ImportEntity>> processed = {};
-    Queue<_WorkItem> queue =
-        Queue.from(nodeToConstraintMap.values.map((node) => _WorkItem(node)));
+    Queue<_WorkItem> queue = Queue.from(
+      nodeToConstraintMap.values.map((node) => _WorkItem(node)),
+    );
     while (queue.isNotEmpty) {
       var item = queue.removeFirst();
       var constraint = item.child;
@@ -173,32 +181,37 @@ class Builder {
         }
       } else {
         assert(constraint.combinerType == CombinerType.or);
-        var setTransition =
-            setTransitions[constraint] ??= SetTransition(constraint.imports);
+        var setTransition = setTransitions[constraint] ??= SetTransition(
+          constraint.imports,
+        );
         setTransition.transitions.addAll(transitiveChildren);
       }
 
       // Propagate constraints transitively to the parent.
-      var predecessorTransitiveChildren = {
-        ...imports,
-        ...transitiveChildren,
-      };
+      var predecessorTransitiveChildren = {...imports, ...transitiveChildren};
       for (var predecessor in constraint.predecessors) {
         // We allow cycles in the constraint graph, so we need to support
         // reprocessing constraints when we need to consider new transitive
         // children.
         if (processed.containsKey(predecessor) &&
-            processed[predecessor]!
-                .containsAll(predecessorTransitiveChildren)) {
+            processed[predecessor]!.containsAll(
+              predecessorTransitiveChildren,
+            )) {
           continue;
         }
         (processed[predecessor] ??= {}).addAll(predecessorTransitiveChildren);
-        queue.add(_WorkItem(predecessor,
-            transitiveChildren: predecessorTransitiveChildren));
+        queue.add(
+          _WorkItem(
+            predecessor,
+            transitiveChildren: predecessorTransitiveChildren,
+          ),
+        );
       }
     }
     return ProgramSplitConstraints(
-        singletonTransitions, setTransitions.values.toList());
+      singletonTransitions,
+      setTransitions.values.toList(),
+    );
   }
 }
 

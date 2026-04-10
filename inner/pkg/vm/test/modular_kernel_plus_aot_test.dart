@@ -11,17 +11,17 @@ import 'package:front_end/src/api_prototype/standard_file_system.dart';
 import 'package:kernel/target/targets.dart';
 import 'package:kernel/kernel.dart';
 import 'package:kernel/verifier.dart';
-import 'package:vm/target/vm.dart';
+import 'package:vm/modular/target/vm.dart';
 import 'package:vm/kernel_front_end.dart';
 
 main() async {
-  Uri sdkSummary =
-      sdkRootFile(Platform.executable).resolve('vm_platform_strong.dill');
+  Uri sdkSummary = sdkRootFile(Platform.executable).resolve('vm_platform.dill');
   if (!await File.fromUri(sdkSummary).exists()) {
     // If we run from the <build-dir>/dart-sdk/bin folder, we need to navigate two
     // levels up.
-    sdkSummary = sdkRootFile(Platform.executable)
-        .resolve('../../vm_platform_strong.dill');
+    sdkSummary = sdkRootFile(
+      Platform.executable,
+    ).resolve('../../vm_platform.dill');
   }
 
   // Tests are run in the root directory of the sdk checkout.
@@ -35,71 +35,106 @@ main() async {
     final mixinDillFilename = uri.resolve('mixin.dart.dill');
     File.fromUri(mixinFilename).writeAsStringSync(mixinFile);
 
-    await compileToKernel(vmTarget, librariesFile, sdkSummary, packagesFile,
-        mixinDillFilename, <Uri>[mixinFilename], <Uri>[]);
+    await compileToKernel(
+      vmTarget,
+      librariesFile,
+      sdkSummary,
+      packagesFile,
+      mixinDillFilename,
+      <Uri>[mixinFilename],
+      <Uri>[],
+    );
 
     final mainFilename = uri.resolve('main.dart');
     final mainDillFilename = uri.resolve('main.dart.dill');
     File.fromUri(mainFilename).writeAsStringSync(mainFile);
 
-    await compileToKernel(vmTarget, librariesFile, sdkSummary, packagesFile,
-        mainDillFilename, <Uri>[mainFilename], <Uri>[mixinDillFilename]);
+    await compileToKernel(
+      vmTarget,
+      librariesFile,
+      sdkSummary,
+      packagesFile,
+      mainDillFilename,
+      <Uri>[mainFilename],
+      <Uri>[mixinDillFilename],
+    );
 
     final bytes = concat(
-        await File.fromUri(sdkSummary).readAsBytes(),
-        concat(await File.fromUri(mixinDillFilename).readAsBytes(),
-            await File.fromUri(mainDillFilename).readAsBytes()));
+      await File.fromUri(sdkSummary).readAsBytes(),
+      concat(
+        await File.fromUri(mixinDillFilename).readAsBytes(),
+        await File.fromUri(mainDillFilename).readAsBytes(),
+      ),
+    );
     final component = loadComponentFromBytes(bytes);
 
     // Verify before running global transformations.
-    verifyComponent(component, isOutline: false, afterConst: true);
+    verifyComponent(
+      vmTarget,
+      VerificationStage.afterModularTransformations,
+      component,
+    );
 
-    const useGlobalTypeFlowAnalysis = true;
-    const enableAsserts = false;
-    const useProtobufTreeShakerV2 = false;
     await runGlobalTransformations(
-        vmTarget,
-        component,
-        useGlobalTypeFlowAnalysis,
-        enableAsserts,
-        useProtobufTreeShakerV2,
-        ErrorDetector());
+      vmTarget,
+      component,
+      ErrorDetector(),
+      KernelCompilationArguments(
+        useGlobalTypeFlowAnalysis: true,
+        enableAsserts: false,
+        useProtobufTreeShakerV2: false,
+      ),
+    );
 
     // Verify after running global transformations.
-    verifyComponent(component, isOutline: false, afterConst: true);
+    verifyComponent(
+      vmTarget,
+      VerificationStage.afterGlobalTransformations,
+      component,
+    );
 
     // Verify that we can reserialize the component to ensure that all
     // references are contained within the component.
     writeComponentToBytes(
-        loadComponentFromBytes(writeComponentToBytes(component)));
+      loadComponentFromBytes(writeComponentToBytes(component)),
+    );
   });
 }
 
 Future compileToKernel(
-    Target target,
-    Uri librariesFile,
-    Uri sdkSummary,
-    Uri packagesFile,
-    Uri outputFile,
-    List<Uri> sources,
-    List<Uri> additionalDills) async {
+  Target target,
+  Uri librariesFile,
+  Uri sdkSummary,
+  Uri packagesFile,
+  Uri outputFile,
+  List<Uri> sources,
+  List<Uri> additionalDills,
+) async {
   final state = fe.initializeCompiler(
-      null,
-      sdkSummary,
-      librariesFile,
-      packagesFile,
-      additionalDills,
-      target,
-      StandardFileSystem.instance, const <String>[], const <String, String>{});
+    null,
+    sdkSummary,
+    librariesFile,
+    packagesFile,
+    additionalDills,
+    target,
+    StandardFileSystem.instance,
+    const <String>[],
+    const <String, String>{},
+  );
 
   void onDiagnostic(fe.DiagnosticMessage message) {
     message.plainTextFormatted.forEach(print);
   }
 
-  final Component? component =
-      await fe.compileComponent(state, sources, onDiagnostic);
-  final Uint8List kernel = fe.serializeComponent(component!,
-      filter: (library) => sources.contains(library.importUri));
+  final Component? component = await fe.compileComponent(
+    state,
+    sources,
+    onDiagnostic,
+  );
+  final Uint8List kernel = fe.serializeComponent(
+    component!,
+    filter: (library) => sources.contains(library.importUri),
+  );
   await File(outputFile.toFilePath()).writeAsBytes(kernel);
 }
 
@@ -122,10 +157,6 @@ Uint8List concat(List<int> a, List<int> b) {
 Uri sdkRootFile(name) => Directory.current.uri.resolveUri(Uri.file(name));
 
 const String mainFile = r'''
-// @dart=2.9
-// This library is opt-out to provoke the creation of member signatures in
-// R that point to members of A2.
-
 import 'mixin.dart';
 
 class R extends A2 {

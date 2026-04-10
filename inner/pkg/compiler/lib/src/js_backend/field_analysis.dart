@@ -3,7 +3,6 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart' as ir;
-import 'package:kernel/type_environment.dart' as ir;
 
 import '../common.dart';
 import '../constants/values.dart';
@@ -11,10 +10,9 @@ import '../elements/entities.dart';
 import '../elements/entity_utils.dart';
 import '../elements/types.dart';
 import '../ir/scope_visitor.dart';
-import '../js_model/elements.dart' show JField;
+import '../js_model/elements.dart' show JClass, JConstructor, JField;
 import '../js_model/js_to_frontend_map.dart' show JsToFrontendMap;
 import '../kernel/element_map.dart' show KernelToElementMap;
-import '../kernel/kelements.dart' show KClass, KField, KConstructor;
 import '../kernel/kernel_world.dart';
 import '../options.dart';
 import '../serialization/serialization.dart';
@@ -39,18 +37,18 @@ import '../universe/member_usage.dart';
 class KFieldAnalysis {
   final KernelToElementMap _elementMap;
 
-  final Map<KClass, ClassData> _classData = {};
-  final Map<KField, StaticFieldData> _staticFieldData = {};
+  final Map<JClass, ClassData> _classData = {};
+  final Map<JField, StaticFieldData> _staticFieldData = {};
 
   KFieldAnalysis(this._elementMap);
 
   // Register class during resolution. Use simple syntactic analysis to find
   // null-initialized fields.
-  void registerInstantiatedClass(KClass class_) {
+  void registerInstantiatedClass(JClass class_) {
     ir.Class classNode = _elementMap.getClassNode(class_);
 
-    List<KConstructor> constructors = [];
-    Map<KField, AllocatorData> fieldData = {};
+    List<JConstructor> constructors = [];
+    Map<JField, AllocatorData> fieldData = {};
     for (ir.Field field in classNode.fields) {
       if (!field.isInstanceMember) continue;
 
@@ -59,28 +57,30 @@ class KFieldAnalysis {
       ConstantValue? value;
       if (expression is ir.StaticInvocation &&
           identical(
-              expression.target, _elementMap.coreTypes.createSentinelMethod)) {
+            expression.target,
+            _elementMap.coreTypes.createSentinelMethod,
+          )) {
         value = LateSentinelConstantValue();
       } else {
         value = _elementMap.getConstantValue(
-            _elementMap.getStaticTypeContext(fieldElement), expression,
-            requireConstant: false, implicitNull: true);
+          expression,
+          requireConstant: false,
+          implicitNull: true,
+        );
       }
       if (value != null && value.isConstant) {
-        fieldData[fieldElement as KField] = AllocatorData(value);
+        fieldData[fieldElement as JField] = AllocatorData(value);
       }
     }
 
     for (ir.Constructor constructor in classNode.constructors) {
-      KConstructor constructorElement =
-          _elementMap.getConstructor(constructor) as KConstructor;
-      ir.StaticTypeContext staticTypeContext =
-          _elementMap.getStaticTypeContext(constructorElement);
+      JConstructor constructorElement =
+          _elementMap.getConstructor(constructor) as JConstructor;
       constructors.add(constructorElement);
       for (ir.Initializer initializer in constructor.initializers) {
         if (initializer is ir.FieldInitializer) {
           AllocatorData? data =
-              fieldData[_elementMap.getField(initializer.field) as KField];
+              fieldData[_elementMap.getField(initializer.field) as JField];
           if (data == null) {
             // TODO(johnniwinther): Support initializers with side-effects?
 
@@ -91,34 +91,46 @@ class KFieldAnalysis {
           Initializer initializerValue = const Initializer.complex();
           ir.Expression value = initializer.value;
           ConstantValue? constantValue = _elementMap.getConstantValue(
-              staticTypeContext, value,
-              requireConstant: false, implicitNull: true);
+            value,
+            requireConstant: false,
+            implicitNull: true,
+          );
           if (constantValue != null && constantValue.isConstant) {
             initializerValue = Initializer.direct(constantValue);
           } else if (value is ir.VariableGet) {
             ir.VariableDeclaration parameter = value.variable;
-            int position =
-                constructor.function.positionalParameters.indexOf(parameter);
+            int position = constructor.function.positionalParameters.indexOf(
+              parameter,
+            );
             if (position != -1) {
               if (position >= constructor.function.requiredParameterCount) {
                 constantValue = _elementMap.getConstantValue(
-                    staticTypeContext, parameter.initializer,
-                    requireConstant: false, implicitNull: true);
+                  parameter.initializer,
+                  requireConstant: false,
+                  implicitNull: true,
+                );
                 if (constantValue != null && constantValue.isConstant) {
-                  initializerValue =
-                      Initializer.positional(position, constantValue);
+                  initializerValue = Initializer.positional(
+                    position,
+                    constantValue,
+                  );
                 }
               }
             } else {
-              position =
-                  constructor.function.namedParameters.indexOf(parameter);
+              position = constructor.function.namedParameters.indexOf(
+                parameter,
+              );
               if (position != -1) {
                 constantValue = _elementMap.getConstantValue(
-                    staticTypeContext, parameter.initializer,
-                    requireConstant: false, implicitNull: true);
+                  parameter.initializer,
+                  requireConstant: false,
+                  implicitNull: true,
+                );
                 if (constantValue != null && constantValue.isConstant) {
-                  initializerValue =
-                      Initializer.named(parameter.name, constantValue);
+                  initializerValue = Initializer.named(
+                    parameter.name,
+                    constantValue,
+                  );
                 }
               }
             }
@@ -130,18 +142,22 @@ class KFieldAnalysis {
     _classData[class_] = ClassData(constructors, fieldData);
   }
 
-  void registerStaticField(KField field, EvaluationComplexity complexity) {
+  void registerStaticField(JField field, EvaluationComplexity complexity) {
     ir.Field node = _elementMap.getMemberNode(field) as ir.Field;
     ir.Expression? expression = node.initializer;
     ConstantValue? value;
     if (expression is ir.StaticInvocation &&
         identical(
-            expression.target, _elementMap.coreTypes.createSentinelMethod)) {
+          expression.target,
+          _elementMap.coreTypes.createSentinelMethod,
+        )) {
       value = LateSentinelConstantValue();
     } else {
       value = _elementMap.getConstantValue(
-          _elementMap.getStaticTypeContext(field), expression,
-          requireConstant: node.isConst, implicitNull: true);
+        expression,
+        requireConstant: node.isConst,
+        implicitNull: true,
+      );
     }
     if (value != null && !value.isConstant) {
       value = null;
@@ -151,18 +167,18 @@ class KFieldAnalysis {
     _staticFieldData[field] = StaticFieldData(value, complexity);
   }
 
-  AllocatorData? getAllocatorDataForTesting(KField field) {
+  AllocatorData? getAllocatorDataForTesting(JField field) {
     return _classData[field.enclosingClass!]!.fieldData[field];
   }
 
-  StaticFieldData? getStaticFieldDataForTesting(KField field) {
+  StaticFieldData? getStaticFieldDataForTesting(JField field) {
     return _staticFieldData[field];
   }
 }
 
 class ClassData {
-  final List<KConstructor> constructors;
-  final Map<KField, AllocatorData> fieldData;
+  final List<JConstructor> constructors;
+  final Map<JField, AllocatorData> fieldData;
 
   ClassData(this.constructors, this.fieldData);
 }
@@ -178,7 +194,7 @@ class StaticFieldData {
 
 class AllocatorData {
   final ConstantValue? initialValue;
-  final Map<KConstructor, Initializer> initializers = {};
+  final Map<JConstructor, Initializer> initializers = {};
 
   AllocatorData(this.initialValue);
 
@@ -188,12 +204,7 @@ class AllocatorData {
       'initializers=$initializers)';
 }
 
-enum InitializerKind {
-  direct,
-  positional,
-  named,
-  complex,
-}
+enum InitializerKind { direct, positional, named, complex }
 
 class Initializer {
   final InitializerKind kind;
@@ -202,23 +213,23 @@ class Initializer {
   final ConstantValue? value;
 
   Initializer.direct(this.value)
-      : kind = InitializerKind.direct,
-        index = null,
-        name = null;
+    : kind = InitializerKind.direct,
+      index = null,
+      name = null;
 
   Initializer.positional(this.index, this.value)
-      : kind = InitializerKind.positional,
-        name = null;
+    : kind = InitializerKind.positional,
+      name = null;
 
   Initializer.named(this.name, this.value)
-      : kind = InitializerKind.named,
-        index = null;
+    : kind = InitializerKind.named,
+      index = null;
 
   const Initializer.complex()
-      : kind = InitializerKind.complex,
-        index = null,
-        name = null,
-        value = null;
+    : kind = InitializerKind.complex,
+      index = null,
+      name = null,
+      value = null;
 
   String shortText(DartTypes? dartTypes) {
     switch (kind) {
@@ -250,10 +261,13 @@ class JFieldAnalysis {
 
   /// Deserializes a [JFieldAnalysis] object from [source].
   factory JFieldAnalysis.readFromDataSource(
-      DataSourceReader source, CompilerOptions options) {
+    DataSourceReader source,
+    CompilerOptions options,
+  ) {
     source.begin(tag);
     Map<FieldEntity, FieldAnalysisData> fieldData = source.readMemberMap(
-        (MemberEntity member) => FieldAnalysisData.fromDataSource(source));
+      (MemberEntity member) => FieldAnalysisData.fromDataSource(source),
+    );
     source.end(tag);
     return JFieldAnalysis._(fieldData);
   }
@@ -262,14 +276,18 @@ class JFieldAnalysis {
   void writeToDataSink(DataSinkWriter sink) {
     sink.begin(tag);
     sink.writeMemberMap(
-        _fieldData,
-        (MemberEntity member, FieldAnalysisData data) =>
-            data.writeToDataSink(sink));
+      _fieldData,
+      (MemberEntity member, FieldAnalysisData data) =>
+          data.writeToDataSink(sink),
+    );
     sink.end(tag);
   }
 
   factory JFieldAnalysis.from(
-      KClosedWorld closedWorld, JsToFrontendMap map, CompilerOptions options) {
+    KClosedWorld closedWorld,
+    JsToFrontendMap map,
+    CompilerOptions options,
+  ) {
     Map<FieldEntity, FieldAnalysisData> fieldData = {};
 
     bool canBeElided(FieldEntity field) {
@@ -277,9 +295,11 @@ class JFieldAnalysis {
           !closedWorld.nativeData.isNativeMember(field);
     }
 
-    closedWorld.fieldAnalysis._classData
-        .forEach((ClassEntity cls, ClassData classData) {
-      classData.fieldData.forEach((KField kField, AllocatorData data) {
+    closedWorld.fieldAnalysis._classData.forEach((
+      ClassEntity cls,
+      ClassData classData,
+    ) {
+      classData.fieldData.forEach((JField kField, AllocatorData data) {
         JField? jField = map.toBackendMember(kField) as JField?;
         if (jField == null) {
           return;
@@ -315,7 +335,7 @@ class JFieldAnalysis {
             memberUsage.initialConstants!.forEach(includeInitialValue);
 
             bool inAllConstructors = true;
-            for (KConstructor constructor in classData.constructors) {
+            for (JConstructor constructor in classData.constructors) {
               if (isTooComplex) {
                 break;
               }
@@ -328,8 +348,8 @@ class JFieldAnalysis {
               }
               ParameterStructure? invokedParameters =
                   closedWorld.annotationsData.hasNoElision(constructor)
-                      ? constructor.parameterStructure
-                      : constructorUsage.invokedParameters;
+                  ? constructor.parameterStructure
+                  : constructorUsage.invokedParameters;
 
               Initializer? initializer = data.initializers[constructor];
               if (initializer == null) {
@@ -348,8 +368,9 @@ class JFieldAnalysis {
                     }
                     break;
                   case InitializerKind.named:
-                    if (!invokedParameters!.namedParameters
-                        .contains(initializer.name)) {
+                    if (!invokedParameters!.namedParameters.contains(
+                      initializer.name,
+                    )) {
                       includeInitialValue(initializer.value);
                     } else {
                       isTooComplex = true;
@@ -378,32 +399,35 @@ class JFieldAnalysis {
                 // allocators when it does cause allocators to deoptimized
                 // because of deferred loading.
                 isInitializedInAllocator = true;
-                isLateBackingField =
-                    closedWorld.elementEnvironment.isLateBackingField(kField);
+                isLateBackingField = closedWorld.elementEnvironment
+                    .isLateBackingField(kField);
                 isAssignedOnce = closedWorld.elementEnvironment
                     .isLateFinalBackingField(kField);
               }
               fieldData[jField] = FieldAnalysisData(
-                  initialValue: value,
-                  isEffectivelyFinal: isEffectivelyConstant,
-                  isElided: isEffectivelyConstant,
-                  isAssignedOnce: isAssignedOnce,
-                  isLateBackingField: isLateBackingField,
-                  isInitializedInAllocator: isInitializedInAllocator);
+                initialValue: value,
+                isEffectivelyFinal: isEffectivelyConstant,
+                isElided: isEffectivelyConstant,
+                isAssignedOnce: isAssignedOnce,
+                isLateBackingField: isLateBackingField,
+                isInitializedInAllocator: isInitializedInAllocator,
+              );
             }
           }
         }
       });
     });
 
-    List<KField> independentFields = [];
-    List<KField> dependentFields = [];
+    List<JField> independentFields = [];
+    List<JField> dependentFields = [];
 
-    closedWorld.liveMemberUsage
-        .forEach((MemberEntity member, MemberUsage memberUsage) {
+    closedWorld.liveMemberUsage.forEach((
+      MemberEntity member,
+      MemberUsage memberUsage,
+    ) {
       if (member is FieldEntity && !member.isInstanceMember) {
         StaticFieldData staticFieldData =
-            closedWorld.fieldAnalysis._staticFieldData[member as KField]!;
+            closedWorld.fieldAnalysis._staticFieldData[member as JField]!;
         if (staticFieldData.hasDependencies) {
           dependentFields.add(member);
         } else {
@@ -413,10 +437,10 @@ class JFieldAnalysis {
     });
 
     // Fields already processed.
-    Set<KField> processedFields = {};
+    Set<JField> processedFields = {};
 
     // Fields currently being processed. Use for detecting cyclic dependencies.
-    Set<KField> currentFields = {};
+    Set<JField> currentFields = {};
 
     // Index ascribed to eager fields that depend on other fields. This is
     // used to sort the field in emission to ensure that used fields have been
@@ -428,7 +452,7 @@ class JFieldAnalysis {
     ///
     /// If the data is currently been computed, that is, [kField] has a
     /// cyclic dependency, `null` is returned.
-    FieldAnalysisData? processField(KField kField) {
+    FieldAnalysisData? processField(JField kField) {
       JField? jField = map.toBackendMember(kField) as JField?;
       // TODO(johnniwinther): Can we assert that [jField] exists?
       if (jField == null) return null;
@@ -450,8 +474,10 @@ class JFieldAnalysis {
         bool isEffectivelyFinal = !memberUsage.hasWrite;
         StaticFieldData staticFieldData =
             closedWorld.fieldAnalysis._staticFieldData[kField]!;
-        ConstantValue? value = map
-            .toBackendConstant(staticFieldData.initialValue, allowNull: true);
+        ConstantValue? value = map.toBackendConstant(
+          staticFieldData.initialValue,
+          allowNull: true,
+        );
 
         // If the field is effectively final with a constant initializer we
         // elide the field, if allowed, because it is effectively constant.
@@ -471,7 +497,7 @@ class JFieldAnalysis {
         // dependencies but only hold these when [retainDataForTesting] is
         // `true`.
         List<FieldEntity>? eagerFieldDependencies;
-        int? creationIndex = null;
+        int? creationIndex;
 
         if (isElided) {
           // If the field is elided it needs no initializer and is therefore
@@ -493,8 +519,8 @@ class JFieldAnalysis {
             isEager = complexity.isEager;
             if (isEager && complexity.fields != null) {
               for (ir.Field node in complexity.fields!) {
-                KField otherField =
-                    closedWorld.elementMap.getField(node) as KField;
+                JField otherField =
+                    closedWorld.elementMap.getField(node) as JField;
                 FieldAnalysisData? otherData = processField(otherField);
                 if (otherData == null) {
                   // Cyclic dependency on [otherField].
@@ -516,8 +542,9 @@ class JFieldAnalysis {
                 if (!otherData.isEffectivelyConstant) {
                   eagerFieldDependencies ??= [];
                   if (retainDataForTesting) {
-                    eagerFieldDependencies
-                        .add(map.toBackendMember(otherField) as FieldEntity);
+                    eagerFieldDependencies.add(
+                      map.toBackendMember(otherField) as FieldEntity,
+                    );
                   }
                 }
               }
@@ -535,12 +562,13 @@ class JFieldAnalysis {
         }
 
         data = fieldData[jField] = FieldAnalysisData(
-            initialValue: value,
-            isEffectivelyFinal: isEffectivelyFinal,
-            isElided: isElided,
-            isEager: isEager,
-            eagerCreationIndex: creationIndex,
-            eagerFieldDependenciesForTesting: eagerFieldDependencies);
+          initialValue: value,
+          isEffectivelyFinal: isEffectivelyFinal,
+          isElided: isElided,
+          isEager: isEager,
+          eagerCreationIndex: creationIndex,
+          eagerFieldDependenciesForTesting: eagerFieldDependencies,
+        );
       }
 
       currentFields.remove(kField);
@@ -555,9 +583,11 @@ class JFieldAnalysis {
     // Process dependent fields in declaration order to make ascribed creation
     // indices stable. The emitter uses the creation indices for sorting
     // dependent fields.
-    dependentFields.sort((KField a, KField b) {
-      int result =
-          compareLibrariesUris(a.library.canonicalUri, b.library.canonicalUri);
+    dependentFields.sort((JField a, JField b) {
+      int result = compareLibrariesUris(
+        a.library.canonicalUri,
+        b.library.canonicalUri,
+      );
       if (result != 0) return result;
       ir.Location aLocation = closedWorld.elementMap.getMemberNode(a).location!;
       ir.Location bLocation = closedWorld.elementMap.getMemberNode(b).location!;
@@ -611,16 +641,17 @@ class FieldAnalysisData {
 
   final List<FieldEntity>? eagerFieldDependenciesForTesting;
 
-  const FieldAnalysisData(
-      {this.initialValue,
-      this.isInitializedInAllocator = false,
-      this.isEffectivelyFinal = false,
-      this.isElided = false,
-      this.isAssignedOnce = false,
-      this.isLateBackingField = false,
-      this.isEager = false,
-      this.eagerCreationIndex = null,
-      this.eagerFieldDependenciesForTesting = null});
+  const FieldAnalysisData({
+    this.initialValue,
+    this.isInitializedInAllocator = false,
+    this.isEffectivelyFinal = false,
+    this.isElided = false,
+    this.isAssignedOnce = false,
+    this.isLateBackingField = false,
+    this.isEager = false,
+    this.eagerCreationIndex,
+    this.eagerFieldDependenciesForTesting,
+  });
 
   factory FieldAnalysisData.fromDataSource(DataSourceReader source) {
     source.begin(tag);
@@ -633,19 +664,20 @@ class FieldAnalysisData {
     bool isLateBackingField = source.readBool();
     bool isEager = source.readBool();
     int? eagerCreationIndex = source.readIntOrNull();
-    List<FieldEntity>? eagerFieldDependencies =
-        source.readMembersOrNull<FieldEntity>();
+    List<FieldEntity>? eagerFieldDependencies = source
+        .readMembersOrNull<FieldEntity>();
     source.end(tag);
     return FieldAnalysisData(
-        initialValue: initialValue,
-        isInitializedInAllocator: isInitializedInAllocator,
-        isEffectivelyFinal: isEffectivelyFinal,
-        isElided: isElided,
-        isAssignedOnce: isAssignedOnce,
-        isLateBackingField: isLateBackingField,
-        isEager: isEager,
-        eagerCreationIndex: eagerCreationIndex,
-        eagerFieldDependenciesForTesting: eagerFieldDependencies);
+      initialValue: initialValue,
+      isInitializedInAllocator: isInitializedInAllocator,
+      isEffectivelyFinal: isEffectivelyFinal,
+      isElided: isElided,
+      isAssignedOnce: isAssignedOnce,
+      isLateBackingField: isLateBackingField,
+      isEager: isEager,
+      eagerCreationIndex: eagerCreationIndex,
+      eagerFieldDependenciesForTesting: eagerFieldDependencies,
+    );
   }
 
   void writeToDataSink(DataSinkWriter sink) {
@@ -658,7 +690,7 @@ class FieldAnalysisData {
     sink.writeBool(isLateBackingField);
     sink.writeBool(isEager);
     sink.writeIntOrNull(eagerCreationIndex);
-    sink.writeMembers(eagerFieldDependenciesForTesting, allowNull: true);
+    sink.writeMembersOrNull(eagerFieldDependenciesForTesting);
     sink.end(tag);
   }
 
@@ -672,7 +704,8 @@ class FieldAnalysisData {
   ConstantValue? get constantValue => isEffectivelyFinal ? initialValue : null;
 
   @override
-  String toString() => 'FieldAnalysisData('
+  String toString() =>
+      'FieldAnalysisData('
       'initialValue=${initialValue?.toStructuredText(null)},'
       'isInitializedInAllocator=$isInitializedInAllocator,'
       'isEffectivelyFinal=$isEffectivelyFinal,'

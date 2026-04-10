@@ -10,7 +10,7 @@ class Tag {
 
   static const int Class = 2;
   static const int Extension = 115;
-  static const int InlineClass = 85;
+  static const int ExtensionTypeDeclaration = 85;
 
   static const int FunctionNode = 3;
 
@@ -18,7 +18,6 @@ class Tag {
   static const int Field = 4;
   static const int Constructor = 5;
   static const int Procedure = 6;
-  static const int RedirectingFactory = 108;
 
   // Initializers
   static const int InvalidInitializer = 7;
@@ -81,13 +80,15 @@ class Tag {
   static const int BlockExpression = 82;
   static const int TypedefTearOff = 83;
   static const int RedirectingFactoryTearOff = 84;
-  // 85 is occupied by [InlineClass].
+  // 85 is occupied by [ExtensionType].
 
   static const int RecordIndexGet = 101;
   static const int RecordNameGet = 102;
   static const int RecordLiteral = 104;
   static const int ConstRecordLiteral = 105;
   static const int ConstantExpression = 106;
+  // 107 is occupied by [FutureOrType] (type).
+  static const int FileUriConstantExpression = 108;
   static const int SetLiteral = 109;
   static const int ConstSetLiteral = 110;
   static const int ListConcatenation = 111;
@@ -135,7 +136,7 @@ class Tag {
   // 82 is occupied by [BlockExpression] (expression).
   // 83 is occupied by [TypedefTearOff] (expression).
   // 84 is occupied by [RedirectingFactoryTearOff] (expression).
-  // 85 is occupied by [InlineClass].
+  // 85 is occupied by [ExtensionType].
 
   // Types
   static const int TypedefType = 87;
@@ -153,13 +154,14 @@ class Tag {
   static const int RecordType = 100;
   // 101 is occupied by [RecordIndexGet] (expression).
   // 102 is occupied by [RecordNameGet] (expression).
-  static const int InlineType = 103;
+  static const int ExtensionType = 103;
 
   // 104 is occupied by [RecordLiteral] (expression).
   // 105 is occupied by [ConstRecordLiteral] (expression).
   // 106 is occupied by [ConstantExpression].
+  static const int FutureOrType = 107;
 
-  // 108 is occupied by [RedirectingFactory] (member).
+  // 108 is occupied by [FileUriConstantExpression] (expression).
   // 109 is occupied by [SetLiteral] (expression).
   // 110 is occupied by [ConstSetLiteral] (expression).
   // 111 is occupied by [ListConcatenation] (expression).
@@ -206,6 +208,8 @@ class Tag {
   static const int PatternAssignment = 150;
   static const int PatternVariableDeclaration = 151;
 
+  static const int NullType = 152;
+
   static const int SpecializedTagHighBits = 0xE0; // 0b11100000
   static const int SpecializedTagMask = 0xF8; //    0b11111000
   static const int SpecializedPayloadMask = 0x7; // 0b00000111
@@ -222,7 +226,7 @@ class Tag {
   /// Internal version of kernel binary format.
   /// Bump it when making incompatible changes in kernel binaries.
   /// Keep in sync with runtime/vm/kernel_binary.h, pkg/kernel/binary.md.
-  static const int BinaryFormatVersion = 101;
+  static const int BinaryFormatVersion = 125;
 }
 
 abstract class ConstantTag {
@@ -269,4 +273,15 @@ bool isValidSdkHash(String sdkHash) {
   return (sdkHash == sdkHashNull ||
       expectedSdkHash == sdkHashNull ||
       sdkHash == expectedSdkHash);
+}
+
+/// These should match with what is written in
+/// BinaryPrinter.writeComponentIndex.
+const int fixedFieldsBeforeLibraries = 9;
+const int fixedFieldsAfterLibraries = 2;
+int numberOfFixedFields(int numberOfLibraries) {
+  return fixedFieldsBeforeLibraries +
+      numberOfLibraries +
+      1 +
+      fixedFieldsAfterLibraries;
 }

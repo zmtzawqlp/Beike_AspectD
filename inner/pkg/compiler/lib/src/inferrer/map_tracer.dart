@@ -2,14 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library compiler.src.inferrer.map_tracer;
+library;
 
 import '../common/names.dart';
 import '../elements/entities.dart';
 import 'node_tracer.dart';
 import 'type_graph_nodes.dart';
 
-Set<String> okMapSelectorsSet = Set.from(const <String>[
+Set<String> okMapSelectorsSet = <String>{
   // From Object.
   "==",
   "hashCode",
@@ -27,8 +27,8 @@ Set<String> okMapSelectorsSet = Set.from(const <String>[
   "containsKey",
   "containsValue",
   "forEach",
-  "remove"
-]);
+  "remove",
+};
 
 class MapTracerVisitor extends TracerVisitor {
   // These lists are used to keep track of newly discovered assignments to
@@ -60,22 +60,26 @@ class MapTracerVisitor extends TracerVisitor {
   }
 
   @override
-  visitClosureCallSiteTypeInformation(ClosureCallSiteTypeInformation info) {
+  void visitClosureCallSiteTypeInformation(
+    ClosureCallSiteTypeInformation info,
+  ) {
     bailout('Passed to a closure');
   }
 
   @override
-  visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
+  void visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
     super.visitStaticCallSiteTypeInformation(info);
     MemberEntity called = info.calledElement;
     if (inferrer.closedWorld.commonElements.isForeign(called) &&
-        called.name == Identifiers.JS) {
+        called.name == Identifiers.js) {
       bailout('Used in JS ${info.debugName}');
     }
   }
 
   @override
-  visitDynamicCallSiteTypeInformation(DynamicCallSiteTypeInformation info) {
+  void visitDynamicCallSiteTypeInformation(
+    DynamicCallSiteTypeInformation info,
+  ) {
     super.visitDynamicCallSiteTypeInformation(info);
     final selector = info.selector!;
     final selectorName = selector.name;
@@ -125,8 +129,7 @@ class MapTracerVisitor extends TracerVisitor {
         }
       }
     } else if (selector.isCall &&
-        (info.hasClosureCallTargets ||
-            info.concreteTargets.any((element) => !element.isFunction))) {
+        (info.hasClosureCallTargets || dynamicCallTargetsNonFunction(info))) {
       bailout('Passed to a closure');
       return;
     }

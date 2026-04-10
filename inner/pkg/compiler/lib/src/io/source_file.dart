@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.io.source_file;
+library;
 
 import 'dart:convert' show utf8;
 import 'dart:math';
@@ -15,13 +15,13 @@ import '../../compiler_api.dart' as api show Input, InputKind;
 
 /// Represents a file of source code. The content can be either a [String] or
 /// a UTF-8 encoded [List<int>] of bytes.
-abstract class SourceFile implements api.Input<List<int>>, LocationProvider {
+abstract class SourceFile implements api.Input<Uint8List>, LocationProvider {
   /// The absolute URI of the source file.
   @override
   Uri get uri;
 
   @override
-  api.InputKind get inputKind => api.InputKind.UTF8;
+  api.InputKind get inputKind => api.InputKind.utf8;
 
   kernel.Source? _cachedKernelSource;
 
@@ -29,11 +29,11 @@ abstract class SourceFile implements api.Input<List<int>>, LocationProvider {
     // TODO(johnniwinther): Instead of creating a new Source object,
     // we should use the one provided by the front-end.
     return _cachedKernelSource ??= kernel.Source(
-        lineStarts,
-        slowUtf8ZeroTerminatedBytes(),
-        uri /* TODO(jensj): What is the import URI? */,
-        uri)
-      ..cachedText = slowText();
+      lineStarts,
+      utf8Bytes(),
+      uri /* TODO(jensj): What is the import URI? */,
+      uri,
+    )..cachedText = slowText();
   }
 
   /// The name of the file.
@@ -44,9 +44,8 @@ abstract class SourceFile implements api.Input<List<int>>, LocationProvider {
   /// The text content of the file represented as a String
   String slowText();
 
-  /// The content of the file represented as a UTF-8 encoded [List<int>],
-  /// terminated with a trailing 0 byte.
-  List<int> slowUtf8ZeroTerminatedBytes();
+  /// The content of the file represented as a UTF-8 encoded [Uint8List].
+  Uint8List utf8Bytes();
 
   /// The length of the string representation of this source file, i.e.,
   /// equivalent to [:slowText().length:], but faster.
@@ -104,62 +103,75 @@ abstract class SourceFile implements api.Input<List<int>>, LocationProvider {
   ///
   /// Use [colorize] to wrap source code text and marker characters in color
   /// escape codes.
-  String getLocationMessage(String message, int start, int end,
-      {bool includeSourceLine = true, String colorize(String text)?}) {
-    if (colorize == null) {
-      colorize = (text) => text;
-    }
+  String getLocationMessage(
+    String message,
+    int start,
+    int end, {
+    bool includeSourceLine = true,
+    String Function(String text)? colorize,
+  }) {
+    colorize ??= (text) => text;
 
-    kernel.Location startLocation = kernelSource.getLocation(uri, start);
-    kernel.Location endLocation = kernelSource.getLocation(uri, end);
-    int lineStart = startLocation.line - 1;
-    int columnStart = startLocation.column - 1;
-    int lineEnd = endLocation.line - 1;
-    int columnEnd = endLocation.column - 1;
+    StringBuffer buf = StringBuffer('$filename:');
+    bool wroteMessage = false;
+    try {
+      kernel.Location startLocation = kernelSource.getLocation(uri, start);
+      kernel.Location endLocation = kernelSource.getLocation(uri, end);
+      int lineStart = startLocation.line - 1;
+      int columnStart = startLocation.column - 1;
+      int lineEnd = endLocation.line - 1;
+      int columnEnd = endLocation.column - 1;
 
-    StringBuffer buf = StringBuffer('${filename}:');
-    if (start != end || start != 0) {
-      // Line/column info is relevant.
-      buf.write('${lineStart + 1}:${columnStart + 1}:');
-    }
-    buf.write('\n$message\n');
+      if (start != end || start != 0) {
+        // Line/column info is relevant.
+        buf.write('${lineStart + 1}:${columnStart + 1}:');
+      }
+      buf.write('\n$message\n');
+      wroteMessage = true;
 
-    if (start != end && includeSourceLine) {
-      if (lineStart == lineEnd) {
-        String textLine = kernelSource.getTextLine(startLocation.line)!;
+      if (start != end && includeSourceLine) {
+        if (lineStart == lineEnd) {
+          String textLine = kernelSource.getTextLine(startLocation.line)!;
 
-        int toColumn = min(columnStart + (end - start), textLine.length);
-        buf.write(textLine.substring(0, columnStart));
-        buf.write(colorize(textLine.substring(columnStart, toColumn)));
-        buf.writeln(textLine.substring(toColumn));
+          int toColumn = min(columnStart + (end - start), textLine.length);
+          buf.write(textLine.substring(0, columnStart));
+          buf.write(colorize(textLine.substring(columnStart, toColumn)));
+          buf.writeln(textLine.substring(toColumn));
 
-        int i = 0;
-        for (; i < columnStart; i++) {
-          buf.write(' ');
-        }
+          int i = 0;
+          for (; i < columnStart; i++) {
+            buf.write(' ');
+          }
 
-        for (; i < toColumn; i++) {
-          buf.write(colorize('^'));
-        }
-      } else {
-        for (int line = lineStart; line <= lineEnd; line++) {
-          String textLine = kernelSource.getTextLine(line + 1)!;
-          if (line == lineStart) {
-            if (columnStart > textLine.length) {
-              columnStart = textLine.length;
+          for (; i < toColumn; i++) {
+            buf.write(colorize('^'));
+          }
+        } else {
+          for (int line = lineStart; line <= lineEnd; line++) {
+            String textLine = kernelSource.getTextLine(line + 1)!;
+            if (line == lineStart) {
+              if (columnStart > textLine.length) {
+                columnStart = textLine.length;
+              }
+              buf.write(textLine.substring(0, columnStart));
+              buf.writeln(colorize(textLine.substring(columnStart)));
+            } else if (line == lineEnd) {
+              if (columnEnd > textLine.length) {
+                columnEnd = textLine.length;
+              }
+              buf.write(colorize(textLine.substring(0, columnEnd)));
+              buf.writeln(textLine.substring(columnEnd));
+            } else {
+              buf.writeln(colorize(textLine));
             }
-            buf.write(textLine.substring(0, columnStart));
-            buf.writeln(colorize(textLine.substring(columnStart)));
-          } else if (line == lineEnd) {
-            if (columnEnd > textLine.length) {
-              columnEnd = textLine.length;
-            }
-            buf.write(colorize(textLine.substring(0, columnEnd)));
-            buf.writeln(textLine.substring(columnEnd));
-          } else {
-            buf.writeln(colorize(textLine));
           }
         }
+      }
+    } catch (e) {
+      if (!wroteMessage) {
+        buf.write('+$start');
+        buf.write('\n$message\n');
+        buf.write('$e\n');
       }
     }
 
@@ -169,40 +181,26 @@ abstract class SourceFile implements api.Input<List<int>>, LocationProvider {
   int get lines => lineStarts.length - 1;
 }
 
-List<int> _zeroTerminateIfNecessary(List<int> bytes) {
-  if (bytes.length > 0 && bytes.last == 0) return bytes;
-  List<int> result = Uint8List(bytes.length + 1);
-  result.setRange(0, bytes.length, bytes);
-  result[result.length - 1] = 0;
-  return result;
-}
-
 class Utf8BytesSourceFile extends SourceFile {
   @override
   final Uri uri;
 
   /// The UTF-8 encoded content of the source file.
-  final List<int> zeroTerminatedContent;
+  final Uint8List content;
 
   /// Creates a Utf8BytesSourceFile.
-  ///
-  /// If possible, the given [content] should be zero-terminated. If it isn't,
-  /// the constructor clones the content and adds a trailing 0.
-  Utf8BytesSourceFile(this.uri, List<int> content)
-      : this.zeroTerminatedContent = _zeroTerminateIfNecessary(content);
+  Utf8BytesSourceFile(this.uri, this.content) : assert(content.last != 0);
 
   @override
-  List<int> get data => zeroTerminatedContent;
+  Uint8List get data => content;
 
   @override
   String slowText() {
-    // Don't convert the trailing zero byte.
-    return utf8.decoder
-        .convert(zeroTerminatedContent, 0, zeroTerminatedContent.length - 1);
+    return utf8.decode(content, allowMalformed: true);
   }
 
   @override
-  List<int> slowUtf8ZeroTerminatedBytes() => zeroTerminatedContent;
+  Uint8List utf8Bytes() => content;
 
   @override
   String slowSubstring(int start, int end) {
@@ -238,13 +236,13 @@ class StringSourceFile extends SourceFile {
   StringSourceFile(this.uri, this.filename, this.text);
 
   StringSourceFile.fromUri(Uri uri, String text)
-      : this(uri, uri.toString(), text);
+    : this(uri, uri.toString(), text);
 
   StringSourceFile.fromName(String filename, String text)
-      : this(Uri(path: filename), filename, text);
+    : this(Uri(path: filename), filename, text);
 
   @override
-  List<int> get data => utf8.encode(text);
+  Uint8List get data => utf8.encode(text);
 
   @override
   int get length => text.length;
@@ -255,8 +253,8 @@ class StringSourceFile extends SourceFile {
   String slowText() => text;
 
   @override
-  List<int> slowUtf8ZeroTerminatedBytes() {
-    return _zeroTerminateIfNecessary(utf8.encode(text));
+  Uint8List utf8Bytes() {
+    return utf8.encode(text);
   }
 
   @override
@@ -267,15 +265,15 @@ class StringSourceFile extends SourceFile {
 }
 
 /// Binary input data.
-class Binary implements api.Input<List<int>> {
+class Binary implements api.Input<Uint8List> {
   @override
   final Uri uri;
-  List<int>? _data;
+  Uint8List? _data;
 
-  Binary(this.uri, List<int> data) : _data = data;
+  Binary(this.uri, Uint8List data) : _data = data;
 
   @override
-  List<int> get data {
+  Uint8List get data {
     if (_data != null) return _data!;
     throw StateError("'get data' after 'release()'");
   }

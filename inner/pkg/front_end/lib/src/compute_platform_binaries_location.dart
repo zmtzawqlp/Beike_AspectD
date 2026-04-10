@@ -7,77 +7,39 @@ import "dart:io" show File, Platform;
 import 'package:kernel/ast.dart' show Source;
 import 'package:kernel/target/targets.dart';
 
-import 'base/nnbd_mode.dart' show NnbdMode;
+import 'base/compiler_context.dart' show CompilerContext;
 import 'base/processed_options.dart' show ProcessedOptions;
-
-import 'fasta/compiler_context.dart' show CompilerContext;
 
 /// Returns the name of the default platform dill file name for the [target]
 /// with the given [nnbdMode].
 ///
 /// If the target doesn't have a default platform dill file for the nnbd mode,
 /// [onError] is called.
-String? computePlatformDillName(
-    Target target, NnbdMode nnbdMode, void Function() onError) {
+String? computePlatformDillName(Target target, void Function() onError) {
   switch (target.name) {
     case 'dartdevc':
-      switch (nnbdMode) {
-        case NnbdMode.Strong:
-          // DDC is always compiled against the outline so we use it here by
-          // default.
-          return 'ddc_outline.dill';
-        //TODO(johnniwinther): Support using the full dill.
-        //return 'ddc_platform.dill';
-        case NnbdMode.Weak:
-          // DDC is always compiled against the outline so we use it here by
-          // default.
-          return 'ddc_outline_unsound.dill';
-        //TODO(johnniwinther): Support using the full dill.
-        //return 'ddc_platform_unsound.dill';
-        case NnbdMode.Agnostic:
-          break;
-      }
-      break;
+      // DDC is always compiled against the outline so we use it here by
+      // default.
+      return 'ddc_outline.dill';
+    //TODO(johnniwinther): Support using the full dill.
+    //return 'ddc_platform.dill';
     case 'dart2js':
-      switch (nnbdMode) {
-        case NnbdMode.Strong:
-          return 'dart2js_platform.dill';
-        case NnbdMode.Weak:
-          return 'dart2js_platform_unsound.dill';
-        case NnbdMode.Agnostic:
-          break;
-      }
-      break;
+      return 'dart2js_platform.dill';
     case 'dart2js_server':
-      switch (nnbdMode) {
-        case NnbdMode.Strong:
-          return 'dart2js_server_platform.dill';
-        case NnbdMode.Weak:
-          return 'dart2js_server_platform_unsound.dill';
-        case NnbdMode.Agnostic:
-          break;
-      }
-      break;
+      return 'dart2js_server_platform.dill';
     case 'vm':
-      // TODO(johnniwinther): Stop generating 'vm_platform.dill' and rename
-      // 'vm_platform_strong.dill' to 'vm_platform.dill'.
-      return "vm_platform_strong.dill";
+      return 'vm_platform.dill';
     case 'none':
-      return "vm_platform_strong.dill";
+      return 'vm_platform.dill';
     case 'wasm':
-      switch (nnbdMode) {
-        case NnbdMode.Strong:
-          return 'dart2wasm_outline.dill';
-        //TODO(johnniwinther): Support using the full dill.
-        //return 'dart2wasm_platform.dill';
-        case NnbdMode.Weak:
-        case NnbdMode.Agnostic:
-          break;
-      }
-      break;
+      return 'dart2wasm_outline.dill';
+    // Coverage-ignore(suite): Not run.
+    case 'wasm_js_compatibility':
+      return 'dart2wasm_js_compatibility_outline.dill';
     default:
       break;
   }
+  // Coverage-ignore-block(suite): Not run.
   onError();
   return null;
 }
@@ -104,55 +66,55 @@ Uri computePlatformBinariesLocation({bool forceBuildDir = false}) {
 }
 
 /// Translates an SDK URI ("org-dartlang-sdk:///...") to a file URI.
-Uri translateSdk(Uri uri) {
-  if (CompilerContext.isActive) {
-    if (uri.isScheme("org-dartlang-sdk")) {
-      String path = uri.path;
-      if (path.startsWith("/sdk/")) {
-        CompilerContext context = CompilerContext.current;
-        Uri? sdkRoot = context.cachedSdkRoot;
+Uri translateSdk(CompilerContext context, Uri uri) {
+  if (uri.isScheme("org-dartlang-sdk")) {
+    String path = uri.path;
+    if (path.startsWith("/sdk/")) {
+      Uri? sdkRoot = context.cachedSdkRoot;
+      if (sdkRoot == null) {
+        ProcessedOptions options = context.options;
+        sdkRoot = options.sdkRoot;
         if (sdkRoot == null) {
-          ProcessedOptions options = context.options;
-          sdkRoot = options.sdkRoot;
-          if (sdkRoot == null) {
-            sdkRoot = options.librariesSpecificationUri?.resolve("../");
-            if (sdkRoot != null) {
-              if (!isExistingFile(sdkRoot.resolve("lib/libraries.json"))) {
-                sdkRoot = null;
-              }
+          sdkRoot = options.librariesSpecificationUri
+              // Coverage-ignore(suite): Not run.
+              ?.resolve("../");
+          if (sdkRoot != null) {
+            // Coverage-ignore-block(suite): Not run.
+            if (!isExistingFile(sdkRoot.resolve("lib/libraries.json"))) {
+              sdkRoot = null;
             }
           }
-          if (sdkRoot == null) {
-            sdkRoot = (options.sdkSummary ?? computePlatformBinariesLocation())
-                .resolve("../../");
-            // ignore: unnecessary_null_comparison
-            if (sdkRoot != null) {
-              if (!isExistingFile(sdkRoot.resolve("lib/libraries.json"))) {
-                if (isExistingFile(sdkRoot.resolve("sdk/lib/libraries.json"))) {
-                  sdkRoot = sdkRoot.resolve("sdk/");
-                } else {
-                  sdkRoot = null;
-                }
-              }
+        }
+        if (sdkRoot == null) {
+          sdkRoot = (options.sdkSummary ?? // Coverage-ignore(suite): Not run.
+                  computePlatformBinariesLocation())
+              .resolve("../../");
+          if (!isExistingFile(sdkRoot.resolve("lib/libraries.json"))) {
+            if (isExistingFile(sdkRoot.resolve("sdk/lib/libraries.json"))) {
+              sdkRoot = sdkRoot.resolve("sdk/");
+            } else {
+              sdkRoot = null;
             }
           }
-          sdkRoot ??= Uri.parse("org-dartlang-sdk:///sdk/");
-          context.cachedSdkRoot = sdkRoot;
         }
-        Uri candidate = sdkRoot.resolve(path.substring(5));
-        if (isExistingFile(candidate)) {
-          Map<Uri, Source> uriToSource = CompilerContext.current.uriToSource;
-          Source source = uriToSource[uri]!;
-          if (source.source.isEmpty) {
-            uriToSource[uri] = new Source(
-                source.lineStarts,
-                new File.fromUri(candidate).readAsBytesSync(),
-                source.importUri,
-                source.fileUri);
-          }
-        }
-        return candidate;
+        // Coverage-ignore(suite): Not run.
+        sdkRoot ??= Uri.parse("org-dartlang-sdk:///sdk/");
+        context.cachedSdkRoot = sdkRoot;
       }
+      Uri candidate = sdkRoot.resolve(path.substring(5));
+      if (isExistingFile(candidate)) {
+        Map<Uri, Source> uriToSource = context.uriToSource;
+        Source source = uriToSource[uri]!;
+        if (source.source.isEmpty) {
+          // Coverage-ignore-block(suite): Not run.
+          uriToSource[uri] = new Source(
+              source.lineStarts,
+              new File.fromUri(candidate).readAsBytesSync(),
+              source.importUri,
+              source.fileUri);
+        }
+      }
+      return candidate;
     }
   }
   return uri;

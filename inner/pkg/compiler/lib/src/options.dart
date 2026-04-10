@@ -2,22 +2,162 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.src.options;
+library;
 
+import 'package:collection/collection.dart';
+// ignore: implementation_imports
 import 'package:front_end/src/api_unstable/dart2js.dart' as fe;
 
 import 'commandline_options.dart' show Flags;
 import 'util/util.dart';
 
-enum NullSafetyMode {
-  unsound,
-  sound,
+enum FeatureStatus { shipped, shipping, canary }
+
+enum CompilerPhase {
+  cfe,
+  closedWorld,
+  globalInference,
+  codegen,
+  emitJs,
+  dumpInfo,
 }
 
-enum FeatureStatus {
-  shipped,
-  shipping,
-  canary,
+enum CompilerStage {
+  all(
+    'all',
+    phases: {
+      CompilerPhase.cfe,
+      CompilerPhase.closedWorld,
+      CompilerPhase.globalInference,
+      CompilerPhase.codegen,
+      CompilerPhase.emitJs,
+    },
+    canCompileFromEntryUri: true,
+  ),
+  dumpInfoAll(
+    'dump-info-all',
+    phases: {
+      CompilerPhase.cfe,
+      CompilerPhase.closedWorld,
+      CompilerPhase.globalInference,
+      CompilerPhase.codegen,
+      CompilerPhase.emitJs,
+      CompilerPhase.dumpInfo,
+    },
+    canCompileFromEntryUri: true,
+  ),
+  cfe('cfe', phases: {CompilerPhase.cfe}, canCompileFromEntryUri: true),
+  deferredLoadIds(
+    'deferred-load-ids',
+    dataOutputName: 'deferred_load_ids.data',
+    phases: {CompilerPhase.closedWorld},
+  ),
+  closedWorld(
+    'closed-world',
+    dataOutputName: 'world.data',
+    phases: {CompilerPhase.closedWorld},
+  ),
+  globalInference(
+    'global-inference',
+    dataOutputName: 'global.data',
+    phases: {CompilerPhase.globalInference},
+  ),
+  codegenAndJsEmitter(
+    'codegen-emit-js',
+    phases: {CompilerPhase.codegen, CompilerPhase.emitJs},
+  ),
+  codegenSharded(
+    'codegen',
+    dataOutputName: 'codegen',
+    phases: {CompilerPhase.codegen},
+  ),
+  jsEmitter('emit-js', phases: {CompilerPhase.emitJs}),
+  dumpInfo(
+    'dump-info',
+    dataOutputName: 'dump.data',
+    phases: {CompilerPhase.dumpInfo},
+  );
+
+  const CompilerStage(
+    this._stageFlag, {
+    this.dataOutputName,
+    required this.phases,
+    this.canCompileFromEntryUri = false,
+  });
+
+  final Set<CompilerPhase> phases;
+  final String _stageFlag;
+  final String? dataOutputName;
+  final bool canCompileFromEntryUri;
+
+  bool get emitsJs => phases.contains(CompilerPhase.emitJs);
+  bool get shouldOnlyComputeDill => this == CompilerStage.cfe;
+  bool get canEmitDill =>
+      this == CompilerStage.cfe || this == CompilerStage.closedWorld;
+  bool get shouldReadPlatformBinaries => phases.contains(CompilerPhase.cfe);
+  bool get emitsDumpInfo => phases.contains(CompilerPhase.dumpInfo);
+  bool get emitsDeferredLoadIds => this == CompilerStage.deferredLoadIds;
+
+  /// Global kernel transformations should be run in phase 0b, i.e. after
+  /// concatenating dills, but before serializing the output of phase 0.
+  // TODO(fishythefish): Add AST metadata to ensure transformations aren't rerun
+  // unnecessarily.
+  bool get shouldRunGlobalTransforms => phases.contains(CompilerPhase.cfe);
+
+  bool get shouldReadClosedWorld => index > CompilerStage.closedWorld.index;
+  bool get shouldReadGlobalInference =>
+      index > CompilerStage.globalInference.index;
+  bool get shouldReadCodegenShards =>
+      index > CompilerStage.codegenSharded.index;
+  bool get shouldReadDumpInfoData => this == CompilerStage.dumpInfo;
+  bool get shouldWriteDumpInfoData =>
+      this == CompilerStage.jsEmitter ||
+      this == CompilerStage.codegenAndJsEmitter;
+  bool get shouldWriteClosedWorld => this == CompilerStage.closedWorld;
+  bool get shouldWriteGlobalInference => this == CompilerStage.globalInference;
+  bool get shouldWriteCodegen => this == CompilerStage.codegenSharded;
+
+  // Only use deferred reads for the linker and dump info phase as most deferred
+  // entities will not be needed. In other phases we use most of this data so
+  // it's not worth deferring.
+  bool get shouldUseDeferredSourceReads =>
+      this == CompilerStage.jsEmitter || this == CompilerStage.dumpInfo;
+
+  String get toFlag => _stageFlag;
+
+  static String get validFlagValuesString {
+    return CompilerStage.values.map((p) => '`${p._stageFlag}`').join(', ');
+  }
+
+  static CompilerStage _fromFlagString(String stageFlag) {
+    for (final stage in CompilerStage.values) {
+      if (stageFlag == stage._stageFlag) {
+        return stage;
+      }
+    }
+    throw ArgumentError(
+      'Invalid stage: $stageFlag. '
+      'Supported values are: $validFlagValuesString',
+    );
+  }
+
+  /// Can be used from outside the compiler to determine which stage will run
+  /// based on provided flag.
+  ///
+  /// Used for internal build systems.
+  static CompilerStage fromFlag(String? stageFlag) {
+    return stageFlag == null ? CompilerStage.all : _fromFlagString(stageFlag);
+  }
+
+  static CompilerStage fromOptions(CompilerOptions options) {
+    final stageFlag = options._stageFlag;
+    if (stageFlag == null) {
+      return options._dumpInfoFormatOption != null
+          ? CompilerStage.dumpInfoAll
+          : CompilerStage.all;
+    }
+    return _fromFlagString(stageFlag);
+  }
 }
 
 /// A [FeatureOption] is both a set of flags and an option. By default, creating
@@ -41,12 +181,12 @@ class FeatureOption {
   bool? _state;
   bool get isEnabled => _state!;
   bool get isDisabled => !isEnabled;
-  void set state(bool value) {
+  set state(bool value) {
     assert(_state == null);
     _state = value;
   }
 
-  void set override(bool value) {
+  set override(bool value) {
     assert(_state != null);
     _state = value;
   }
@@ -66,8 +206,10 @@ class FeatureOptions {
   /// oldest supported versions of JavaScript. This currently means IE11. If
   /// `true`, the generated code runs on the legacy JavaScript platform. If
   /// `false`, the code will fail on the legacy JavaScript platform.
-  FeatureOption legacyJavaScript =
-      FeatureOption('legacy-javascript', isNegativeFlag: true);
+  FeatureOption legacyJavaScript = FeatureOption(
+    'legacy-javascript',
+    isNegativeFlag: true,
+  );
 
   /// Whether to use optimized holders.
   FeatureOption newHolders = FeatureOption('new-holders');
@@ -93,17 +235,12 @@ class FeatureOptions {
   /// (e.g. DartType).
   FeatureOption internValues = FeatureOption('intern-composite-values');
 
-  /// Whether to use deferred serialization strategy. This changes serialized
-  /// data structure to allow map value deserialization to be deferred.
-  FeatureOption deferredSerialization = FeatureOption('deferred-serialization');
-
   /// [FeatureOption]s which are shipped and cannot be toggled.
   late final List<FeatureOption> shipped = [newHolders, legacyJavaScript];
 
   /// [FeatureOption]s which default to enabled.
   late final List<FeatureOption> shipping = [
     useContentSecurityPolicy,
-    deferredSerialization,
     internValues,
   ];
 
@@ -124,19 +261,19 @@ class FeatureOptions {
 
   /// Returns a list of enabled features as a comma separated string.
   String flavorString() {
-    bool _shouldPrint(FeatureOption feature) {
+    bool shouldPrint(FeatureOption feature) {
       return feature.isNegativeFlag ? feature.isDisabled : feature.isEnabled;
     }
 
-    String _toString(FeatureOption feature) {
+    String toString(FeatureOption feature) {
       return feature.isNegativeFlag ? 'no-${feature.flag}' : feature.flag;
     }
 
-    Iterable<String> _listToString(List<FeatureOption> options) {
-      return options.where(_shouldPrint).map(_toString);
+    Iterable<String> listToString(List<FeatureOption> options) {
+      return options.where(shouldPrint).map(toString);
     }
 
-    return _listToString(shipping).followedBy(_listToString(canary)).join(', ');
+    return listToString(shipping).followedBy(listToString(canary)).join(', ');
   }
 
   /// Parses a [List<String>] and enables / disables features as necessary.
@@ -173,6 +310,8 @@ abstract class DiagnosticOptions {
   bool showPackageWarningsFor(Uri uri);
 }
 
+enum DumpInfoFormat { binary, json }
+
 /// Object for passing options to the compiler. Superclasses are used to select
 /// subsets of these options, enabling each part of the compiler to depend on
 /// as few as possible.
@@ -181,95 +320,61 @@ class CompilerOptions implements DiagnosticOptions {
   Uri? entryUri;
 
   /// The input dill to compile.
-  Uri? inputDillUri;
+  Uri? _inputDillUri;
+
+  Uri get _defaultInputDillUri =>
+      _outputDir.resolve('${_outputPrefix}out.dill');
+
+  Uri get inputDillUri {
+    return _inputDillUri != null
+        ? fe.nativeToUri(_inputDillUri.toString())
+        : _defaultInputDillUri;
+  }
 
   /// Returns the compilation target specified by these options.
-  Uri? get compilationTarget => inputDillUri ?? entryUri;
+  Uri get compilationTarget =>
+      _inputDillUri ??
+      (stage.canCompileFromEntryUri ? entryUri : null) ??
+      _defaultInputDillUri;
 
-  bool get fromDill {
-    if (sources != null) return false;
-    var targetPath = compilationTarget!.path;
-    return targetPath.endsWith('.dill');
-  }
+  bool get shouldLoadFromDill =>
+      entryUri == null || compilationTarget.path.endsWith('.dill');
 
   /// Location of the package configuration file.
   Uri? packageConfig;
 
   /// List of kernel files to load.
   ///
-  /// When compiling modularly, this contains kernel files that are needed
-  /// to compile a single module.
-  ///
-  /// When linking, this contains all kernel files that form part of the final
-  /// program.
-  ///
-  /// At this time, this list points to full kernel files. In the future, we may
-  /// use a list of outline files for modular compiles, and only use full kernel
-  /// files for linking.
+  /// This contains all kernel files that form part of the final program. The
+  /// dills passed here should contain full kernel ASTs, not just outlines.
   List<Uri>? dillDependencies;
-
-  /// A list of sources to compile, only used for modular analysis.
-  List<Uri>? sources;
-
-  Uri? writeModularAnalysisUri;
-
-  /// Helper to determine if compiler is being run just for modular analysis.
-  bool get modularMode => writeModularAnalysisUri != null && !cfeOnly;
-
-  List<Uri>? modularAnalysisInputs;
-
-  bool get hasModularAnalysisInputs => modularAnalysisInputs != null;
 
   /// Uses a memory mapped view of files for I/O.
   bool memoryMappedFiles = false;
 
-  /// Location from which serialized inference data is read.
-  ///
-  /// If this is set, the [entryUri] is expected to be a .dill file and the
-  /// frontend work is skipped.
-  Uri? readDataUri;
+  /// Location from which serialized inference data is read/written.
+  Uri? _globalInferenceUri;
 
-  /// Location to which inference data is serialized.
-  ///
-  /// If this is set, the compilation stops after type inference.
-  Uri? writeDataUri;
+  /// Location from which the serialized closed world is read/written.
+  Uri? _closedWorldUri;
 
-  /// Serialize data without the closed world.
-  /// TODO(joshualitt) make this the default right after landing in Google3 and
-  /// clean up.
-  bool noClosedWorldInData = false;
+  /// Location from which codegen data is read/written.
+  Uri? _codegenUri;
 
-  /// Location from which the serialized closed world is read.
-  ///
-  /// If this is set, the [entryUri] is expected to be a .dill file and the
-  /// frontend work is skipped.
-  Uri? readClosedWorldUri;
-
-  /// Location to which inference data is serialized.
-  ///
-  /// If this is set, the compilation stops after computing the closed world.
-  Uri? writeClosedWorldUri;
-
-  /// Location from which codegen data is read.
-  ///
-  /// If this is set, the compilation starts at codegen enqueueing.
-  Uri? readCodegenUri;
-
-  /// Location to which codegen data is serialized.
-  ///
-  /// If this is set, the compilation stops after code generation.
-  Uri? writeCodegenUri;
-
+  // TODO(natebiggs): Delete this once Flutter is using the stage flag.
   /// Whether to run only the CFE and emit the generated kernel file in
-  /// [outputUri].
-  bool cfeOnly = false;
+  /// [outputUri]. Equivalent to `--stage=cfe`.
+  bool _cfeOnly = false;
+
+  /// Which stage of the compiler to run. Maps to a stage from [CompilerStage].
+  String? _stageFlag;
 
   /// Flag only meant for dart2js developers to iterate on global inference
   /// changes.
   ///
   /// When working on large apps this flag allows to load serialized data for
   /// the app (via --read-data), reuse its closed world, and rerun the global
-  /// inference phase (even though the serialized data already contains a global
+  /// inference stage (even though the serialized data already contains a global
   /// inference result).
   bool debugGlobalInference = false;
 
@@ -281,9 +386,10 @@ class CompilerOptions implements DiagnosticOptions {
   Map<fe.ExperimentalFlag, bool> explicitExperimentalFlags = {};
 
   /// `true` if variance is enabled.
-  bool get enableVariance =>
-      fe.isExperimentEnabled(fe.ExperimentalFlag.variance,
-          explicitExperimentalFlags: explicitExperimentalFlags);
+  bool get enableVariance => fe.isExperimentEnabled(
+    fe.ExperimentalFlag.variance,
+    explicitExperimentalFlags: explicitExperimentalFlags,
+  );
 
   /// A possibly null state object for kernel compilation.
   fe.InitializedCompilerState? kernelInitializedCompilerState;
@@ -299,11 +405,11 @@ class CompilerOptions implements DiagnosticOptions {
   bool benchmarkingExperiment = false;
 
   /// ID associated with this sdk build.
-  String buildId = _UNDETERMINED_BUILD_ID;
+  String buildId = _undeterminedBuildID;
 
   /// Whether there is a build-id available so we can use it on error messages
   /// and in the emitted output of the compiler.
-  bool get hasBuildId => buildId != _UNDETERMINED_BUILD_ID;
+  bool get hasBuildId => buildId != _undeterminedBuildID;
 
   /// Whether to compile for the server category. This is used to compile to JS
   /// that is intended to be run on server-side VMs like nodejs.
@@ -312,6 +418,10 @@ class CompilerOptions implements DiagnosticOptions {
   /// Location where to generate a map containing details of how deferred
   /// libraries are subdivided.
   Uri? deferredMapUri;
+
+  /// Location to generate a map containing mapping from user-defined deferred
+  /// import to Dart2js runtime load ID name.
+  Uri? _deferredLoadIdMapUri;
 
   /// Location where to generate an internal format representing the deferred
   /// graph.
@@ -323,7 +433,7 @@ class CompilerOptions implements DiagnosticOptions {
   /// will not merge fragments with unrelated dependencies and thus we may
   /// generate more fragments than the 'mergeFragmentsThreshold' under some
   /// situations.
-  int? mergeFragmentsThreshold = null; // default value, no max.
+  int? mergeFragmentsThreshold; // default value, no max.
   int? _mergeFragmentsThreshold;
 
   /// Whether to disable inlining during the backend optimizations.
@@ -334,9 +444,6 @@ class CompilerOptions implements DiagnosticOptions {
   /// Note: the resulting program still correctly checks that loadLibrary &
   /// checkLibrary calls are correct.
   bool disableProgramSplit = false;
-
-  // Whether or not to stop compilation after splitting the
-  bool stopAfterProgramSplit = false;
 
   /// Reads a program split json file and applies the parsed constraints to
   /// deferred loading.
@@ -369,27 +476,24 @@ class CompilerOptions implements DiagnosticOptions {
   /// Whether to use the trivial abstract value domain.
   bool useTrivialAbstractValueDomain = false;
 
-  /// Whether to use the wrapped abstract value domain (experimental).
-  bool experimentalWrapped = false;
-
-  /// Whether to use the powersets abstract value domain (experimental).
-  bool experimentalPowersets = false;
-
   /// Whether to disable optimization for need runtime type information.
   bool disableRtiOptimization = false;
 
-  /// Whether to emit a summary of the information used by the compiler during
-  /// optimization. This includes resolution details, dependencies between
-  /// elements, results of type inference, and data about generated code.
-  bool dumpInfo = false;
+  /// Uri to read/write dump info requisite data after emitting JS. This
+  /// contains data captured from the JS printer and processed for the dump info
+  /// task.
+  /// The file emitted to the URI can then be read in using to run dump info as
+  /// a standalone task (without re-emitting JS).
+  Uri? _dumpInfoDataUri;
 
-  /// Whether to use the new dump-info binary format. This will be the default
-  /// after a transitional period.
-  bool useDumpInfoBinaryFormat = false;
+  /// Which format the user has chosen to emit dump info in if any.
+  DumpInfoFormat? _dumpInfoFormatOption;
+  DumpInfoFormat get dumpInfoFormat =>
+      _dumpInfoFormatOption ?? DumpInfoFormat.json;
 
   /// If set, SSA intermediate form is dumped for methods with names matching
   /// this RegExp pattern.
-  String? dumpSsaPattern = null;
+  String? dumpSsaPattern;
 
   /// Whether to generate a `.resources.json` file detailing the use of resource
   /// identifiers.
@@ -426,33 +530,24 @@ class CompilerOptions implements DiagnosticOptions {
   /// Whether to generate code containing user's `assert` statements.
   bool enableUserAssertions = false;
 
-  /// Whether to generate code asserting that non-nullable parameters in opt-in
-  /// code are not null. In mixed mode code (some opting into non-nullable, some
-  /// not), null-safety is unsound, allowing `null` values to be assigned to
-  /// variables with non-nullable types. This assertion lets the opt-in code
-  /// operate with a stronger guarantee.
-  bool enableNullAssertions = false;
-
   /// Whether to generate code asserting that non-nullable return values of
   /// `@Native` methods or `JS()` invocations are checked for being non-null.
-  /// Emits checks only in sound null-safety.
   bool nativeNullAssertions = false;
   bool _noNativeNullAssertions = false;
 
+  /// Whether to generate code asserting that return values of JS-interop APIs
+  /// with non-nullable return types are not null.
+  bool interopNullAssertions = false;
+  bool _noInteropNullAssertions = false;
+
   /// Whether to generate a source-map file together with the output program.
   bool generateSourceMap = true;
-
-  /// URI of the main output of the compiler.
-  Uri? outputUri;
 
   /// Location of the libraries specification file.
   Uri? librariesSpecificationUri;
 
   /// Location of the kernel platform `.dill` files.
   Uri? platformBinaries;
-
-  /// Whether to print legacy types as T* rather than T.
-  bool printLegacyStars = false;
 
   /// URI where the compiler should generate the output source map file.
   Uri? sourceMapUri;
@@ -526,6 +621,10 @@ class CompilerOptions implements DiagnosticOptions {
   /// during each phase of compilation.
   bool showInternalProgress = false;
 
+  /// Omit memory usage in the summary printed to the console at the end of
+  /// each compilation.
+  bool omitMemorySummary = false;
+
   /// Enable printing of metrics at end of compilation.
   // TODO(sra): Add command-line filtering of metrics.
   bool reportPrimaryMetrics = false;
@@ -555,38 +654,20 @@ class CompilerOptions implements DiagnosticOptions {
   /// called.
   bool experimentCallInstrumentation = false;
 
-  /// Whether the compiler should emit code with unsound or sound semantics.
-  /// Since Dart 3.0 this is no longer inferred from sources, but defaults to
-  /// sound semantics.
-  ///
-  /// This option should rarely need to be accessed directly. Consider using
-  /// [useLegacySubtyping] instead.
-  NullSafetyMode nullSafetyMode = NullSafetyMode.sound;
-  bool _soundNullSafety = false;
-  bool _noSoundNullSafety = false;
-
-  /// Whether to use legacy subtype semantics rather than null-safe semantics.
-  /// This is `true` if unsound null-safety semantics are being used, since
-  /// dart2js does not emit warnings for unsound null-safety.
-  bool get useLegacySubtyping {
-    return nullSafetyMode == NullSafetyMode.unsound;
-  }
-
   /// If specified, a bundle of optimizations to enable (or disable).
-  int? optimizationLevel = null;
+  int? optimizationLevel;
 
-  /// The shard to serialize when using [writeCodegenUri].
+  /// The shard to serialize when running the codegen phase.
   int? codegenShard;
 
-  /// The number of shards to serialize when using [writeCodegenUri] or to
-  /// deserialize when using [readCodegenUri].
+  /// The number of shards to serialize when running the codegen phase or to
+  /// deserialize when running the emit-js phase.
   int? codegenShards;
 
   /// Arguments passed to the front end about how it is invoked.
   ///
   /// This is used to selectively emit certain messages depending on how the
-  /// CFE is invoked. For instance to emit a message about the null safety
-  /// compilation mode when compiling an executable.
+  /// CFE is invoked.
   ///
   /// See `InvocationMode` in
   /// `pkg/front_end/lib/src/api_prototype/compiler_options.dart` for all
@@ -599,6 +680,125 @@ class CompilerOptions implements DiagnosticOptions {
   // Whether or not to dump a list of unused libraries.
   bool dumpUnusedLibraries = false;
 
+  // Whether or not to disable byte cache for sources loaded from Kernel dill.
+  bool disableDiagnosticByteCache = false;
+
+  // Whether or not to enable deferred loading event log.
+  bool enableDeferredLoadingEventLog = false;
+
+  bool enableProtoShaking = false;
+  bool enableProtoMixinShaking = false;
+
+  bool get producesModifiedDill =>
+      stage == CompilerStage.closedWorld && enableProtoShaking;
+
+  late final CompilerStage stage = _calculateStage();
+
+  CompilerStage _calculateStage() =>
+      _cfeOnly ? CompilerStage.cfe : CompilerStage.fromOptions(this);
+
+  Uri? _outputUri;
+  Uri? outputUri;
+
+  String get _outputFilename => _outputUri?.pathSegments.last ?? '';
+
+  String? get _outputExtension {
+    switch (stage) {
+      case CompilerStage.all:
+      case CompilerStage.dumpInfoAll:
+      case CompilerStage.jsEmitter:
+      case CompilerStage.codegenAndJsEmitter:
+      case CompilerStage.dumpInfo:
+        return '.js';
+      case CompilerStage.cfe:
+        return '.dill';
+      case CompilerStage.closedWorld:
+        if (producesModifiedDill) return '.dill';
+      case CompilerStage.deferredLoadIds:
+      case CompilerStage.globalInference:
+      case CompilerStage.codegenSharded:
+    }
+    return null;
+  }
+
+  /// Output prefix specified by the user via the `--out` flag. The prefix is
+  /// calculated from the final segment of the user provided URI. If the
+  /// extension does not match the expected extension for the current [stage]
+  /// then the last segment is treated as a prefix. Only set when `--stage` is
+  /// specified.
+  late final String _outputPrefix = (() {
+    if (_stageFlag == null) return '';
+    final extension = _outputExtension;
+
+    return (extension != null && _outputFilename.endsWith(extension))
+        ? ''
+        : _outputFilename;
+  })();
+
+  /// Output directory specified by the user via the `--out` flag. The directory
+  /// is calculated by resolving the substring prior to the final URI segment
+  /// (i.e. before the final slash) relative to [Uri.base]. Defaults to
+  /// [Uri.base] if `--out` is not provided or does not include a directory.
+  late final Uri _outputDir = (() => (_outputUri != null)
+      ? Uri.base.resolveUri(_outputUri!).resolve('.')
+      : Uri.base)();
+
+  /// Computes a resolved output URI based on value provided via the `--out`
+  /// flag. Updates [outputUri] based on the result and returns the value.
+  Uri? setResolvedOutputUri() {
+    final extension = _outputExtension;
+    if (extension == null) return null;
+
+    if (_stageFlag == null) {
+      return outputUri = _outputDir.resolve(
+        _outputFilename.isEmpty ? 'out$extension' : _outputFilename,
+      );
+    }
+
+    String fullName = _outputFilename;
+    if (!fullName.endsWith(extension)) {
+      fullName += 'out$extension';
+    }
+    return outputUri = _outputDir.resolve(fullName);
+  }
+
+  /// Sets [outputUri] to the value provided via `--out` without any processing.
+  void setDefaultOutputUriForTesting() {
+    outputUri = _outputUri;
+  }
+
+  Uri? _getSpecifiedDataPath(CompilerStage stage) {
+    switch (stage) {
+      case CompilerStage.all:
+      case CompilerStage.dumpInfoAll:
+      case CompilerStage.cfe:
+      case CompilerStage.jsEmitter:
+      case CompilerStage.codegenAndJsEmitter:
+        return null;
+      case CompilerStage.deferredLoadIds:
+        return _deferredLoadIdMapUri;
+      case CompilerStage.closedWorld:
+        return _closedWorldUri;
+      case CompilerStage.globalInference:
+        return _globalInferenceUri;
+      case CompilerStage.codegenSharded:
+        return _codegenUri;
+      case CompilerStage.dumpInfo:
+        return _dumpInfoDataUri;
+    }
+  }
+
+  Uri dataUriForStage(CompilerStage stage) {
+    final dataUri = _getSpecifiedDataPath(stage);
+    if (dataUri != null) return dataUri;
+
+    if (stage.dataOutputName != null) {
+      final filename = '$_outputPrefix${stage.dataOutputName}';
+      return _outputDir.resolve(filename);
+    }
+    throw ArgumentError('No data input generated for stage: $stage');
+  }
+
   late FeatureOptions features;
 
   // -------------------------------------------------
@@ -606,182 +806,287 @@ class CompilerOptions implements DiagnosticOptions {
   // -------------------------------------------------
 
   /// Create an options object by parsing flags from [options].
-  static CompilerOptions parse(List<String> options,
-      {FeatureOptions? featureOptions,
-      Uri? librariesSpecificationUri,
-      Uri? platformBinaries,
-      void Function(String)? onError,
-      void Function(String)? onWarning}) {
-    if (featureOptions == null) featureOptions = FeatureOptions();
+  static CompilerOptions parse(
+    List<String> options, {
+    FeatureOptions? featureOptions,
+    Uri? librariesSpecificationUri,
+    Uri? platformBinaries,
+    bool useDefaultOutputUri = false,
+    void Function(String)? onError,
+    void Function(String)? onWarning,
+  }) {
+    featureOptions ??= FeatureOptions();
     featureOptions.parse(options);
     Map<fe.ExperimentalFlag, bool> explicitExperimentalFlags =
         _extractExperiments(options, onError: onError, onWarning: onWarning);
 
-    // The null safety experiment can result in requiring different experiments
-    // for compiling user code vs. the sdk. To simplify things, we prebuild the
-    // sdk with the correct flags.
+    // We may require different experiments for compiling user code vs. the sdk.
+    // To simplify things, we prebuild the sdk with the correct flags.
     platformBinaries ??= fe.computePlatformBinariesLocation();
     return CompilerOptions()
       ..entryUri = _extractUriOption(options, '${Flags.entryUri}=')
-      ..inputDillUri = _extractUriOption(options, '${Flags.inputDill}=')
+      .._inputDillUri = _extractUriOption(options, '${Flags.inputDill}=')
       ..librariesSpecificationUri = librariesSpecificationUri
       ..allowMockCompilation = _hasOption(options, Flags.allowMockCompilation)
-      ..benchmarkingProduction =
-          _hasOption(options, Flags.benchmarkingProduction)
-      ..benchmarkingExperiment =
-          _hasOption(options, Flags.benchmarkingExperiment)
-      ..buildId =
-          _extractStringOption(options, '--build-id=', _UNDETERMINED_BUILD_ID)!
+      ..benchmarkingProduction = _hasOption(
+        options,
+        Flags.benchmarkingProduction,
+      )
+      ..benchmarkingExperiment = _hasOption(
+        options,
+        Flags.benchmarkingExperiment,
+      )
+      ..buildId = _extractStringOption(
+        options,
+        '--build-id=',
+        _undeterminedBuildID,
+      )!
       ..compileForServer = _hasOption(options, Flags.serverMode)
       ..deferredMapUri = _extractUriOption(options, '--deferred-map=')
-      ..deferredGraphUri =
-          _extractUriOption(options, '${Flags.dumpDeferredGraph}=')
+      .._deferredLoadIdMapUri = _extractUriOption(
+        options,
+        '${Flags.deferredLoadIdMapUri}=',
+      )
+      ..deferredGraphUri = _extractUriOption(
+        options,
+        '${Flags.dumpDeferredGraph}=',
+      )
       ..fatalWarnings = _hasOption(options, Flags.fatalWarnings)
       ..terseDiagnostics = _hasOption(options, Flags.terse)
       ..suppressWarnings = _hasOption(options, Flags.suppressWarnings)
       ..suppressHints = _hasOption(options, Flags.suppressHints)
-      ..shownPackageWarnings =
-          _extractOptionalCsvOption(options, Flags.showPackageWarnings)
+      ..shownPackageWarnings = _extractOptionalCsvOption(
+        options,
+        Flags.showPackageWarnings,
+      )
       ..explicitExperimentalFlags = explicitExperimentalFlags
       ..disableInlining = _hasOption(options, Flags.disableInlining)
       ..disableProgramSplit = _hasOption(options, Flags.disableProgramSplit)
-      ..stopAfterProgramSplit = _hasOption(options, Flags.stopAfterProgramSplit)
       ..disableTypeInference = _hasOption(options, Flags.disableTypeInference)
-      ..useTrivialAbstractValueDomain =
-          _hasOption(options, Flags.useTrivialAbstractValueDomain)
-      ..experimentalWrapped = _hasOption(options, Flags.experimentalWrapped)
-      ..experimentalPowersets = _hasOption(options, Flags.experimentalPowersets)
-      ..disableRtiOptimization =
-          _hasOption(options, Flags.disableRtiOptimization)
-      ..dumpInfo = _hasOption(options, Flags.dumpInfo)
-      ..useDumpInfoBinaryFormat =
-          _hasOption(options, "${Flags.dumpInfo}=binary")
-      ..dumpSsaPattern =
-          _extractStringOption(options, '${Flags.dumpSsa}=', null)
+      ..useTrivialAbstractValueDomain = _hasOption(
+        options,
+        Flags.useTrivialAbstractValueDomain,
+      )
+      ..disableRtiOptimization = _hasOption(
+        options,
+        Flags.disableRtiOptimization,
+      )
+      .._dumpInfoDataUri = _extractUriOption(
+        options,
+        '${Flags.dumpInfoDataUri}=',
+      )
+      .._dumpInfoFormatOption = _extractEnumOption(
+        options,
+        Flags.dumpInfo,
+        DumpInfoFormat.values,
+        emptyValue: DumpInfoFormat.binary,
+      )
+      ..dumpSsaPattern = _extractStringOption(
+        options,
+        '${Flags.dumpSsa}=',
+        null,
+      )
       ..writeResources = _hasOption(options, Flags.writeResources)
       ..enableMinification = _hasOption(options, Flags.minify)
       .._disableMinification = _hasOption(options, Flags.noMinify)
       ..omitLateNames = _hasOption(options, Flags.omitLateNames)
       .._noOmitLateNames = _hasOption(options, Flags.noOmitLateNames)
-      ..enableNativeLiveTypeAnalysis =
-          !_hasOption(options, Flags.disableNativeLiveTypeAnalysis)
-      ..enableUserAssertions = _hasOption(options, Flags.enableCheckedMode) ||
+      ..enableNativeLiveTypeAnalysis = !_hasOption(
+        options,
+        Flags.disableNativeLiveTypeAnalysis,
+      )
+      ..enableUserAssertions =
+          _hasOption(options, Flags.enableCheckedMode) ||
           _hasOption(options, Flags.enableAsserts)
-      ..enableNullAssertions = _hasOption(options, Flags.enableCheckedMode) ||
-          _hasOption(options, Flags.enableNullAssertions)
       ..nativeNullAssertions = _hasOption(options, Flags.nativeNullAssertions)
-      .._noNativeNullAssertions =
-          _hasOption(options, Flags.noNativeNullAssertions)
-      ..experimentalTrackAllocations =
-          _hasOption(options, Flags.experimentalTrackAllocations)
-      ..experimentStartupFunctions =
-          _hasOption(options, Flags.experimentStartupFunctions)
+      .._noNativeNullAssertions = _hasOption(
+        options,
+        Flags.noNativeNullAssertions,
+      )
+      ..interopNullAssertions = _hasOption(options, Flags.interopNullAssertions)
+      .._noInteropNullAssertions = _hasOption(
+        options,
+        Flags.noInteropNullAssertions,
+      )
+      ..experimentalTrackAllocations = _hasOption(
+        options,
+        Flags.experimentalTrackAllocations,
+      )
+      ..experimentStartupFunctions = _hasOption(
+        options,
+        Flags.experimentStartupFunctions,
+      )
       ..experimentToBoolean = _hasOption(options, Flags.experimentToBoolean)
-      ..experimentUnreachableMethodsThrow =
-          _hasOption(options, Flags.experimentUnreachableMethodsThrow)
-      ..experimentCallInstrumentation =
-          _hasOption(options, Flags.experimentCallInstrumentation)
+      ..experimentUnreachableMethodsThrow = _hasOption(
+        options,
+        Flags.experimentUnreachableMethodsThrow,
+      )
+      ..experimentCallInstrumentation = _hasOption(
+        options,
+        Flags.experimentCallInstrumentation,
+      )
       ..generateSourceMap = !_hasOption(options, Flags.noSourceMaps)
-      ..outputUri = _extractUriOption(options, '--out=')
+      .._outputUri = _extractUriOption(options, '--out=')
       ..platformBinaries = platformBinaries
-      ..printLegacyStars = _hasOption(options, Flags.printLegacyStars)
       ..sourceMapUri = _extractUriOption(options, '--source-map=')
       ..omitImplicitChecks = _hasOption(options, Flags.omitImplicitChecks)
       ..omitAsCasts = _hasOption(options, Flags.omitAsCasts)
-      ..laxRuntimeTypeToString =
-          _hasOption(options, Flags.laxRuntimeTypeToString)
+      ..laxRuntimeTypeToString = _hasOption(
+        options,
+        Flags.laxRuntimeTypeToString,
+      )
+      ..enableProtoShaking =
+          _hasOption(options, Flags.enableProtoShaking) ||
+          _hasOption(options, Flags.enableProtoMixinShaking)
+      ..enableProtoMixinShaking = _hasOption(
+        options,
+        Flags.enableProtoMixinShaking,
+      )
       ..testMode = _hasOption(options, Flags.testMode)
-      ..experimentalInferrer = _hasOption(options, Flags.experimentalInferrer)
       ..trustPrimitives = _hasOption(options, Flags.trustPrimitives)
-      ..useFrequencyNamer =
-          !_hasOption(options, Flags.noFrequencyBasedMinification)
+      ..useFrequencyNamer = !_hasOption(
+        options,
+        Flags.noFrequencyBasedMinification,
+      )
       ..useMultiSourceInfo = _hasOption(options, Flags.useMultiSourceInfo)
       ..useNewSourceInfo = _hasOption(options, Flags.useNewSourceInfo)
       ..useSimpleLoadIds = _hasOption(options, Flags.useSimpleLoadIds)
       ..verbose = _hasOption(options, Flags.verbose)
+      ..omitMemorySummary = _hasOption(options, Flags.omitMemorySummary)
       ..reportPrimaryMetrics = _hasOption(options, Flags.reportMetrics)
       ..reportSecondaryMetrics = _hasOption(options, Flags.reportAllMetrics)
       ..showInternalProgress = _hasOption(options, Flags.progress)
-      ..dillDependencies =
-          _extractUriListOption(options, '${Flags.dillDependencies}')
-      ..sources = _extractUriListOption(options, '${Flags.sources}')
-      ..readProgramSplit =
-          _extractUriOption(options, '${Flags.readProgramSplit}=')
-      ..writeModularAnalysisUri =
-          _extractUriOption(options, '${Flags.writeModularAnalysis}=')
-      ..modularAnalysisInputs =
-          _extractUriListOption(options, '${Flags.readModularAnalysis}')
-      ..readDataUri = _extractUriOption(options, '${Flags.readData}=')
-      ..writeDataUri = _extractUriOption(options, '${Flags.writeData}=')
+      ..dillDependencies = _extractUriListOption(
+        options,
+        Flags.dillDependencies,
+      )
+      ..readProgramSplit = _extractUriOption(
+        options,
+        '${Flags.readProgramSplit}=',
+      )
+      .._globalInferenceUri = _extractUriOption(
+        options,
+        '${Flags.globalInferenceUri}=',
+      )
       ..memoryMappedFiles = _hasOption(options, Flags.memoryMappedFiles)
-      ..noClosedWorldInData = _hasOption(options, Flags.noClosedWorldInData)
-      ..readClosedWorldUri =
-          _extractUriOption(options, '${Flags.readClosedWorld}=')
-      ..writeClosedWorldUri =
-          _extractUriOption(options, '${Flags.writeClosedWorld}=')
-      ..readCodegenUri = _extractUriOption(options, '${Flags.readCodegen}=')
-      ..writeCodegenUri = _extractUriOption(options, '${Flags.writeCodegen}=')
+      .._closedWorldUri = _extractUriOption(options, '${Flags.closedWorldUri}=')
+      .._codegenUri = _extractUriOption(options, '${Flags.codegenUri}=')
       ..codegenShard = _extractIntOption(options, '${Flags.codegenShard}=')
       ..codegenShards = _extractIntOption(options, '${Flags.codegenShards}=')
-      ..cfeOnly = _hasOption(options, Flags.cfeOnly)
+      .._cfeOnly = _hasOption(options, Flags.cfeOnly)
+      .._stageFlag = _extractStringOption(options, '${Flags.stage}=', null)
       ..debugGlobalInference = _hasOption(options, Flags.debugGlobalInference)
-      .._soundNullSafety = _hasOption(options, Flags.soundNullSafety)
-      .._noSoundNullSafety = _hasOption(options, Flags.noSoundNullSafety)
-      .._mergeFragmentsThreshold =
-          _extractIntOption(options, '${Flags.mergeFragmentsThreshold}=')
+      .._mergeFragmentsThreshold = _extractIntOption(
+        options,
+        '${Flags.mergeFragmentsThreshold}=',
+      )
       ..dumpUnusedLibraries = _hasOption(options, Flags.dumpUnusedLibraries)
       ..cfeInvocationModes = fe.InvocationMode.parseArguments(
-          _extractStringOption(options, '${Flags.cfeInvocationModes}=', '')!,
-          onError: onError)
+        _extractStringOption(options, '${Flags.cfeInvocationModes}=', '')!,
+        onError: onError,
+      )
       ..verbosity = fe.Verbosity.parseArgument(
-          _extractStringOption(
-              options, '${Flags.verbosity}=', fe.Verbosity.defaultValue)!,
-          onError: onError)
+        _extractStringOption(
+          options,
+          '${Flags.verbosity}=',
+          fe.Verbosity.defaultValue,
+        )!,
+        onError: onError,
+      )
+      ..disableDiagnosticByteCache = _hasOption(
+        options,
+        Flags.disableDiagnosticByteCache,
+      )
+      ..enableDeferredLoadingEventLog = _hasOption(
+        options,
+        Flags.enableDeferredLoadingEventLog,
+      )
       ..features = featureOptions;
   }
 
+  String? validateStage() {
+    bool expectCodegenIn = false;
+    bool expectCodegenOut = false;
+    switch (stage) {
+      case CompilerStage.all:
+      case CompilerStage.dumpInfoAll:
+      case CompilerStage.cfe:
+      case CompilerStage.deferredLoadIds:
+      case CompilerStage.closedWorld:
+      case CompilerStage.globalInference:
+      case CompilerStage.codegenAndJsEmitter:
+      case CompilerStage.dumpInfo:
+        break;
+      case CompilerStage.codegenSharded:
+        expectCodegenOut = true;
+        break;
+      case CompilerStage.jsEmitter:
+        expectCodegenIn = true;
+        break;
+    }
+
+    if (codegenShard == null && expectCodegenOut) {
+      return 'Must specify value for ${Flags.codegenShard} '
+          'in stage ${stage.name}.';
+    }
+
+    if (codegenShards == null && expectCodegenOut) {
+      return 'Must specify value for ${Flags.codegenShards} '
+          'in stage ${stage.name}.';
+    }
+    if (codegenShards == null && expectCodegenIn) {
+      return 'Must specify value for ${Flags.codegenShards} '
+          'in stage ${stage.name}.';
+    }
+    return null;
+  }
+
   void validate() {
-    // TODO(sigmund): should entrypoint be here? should we validate it is not
-    // null? In unittests we use the same compiler to analyze or build multiple
-    // entrypoints.
     if (librariesSpecificationUri == null) {
       throw ArgumentError("[librariesSpecificationUri] is null.");
     }
     if (librariesSpecificationUri!.path.endsWith('/')) {
       throw ArgumentError(
-          "[librariesSpecificationUri] should be a file: $librariesSpecificationUri");
+        "[librariesSpecificationUri] should be a file: $librariesSpecificationUri",
+      );
     }
-    Map<fe.ExperimentalFlag, bool> experimentalFlags =
-        Map.from(fe.defaultExperimentalFlags);
+    Map<fe.ExperimentalFlag, bool> experimentalFlags = Map.from(
+      fe.defaultExperimentalFlags,
+    );
     experimentalFlags.addAll(explicitExperimentalFlags);
     if (platformBinaries == null &&
         equalMaps(experimentalFlags, fe.defaultExperimentalFlags)) {
       throw ArgumentError("Missing required ${Flags.platformBinaries}");
     }
-    if (_soundNullSafety && _noSoundNullSafety) {
-      throw ArgumentError("'${Flags.soundNullSafety}' incompatible with "
-          "'${Flags.noSoundNullSafety}'");
-    }
     if (nativeNullAssertions && _noNativeNullAssertions) {
-      throw ArgumentError("'${Flags.nativeNullAssertions}' incompatible with "
-          "'${Flags.noNativeNullAssertions}'");
+      throw ArgumentError(
+        "'${Flags.nativeNullAssertions}' is incompatible with "
+        "'${Flags.noNativeNullAssertions}'",
+      );
+    }
+    if (interopNullAssertions && _noInteropNullAssertions) {
+      throw ArgumentError(
+        "'${Flags.interopNullAssertions}' is incompatible with "
+        "'${Flags.noInteropNullAssertions}'",
+      );
     }
   }
 
+  // This should only be used to derive options to be used during compilation,
+  // not for options needed during set up of the compiler.
   void deriveOptions() {
     if (benchmarkingProduction) {
       trustPrimitives = true;
       omitImplicitChecks = true;
+      // TODO(53993):
+      //   laxRuntimeTypeToString = true;
+      //   omitLateNames = true;
     }
 
     if (benchmarkingExperiment) {
       // Set flags implied by '--benchmarking-x'.
-      // TODO(sra): Use this for some null safety variant.
       features.forceCanary();
     }
-
-    if (_soundNullSafety) nullSafetyMode = NullSafetyMode.sound;
-    if (_noSoundNullSafety) nullSafetyMode = NullSafetyMode.unsound;
 
     if (optimizationLevel != null) {
       if (optimizationLevel == 0) {
@@ -832,12 +1137,7 @@ class CompilerOptions implements DiagnosticOptions {
       omitLateNames = false;
     }
 
-    if (nullSafetyMode != NullSafetyMode.sound) {
-      // Technically, we should still assert if the user passed in a flag to
-      // assert, but this was not the behavior before, so to avoid a breaking
-      // change, we don't assert in unsound mode.
-      nativeNullAssertions = false;
-    } else if (_noNativeNullAssertions) {
+    if (_noNativeNullAssertions) {
       // Never assert if the user tells us not to.
       nativeNullAssertions = false;
     } else if (!nativeNullAssertions &&
@@ -849,11 +1149,26 @@ class CompilerOptions implements DiagnosticOptions {
       nativeNullAssertions = true;
     }
 
+    if (_noInteropNullAssertions) {
+      interopNullAssertions = false;
+    }
+
     if (_mergeFragmentsThreshold != null) {
       mergeFragmentsThreshold = _mergeFragmentsThreshold;
     }
 
     environment['dart.web.assertions_enabled'] = '$enableUserAssertions';
+    environment['dart.tool.dart2js'] = '${true}';
+    environment['dart.tool.dart2js.minify'] = '$enableMinification';
+    environment['dart.tool.dart2js.disable_rti_optimization'] =
+        '$disableRtiOptimization';
+    // Eventually pragmas and commandline flags should be aligned so that users
+    // setting these flag is equivalent to setting the relevant pragmas
+    // globally.
+    // See: https://github.com/dart-lang/sdk/issues/49475
+    // https://github.com/dart-lang/sdk/blob/main/pkg/compiler/doc/pragmas.md
+    environment['dart.tool.dart2js.primitives:trust'] = '$trustPrimitives';
+    environment['dart.tool.dart2js.types:trust'] = '$omitImplicitChecks';
   }
 
   /// Returns `true` if warnings and hints are shown for all packages.
@@ -882,9 +1197,12 @@ class CompilerOptions implements DiagnosticOptions {
 
 /// Policy for what to do with a type assertion check.
 ///
-/// This enum-like class is used to configure how the compiler treats type
-/// assertions during global type inference and codegen.
-class CheckPolicy {
+/// This enum is used to configure how the compiler treats type assertions
+/// during global type inference and codegen.
+enum CheckPolicy {
+  trusted(isTrusted: true),
+  checked(isEmitted: true);
+
   /// Whether the type assertion should be trusted.
   final bool isTrusted;
 
@@ -893,16 +1211,17 @@ class CheckPolicy {
 
   const CheckPolicy({this.isTrusted = false, this.isEmitted = false});
 
-  static const trusted = CheckPolicy(isTrusted: true);
-  static const checked = CheckPolicy(isEmitted: true);
-
   @override
-  String toString() => 'CheckPolicy(isTrusted=$isTrusted,'
+  String toString() =>
+      'CheckPolicy(isTrusted=$isTrusted,'
       'isEmitted=$isEmitted)';
 }
 
 String? _extractStringOption(
-    List<String> options, String prefix, String? defaultValue) {
+  List<String> options,
+  String prefix,
+  String? defaultValue,
+) {
   for (String option in options) {
     if (option.startsWith(prefix)) {
       return option.substring(prefix.length);
@@ -921,8 +1240,24 @@ int? _extractIntOption(List<String> options, String prefix) {
   return (option == null) ? null : int.parse(option);
 }
 
+/// Extracts an enum value for the flag given by [prefix].
+///
+/// [emptyValue] is used to provide a default value when the flag is given but
+/// with no '=' value provided.
+T? _extractEnumOption<T extends Enum>(
+  List<String> options,
+  String prefix,
+  List<T> values, {
+  T? emptyValue,
+}) {
+  if (emptyValue != null && _hasOption(options, prefix)) return emptyValue;
+  String? option = _extractStringOption(options, '$prefix=', null);
+  if (option == null) return null;
+  return values.firstWhereOrNull((e) => e.name == option);
+}
+
 bool _hasOption(List<String> options, String option) {
-  return options.indexOf(option) >= 0;
+  return options.contains(option);
 }
 
 /// Extract list of comma separated values provided for [flag]. Returns an
@@ -950,39 +1285,31 @@ List<Uri>? _extractUriListOption(List<String> options, String flag) {
   return stringUris.map(Uri.parse).toList();
 }
 
-Map<fe.ExperimentalFlag, bool> _extractExperiments(List<String> options,
-    {void Function(String)? onError, void Function(String)? onWarning}) {
-  List<String>? experiments =
-      _extractOptionalCsvOption(options, Flags.enableLanguageExperiments);
+Map<fe.ExperimentalFlag, bool> _extractExperiments(
+  List<String> options, {
+  void Function(String)? onError,
+  void Function(String)? onWarning,
+}) {
+  List<String>? experiments = _extractOptionalCsvOption(
+    options,
+    Flags.enableLanguageExperiments,
+  );
   onError ??= (String error) => throw ArgumentError(error);
   onWarning ??= (String warning) => print(warning);
-  return fe.parseExperimentalFlags(fe.parseExperimentalArguments(experiments),
-      onError: onError, onWarning: onWarning);
+  return fe.parseExperimentalFlags(
+    fe.parseExperimentalArguments(experiments),
+    onError: onError,
+    onWarning: onWarning,
+  );
 }
 
 void _extractFeatures(
-    List<String> options, List<FeatureOption> features, FeatureStatus status) {
+  List<String> options,
+  List<FeatureOption> features,
+  FeatureStatus status,
+) {
   bool hasCanaryFlag = _hasOption(options, Flags.canary);
   bool hasNoShippingFlag = _hasOption(options, Flags.noShipping);
-  for (var feature in features) {
-    String featureFlag = feature.flag;
-    String enableFeatureFlag = '--${featureFlag}';
-    String disableFeatureFlag = '--no-$featureFlag';
-    bool enableFeature = _hasOption(options, enableFeatureFlag);
-    bool disableFeature = _hasOption(options, disableFeatureFlag);
-    if (enableFeature && disableFeature) {
-      throw ArgumentError("'$enableFeatureFlag' incompatible with "
-          "'$disableFeatureFlag'");
-    }
-    bool globalEnable = hasCanaryFlag ||
-        (status == FeatureStatus.shipping && !hasNoShippingFlag);
-    globalEnable = feature.isNegativeFlag ? !globalEnable : globalEnable;
-    feature.state = (enableFeature || globalEnable) && !disableFeature;
-  }
-}
-
-void _verifyShippedFeatures(
-    List<String> options, List<FeatureOption> features) {
   for (var feature in features) {
     String featureFlag = feature.flag;
     String enableFeatureFlag = '--$featureFlag';
@@ -990,19 +1317,47 @@ void _verifyShippedFeatures(
     bool enableFeature = _hasOption(options, enableFeatureFlag);
     bool disableFeature = _hasOption(options, disableFeatureFlag);
     if (enableFeature && disableFeature) {
-      throw ArgumentError("'$enableFeatureFlag' incompatible with "
-          "'$disableFeatureFlag'");
+      throw ArgumentError(
+        "'$enableFeatureFlag' incompatible with "
+        "'$disableFeatureFlag'",
+      );
+    }
+    bool globalEnable =
+        hasCanaryFlag ||
+        (status == FeatureStatus.shipping && !hasNoShippingFlag);
+    globalEnable = feature.isNegativeFlag ? !globalEnable : globalEnable;
+    feature.state = (enableFeature || globalEnable) && !disableFeature;
+  }
+}
+
+void _verifyShippedFeatures(
+  List<String> options,
+  List<FeatureOption> features,
+) {
+  for (var feature in features) {
+    String featureFlag = feature.flag;
+    String enableFeatureFlag = '--$featureFlag';
+    String disableFeatureFlag = '--no-$featureFlag';
+    bool enableFeature = _hasOption(options, enableFeatureFlag);
+    bool disableFeature = _hasOption(options, disableFeatureFlag);
+    if (enableFeature && disableFeature) {
+      throw ArgumentError(
+        "'$enableFeatureFlag' incompatible with "
+        "'$disableFeatureFlag'",
+      );
     }
     if (enableFeature && feature.isNegativeFlag) {
       throw ArgumentError(
-          "$enableFeatureFlag has been removed and cannot be enabled.");
+        "$enableFeatureFlag has been removed and cannot be enabled.",
+      );
     }
     if (disableFeature && !feature.isNegativeFlag) {
       throw ArgumentError(
-          "$enableFeatureFlag has already shipped and cannot be disabled.");
+        "$enableFeatureFlag has already shipped and cannot be disabled.",
+      );
     }
     feature.state = !feature.isNegativeFlag;
   }
 }
 
-const String _UNDETERMINED_BUILD_ID = "build number could not be determined";
+const String _undeterminedBuildID = "build number could not be determined";

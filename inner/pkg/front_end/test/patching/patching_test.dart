@@ -9,17 +9,14 @@ import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
 import 'package:front_end/src/api_prototype/compiler_options.dart';
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
-import 'package:front_end/src/fasta/builder/builder.dart';
-import 'package:front_end/src/fasta/builder/member_builder.dart';
-import 'package:front_end/src/fasta/source/source_class_builder.dart';
-import 'package:front_end/src/fasta/source/source_constructor_builder.dart';
-import 'package:front_end/src/fasta/source/source_factory_builder.dart';
-import 'package:front_end/src/fasta/source/source_member_builder.dart';
-import 'package:front_end/src/fasta/source/source_procedure_builder.dart';
-import 'package:front_end/src/fasta/scope.dart';
+import 'package:front_end/src/base/scope.dart';
+import 'package:front_end/src/builder/builder.dart';
+import 'package:front_end/src/source/source_class_builder.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
 import 'package:kernel/ast.dart';
+
+import '../utils/symbolic_language_versions.dart';
 
 Future<void> main(List<String> args) async {
   Directory dataDir = new Directory.fromUri(Platform.script.resolve('data'));
@@ -28,28 +25,16 @@ Future<void> main(List<String> args) async {
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
       runTest: runTestFor(const PatchingDataComputer(), [
-        new TestConfigWithLanguageVersion(
-            cfeMarker, 'cfe with libraries specification',
+        new TestConfigWithLanguageVersion(cfeMarker, 'cfe',
             librariesSpecificationUri: createUriForFileName('libraries.json'),
-            experimentalFlags: {ExperimentalFlag.nonNullable: false},
-            allowedExperimentalFlags: const AllowedExperimentalFlags()),
-        new TestConfigWithLanguageVersion(cfeWithNnbdMarker,
-            'cfe with libraries specification and non-nullable',
-            librariesSpecificationUri: createUriForFileName('libraries.json'),
-            experimentalFlags: {ExperimentalFlag.nonNullable: true},
+            experimentalFlags: {},
             allowedExperimentalFlags: const AllowedExperimentalFlags())
       ]),
-      skipMap: {
-        cfeMarker: [
-          'opt_in',
-          'opt_in_patch',
-          'opt_out',
-          'opt_out_patch',
-        ]
-      });
+      preProcessFile: replaceMarkersWithVersions,
+      postProcessFile: replaceVersionsWithMarkers);
 }
 
-class TestConfigWithLanguageVersion extends TestConfig {
+class TestConfigWithLanguageVersion extends CfeTestConfig {
   TestConfigWithLanguageVersion(String marker, String name,
       {Uri? librariesSpecificationUri,
       Map<ExperimentalFlag, bool> experimentalFlags = const {},
@@ -61,15 +46,16 @@ class TestConfigWithLanguageVersion extends TestConfig {
 
   @override
   void customizeCompilerOptions(CompilerOptions options, TestData testData) {
-    options.currentSdkVersion = "2.9999";
+    options.currentSdkVersion =
+        SymbolicLanguageVersion.currentVersion.version.toText();
   }
 }
 
-class PatchingDataComputer extends DataComputer<Features> {
+class PatchingDataComputer extends CfeDataComputer<Features> {
   const PatchingDataComputer();
 
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     member.accept(
@@ -77,7 +63,7 @@ class PatchingDataComputer extends DataComputer<Features> {
   }
 
   @override
-  void computeClassData(TestResultData testResultData, Class cls,
+  void computeClassData(CfeTestResultData testResultData, Class cls,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     new PatchingDataExtractor(testResultData.compilerResult, actualMap)
@@ -85,7 +71,7 @@ class PatchingDataComputer extends DataComputer<Features> {
   }
 
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     new PatchingDataExtractor(testResultData.compilerResult, actualMap)
@@ -97,7 +83,7 @@ class PatchingDataComputer extends DataComputer<Features> {
 
   @override
   Features computeErrorData(
-      TestResultData testResultData, Id id, List<FormattedMessage> errors) {
+      CfeTestResultData testResultData, Id id, List<FormattedMessage> errors) {
     Features features = new Features();
     features[Tags.error] = errorsToText(errors);
     return features;
@@ -113,7 +99,6 @@ class Tags {
   static const String kernelMembers = 'kernel-members';
   static const String initializers = 'initializers';
   static const String error = 'message';
-  static const String isNonNullableByDefault = 'nnbd';
   static const String patch = 'patch';
   static const String isAbstract = 'isAbstract';
 }
@@ -124,13 +109,6 @@ class PatchingDataExtractor extends CfeDataExtractor<Features> {
       : super(compilerResult, actualMap);
 
   @override
-  Features computeLibraryValue(Id id, Library library) {
-    Features features = new Features();
-    features[Tags.isNonNullableByDefault] = '${library.isNonNullableByDefault}';
-    return features;
-  }
-
-  @override
   Features computeClassValue(Id id, Class cls) {
     SourceClassBuilder clsBuilder =
         lookupClassBuilder(compilerResult, cls) as SourceClassBuilder;
@@ -139,14 +117,13 @@ class PatchingDataExtractor extends CfeDataExtractor<Features> {
     if (cls.isAbstract) {
       features.add(Tags.isAbstract);
     }
-    clsBuilder.scope
-        .filteredNameIterator(
-            includeDuplicates: false, includeAugmentations: false)
-        .forEach((String name, Builder builder) {
-      features.addElement(Tags.scope, name);
+    clsBuilder
+        .filteredMembersIterator(includeDuplicates: false)
+        .forEach((NamedBuilder builder) {
+      features.addElement(Tags.scope, builder.name);
     });
 
-    for (Member m in clsBuilder.actualCls.members) {
+    for (Member m in clsBuilder.cls.members) {
       if (m is Procedure &&
           (m.isMemberSignature ||
               (m.isForwardingStub && !m.isForwardingSemiStub))) {
@@ -175,23 +152,6 @@ class PatchingDataExtractor extends CfeDataExtractor<Features> {
         features.addElement(Tags.initializers, desc);
       }
     }
-    SourceMemberBuilder? memberBuilder =
-        lookupMemberBuilder(compilerResult, member, required: false)
-            as SourceMemberBuilder?;
-    List<MemberBuilder>? patchMembers;
-    if (memberBuilder is SourceProcedureBuilder) {
-      patchMembers = memberBuilder.patchesForTesting;
-    }
-    if (memberBuilder is DeclaredSourceConstructorBuilder) {
-      patchMembers = memberBuilder.patchesForTesting;
-    }
-    if (memberBuilder is SourceFactoryBuilder) {
-      patchMembers = memberBuilder.patchesForTesting;
-    }
-    if (patchMembers != null) {
-      features.add(Tags.patch);
-    }
-
     return features;
   }
 }

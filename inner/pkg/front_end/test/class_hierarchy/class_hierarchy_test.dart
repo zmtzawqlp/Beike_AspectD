@@ -3,17 +3,19 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/features.dart';
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
+import 'package:front_end/src/kernel/hierarchy/class_member.dart';
+import 'package:front_end/src/kernel/hierarchy/extension_type_members.dart';
+import 'package:front_end/src/kernel/hierarchy/hierarchy_builder.dart';
+import 'package:front_end/src/kernel/hierarchy/hierarchy_node.dart';
+import 'package:front_end/src/kernel/hierarchy/members_builder.dart';
+import 'package:front_end/src/kernel/hierarchy/members_node.dart';
+import 'package:front_end/src/testing/id_extractor.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/class_member.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/hierarchy_builder.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/hierarchy_node.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/members_builder.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/members_node.dart';
-import 'package:front_end/src/testing/id_extractor.dart';
 import 'package:kernel/ast.dart';
 import 'package:kernel/core_types.dart';
 
@@ -23,18 +25,18 @@ Future<void> main(List<String> args) async {
       args: args,
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
-      runTest: runTestFor(
-          const ClassHierarchyDataComputer(), [cfeNonNullableConfig]));
+      runTest:
+          runTestFor(const ClassHierarchyDataComputer(), [defaultCfeConfig]));
 }
 
-class ClassHierarchyDataComputer extends DataComputer<Features> {
+class ClassHierarchyDataComputer extends CfeDataComputer<Features> {
   const ClassHierarchyDataComputer();
 
   /// Function that computes a data mapping for [library].
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     new InheritanceDataExtractor(testResultData.compilerResult, actualMap)
@@ -42,7 +44,7 @@ class ClassHierarchyDataComputer extends DataComputer<Features> {
   }
 
   @override
-  void computeClassData(TestResultData testResultData, Class cls,
+  void computeClassData(CfeTestResultData testResultData, Class cls,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     new InheritanceDataExtractor(testResultData.compilerResult, actualMap)
@@ -50,11 +52,21 @@ class ClassHierarchyDataComputer extends DataComputer<Features> {
   }
 
   @override
+  void computeExtensionTypeDeclarationData(
+      CfeTestResultData testResultData,
+      ExtensionTypeDeclaration extensionTypeDeclaration,
+      Map<Id, ActualData<Features>> actualMap,
+      {bool? verbose}) {
+    new InheritanceDataExtractor(testResultData.compilerResult, actualMap)
+        .computeForExtensionTypeDeclaration(extensionTypeDeclaration);
+  }
+
+  @override
   bool get supportsErrors => true;
 
   @override
   Features? computeErrorData(
-      TestResultData testResultData, Id id, List<FormattedMessage> errors) {
+      CfeTestResultData testResultData, Id id, List<FormattedMessage> errors) {
     return null; //errorsToText(errors, useCodes: true);
   }
 
@@ -85,6 +97,9 @@ class Tag {
   static const String stubTarget = 'stubTarget';
   static const String type = 'type';
   static const String covariance = 'covariance';
+  static const String extensionTypeBuilder = 'extensionTypeBuilder';
+  static const String superExtensionTypes = 'superExtensionTypes';
+  static const String nonExtensionTypeMember = 'nonExtensionTypeMember';
 }
 
 class InheritanceDataExtractor extends CfeDataExtractor<Features> {
@@ -142,7 +157,7 @@ class InheritanceDataExtractor extends CfeDataExtractor<Features> {
           }
         }
       }
-      features[Tag.classBuilder] = classMember.classBuilder.name;
+      features[Tag.classBuilder] = classMember.declarationBuilder.name;
 
       Set<ClassMember>? declaredOverrides =
           data.declaredOverrides[data.aliasMap[classMember] ?? classMember];
@@ -205,6 +220,9 @@ class InheritanceDataExtractor extends CfeDataExtractor<Features> {
             features.add(Tag.concreteMixinStub);
             features[Tag.stubTarget] = memberQualifiedName(member.stubTarget!);
             break;
+          case ProcedureStubKind.RepresentationField:
+            // TODO: Handle this case.
+            break;
         }
       }
 
@@ -262,6 +280,134 @@ class InheritanceDataExtractor extends CfeDataExtractor<Features> {
     }
     return features;
   }
+
+  @override
+  void computeForExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
+    super.computeForExtensionTypeDeclaration(node);
+    ExtensionTypeMembersNode extensionTypeMembersNode =
+        _classMembersBuilder.getNodeFromExtensionTypeDeclaration(node);
+    void addMember(ClassMember classMember,
+        {required bool isSetter, required bool isNonExtensionTypeMember}) {
+      Member member = classMember.getMember(_classMembersBuilder);
+      Member memberOrigin = member.memberSignatureOrigin ?? member;
+      if (memberOrigin.enclosingClass == _coreTypes.objectClass) {
+        return;
+      }
+      Features features = new Features();
+
+      String memberName = classMemberName(classMember);
+      MemberId id = new MemberId.internal(memberName, className: node.name);
+
+      TreeNode nodeWithOffset;
+      if (member.enclosingClass == node) {
+        nodeWithOffset = computeTreeNodeWithOffset(member)!;
+      } else {
+        nodeWithOffset = computeTreeNodeWithOffset(node)!;
+      }
+      if (classMember.isSourceDeclaration) {
+        features.add(Tag.isSourceDeclaration);
+      }
+      if (classMember.isSynthesized) {
+        features.add(Tag.isSynthesized);
+        if (member.enclosingClass != node) {
+          features[Tag.member] = memberQualifiedName(member);
+        }
+        if (classMember.hasDeclarations) {
+          for (ClassMember declaration in classMember.declarations) {
+            features.addElement(
+                Tag.declarations, classMemberQualifiedName(declaration));
+          }
+        }
+      }
+      if (isNonExtensionTypeMember) {
+        features.add(Tag.nonExtensionTypeMember);
+        features[Tag.classBuilder] = classMember.declarationBuilder.name;
+      } else {
+        features[Tag.extensionTypeBuilder] =
+            classMember.declarationBuilder.name;
+      }
+
+      if (member.enclosingClass == node && member is Procedure) {
+        switch (member.stubKind) {
+          case ProcedureStubKind.Regular:
+            // TODO: Handle this case.
+            break;
+          case ProcedureStubKind.AbstractForwardingStub:
+            features.add(Tag.abstractForwardingStub);
+            features[Tag.type] = procedureType(member);
+            features[Tag.covariance] =
+                classMember.getCovariance(_classMembersBuilder).toString();
+            break;
+          case ProcedureStubKind.ConcreteForwardingStub:
+            features.add(Tag.concreteForwardingStub);
+            features[Tag.type] = procedureType(member);
+            features[Tag.covariance] =
+                classMember.getCovariance(_classMembersBuilder).toString();
+            features[Tag.stubTarget] = memberQualifiedName(member.stubTarget!);
+            break;
+          case ProcedureStubKind.NoSuchMethodForwarder:
+            // TODO: Handle this case.
+            break;
+          case ProcedureStubKind.MemberSignature:
+            features.add(Tag.memberSignature);
+            features[Tag.type] = procedureType(member);
+            features[Tag.covariance] =
+                classMember.getCovariance(_classMembersBuilder).toString();
+            break;
+          case ProcedureStubKind.AbstractMixinStub:
+            features.add(Tag.abstractMixinStub);
+            break;
+          case ProcedureStubKind.ConcreteMixinStub:
+            features.add(Tag.concreteMixinStub);
+            features[Tag.stubTarget] = memberQualifiedName(member.stubTarget!);
+            break;
+          case ProcedureStubKind.RepresentationField:
+            // TODO: Handle this case.
+            break;
+        }
+      }
+
+      registerValue(nodeWithOffset.location!.file, nodeWithOffset.fileOffset,
+          id, features, member);
+    }
+
+    extensionTypeMembersNode.extensionTypeGetableMap
+        ?.forEach((Name name, ClassMember classMember) {
+      addMember(classMember, isSetter: false, isNonExtensionTypeMember: false);
+    });
+    extensionTypeMembersNode.extensionTypeSetableMap
+        ?.forEach((Name name, ClassMember classMember) {
+      addMember(classMember, isSetter: true, isNonExtensionTypeMember: false);
+    });
+    extensionTypeMembersNode.nonExtensionTypeGetableMap
+        ?.forEach((Name name, ClassMember classMember) {
+      addMember(classMember, isSetter: false, isNonExtensionTypeMember: true);
+    });
+    extensionTypeMembersNode.nonExtensionTypeSetableMap
+        ?.forEach((Name name, ClassMember classMember) {
+      addMember(classMember, isSetter: true, isNonExtensionTypeMember: true);
+    });
+  }
+
+  @override
+  Features computeExtensionTypeDeclarationValue(
+      Id id, ExtensionTypeDeclaration node) {
+    Features features = new Features();
+    ExtensionTypeHierarchyNode extensionTypeDeclarationHierarchyNode =
+        _classHierarchyBuilder.getNodeFromExtensionType(node);
+    extensionTypeDeclarationHierarchyNode.superclasses
+        .forEach((Supertype supertype) {
+      features.addElement(Tag.superExtensionTypes, supertypeToText(supertype));
+    });
+    extensionTypeDeclarationHierarchyNode.superExtensionTypes
+        .forEach((ExtensionType superExtensionType) {
+      features.addElement(
+          Tag.superExtensionTypes,
+          typeToText(superExtensionType,
+              TypeRepresentation.analyzerNonNullableByDefault));
+    });
+    return features;
+  }
 }
 
 String classMemberName(ClassMember classMember) {
@@ -273,7 +419,8 @@ String classMemberName(ClassMember classMember) {
 }
 
 String classMemberQualifiedName(ClassMember classMember) {
-  return '${classMember.classBuilder.name}.${classMemberName(classMember)}';
+  return '${classMember.declarationBuilder.name}.'
+      '${classMemberName(classMember)}';
 }
 
 String memberName(Member member) {
@@ -285,7 +432,7 @@ String memberName(Member member) {
 }
 
 String memberQualifiedName(Member member) {
-  return '${member.enclosingClass!.name}.${memberName(member)}';
+  return '${member.enclosingTypeDeclaration!.name}.${memberName(member)}';
 }
 
 String procedureType(Procedure procedure) {
@@ -296,15 +443,8 @@ String procedureType(Procedure procedure) {
     return typeToText(procedure.function.positionalParameters.single.type,
         TypeRepresentation.analyzerNonNullableByDefault);
   } else {
-    Nullability functionTypeNullability;
-    if (procedure.enclosingLibrary.isNonNullableByDefault) {
-      functionTypeNullability = procedure.enclosingLibrary.nonNullable;
-    } else {
-      // We don't create a member signature when the member is just
-      // a substitution. We should still take the nullability to be
-      // legacy, though.
-      functionTypeNullability = procedure.enclosingLibrary.nonNullable;
-    }
+    Nullability functionTypeNullability =
+        procedure.enclosingLibrary.nonNullable;
     return typeToText(
         procedure.function.computeThisFunctionType(functionTypeNullability),
         TypeRepresentation.analyzerNonNullableByDefault);

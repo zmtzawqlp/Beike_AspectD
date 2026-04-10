@@ -1,16 +1,18 @@
 //
 // Problems outside component:
 //
-// pkg/front_end/testcases/class_modifiers/ffi_exception.dart: Error: Class 'Object' cannot be extended or implemented.
+// pkg/front_end/testcases/class_modifiers/ffi_exception.dart:22:7: Error: Class 'Object' cannot be extended or implemented.
+// class ImplementsBase implements Opaque {} /* Error */
+//       ^
 //
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
 // pkg/front_end/testcases/class_modifiers/ffi_exception.dart:11:7: Error: Can't use 'Double' as a mixin because it has constructors.
 // class WithFinal with Double {} /* Error */
 //       ^
-// sdk/lib/ffi/native_type.dart:115:9: Context: This constructor prevents using 'Double' as a mixin.
+// sdk/lib/ffi/native_type.dart:*: Context: This constructor prevents using 'Double' as a mixin.
 //   const Double();
 //         ^
 //
@@ -34,10 +36,6 @@ library /*isNonNullableByDefault*/;
 // class ExtendsInterface extends Finalizable {} /* Error */
 //                                ^
 //
-// pkg/front_end/testcases/class_modifiers/ffi_exception.dart:11:22: Error: The class 'Double' can't be used as a mixin because it extends a class other than 'Object'.
-// class WithFinal with Double {} /* Error */
-//                      ^
-//
 // pkg/front_end/testcases/class_modifiers/ffi_exception.dart:26:7: Error: The superclass, 'Finalizable', has no unnamed constructor that takes no arguments.
 // class ExtendsInterface extends Finalizable {} /* Error */
 //       ^
@@ -48,11 +46,6 @@ import "dart:ffi" as ffi;
 
 import "dart:ffi";
 
-abstract final class _WithFinal&Object&Double extends core::Object implements ffi::Double /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
-  const synthetic constructor •() → self::_WithFinal&Object&Double
-    : super core::Object::•()
-    ;
-}
 class WithFinal extends self::_WithFinal&Object&Double {
   synthetic constructor •() → self::WithFinal
     : super self::_WithFinal&Object&Double::•()
@@ -81,5 +74,10 @@ class ImplementsBase extends core::Object implements ffi::Opaque {
 class ExtendsInterface extends ffi::Finalizable {
   synthetic constructor •() → self::ExtendsInterface
     : invalid-initializer
+    ;
+}
+abstract final class _WithFinal&Object&Double extends core::Object implements ffi::Double /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → self::_WithFinal&Object&Double
+    : super core::Object::•()
     ;
 }

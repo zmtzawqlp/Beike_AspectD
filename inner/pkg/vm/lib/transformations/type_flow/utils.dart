@@ -6,32 +6,42 @@
 /// analysis.
 library vm.transformations.type_flow.utils;
 
+import 'dart:io';
+
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:kernel/ast.dart';
 import 'package:kernel/src/printer.dart';
 
 String nodeToText(Node node) => node.toText(astTextStrategyForTesting);
 
-const bool kPrintTrace =
-    const bool.fromEnvironment('global.type.flow.print.trace');
+const bool kPrintTrace = const bool.fromEnvironment(
+  'global.type.flow.print.trace',
+);
 
-const bool kPrintDebug =
-    const bool.fromEnvironment('global.type.flow.print.debug');
+const bool kPrintDebug = const bool.fromEnvironment(
+  'global.type.flow.print.debug',
+);
 
-const bool kPrintTimings =
-    const bool.fromEnvironment('global.type.flow.print.timings');
+const bool kPrintTimings = const bool.fromEnvironment(
+  'global.type.flow.print.timings',
+);
 
-const bool kPrintStats =
-    const bool.fromEnvironment('global.type.flow.print.stats');
+bool printStats =
+    bool.fromEnvironment('global.type.flow.print.stats') ||
+    Platform.environment['DART_TFA_PRINT_STATS'] == '1';
 
-const bool kRemoveAsserts =
-    const bool.fromEnvironment('global.type.flow.remove.asserts');
+const bool kRemoveAsserts = const bool.fromEnvironment(
+  'global.type.flow.remove.asserts',
+);
 
-const bool kScopeTrace =
-    const bool.fromEnvironment('global.type.flow.scope.trace');
+const bool kScopeTrace = const bool.fromEnvironment(
+  'global.type.flow.scope.trace',
+);
 
-const int kScopeIndent =
-    const int.fromEnvironment('global.type.flow.scope.indent', defaultValue: 1);
+const int kScopeIndent = const int.fromEnvironment(
+  'global.type.flow.scope.indent',
+  defaultValue: 1,
+);
 
 abstract class _Logger {
   log(Object message, [int scopeChange = 0]);
@@ -55,8 +65,10 @@ class _ScopedLogger implements _Logger {
   List<String> _scopePrefixes = <String>[""];
 
   _print(Object message) {
-    print(_scopePrefixes[_scope] +
-        message.toString().replaceAll("\n", "\n" + _scopePrefixes[_scope]));
+    print(
+      _scopePrefixes[_scope] +
+          message.toString().replaceAll("\n", "\n" + _scopePrefixes[_scope]),
+    );
   }
 
   log(Object message, [int scopeChange = 0]) {
@@ -64,7 +76,8 @@ class _ScopedLogger implements _Logger {
     _scope += scopeChange;
     while (_scopePrefixes.length < _scope + 1) {
       final start = _scopePrefixes[_scopePrefixes.length - 1];
-      final column = _colors[(_scope + 1) % _colors.length] +
+      final column =
+          _colors[(_scope + 1) % _colors.length] +
           _scopeDelimiter +
           _reset +
           " " * _scopeIndent;
@@ -93,12 +106,16 @@ debugPrint(Object message) {
 }
 
 statPrint(Object message) {
-  if (kPrintStats) {
+  if (printStats) {
     _logger.log(message);
   }
 }
 
 const int kHashMask = 0x3fffffff;
+
+@pragma('vm:prefer-inline')
+int combineHashes(int hash1, int hash2) =>
+    (((hash1 * 31) & kHashMask) + hash2) & kHashMask;
 
 bool hasReceiverArg(Member member) =>
     member.isInstanceMember || (member is Constructor);
@@ -107,9 +124,10 @@ bool hasReceiverArg(Member member) =>
 // generic classes at the moment.
 //
 // TODO(sjindel/tfa): Extend support to normal generic functions.
-int numTypeParams(Member member) => member is Procedure && member.isFactory
-    ? member.function.typeParameters.length
-    : 0;
+int numTypeParams(Member member) =>
+    member is Procedure && member.isFactory
+        ? member.function.typeParameters.length
+        : 0;
 
 /// Returns true if elements in [list] are in strictly increasing order.
 /// List with duplicates is considered not sorted.
@@ -136,10 +154,12 @@ class Histogram<K> {
 
   void printTop(String title, int n) {
     print(
-        '-------------------------------------------------------------------');
+      '-------------------------------------------------------------------',
+    );
     print(title);
     print(
-        '-------------------------------------------------------------------');
+      '-------------------------------------------------------------------',
+    );
     List<K> keys = values.keys.toList();
     keys.sort((k1, k2) => values[k1]!.compareTo(values[k2]!));
     final cut = keys.length < n ? 0 : keys.length - n;
@@ -148,7 +168,8 @@ class Histogram<K> {
       print("${values[k].toString().padLeft(9)}   $k");
     }
     print(
-        '-------------------------------------------------------------------');
+      '-------------------------------------------------------------------',
+    );
   }
 }
 
@@ -165,7 +186,7 @@ class CommutativePair {
           (v1 == other.v2 && v2 == other.v1));
 
   @override
-  int get hashCode => v1.hashCode ^ v2.hashCode;
+  int get hashCode => combineHashes(v1.hashCode, v2.hashCode);
 
   @override
   String toString() => "<$v1, $v2>";
@@ -247,13 +268,17 @@ class Statistics {
   static void print(String caption) {
     if (kPrintTimings) {
       numSummaryApplications.printTop(
-          "Top summaries by number of times analyzed", 1000);
+        "Top summaries by number of times analyzed",
+        1000,
+      );
       dirtySummaryAnalysisTime.printTop(
-          "Top summaries by dirty analysis time (including callees), in microseconds",
-          1000);
+        "Top summaries by dirty analysis time (including callees), in microseconds",
+        1000,
+      );
       pureSummaryAnalysisTime.printTop(
-          "Top summaries by pure analysis time (excluding callees), in microseconds",
-          1000);
+        "Top summaries by pure analysis time (excluding callees), in microseconds",
+        1000,
+      );
     }
     statPrint("""${caption}:
     ${summariesCreated} summaries created
@@ -293,7 +318,7 @@ class Statistics {
 int typeArgumentsHash(List<DartType> typeArgs) {
   int hash = 1237;
   for (var t in typeArgs) {
-    hash = (((hash * 31) & kHashMask) + t.hashCode) & kHashMask;
+    hash = combineHashes(hash, t.hashCode);
   }
   return hash;
 }
@@ -304,9 +329,7 @@ class SubtypePair {
 
   SubtypePair(this.subtype, this.supertype);
 
-  int get hashCode {
-    return subtype.hashCode ^ supertype.hashCode;
-  }
+  int get hashCode => combineHashes(subtype.hashCode, supertype.hashCode);
 
   bool operator ==(Object other) {
     if (other is SubtypePair) {
@@ -337,7 +360,7 @@ class UnionFind {
   final List<int> _elements;
 
   UnionFind([int initialSize = 0])
-      : _elements = List<int>.filled(initialSize, -1, growable: true);
+    : _elements = List<int>.filled(initialSize, -1, growable: true);
 
   /// Add a new singleton set.
   int add() {
@@ -374,7 +397,6 @@ class UnionFind {
 }
 
 const nullabilitySuffix = {
-  Nullability.legacy: '*',
   Nullability.nullable: '?',
   Nullability.undetermined: '',
   Nullability.nonNullable: '',
@@ -436,3 +458,19 @@ bool isArtificialNode(TreeNode node) =>
 // Returns [node] or null, if node is artificial.
 T? filterArtificialNode<T extends TreeNode>(T? node) =>
     (node == null || isArtificialNode(node)) ? null : node;
+
+String localFunctionName(LocalFunction function) {
+  switch (function) {
+    case FunctionDeclaration():
+      return function.variable.name!;
+    case FunctionExpression():
+      final location = function.location;
+      return '<anonymous closure' +
+          (location != null
+              ? ' at ${location.file.pathSegments.last}:${location.line}'
+              : '') +
+          '>';
+    default:
+      throw 'Unexpected local function ${function.runtimeType} $function';
+  }
+}

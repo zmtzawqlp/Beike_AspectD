@@ -119,14 +119,18 @@ class MemberHierarchyBuilder {
   /// If [f] returns `false` for a given input then iteration is immediately
   /// stopped and [f] is not called on any more members.
   void forEachOverride(
-      MemberEntity entity, bool Function(MemberEntity override) f) {
+    MemberEntity entity,
+    bool Function(MemberEntity override) f,
+  ) {
     _forEachOverrideSkipVisited(entity, f, {entity});
   }
 
   /// Returns `true` if every target member represented by [target] satisfies
   /// the predicate [f].
   bool everyTargetMember(
-      DynamicCallTarget target, bool Function(MemberEntity override) f) {
+    DynamicCallTarget target,
+    bool Function(MemberEntity override) f,
+  ) {
     bool result = true;
     forEachTargetMember(target, (member) {
       // We exit early on a false result here.
@@ -138,7 +142,9 @@ class MemberHierarchyBuilder {
   /// Returns `true` if any target member represented by [target] satisfies the
   /// predicate [f].
   bool anyTargetMember(
-      DynamicCallTarget target, bool Function(MemberEntity override) f) {
+    DynamicCallTarget target,
+    bool Function(MemberEntity override) f,
+  ) {
     bool result = false;
     forEachTargetMember(target, (member) {
       result = f(member);
@@ -154,7 +160,9 @@ class MemberHierarchyBuilder {
   /// If [f] returns `false` for a given input then iteration is immediately
   /// stopped and [f] is not called on any more members.
   void forEachTargetMember(
-      DynamicCallTarget target, bool Function(MemberEntity override) f) {
+    DynamicCallTarget target,
+    bool Function(MemberEntity override) f,
+  ) {
     if (!f(target.member)) return;
 
     if (target.isVirtual) {
@@ -162,8 +170,11 @@ class MemberHierarchyBuilder {
     }
   }
 
-  void _forEachOverrideSkipVisited(MemberEntity entity,
-      bool Function(MemberEntity override) f, Set<MemberEntity> visited) {
+  void _forEachOverrideSkipVisited(
+    MemberEntity entity,
+    bool Function(MemberEntity override) f,
+    Set<MemberEntity> visited,
+  ) {
     final overrides = _overrides[entity];
     if (overrides == null) return;
     for (final override in overrides) {
@@ -204,23 +215,31 @@ class MemberHierarchyBuilder {
   /// when [isSubclass] is true, this will return a set of concrete subclass
   /// targets rather than attempting to find a single virtual target.
   Iterable<DynamicCallTarget> findSuperclassTarget(
-      ClassEntity cls, Selector selector,
-      {bool isExact = false, bool isSubclass = false}) {
+    ClassEntity cls,
+    Selector selector, {
+    bool isExact = false,
+    bool isSubclass = false,
+  }) {
     MemberEntity? firstAbstractMatch;
     ClassEntity? current = cls;
     final elementEnv = closedWorld.elementEnvironment;
     while (current != null) {
-      final match =
-          elementEnv.lookupLocalClassMember(current, selector.memberName);
+      final match = elementEnv.lookupLocalClassMember(
+        current,
+        selector.memberName,
+      );
       if (match != null && !skipMember(match, selector)) {
         if (match.isAbstract) {
           firstAbstractMatch ??= match;
         } else {
           return [
-            DynamicCallTarget(match,
-                isVirtual: !isExact &&
-                    _hasOverride(match) &&
-                    (!isSubclass || _subclassNeedsVirtual(match, cls)))
+            DynamicCallTarget(
+              match,
+              isVirtual:
+                  !isExact &&
+                  _hasOverride(match) &&
+                  (!isSubclass || _subclassNeedsVirtual(match, cls)),
+            ),
           ];
         }
       }
@@ -236,16 +255,18 @@ class MemberHierarchyBuilder {
   /// If we find a match then it covers the entire subtree below that match so
   /// we do not need to check subclasses/subtypes below it.
   Iterable<DynamicCallTarget> findMatchingAncestors(
-      ClassEntity baseCls, Selector selector,
-      {required bool isSubtype}) {
+    ClassEntity baseCls,
+    Selector selector, {
+    required bool isSubtype,
+  }) {
     final results = Setlet<DynamicCallTarget>();
-    IterationStep handleEntity(entity) {
+    IterationStep handleEntity(ClassEntity entity) {
       final match = findSuperclassTarget(entity, selector);
       if (match.isNotEmpty) {
         results.addAll(match);
-        return IterationStep.SKIP_SUBCLASSES;
+        return IterationStep.skipSubclasses;
       }
-      return IterationStep.CONTINUE;
+      return IterationStep.continue_;
     }
 
     if (isSubtype) {
@@ -265,15 +286,21 @@ class MemberHierarchyBuilder {
   /// mixin. They share the same [MemberEntity] but each copy is considered a
   /// separate potential root.
   Iterable<DynamicCallTarget> rootsForSelector(
-      ClassEntity cls, Selector selector) {
+    ClassEntity cls,
+    Selector selector,
+  ) {
     final roots = _dynamicRoots[_normalizeSelector(selector)];
     if (roots == null) return const [];
     final classHierarchy = closedWorld.classHierarchy;
-    return Setlet.of(roots
-        .where((r) =>
-            selector.appliesStructural(r) &&
-            classHierarchy.isSubclassOf(r.enclosingClass!, cls))
-        .map((r) => DynamicCallTarget(r, isVirtual: _hasOverride(r))));
+    return Setlet.of(
+      roots
+          .where(
+            (r) =>
+                selector.appliesStructural(r) &&
+                classHierarchy.isSubclassOf(r.enclosingClass!, cls),
+          )
+          .map((r) => DynamicCallTarget(r, isVirtual: _hasOverride(r))),
+    );
   }
 
   /// Returns a set of common ancestors (not necessarily the smallest) for all
@@ -285,19 +312,25 @@ class MemberHierarchyBuilder {
   /// [selector] is a possible target. Also adds relevant [noSuchMethod] and
   /// `null` targets if needed for the call.
   Iterable<DynamicCallTarget> rootsForCall(
-      AbstractValue? receiverType, Selector selector) {
+    AbstractValue? receiverType,
+    Selector selector,
+  ) {
     final domain = closedWorld.abstractValueDomain;
     receiverType ??= domain.dynamicType;
     final selectorMask = SelectorMask(selector, receiverType);
     final cachedResult = _callCache[selectorMask];
     if (cachedResult != null) return cachedResult;
 
-    Iterable<DynamicCallTarget> targetsForReceiver =
-        domain.findRootsOfTargets(receiverType, selector, this);
+    Iterable<DynamicCallTarget> targetsForReceiver = domain.findRootsOfTargets(
+      receiverType,
+      selector,
+      this,
+    );
 
     // TODO(natebiggs): Can we calculate this as part of the above call to
     // findRootsOfTargets?
-    final needsNoSuchMethod = selector != Selectors.noSuchMethod_ &&
+    final needsNoSuchMethod =
+        selector != Selectors.noSuchMethod_ &&
         domain
             .needsNoSuchMethodHandling(receiverType, selector)
             .isPotentiallyTrue;
@@ -307,18 +340,23 @@ class MemberHierarchyBuilder {
     if (isNull.isPotentiallyTrue) {
       // Add relevant member if null is a potential target.
       final nullMatch = closedWorld.elementEnvironment.lookupLocalClassMember(
-          closedWorld.commonElements.jsNullClass, selector.memberName);
+        closedWorld.commonElements.jsNullClass,
+        selector.memberName,
+      );
       if (nullMatch != null) {
         targetsForReceiver = {
           ...targetsForReceiver,
-          DynamicCallTarget.concrete(nullMatch)
+          DynamicCallTarget.concrete(nullMatch),
         };
       }
     }
 
     final result = needsNoSuchMethod
-        ? Setlet.of(targetsForReceiver
-            .followedBy(rootsForCall(receiverType, Selectors.noSuchMethod_)))
+        ? Setlet.of(
+            targetsForReceiver.followedBy(
+              rootsForCall(receiverType, Selectors.noSuchMethod_),
+            ),
+          )
         : targetsForReceiver;
 
     return _callCache[selectorMask] = result;
@@ -356,17 +394,33 @@ class MemberHierarchyBuilder {
     return result;
   }
 
-  void _handleMember(MemberEntity member, ClassEntity cls, Selector selector,
-      void Function(MemberEntity parent, MemberEntity override) join) {
+  void _handleMember(
+    MemberEntity member,
+    ClassEntity cls,
+    Selector selector,
+    void Function(MemberEntity parent, MemberEntity override) join, {
+    required bool isMixinUse,
+  }) {
     final elementEnv = closedWorld.elementEnvironment;
     final name = selector.memberName;
     bool foundSuperclass = false;
 
-    void addParent(MemberEntity child, ClassEntity childCls,
-        MemberEntity parent, ClassEntity parentCls) {
+    void addParent(MemberEntity child, MemberEntity parent) {
       if (child == parent) return;
-      if ((_overrides[parent] ??= Setlet()).add(child)) {
+      if (!isMixinUse && (_overrides[parent] ??= Setlet()).add(child)) {
         join(parent, child);
+      }
+
+      // For mixins defining an abstract member, foo, implementations of foo
+      // (either directly on the mixin target or superclasses of it) should
+      // propagate their types to the abstract foo as they are effectively
+      // overriding it. Calls to foo within the body of the mixin can only
+      // target the abstract foo with a virtual call so that virtual target
+      // needs to reflect the types of all its overrides.
+      if (isMixinUse &&
+          child.isAbstract &&
+          (_overrides[child] ??= Setlet()).add(parent)) {
+        join(child, parent);
       }
     }
 
@@ -375,36 +429,45 @@ class MemberHierarchyBuilder {
     while (current != null) {
       final match = elementEnv.lookupLocalClassMember(current, name);
       if (match != null && !MemberHierarchyBuilder._skipMemberInternal(match)) {
-        addParent(member, cls, match, current);
+        addParent(member, match);
         foundSuperclass = true;
         break;
       }
       current = elementEnv.getSuperClass(current);
     }
 
-    closedWorld.classHierarchy.getClassSet(cls).forEachSubtype((subtype) {
-      final override = elementEnv.lookupClassMember(subtype, name);
-      if (override == null) return IterationStep.CONTINUE;
-      addParent(override, subtype, member, cls);
-      return IterationStep.CONTINUE;
-    }, ClassHierarchyNode.INSTANTIATED, strict: true);
+    closedWorld.classHierarchy
+        .getClassSet(cls)
+        .forEachSubtype(
+          (subtype) {
+            final override = elementEnv.lookupClassMember(subtype, name);
+            if (override != null) addParent(override, member);
+            return IterationStep.continue_;
+          },
+          ClassHierarchyNode.instantiated,
+          strict: true,
+        );
 
     if (!foundSuperclass) {
       (_dynamicRoots[selector] ??= Setlet()).add(member);
     }
   }
 
-  void _processMember(MemberEntity member,
-      void Function(MemberEntity parent, MemberEntity override) join) {
+  void _processMember(
+    MemberEntity member,
+    void Function(MemberEntity parent, MemberEntity override) join,
+  ) {
     if (_skipMemberInternal(member)) return;
     final cls = member.enclosingClass!;
     final mixinUses = closedWorld.mixinUsesOf(cls);
     // Process each selector matching member separately.
     for (final selector in _selectorsForMember(member)) {
       for (final mixinUse in mixinUses) {
-        _handleMember(member, mixinUse, selector, join);
+        // For mixin uses we treat the mixin's members as if they are part of
+        // the mixin target itself.
+        _handleMember(member, mixinUse, selector, join, isMixinUse: true);
       }
-      _handleMember(member, cls, selector, join);
+      _handleMember(member, cls, selector, join, isMixinUse: false);
     }
   }
 
@@ -419,15 +482,19 @@ class MemberHierarchyBuilder {
   }
 
   // TODO(natebiggs): Clean up debug code below.
-  void debugCall(String selectorName, String className,
-      {bool nullReceiver = false,
-      bool nullValue = false,
-      bool subClass = false,
-      bool subType = false,
-      bool setter = false,
-      CallStructure? call}) {
-    final allMembers = closedWorld.liveInstanceMembers
-        .followedBy(closedWorld.liveAbstractInstanceMembers);
+  void debugCall(
+    String selectorName,
+    String className, {
+    bool nullReceiver = false,
+    bool nullValue = false,
+    bool subClass = false,
+    bool subType = false,
+    bool setter = false,
+    CallStructure? call,
+  }) {
+    final allMembers = closedWorld.liveInstanceMembers.followedBy(
+      closedWorld.liveAbstractInstanceMembers,
+    );
     final cls = allMembers
         .firstWhere((e) => e.enclosingClass!.name == className)
         .enclosingClass!;
@@ -435,12 +502,12 @@ class MemberHierarchyBuilder {
     final receiver = nullValue
         ? domain.nullType
         : (nullReceiver
-            ? null
-            : (subClass
-                ? domain.createNonNullSubclass(cls)
-                : (subType
-                    ? domain.createNonNullSubtype(cls)
-                    : domain.createNullableExact(cls))));
+              ? null
+              : (subClass
+                    ? domain.createNonNullSubclass(cls)
+                    : (subType
+                          ? domain.createNonNullSubtype(cls)
+                          : domain.createNullableExact(cls))));
     final name = Name(selectorName, null);
     final selector = call != null
         ? Selector.call(name, call)
@@ -452,33 +519,40 @@ class MemberHierarchyBuilder {
   }
 
   void dumpOverrides([String? memberName]) {
-    print(_overrides.entries
-        .where((e) => memberName == null || e.key.name == memberName)
-        .map((e) => '${e.key}\n  ${e.value.join('\n  ')}')
-        .join('\n'));
+    print(
+      _overrides.entries
+          .where((e) => memberName == null || e.key.name == memberName)
+          .map((e) => '${e.key}\n  ${e.value.join('\n  ')}')
+          .join('\n'),
+    );
   }
 
   void dumpRoots([String? selectorName]) {
-    (_dynamicRoots.entries
+    for (var e
+        in (_dynamicRoots.entries
             .where((e) => selectorName == null || e.key.name == selectorName)
             .map((e) {
-      final members = e.value.map((m) => m).toList();
-      members.sort((a, b) => a.toString().compareTo(b.toString()));
-      return MapEntry(e.key, members.join(', '));
-    }).toList()
+              final members = e.value.map((m) => m).toList();
+              members.sort((a, b) => a.toString().compareTo(b.toString()));
+              return MapEntry(e.key, members.join(', '));
+            })
+            .toList()
           ..sort((a, b) {
             final keyComp = a.key.toString().compareTo(b.key.toString());
             return keyComp != 0 ? keyComp : a.value.compareTo(b.value);
-          }))
-        .forEach((e) => print('${e.key}: ${e.value}'));
+          }))) {
+      print('${e.key}: ${e.value}');
+    }
   }
 
   void dumpCache({String? selectorName, String? receiverString}) {
     _callCache.entries
-        .where((e) =>
-            (selectorName == null || e.key.name == selectorName) &&
-            (receiverString == null ||
-                e.key.receiver.toString().contains(receiverString)))
+        .where(
+          (e) =>
+              (selectorName == null || e.key.name == selectorName) &&
+              (receiverString == null ||
+                  e.key.receiver.toString().contains(receiverString)),
+        )
         .forEach((e) => print('${e.key}: ${e.value.join(', ')}'));
   }
 }

@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -58,15 +58,6 @@ abstract class A2 extends core::Object implements core::Record {
     : super core::Object::•()
     ;
 }
-abstract final class _A3&Object&Record extends core::Object implements core::Record /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
-  const synthetic constructor •() → self::_A3&Object&Record
-    : super core::Object::•()
-    ;
-  abstract get /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ runtimeType() → core::Type;
-  abstract get /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ hashCode() → core::int;
-  abstract operator /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ ==(core::Object other) → core::bool;
-  abstract method /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ toString() → core::String;
-}
 abstract class A3 extends self::_A3&Object&Record {
   synthetic constructor •() → self::A3
     : super self::_A3&Object&Record::•()
@@ -79,11 +70,6 @@ abstract class A4 extends typ::A<core::Record> {
 }
 abstract class A5 extends core::Object implements typ::A<core::Record> {
   synthetic constructor •() → self::A5
-    : super core::Object::•()
-    ;
-}
-abstract class _A6&Object&A extends core::Object implements typ::A<core::Record> /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
-  const synthetic constructor •() → self::_A6&Object&A
     : super core::Object::•()
     ;
 }
@@ -107,6 +93,20 @@ abstract class A9 extends core::Record {
     : super core::Record::•()
     ;
 }
+abstract final class _A3&Object&Record extends core::Object implements core::Record /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → self::_A3&Object&Record
+    : super core::Object::•()
+    ;
+  abstract get /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ runtimeType() → core::Type;
+  abstract get /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ hashCode() → core::int;
+  abstract operator /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ ==(core::Object other) → core::bool;
+  abstract method /* from org-dartlang-sdk:///sdk/lib/core/record.dart */ toString() → core::String;
+}
+abstract class _A6&Object&A extends core::Object implements typ::A<core::Record> /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → self::_A6&Object&A
+    : super core::Object::•()
+    ;
+}
 static method foo1() → core::Record
   return throw "";
 static method foo2() → dynamic
@@ -121,7 +121,7 @@ static method foo6() → dynamic
   return #C2;
 static method foo7(core::Record r) → dynamic
   return null;
-static method foo8({required core::Record r = #C3}) → dynamic
+static method foo8({required core::Record r}) → dynamic
   return null;
 static method foo9() → core::List<core::Record>
   return throw "";
@@ -142,12 +142,12 @@ static method foo16(core::Record l) → dynamic
 static method foo17() → dynamic
   return #C1;
 static method foo18() → dynamic
-  return #C4;
+  return #C3;
 static method foo19() → dynamic
   return #C1;
 static method main() → dynamic {}
 
-library /*isNonNullableByDefault*/;
+library;
 import self as typ;
 import "dart:core" as core;
 
@@ -163,6 +163,5 @@ abstract mixin class A<X extends core::Object? = dynamic> extends core::Object {
 constants  {
   #C1 = TypeLiteralConstant(core::Record)
   #C2 = TypeLiteralConstant(core::List<core::Record>)
-  #C3 = null
-  #C4 = TypeLiteralConstant(typ::A<core::Record>)
+  #C3 = TypeLiteralConstant(typ::A<core::Record>)
 }

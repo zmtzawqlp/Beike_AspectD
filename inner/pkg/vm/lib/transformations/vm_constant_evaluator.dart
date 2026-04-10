@@ -9,73 +9,80 @@ import 'package:kernel/target/targets.dart'
     show ConstantsBackend, DartLibrarySupport, Target;
 import 'package:kernel/type_environment.dart';
 
-import 'package:front_end/src/base/nnbd_mode.dart';
-import 'package:front_end/src/fasta/kernel/constant_evaluator.dart'
-    show
-        AbortConstant,
-        ConstantEvaluator,
-        ErrorReporter,
-        EvaluationMode,
-        SimpleErrorReporter;
+import 'package:front_end/src/api_prototype/constant_evaluator.dart'
+    show ConstantEvaluator, ErrorReporter, SimpleErrorReporter;
 
 import '../target_os.dart';
+import 'pragma.dart';
 
 /// Evaluates uses of static fields and getters using VM-specific and
 /// platform-specific knowledge.
 ///
-/// [targetOS] represents the target operating system and is used when
-/// evaluating static fields and getters annotated with "vm:platform-const".
+/// The provided [TargetOS], when non-null, is used when evaluating static
+/// fields and getters annotated with "vm:platform-const".
 ///
-/// If [enableConstFunctions] is false, then only getters that return the
-/// result of a single expression can be evaluated.
+/// To avoid restricting getters annotated with "vm:platform-const" to be just
+/// a single return statement whose body is evaluated, as well as handling
+/// immediately-invoked closures wrapping complex initializing code in field
+/// initializers, we enable constant evaluation of functions.
 class VMConstantEvaluator extends ConstantEvaluator {
   final TargetOS? _targetOS;
   final Map<String, Constant> _constantFields = {};
 
   final Class? _platformClass;
-  final Class _pragmaClass;
-  final Field _pragmaName;
+  final PragmaAnnotationParser _pragmaParser;
 
   VMConstantEvaluator(
-      DartLibrarySupport dartLibrarySupport,
-      ConstantsBackend backend,
-      Component component,
-      Map<String, String>? environmentDefines,
-      TypeEnvironment typeEnvironment,
-      ErrorReporter errorReporter,
-      this._targetOS,
-      {bool enableTripleShift = false,
-      bool enableConstFunctions = false,
-      bool errorOnUnevaluatedConstant = false,
-      EvaluationMode evaluationMode = EvaluationMode.weak})
-      : _platformClass = typeEnvironment.coreTypes.platformClass,
-        _pragmaClass = typeEnvironment.coreTypes.pragmaClass,
-        _pragmaName = typeEnvironment.coreTypes.pragmaName,
-        super(dartLibrarySupport, backend, component, environmentDefines,
-            typeEnvironment, errorReporter,
-            enableTripleShift: enableTripleShift,
-            enableConstFunctions: enableConstFunctions,
-            errorOnUnevaluatedConstant: errorOnUnevaluatedConstant,
-            evaluationMode: evaluationMode) {
+    DartLibrarySupport dartLibrarySupport,
+    ConstantsBackend backend,
+    Component component,
+    Map<String, String>? environmentDefines,
+    TypeEnvironment typeEnvironment,
+    ErrorReporter errorReporter,
+    this._targetOS,
+    this._pragmaParser, {
+    bool enableTripleShift = false,
+    bool enableAsserts = true,
+    bool errorOnUnevaluatedConstant = false,
+  }) : _platformClass = typeEnvironment.coreTypes.platformClass,
+       super(
+         dartLibrarySupport,
+         backend,
+         component,
+         environmentDefines,
+         typeEnvironment,
+         errorReporter,
+         enableTripleShift: enableTripleShift,
+         // We use evaluation of const functions for getters and immediately
+         // invoked closures in field initializers.
+         enableConstFunctions: true,
+         enableAsserts: enableAsserts,
+         errorOnUnevaluatedConstant: errorOnUnevaluatedConstant,
+       ) {
     // Only add Platform fields if the Platform class is part of the component
     // being evaluated.
-    final os = _targetOS;
-    if (os != null && _platformClass != null) {
-      _constantFields['_operatingSystem'] = StringConstant(os.name);
-      _constantFields['_pathSeparator'] = StringConstant(os.pathSeparator);
+    if (_targetOS != null && _platformClass != null) {
+      _constantFields['operatingSystem'] = StringConstant(_targetOS.name);
+      _constantFields['pathSeparator'] = StringConstant(
+        _targetOS.pathSeparator,
+      );
     }
   }
 
   static VMConstantEvaluator create(
-      Target target, Component component, TargetOS? targetOS, NnbdMode nnbdMode,
-      {bool evaluateAnnotations = true,
-      bool enableTripleShift = false,
-      bool enableConstFunctions = false,
-      bool enableConstructorTearOff = false,
-      bool errorOnUnevaluatedConstant = false,
-      Map<String, String>? environmentDefines,
-      CoreTypes? coreTypes,
-      ClassHierarchy? hierarchy}) {
+    Target target,
+    Component component,
+    TargetOS? targetOS, {
+    bool evaluateAnnotations = true,
+    bool enableTripleShift = false,
+    bool enableConstructorTearOff = false,
+    bool enableAsserts = true,
+    bool errorOnUnevaluatedConstant = false,
+    ErrorReporter? errorReporter,
+    Map<String, String>? environmentDefines,
+    CoreTypes? coreTypes,
+    ClassHierarchy? hierarchy,
+  }) {
     coreTypes ??= CoreTypes(component);
     hierarchy ??= ClassHierarchy(component, coreTypes);
 
@@ -86,47 +93,33 @@ class VMConstantEvaluator extends ConstantEvaluator {
     environmentDefines ??=
         target.constantsBackend.supportsUnevaluatedConstants ? null : {};
     return VMConstantEvaluator(
-        target.dartLibrarySupport,
-        target.constantsBackend,
-        component,
-        environmentDefines,
-        typeEnvironment,
-        SimpleErrorReporter(),
-        targetOS,
-        enableTripleShift: enableTripleShift,
-        enableConstFunctions: enableConstFunctions,
-        errorOnUnevaluatedConstant: errorOnUnevaluatedConstant,
-        evaluationMode: EvaluationMode.fromNnbdMode(nnbdMode));
+      target.dartLibrarySupport,
+      target.constantsBackend,
+      component,
+      environmentDefines,
+      typeEnvironment,
+      errorReporter ?? const SimpleErrorReporter(),
+      targetOS,
+      ConstantPragmaAnnotationParser(coreTypes, target),
+      enableTripleShift: enableTripleShift,
+      enableAsserts: enableAsserts,
+      errorOnUnevaluatedConstant: errorOnUnevaluatedConstant,
+    );
   }
 
-  /// Used for methods and fields with initializers where the method body or
-  /// field initializer must evaluate to a constant value when a target
-  /// operating system is provided.
-  static const _constPragmaName = "vm:platform-const";
+  bool get _hasTargetOS => _targetOS != null;
 
-  bool _hasAnnotation(Annotatable node, String name) {
-    for (final annotation in node.annotations) {
-      if (annotation is ConstantExpression) {
-        final constant = annotation.constant;
-        if (constant is InstanceConstant &&
-            constant.classNode == _pragmaClass &&
-            constant.fieldValues[_pragmaName.fieldReference] ==
-                StringConstant(name)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  bool _isPlatformConst(Member member) =>
+      _pragmaParser
+          .parsedPragmas<ParsedPlatformConstPragma>(member.annotations)
+          .isNotEmpty;
 
-  bool _isPlatformConst(Member node) => _hasAnnotation(node, _constPragmaName);
-
-  bool transformerShouldEvaluateExpression(Expression node) =>
-      _targetOS != null && node is StaticGet && _isPlatformConst(node.target);
+  bool shouldEvaluateMember(Member node) =>
+      _hasTargetOS && _isPlatformConst(node);
 
   @override
   Constant visitStaticGet(StaticGet node) {
-    assert(_targetOS != null);
+    assert(_hasTargetOS);
     final target = node.target;
 
     // This visitor can be called recursively while evaluating an abstraction
@@ -134,46 +127,27 @@ class VMConstantEvaluator extends ConstantEvaluator {
     // an appropriately annotated target.
     if (!_isPlatformConst(target)) return super.visitStaticGet(node);
 
-    return withNewEnvironment(() {
-      final nameText = target.name.text;
-      visitedLibraries.add(target.enclosingLibrary);
+    visitedLibraries.add(target.enclosingLibrary);
 
-      // First, check for the fields in Platform whose initializers should not
-      // be evaluated, but instead uses of the field should just be replaced
-      // directly with an already calculated constant.
-      if (target is Field && target.enclosingClass == _platformClass) {
-        final constant = _constantFields[nameText];
+    if (target is Field) {
+      // If this is a special Platform field that has a pre-calculated value
+      // for the given operating system, just use the canonicalized value.
+      if (target.enclosingClass == _platformClass) {
+        final constant = _constantFields[target.name.text];
         if (constant != null) {
           return canonicalize(constant);
         }
       }
 
-      late Constant result;
-      if (target is Field && target.initializer != null) {
-        result = evaluateExpressionInContext(target, target.initializer!);
-      } else if (target is Procedure && target.isGetter) {
-        final body = target.function.body!;
-        // If const functions are enabled, execute the getter as if it were
-        // a const function. Otherwise the annotated getter must be a single
-        // return statement whose expression is evaluated.
-        if (enableConstFunctions) {
-          result = executeBody(body);
-        } else if (body is ReturnStatement) {
-          if (body.expression == null) {
-            return canonicalize(NullConstant());
-          }
-          result = evaluateExpressionInContext(target, body.expression!);
-        } else {
-          throw "Cannot evaluate method '$nameText' since it contains more "
-              "than a single return statement.";
-        }
-      }
-      if (result is AbortConstant) {
-        throw "The body or initialization of member '$nameText' does not "
-            "evaluate to a constant value for the specified target operating "
-            "system '$_targetOS'.";
-      }
-      return result;
-    });
+      // The base class only evaluates const fields, so the VM constant
+      // evaluator must manually request the initializer be evaluated.
+      // instead of just calling super.visitStaticGet(target).
+      return withNewEnvironment(
+        () => evaluateExpressionInContext(target, target.initializer!),
+      );
+    }
+
+    // The base class already handles constant evaluation of a getter.
+    return super.visitStaticGet(node);
   }
 }

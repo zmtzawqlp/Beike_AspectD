@@ -4,18 +4,18 @@
 
 import 'package:_fe_analyzer_shared/src/util/libraries_specification.dart';
 import 'package:expect/expect.dart';
+import 'package:front_end/src/base/compiler_context.dart';
 import 'package:front_end/src/base/processed_options.dart';
-import 'package:front_end/src/fasta/builder/type_alias_builder.dart';
-import 'package:front_end/src/fasta/compiler_context.dart';
-import 'package:front_end/src/fasta/dill/dill_library_builder.dart';
-import 'package:front_end/src/fasta/dill/dill_loader.dart';
-import 'package:front_end/src/fasta/dill/dill_target.dart';
-import 'package:front_end/src/fasta/dill/dill_type_alias_builder.dart';
-import 'package:front_end/src/fasta/kernel/collections.dart';
-import 'package:front_end/src/fasta/kernel/forest.dart';
-import 'package:front_end/src/fasta/kernel/internal_ast.dart';
-import 'package:front_end/src/fasta/ticker.dart';
-import 'package:front_end/src/fasta/uri_translator.dart';
+import 'package:front_end/src/base/ticker.dart';
+import 'package:front_end/src/base/uri_translator.dart';
+import 'package:front_end/src/builder/declaration_builders.dart';
+import 'package:front_end/src/dill/dill_library_builder.dart';
+import 'package:front_end/src/dill/dill_loader.dart';
+import 'package:front_end/src/dill/dill_target.dart';
+import 'package:front_end/src/dill/dill_type_alias_builder.dart';
+import 'package:front_end/src/kernel/collections.dart';
+import 'package:front_end/src/kernel/forest.dart';
+import 'package:front_end/src/kernel/internal_ast.dart';
 import 'package:kernel/ast.dart';
 import 'package:kernel/target/targets.dart';
 import 'package:package_config/package_config.dart';
@@ -42,7 +42,17 @@ void testExpression(Expression node, String normal,
       "Unexpected limited strategy text for ${node.runtimeType}");
 }
 
-void testMatcher(Pattern node, String normal,
+void testPattern(Pattern node, String normal,
+    {String? verbose, String? limited}) {
+  Expect.stringEquals(normal, node.toText(normalStrategy),
+      "Unexpected normal strategy text for ${node.runtimeType}");
+  Expect.stringEquals(verbose ?? normal, node.toText(verboseStrategy),
+      "Unexpected verbose strategy text for ${node.runtimeType}");
+  Expect.stringEquals(limited ?? normal, node.toText(limitedStrategy),
+      "Unexpected limited strategy text for ${node.runtimeType}");
+}
+
+void testInitializer(Initializer node, String normal,
     {String? verbose, String? limited}) {
   Expect.stringEquals(normal, node.toText(normalStrategy),
       "Unexpected normal strategy text for ${node.runtimeType}");
@@ -56,7 +66,7 @@ final Uri dummyUri = Uri.parse('test:dummy');
 
 void main() {
   CompilerContext.runWithOptions(new ProcessedOptions(inputs: [dummyUri]),
-      (_) async {
+      (CompilerContext c) async {
     _testVariableDeclarations();
     _testTryStatement();
     _testForInStatementWithSynthesizedVariable();
@@ -65,8 +75,8 @@ void main() {
     _testCascade();
     _testDeferredCheck();
     _testFactoryConstructorInvocationJudgment();
-    _testTypeAliasedConstructorInvocation();
-    _testTypeAliasedFactoryInvocation();
+    _testTypeAliasedConstructorInvocation(c);
+    _testTypeAliasedFactoryInvocation(c);
     _testFunctionDeclarationImpl();
     _testIfNullExpression();
     _testIntLiterals();
@@ -130,6 +140,7 @@ void main() {
     _testPatternSwitchStatement();
     _testSwitchExpression();
     _testPatternVariableDeclaration();
+    _testExtensionTypeRedirectingInitializer();
   });
 }
 
@@ -500,11 +511,12 @@ new Class<void>.foo(0, bar: 1)''',
 new library test:dummy::Class<void>.foo(0, bar: 1)''');
 }
 
-void _testTypeAliasedConstructorInvocation() {
+void _testTypeAliasedConstructorInvocation(CompilerContext c) {
   DillTarget dillTarget = new DillTarget(
+      c,
       new Ticker(),
-      new UriTranslator(
-          new TargetLibrariesSpecification('dummy'), new PackageConfig([])),
+      new UriTranslator(c.options, new TargetLibrariesSpecification('dummy'),
+          new PackageConfig([])),
       new NoneTarget(new TargetFlags()));
   DillLoader dillLoader = new DillLoader(dillTarget);
   Library library = new Library(dummyUri, fileUri: dummyUri);
@@ -570,11 +582,12 @@ const Typedef<void>.foo(0, bar: 1)''',
 const library test:dummy::Typedef<void>.foo(0, bar: 1)''');
 }
 
-void _testTypeAliasedFactoryInvocation() {
+void _testTypeAliasedFactoryInvocation(CompilerContext c) {
   DillTarget dillTarget = new DillTarget(
+      c,
       new Ticker(),
-      new UriTranslator(
-          new TargetLibrariesSpecification('dummy'), new PackageConfig([])),
+      new UriTranslator(c.options, new TargetLibrariesSpecification('dummy'),
+          new PackageConfig([])),
       new NoneTarget(new TargetFlags()));
   DillLoader dillLoader = new DillLoader(dillTarget);
   Library library = new Library(dummyUri, fileUri: dummyUri);
@@ -657,7 +670,8 @@ void _testIfNullExpression() {
 void _testIntLiterals() {
   testExpression(new IntJudgment(0, null), '0');
   testExpression(new IntJudgment(0, 'foo'), 'foo');
-  testExpression(new ShadowLargeIntLiteral('bar', TreeNode.noOffset), 'bar');
+  testExpression(
+      new ShadowLargeIntLiteral('bar', 'bar', TreeNode.noOffset), 'bar');
 }
 
 void _testInternalMethodInvocation() {
@@ -870,7 +884,7 @@ void _testLoadLibraryTearOff() {
   Procedure procedure = new Procedure(new Name('get#loadLibrary'),
       ProcedureKind.Getter, new FunctionNode(new Block([])),
       fileUri: dummyUri);
-  testExpression(new LoadLibraryTearOff(dependency, procedure), ''' 
+  testExpression(new LoadLibraryTearOff(dependency, procedure), '''
 pre.loadLibrary''');
 }
 
@@ -1167,21 +1181,21 @@ void _testForMapEntry() {}
 void _testForInMapEntry() {}
 
 void _testExpressionMatcher() {
-  testMatcher(new ConstantPattern(new IntLiteral(0)), '''
+  testPattern(new ConstantPattern(new IntLiteral(0)), '''
 0''');
 
-  testMatcher(new ConstantPattern(new BoolLiteral(true)), '''
+  testPattern(new ConstantPattern(new BoolLiteral(true)), '''
 true''');
 }
 
 void _testBinaryMatcher() {
-  testMatcher(
+  testPattern(
       new AndPattern(new ConstantPattern(new IntLiteral(0)),
           new ConstantPattern(new IntLiteral(1))),
       '''
 0 && 1''');
 
-  testMatcher(
+  testPattern(
       new OrPattern(new ConstantPattern(new IntLiteral(0)),
           new ConstantPattern(new IntLiteral(1)),
           orPatternJointVariables: []),
@@ -1190,7 +1204,7 @@ void _testBinaryMatcher() {
 }
 
 void _testCastMatcher() {
-  testMatcher(
+  testPattern(
       new CastPattern(
           new ConstantPattern(new IntLiteral(0)), const DynamicType()),
       '''
@@ -1198,17 +1212,17 @@ void _testCastMatcher() {
 }
 
 void _testNullAssertMatcher() {
-  testMatcher(new NullAssertPattern(new ConstantPattern(new IntLiteral(0))), '''
+  testPattern(new NullAssertPattern(new ConstantPattern(new IntLiteral(0))), '''
 0!''');
 }
 
 void _testNullCheckMatcher() {
-  testMatcher(new NullCheckPattern(new ConstantPattern(new IntLiteral(0))), '''
+  testPattern(new NullCheckPattern(new ConstantPattern(new IntLiteral(0))), '''
 0?''');
 }
 
 void _testListMatcher() {
-  testMatcher(
+  testPattern(
       new ListPattern(const DynamicType(), [
         new ConstantPattern(new IntLiteral(0)),
         new ConstantPattern(new IntLiteral(1)),
@@ -1218,33 +1232,33 @@ void _testListMatcher() {
 }
 
 void _testRelationalMatcher() {
-  testMatcher(
+  testPattern(
       new RelationalPattern(RelationalPatternKind.equals, new IntLiteral(0)),
       '''
 == 0''');
-  testMatcher(
+  testPattern(
       new RelationalPattern(RelationalPatternKind.notEquals, new IntLiteral(1)),
       '''
 != 1''');
-  testMatcher(
+  testPattern(
       new RelationalPattern(RelationalPatternKind.lessThan, new IntLiteral(2)),
       '''
 < 2''');
 }
 
 void _testMapMatcher() {
-  testMatcher(new MapPattern(null, null, []), '''
+  testPattern(new MapPattern(null, null, []), '''
 {}''');
-  testMatcher(new MapPattern(const DynamicType(), const DynamicType(), []), '''
+  testPattern(new MapPattern(const DynamicType(), const DynamicType(), []), '''
 <dynamic, dynamic>{}''');
-  testMatcher(
+  testPattern(
       new MapPattern(null, null, [
         new MapPatternEntry(
             new IntLiteral(0), new ConstantPattern(new IntLiteral(1))),
       ]),
       '''
 {0: 1}''');
-  testMatcher(
+  testPattern(
       new MapPattern(null, null, [
         new MapPatternEntry(
             new IntLiteral(0), new ConstantPattern(new IntLiteral(1))),
@@ -1307,4 +1321,25 @@ var 0 = 1;''');
           isFinal: true),
       '''
 final 0 = 1;''');
+}
+
+void _testExtensionTypeRedirectingInitializer() {
+  Procedure unnamedTarget = new Procedure(
+      new Name(""), ProcedureKind.Method, new FunctionNode(null),
+      fileUri: dummyUri);
+
+  Procedure namedTarget = new Procedure(
+      new Name("named"), ProcedureKind.Method, new FunctionNode(null),
+      fileUri: dummyUri);
+
+  testInitializer(
+      new ExtensionTypeRedirectingInitializer(unnamedTarget, new Arguments([])),
+      '''
+this()''');
+
+  testInitializer(
+      new ExtensionTypeRedirectingInitializer(
+          namedTarget, new Arguments([new IntLiteral(0)])),
+      '''
+this.named(0)''');
 }

@@ -19,11 +19,11 @@ import 'package:kernel/src/tool/find_referenced_libraries.dart'
     show duplicateLibrariesReachable;
 import 'package:kernel/target/targets.dart' show TargetFlags;
 
+import '../command/command.dart';
+import '../command/options.dart' show Options;
 import '../compiler/js_names.dart';
 import '../compiler/module_builder.dart' show ModuleFormat, parseModuleFormat;
-import '../compiler/shared_command.dart' show SharedCompilerOptions;
 import 'asset_file_system.dart';
-import 'command.dart';
 import 'compiler.dart' show ProgramCompiler;
 import 'expression_compiler.dart' show ExpressionCompiler;
 import 'target.dart' show DevCompilerTarget;
@@ -83,6 +83,8 @@ class ExpressionCompilerWorker {
   final ProcessedOptions _processedOptions;
   final CompilerOptions _compilerOptions;
   final ModuleFormat _moduleFormat;
+  final bool _canaryFeatures;
+  final bool _enableAsserts;
   final Component _sdkComponent;
 
   void Function()? onDone;
@@ -91,16 +93,13 @@ class ExpressionCompilerWorker {
     this._processedOptions,
     this._compilerOptions,
     this._moduleFormat,
+    this._canaryFeatures,
+    this._enableAsserts,
     this._sdkComponent,
     this.requestStream,
     this.sendResponse,
     this.onDone,
   );
-
-  // Disable asserts due to failures to load source and locations on kernel
-  // loaded from dill files in DDC.
-  // https://github.com/dart-lang/sdk/issues/43986
-  static const bool _enableAsserts = false;
 
   /// Create expression compiler worker from [args] and start it.
   ///
@@ -121,20 +120,27 @@ class ExpressionCompilerWorker {
   ///
   /// The worker stops on start failure or after the consumer closes its
   /// receive port corresponding to [sendPort].
-  static Future<void> createAndStart(List<String> args,
-      {SendPort? sendPort}) async {
+  static Future<void> createAndStart(
+    List<String> args, {
+    SendPort? sendPort,
+  }) async {
     ExpressionCompilerWorker? worker;
     if (sendPort != null) {
       var receivePort = ReceivePort();
       sendPort.send(receivePort.sendPort);
       try {
-        worker = await createFromArgs(args,
-            requestStream: receivePort.cast<Map<String, dynamic>>(),
-            sendResponse: sendPort.send);
+        worker = await createFromArgs(
+          args,
+          requestStream: receivePort.cast<Map<String, dynamic>>(),
+          sendResponse: sendPort.send,
+        );
         await worker.run();
       } catch (e, s) {
-        sendPort
-            .send({'exception': '$e', 'stackTrace': '$s', 'succeeded': false});
+        sendPort.send({
+          'exception': '$e',
+          'stackTrace': '$s',
+          'succeeded': false,
+        });
         rethrow;
       } finally {
         receivePort.close();
@@ -173,18 +179,24 @@ class ExpressionCompilerWorker {
     if (assetServerAddress != null) {
       var assetServerPort = parsedArgs['asset-server-port'] as String?;
       fileSystem = AssetFileSystem(
-          fileSystem, assetServerAddress, assetServerPort ?? '8080');
+        fileSystem,
+        assetServerAddress,
+        assetServerPort ?? '8080',
+      );
     }
     var explicitExperimentalFlags = parseExperimentalFlags(
-        parseExperimentalArguments(
-            parsedArgs['enable-experiment'] as List<String>),
-        onError: (e) => throw e);
+      parseExperimentalArguments(
+        parsedArgs['enable-experiment'] as List<String>,
+      ),
+      onError: (e) => throw e,
+    );
 
     var moduleFormat = parseModuleFormat(parsedArgs['module-format'] as String);
 
     return create(
-      librariesSpecificationUri:
-          _argToUri(parsedArgs['libraries-file'] as String?),
+      librariesSpecificationUri: _argToUri(
+        parsedArgs['libraries-file'] as String?,
+      ),
       packagesFile: _argToUri(parsedArgs['packages-file'] as String?),
       sdkSummary: _argToUri(parsedArgs['dart-sdk-summary'] as String?),
       fileSystem: fileSystem,
@@ -192,8 +204,9 @@ class ExpressionCompilerWorker {
       explicitExperimentalFlags: explicitExperimentalFlags,
       sdkRoot: _argToUri(parsedArgs['sdk-root'] as String?),
       trackWidgetCreation: parsedArgs['track-widget-creation'] as bool,
-      soundNullSafety: parsedArgs['sound-null-safety'] as bool,
       moduleFormat: moduleFormat,
+      canaryFeatures: parsedArgs['canary'] as bool,
+      enableAsserts: parsedArgs['enable-asserts'] as bool,
       verbose: parsedArgs['verbose'] as bool,
       requestStream: requestStream,
       sendResponse: sendResponse,
@@ -217,12 +230,13 @@ class ExpressionCompilerWorker {
     Map<ExperimentalFlag, bool> explicitExperimentalFlags = const {},
     Uri? sdkRoot,
     bool trackWidgetCreation = false,
-    bool soundNullSafety = false,
     ModuleFormat moduleFormat = ModuleFormat.amd,
+    bool canaryFeatures = false,
+    bool enableAsserts = true,
     bool verbose = false,
     Stream<Map<String, dynamic>>? requestStream, // Defaults to read from stdin
     void Function(Map<String, dynamic>)?
-        sendResponse, // Defaults to write to stdout
+    sendResponse, // Defaults to write to stdout
     void Function()? onDone,
   }) async {
     var compilerOptions = CompilerOptions()
@@ -231,17 +245,16 @@ class ExpressionCompilerWorker {
       ..sdkSummary = sdkSummary
       ..packagesFileUri = packagesFile
       ..librariesSpecificationUri = librariesSpecificationUri
-      ..target = DevCompilerTarget(TargetFlags(
-          trackWidgetCreation: trackWidgetCreation,
-          soundNullSafety: soundNullSafety))
+      ..target = DevCompilerTarget(
+        TargetFlags(trackWidgetCreation: trackWidgetCreation),
+      )
       ..fileSystem = fileSystem
       ..omitPlatform = true
       ..environmentDefines = addGeneratedVariables({
         if (environmentDefines != null) ...environmentDefines,
-      }, enableAsserts: _enableAsserts)
+      }, enableAsserts: enableAsserts)
       ..explicitExperimentalFlags = explicitExperimentalFlags
       ..onDiagnostic = _onDiagnosticHandler(errors, warnings, infos)
-      ..nnbdMode = soundNullSafety ? NnbdMode.Strong : NnbdMode.Weak
       ..verbose = verbose;
     requestStream ??= stdin
         .transform(utf8.decoder.fuse(json.decoder))
@@ -252,15 +265,23 @@ class ExpressionCompilerWorker {
 
     var sdkComponent = await CompilerContext(processedOptions)
         .runInContext<Component?>((CompilerContext c) async {
-      return processedOptions.loadSdkSummary(null);
-    });
+          return processedOptions.loadSdkSummary(null);
+        });
 
     if (sdkComponent == null) {
       throw Exception('Could not load SDK component: $sdkSummary');
     }
-    return ExpressionCompilerWorker._(processedOptions, compilerOptions,
-        moduleFormat, sdkComponent, requestStream, sendResponse, onDone)
-      .._updateCache(sdkComponent, dartSdkModule, true);
+    return ExpressionCompilerWorker._(
+      processedOptions,
+      compilerOptions,
+      moduleFormat,
+      canaryFeatures,
+      enableAsserts,
+      sdkComponent,
+      requestStream,
+      sendResponse,
+      onDone,
+    ).._updateCache(sdkComponent, dartSdkModule, true);
   }
 
   /// Starts listening and responding to commands.
@@ -274,21 +295,27 @@ class ExpressionCompilerWorker {
         if (command == 'Shutdown') break;
         switch (command) {
           case 'UpdateDeps':
-            sendResponse(await _updateDependencies(
-                UpdateDependenciesRequest.fromJson(request)));
-            break;
+            sendResponse(
+              await _updateDependencies(
+                UpdateDependenciesRequest.fromJson(request),
+              ),
+            );
           case 'CompileExpression':
-            sendResponse(await _compileExpression(
-                CompileExpressionRequest.fromJson(request)));
-            break;
+            sendResponse(
+              await _compileExpression(
+                CompileExpressionRequest.fromJson(request),
+              ),
+            );
           default:
             throw ArgumentError(
-                'Unrecognized command `$command`, full request was `$request`');
+              'Unrecognized command `$command`, full request was `$request`',
+            );
         }
       } catch (e, s) {
         var command = request['command'] as String?;
-        _processedOptions.ticker
-            .logMs('Expression compiler worker request $command failed: $e:$s');
+        _processedOptions.ticker.logMs(
+          'Expression compiler worker request $command failed: $e:$s',
+        );
         sendResponse({
           'exception': '$e',
           'stackTrace': '$s',
@@ -309,43 +336,63 @@ class ExpressionCompilerWorker {
 
   /// Handles a `CompileExpression` request.
   Future<Map<String, dynamic>> _compileExpression(
-      CompileExpressionRequest request) async {
+    CompileExpressionRequest request,
+  ) async {
     var libraryUri = Uri.parse(request.libraryUri);
     var moduleName = request.moduleName;
+    var isSdk = libraryUri.isScheme('dart');
 
-    if (libraryUri.isScheme('dart')) {
-      // compiling expressions inside the SDK currently fails because
+    if (isSdk && (request.line > 1 || request.column > 1)) {
       // SDK kernel outlines do not contain information that is needed
       // to detect the scope for expression evaluation - such as local
-      // symbols and source file line starts.
+      // symbols and source file line starts. For that reason, we reject
+      // requests to evaluate arbitrary expressions in frames within SDK
+      // libraries. That said, the evaluation of expressions at the library
+      // level is different. For those, we don't need as much data and we will
+      // attempt to do the evaluation if we can.  We use the convention that
+      // library evaluation requests use line and column 1. Most tools operate
+      // with a 1-based line and column, but line and column 0 is also accepted
+      // for flexibility.
       throw Exception('Expression compilation inside SDK is not supported yet');
     }
 
-    _processedOptions.ticker
-        .logMs('Compiling expression to JavaScript in module $moduleName');
+    _processedOptions.ticker.logMs(
+      'Compiling expression to JavaScript in module $moduleName',
+    );
 
     // Reset linking of libraries to the original state,
     // so any newly loaded components are linked to the
     // libraries in the cache.
     _resetCacheLinks();
 
-    if (!_fullModules.containsKey(moduleName)) {
-      throw StateError('No full dill path available for $moduleName');
-    }
+    // We know that a full dill will be missing for Dart SDK requests and that
+    // there is nothing to update or reload in that case.
+    if (!isSdk) {
+      if (!_fullModules.containsKey(moduleName)) {
+        throw StateError('No full dill path available for $moduleName');
+      }
 
-    // Note that this doesn't actually re-load it if it's already fully loaded.
-    if (!await _loadAndUpdateComponent(
-        _fullModules[moduleName]!, moduleName, false)) {
-      throw ArgumentError('Failed to load full dill for module $moduleName: '
-          '${_fullModules[moduleName]}');
+      // Note that this doesn't actually reload it if it's already fully loaded.
+      if (!await _loadAndUpdateComponent(
+        _fullModules[moduleName]!,
+        moduleName,
+        false,
+      )) {
+        throw ArgumentError(
+          'Failed to load full dill for module $moduleName: '
+          '${_fullModules[moduleName]}',
+        );
+      }
     }
 
     errors.clear();
     warnings.clear();
     infos.clear();
 
-    var expressionCompiler =
-        await _createExpressionCompiler(libraryUri, moduleName);
+    var expressionCompiler = await _createExpressionCompiler(
+      libraryUri,
+      moduleName,
+    );
 
     // Failed to compile component, report compilation errors.
     if (expressionCompiler == null) {
@@ -359,11 +406,13 @@ class ExpressionCompilerWorker {
     }
 
     var compiledProcedure = await expressionCompiler.compileExpressionToJs(
-        request.libraryUri,
-        request.line,
-        request.column,
-        request.jsScope,
-        request.expression);
+      request.libraryUri,
+      request.scriptUri,
+      request.line,
+      request.column,
+      request.jsScope,
+      request.expression,
+    );
 
     _processedOptions.ticker.logMs('Compiled expression to JavaScript');
 
@@ -381,12 +430,15 @@ class ExpressionCompilerWorker {
   /// [moduleName].
   /// Returns `null` if the module's component compilation fails.
   Future<ExpressionCompiler?> _createExpressionCompiler(
-      Uri libraryUri, String moduleName) async {
+    Uri libraryUri,
+    String moduleName,
+  ) async {
     var expressionCompiler = _moduleCache.expressionCompilers[moduleName];
     if (expressionCompiler != null) return expressionCompiler;
 
-    _processedOptions.ticker
-        .logMs('Creating expression compiler for $moduleName');
+    _processedOptions.ticker.logMs(
+      'Creating expression compiler for $moduleName',
+    );
 
     var originalComponent = _moduleCache.componentForModuleName[moduleName];
     if (originalComponent == null) {
@@ -394,11 +446,19 @@ class ExpressionCompilerWorker {
     }
 
     var component = _sdkComponent;
-    if (!libraryUri.isScheme('dart')) {
+    final isSdk = libraryUri.isScheme('dart');
+    if (!isSdk) {
+      // Note: support for expression evaluation in the SDK is limited to only
+      // library level expressions. To support that, we use the existing SDK
+      // summary component. In the future, to support expression evaluation in
+      // any scope, we will likely need to provide the full component of the SDK
+      // here, instead.
       _processedOptions.ticker.logMs('Collecting libraries for $moduleName');
 
-      var libraries =
-          _collectTransitiveDependencies(originalComponent, _sdkComponent);
+      var libraries = _collectTransitiveDependencies(
+        originalComponent,
+        _sdkComponent,
+      );
 
       assert(!duplicateLibrariesReachable(libraries));
 
@@ -406,19 +466,27 @@ class ExpressionCompilerWorker {
         libraries: libraries,
         nameRoot: originalComponent.root,
         uriToSource: originalComponent.uriToSource,
-      )..setMainMethodAndMode(
-          originalComponent.mainMethodName, true, originalComponent.mode);
+      )..setMainMethodAndMode(originalComponent.mainMethodName, true);
       _processedOptions.ticker.logMs('Collected libraries for $moduleName');
     }
 
-    var entryPoints = originalComponent.libraries
-        .map((e) => e.importUri)
-        .where((uri) => !uri.isScheme('dart'));
+    var entryPoints = [
+      for (var library in originalComponent.libraries)
+        // Filter out SDK libraries unless the goal is a library level
+        // expression evaluation in the Dart SDK.
+        if (isSdk || !library.importUri.isScheme('dart')) library.importUri,
+    ];
+
     var incrementalCompiler = IncrementalCompiler.forExpressionCompilationOnly(
-        CompilerContext(_processedOptions), component, /*resetTicker*/ false);
+      CompilerContext(_processedOptions),
+      component,
+      /*resetTicker*/ false,
+    );
 
     var incrementalCompilerResult = await incrementalCompiler.computeDelta(
-        entryPoints: entryPoints.toList(), fullComponent: true);
+      entryPoints: entryPoints,
+      fullComponent: true,
+    );
     var finalComponent = incrementalCompilerResult.component;
     assert(!duplicateLibrariesReachable(finalComponent.libraries));
     assert(_canSerialize(finalComponent));
@@ -430,25 +498,28 @@ class ExpressionCompilerWorker {
     if (errors.isNotEmpty) return null;
 
     var coreTypes = incrementalCompilerResult.coreTypes;
-    var hierarchy = incrementalCompilerResult.classHierarchy!;
+    var hierarchy = incrementalCompilerResult.classHierarchy;
 
     var kernel2jsCompiler = ProgramCompiler(
       finalComponent,
       hierarchy,
-      SharedCompilerOptions(
-          sourceMap: true,
-          summarizeApi: false,
-          moduleName: moduleName,
-          soundNullSafety: _compilerOptions.nnbdMode == NnbdMode.Strong,
-          enableAsserts: _enableAsserts),
+      Options(
+        sourceMap: true,
+        summarizeApi: false,
+        moduleName: moduleName,
+        canaryFeatures: _canaryFeatures,
+        enableAsserts: _enableAsserts,
+      ),
       _moduleCache.componentForLibrary,
       _moduleCache.moduleNameForComponent,
       coreTypes: coreTypes,
       ticker: _processedOptions.ticker,
     );
 
-    assert(originalComponent.libraries.toSet().length ==
-        originalComponent.libraries.length);
+    assert(
+      originalComponent.libraries.toSet().length ==
+          originalComponent.libraries.length,
+    );
 
     // Pick the libraries from finalComponent that's also in originalComponent.
     // This is needed because originalComponent can contain unreachable things
@@ -460,32 +531,36 @@ class ExpressionCompilerWorker {
     assert(_librariesAreKnown(hierarchy, librariesToEmit));
 
     var componentToEmit = Component(
-        libraries: librariesToEmit,
-        nameRoot: finalComponent.root,
-        uriToSource: finalComponent.uriToSource)
-      ..setMainMethodAndMode(
-          originalComponent.mainMethodName, true, originalComponent.mode);
+      libraries: librariesToEmit,
+      nameRoot: finalComponent.root,
+      uriToSource: finalComponent.uriToSource,
+    )..setMainMethodAndMode(originalComponent.mainMethodName, true);
 
     kernel2jsCompiler.emitModule(componentToEmit);
     _processedOptions.ticker.logMs('Emitted module for expression');
 
     expressionCompiler = ExpressionCompiler(
       _compilerOptions,
-      _moduleFormat,
+      _moduleFormat == ModuleFormat.ddc && _canaryFeatures
+          ? ModuleFormat.ddcLibraryBundle
+          : _moduleFormat,
       errors,
       incrementalCompiler,
       kernel2jsCompiler,
       finalComponent,
     );
     _moduleCache.expressionCompilers[moduleName] = expressionCompiler;
-    _processedOptions.ticker
-        .logMs('Created expression compiler for $moduleName');
+    _processedOptions.ticker.logMs(
+      'Created expression compiler for $moduleName',
+    );
     return expressionCompiler;
   }
 
   /// Collect libraries reachable from component.
   List<Library> _collectTransitiveDependencies(
-      Component component, Component sdk) {
+    Component component,
+    Component sdk,
+  ) {
     var visited = <Uri>{};
     var libraries = <Library>[];
     var toVisit = <Uri>[];
@@ -505,8 +580,9 @@ class ExpressionCompilerWorker {
               toVisit.add(dep.importedLibraryReference.asLibrary.importUri);
             } else {
               _processedOptions.ticker.logMs(
-                  'Missing link for ${dep.importedLibraryReference.canonicalName}'
-                  ' in ${lib.importUri}');
+                'Missing link for ${dep.importedLibraryReference.canonicalName}'
+                ' in ${lib.importUri}',
+              );
             }
           }
         } else {
@@ -520,9 +596,11 @@ class ExpressionCompilerWorker {
 
   /// Loads in the specified dill files and invalidates any existing ones.
   Future<Map<String, dynamic>> _updateDependencies(
-      UpdateDependenciesRequest request) async {
-    _processedOptions.ticker
-        .logMs('Updating dependencies for expression evaluation');
+    UpdateDependenciesRequest request,
+  ) async {
+    _processedOptions.ticker.logMs(
+      'Updating dependencies for expression evaluation',
+    );
 
     for (var input in request.inputs) {
       _clearCache(input.moduleName);
@@ -545,25 +623,35 @@ class ExpressionCompilerWorker {
       // path by loading full dill kernel instead.
       var hasSummary = input.summaryPath != null;
       if (!hasSummary) {
-        _processedOptions.ticker
-            .logMs('Summary path is not provided for ${input.moduleName}.'
-                ' Loading full dill instead.');
+        _processedOptions.ticker.logMs(
+          'Summary path is not provided for ${input.moduleName}.'
+          ' Loading full dill instead.',
+        );
       }
       var summaryPath = input.summaryPath ?? input.path;
       _fullModules[input.moduleName] = Uri.parse(input.path);
-      futures.add(_loadAndUpdateComponent(
-          Uri.parse(summaryPath), input.moduleName, hasSummary));
+      futures.add(
+        _loadAndUpdateComponent(
+          Uri.parse(summaryPath),
+          input.moduleName,
+          hasSummary,
+        ),
+      );
     }
     await Future.wait(futures);
 
-    _processedOptions.ticker
-        .logMs('Updated dependencies for expression evaluation');
+    _processedOptions.ticker.logMs(
+      'Updated dependencies for expression evaluation',
+    );
     return {'succeeded': true};
   }
 
   /// Load component and update cache.
   Future<bool> _loadAndUpdateComponent(
-      Uri uri, String moduleName, bool isSummary) async {
+    Uri uri,
+    String moduleName,
+    bool isSummary,
+  ) async {
     if (isSummary && _moduleCache.isModuleLoaded(moduleName)) return true;
     if (!isSummary && _moduleCache.isModuleFullyLoaded(moduleName)) return true;
     var componentKind = isSummary ? 'summary' : 'full kernel';
@@ -571,8 +659,9 @@ class ExpressionCompilerWorker {
     _processedOptions.ticker.logMs('Loading $componentKind for $moduleName');
     var component = await _loadComponent(uri);
     if (component == null) {
-      _processedOptions.ticker
-          .logMs('Failed to load $componentKind for $moduleName');
+      _processedOptions.ticker.logMs(
+        'Failed to load $componentKind for $moduleName',
+      );
       return false;
     }
     _updateCache(component, moduleName, isSummary);
@@ -583,8 +672,11 @@ class ExpressionCompilerWorker {
     var file = _processedOptions.fileSystem.entityForUri(uri);
     if (await file.existsAsyncIfPossible()) {
       var bytes = await file.readAsBytesAsyncIfPossible();
-      var component = _processedOptions.loadComponent(bytes, _sdkComponent.root,
-          alwaysCreateNewNamedNodes: true);
+      var component = _processedOptions.loadComponent(
+        bytes,
+        _sdkComponent.root,
+        alwaysCreateNewNamedNodes: true,
+      );
       return component;
     }
     _processedOptions.ticker.logMs('File for $uri does not exist.');
@@ -664,8 +756,10 @@ class ModuleCache {
 
     for (var lib in component.libraries) {
       if (isLibraryLoaded(lib)) {
-        throw Exception('library ${lib.importUri} is already loaded in '
-            '${moduleNameForComponent[componentForLibrary[lib]!]}');
+        throw Exception(
+          'library ${lib.importUri} is already loaded in '
+          '${moduleNameForComponent[componentForLibrary[lib]!]}',
+        );
       }
       componentForLibrary[lib] = component;
       libraryForUri[lib.importUri] = lib;
@@ -695,6 +789,7 @@ class CompileExpressionRequest {
   final Map<String, String> jsModules;
   final Map<String, String> jsScope;
   final String libraryUri;
+  final String? scriptUri;
   final int line;
   final String moduleName;
 
@@ -704,6 +799,7 @@ class CompileExpressionRequest {
     required this.jsModules,
     required this.jsScope,
     required this.libraryUri,
+    required this.scriptUri,
     required this.line,
     required this.moduleName,
   });
@@ -716,6 +812,7 @@ class CompileExpressionRequest {
         jsModules: Map<String, String>.from(json['jsModules'] as Map),
         jsScope: Map<String, String>.from(json['jsScope'] as Map),
         libraryUri: json['libraryUri'] as String,
+        scriptUri: json['scriptUri'] as String?,
         moduleName: json['moduleName'] as String,
       );
 }
@@ -729,8 +826,11 @@ class UpdateDependenciesRequest {
   factory UpdateDependenciesRequest.fromJson(Map<String, dynamic> json) =>
       UpdateDependenciesRequest([
         for (var input in json['inputs'] as List)
-          InputDill(input['path'] as String, input['summaryPath'] as String,
-              input['moduleName'] as String),
+          InputDill(
+            input['path'] as String,
+            input['summaryPath'] as String,
+            input['moduleName'] as String,
+          ),
       ]);
 }
 
@@ -743,29 +843,30 @@ class InputDill {
 }
 
 void Function(DiagnosticMessage) _onDiagnosticHandler(
-        List<String> errors, List<String> warnings, List<String> infos) =>
-    (DiagnosticMessage message) {
-      switch (message.severity) {
-        case Severity.error:
-        case Severity.internalProblem:
-          errors.add(message.plainTextFormatted.join('\n'));
-          break;
-        case Severity.warning:
-          warnings.add(message.plainTextFormatted.join('\n'));
-          break;
-        case Severity.info:
-          infos.add(message.plainTextFormatted.join('\n'));
-          break;
-        case Severity.context:
-        case Severity.ignored:
-          throw 'Unexpected severity: ${message.severity}';
-      }
-    };
+  List<String> errors,
+  List<String> warnings,
+  List<String> infos,
+) => (DiagnosticMessage message) {
+  switch (message.severity) {
+    case Severity.error:
+    case Severity.internalProblem:
+      errors.add(message.plainTextFormatted.join('\n'));
+    case Severity.warning:
+      warnings.add(message.plainTextFormatted.join('\n'));
+    case Severity.info:
+      infos.add(message.plainTextFormatted.join('\n'));
+    case Severity.context:
+    case Severity.ignored:
+      throw 'Unexpected severity: ${message.severity}';
+  }
+};
 
 final argParser = ArgParser()
   ..addOption('dart-sdk-summary')
-  ..addMultiOption('enable-experiment',
-      help: 'Enable a language experiment when invoking the CFE.')
+  ..addMultiOption(
+    'enable-experiment',
+    help: 'Enable a language experiment when invoking the CFE.',
+  )
   ..addOption('libraries-file')
   ..addMultiOption('multi-root')
   ..addOption('multi-root-scheme', defaultsTo: 'org-dartlang-app')
@@ -776,6 +877,14 @@ final argParser = ArgParser()
   ..addOption('module-format', defaultsTo: 'amd')
   ..addFlag('track-widget-creation', defaultsTo: false)
   ..addFlag('sound-null-safety', negatable: true, defaultsTo: true)
+  ..addFlag('canary', negatable: true, defaultsTo: false)
+  // Disable asserts in compiled code by default, which is different
+  // from the default value of the setting in DDC.
+  //
+  // TODO(annagrin) Change the default to `true` after the user code
+  // is tested with enabled asserts.
+  // Issue: https://github.com/dart-lang/sdk/issues/43986
+  ..addFlag('enable-asserts', negatable: true, defaultsTo: false)
   ..addFlag('verbose', defaultsTo: false);
 
 Uri? _argToUri(String? uriArg) =>

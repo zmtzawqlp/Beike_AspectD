@@ -34,11 +34,6 @@ class LibraryImportTable implements ImportTable {
 
   LibraryImportTable.empty();
 
-  /// The list of imports.
-  ///
-  /// Should not be modified directly, as the index map would go out of sync.
-  List<String> get importPaths => _importPaths;
-
   List<Library> get importedLibraries => _importedLibraries;
 
   int addImport(Library target, String importPath) {
@@ -80,11 +75,7 @@ class _ImportTableBuilder extends RecursiveVisitor {
     if (target == referenceLibrary) return; // Self-reference is special.
     if (target == null) return;
     Uri referenceUri = referenceLibrary.importUri;
-    Uri? targetUri = target.importUri;
-    // ignore: unnecessary_null_comparison
-    if (targetUri == null) {
-      throw '$referenceUri cannot refer to library without an import URI';
-    }
+    Uri targetUri = target.importUri;
     // To support using custom-uris in unit tests, we don't check directly
     // whether the scheme is 'file:', but instead we check that is not 'dart:'
     // or 'package:'.

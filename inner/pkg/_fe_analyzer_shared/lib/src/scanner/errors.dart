@@ -2,11 +2,16 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import '../base/errors.dart';
+// ignore: deprecated_member_use_from_same_package
+import 'package:_fe_analyzer_shared/src/scanner/errors.g.dart';
+
 import '../messages/codes.dart';
 import 'error_token.dart';
 import 'token.dart' show Token, TokenType;
 import 'token_constants.dart';
+
+// ignore: deprecated_member_use_from_same_package
+export 'package:_fe_analyzer_shared/src/scanner/errors.g.dart';
 
 /**
  *  Translates the given error [token] into an analyzer error and reports it
@@ -21,7 +26,7 @@ void translateErrorToken(ErrorToken token, ReportError reportError) {
       // Analyzer never generates an error message past the end of the input,
       // since such an error would not be visible in an editor.
       // TODO(paulberry,ahe): would it make sense to replicate this behavior
-      // in fasta, or move it elsewhere in analyzer?
+      // in cfe, or move it elsewhere in analyzer?
       charOffset--;
     }
     reportError(errorCode, charOffset, arguments);
@@ -33,14 +38,20 @@ void translateErrorToken(ErrorToken token, ReportError reportError) {
       // TODO(paulberry,ahe): Fasta reports the error location as the entire
       // string; analyzer expects the end of the string.
       reportError(
-          ScannerErrorCode.UNTERMINATED_STRING_LITERAL, endOffset - 1, null);
+        ScannerErrorCode.UNTERMINATED_STRING_LITERAL,
+        endOffset - 1,
+        null,
+      );
       return;
 
     case "UNTERMINATED_MULTI_LINE_COMMENT":
       // TODO(paulberry,ahe): Fasta reports the error location as the entire
       // comment; analyzer expects the end of the comment.
-      reportError(ScannerErrorCode.UNTERMINATED_MULTI_LINE_COMMENT,
-          endOffset - 1, null);
+      reportError(
+        ScannerErrorCode.UNTERMINATED_MULTI_LINE_COMMENT,
+        endOffset - 1,
+        null,
+      );
       return;
 
     case "MISSING_DIGIT":
@@ -60,9 +71,13 @@ void translateErrorToken(ErrorToken token, ReportError reportError) {
       // is only reported when there is a character associated with the token.
       return _makeError(ScannerErrorCode.ILLEGAL_CHARACTER, [token.character!]);
 
+    case "UNEXPECTED_SEPARATOR_IN_NUMBER":
+      return _makeError(ScannerErrorCode.UNEXPECTED_SEPARATOR_IN_NUMBER, null);
+
     case "UNSUPPORTED_OPERATOR":
-      return _makeError(ScannerErrorCode.UNSUPPORTED_OPERATOR,
-          [(token as UnsupportedOperator).token.lexeme]);
+      return _makeError(ScannerErrorCode.UNSUPPORTED_OPERATOR, [
+        (token as UnsupportedOperator).token.lexeme,
+      ]);
 
     default:
       if (errorCode == codeUnmatchedToken) {
@@ -85,7 +100,8 @@ void translateErrorToken(ErrorToken token, ReportError reportError) {
         return _makeError(ScannerErrorCode.MISSING_IDENTIFIER, null);
       }
       throw new UnimplementedError(
-          '$errorCode "${errorCode.analyzerCodes?.first}"');
+        '$errorCode "${errorCode.analyzerCodes?.first}"',
+      );
   }
 }
 
@@ -113,87 +129,7 @@ bool _isAtEnd(Token token, int charOffset) {
  * The [arguments] are any arguments needed to complete the error message.
  */
 typedef ReportError(
-    ScannerErrorCode errorCode, int offset, List<Object>? arguments);
-
-/**
- * The error codes used for errors detected by the scanner.
- */
-class ScannerErrorCode extends ErrorCode {
-  /**
-   * Parameters:
-   * 0: the token that was expected but not found
-   */
-  static const ScannerErrorCode EXPECTED_TOKEN =
-      const ScannerErrorCode('EXPECTED_TOKEN', "Expected to find '{0}'.");
-
-  /**
-   * Parameters:
-   * 0: the illegal character
-   */
-  static const ScannerErrorCode ILLEGAL_CHARACTER =
-      const ScannerErrorCode('ILLEGAL_CHARACTER', "Illegal character '{0}'.");
-
-  static const ScannerErrorCode MISSING_DIGIT =
-      const ScannerErrorCode('MISSING_DIGIT', "Decimal digit expected.");
-
-  static const ScannerErrorCode MISSING_HEX_DIGIT = const ScannerErrorCode(
-      'MISSING_HEX_DIGIT', "Hexadecimal digit expected.");
-
-  static const ScannerErrorCode MISSING_IDENTIFIER =
-      const ScannerErrorCode('MISSING_IDENTIFIER', "Expected an identifier.");
-
-  static const ScannerErrorCode MISSING_QUOTE =
-      const ScannerErrorCode('MISSING_QUOTE', "Expected quote (' or \").");
-
-  /**
-   * Parameters:
-   * 0: the path of the file that cannot be read
-   */
-  static const ScannerErrorCode UNABLE_GET_CONTENT = const ScannerErrorCode(
-      'UNABLE_GET_CONTENT', "Unable to get content of '{0}'.");
-
-  static const ScannerErrorCode UNEXPECTED_DOLLAR_IN_STRING =
-      const ScannerErrorCode(
-          'UNEXPECTED_DOLLAR_IN_STRING',
-          "A '\$' has special meaning inside a string, and must be followed by "
-              "an identifier or an expression in curly braces ({}).",
-          correctionMessage: "Try adding a backslash (\\) to escape the '\$'.");
-
-  /**
-   * Parameters:
-   * 0: the unsupported operator
-   */
-  static const ScannerErrorCode UNSUPPORTED_OPERATOR = const ScannerErrorCode(
-      'UNSUPPORTED_OPERATOR', "The '{0}' operator is not supported.");
-
-  static const ScannerErrorCode UNTERMINATED_MULTI_LINE_COMMENT =
-      const ScannerErrorCode(
-          'UNTERMINATED_MULTI_LINE_COMMENT', "Unterminated multi-line comment.",
-          correctionMessage: "Try terminating the comment with '*/', or "
-              "removing any unbalanced occurrences of '/*'"
-              " (because comments nest in Dart).");
-
-  static const ScannerErrorCode UNTERMINATED_STRING_LITERAL =
-      const ScannerErrorCode(
-          'UNTERMINATED_STRING_LITERAL', "Unterminated string literal.");
-
-  /**
-   * Initialize a newly created error code to have the given [name]. The message
-   * associated with the error will be created from the given [problemMessage]
-   * template. The correction associated with the error will be created from the
-   * given [correctionMessage] template.
-   */
-  const ScannerErrorCode(String name, String problemMessage,
-      {super.correctionMessage})
-      : super(
-          problemMessage: problemMessage,
-          name: name,
-          uniqueName: 'ScannerErrorCode.$name',
-        );
-
-  @override
-  ErrorSeverity get errorSeverity => ErrorSeverity.ERROR;
-
-  @override
-  ErrorType get type => ErrorType.SYNTACTIC_ERROR;
-}
+  ScannerErrorCode errorCode,
+  int offset,
+  List<Object>? arguments,
+);

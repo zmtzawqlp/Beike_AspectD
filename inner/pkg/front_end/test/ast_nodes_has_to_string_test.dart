@@ -1,6 +1,6 @@
 // Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show File, Platform, stdin, exitCode;
 
@@ -22,14 +22,14 @@ Future<void> main(List<String> args) async {
   Class primitiveConstantClass;
 
   {
-    Uri input = Platform.script.resolve("../tool/_fasta/compile.dart");
+    Uri input = Platform.script.resolve("../tool/compile.dart");
     CompilerOptions options = helper.getOptions();
     helper.TestIncrementalCompiler compiler =
         new helper.TestIncrementalCompiler(options, input,
             /*Uri initializeFrom*/ null, /*bool outlineOnly*/ true);
     IncrementalCompilerResult compilerResult = await compiler.computeDelta();
     c = compilerResult.component;
-    classHierarchy = compilerResult.classHierarchy!;
+    classHierarchy = compilerResult.classHierarchy;
     List<Library> libraries = c.libraries
         .where((Library lib) =>
             (lib.importUri.toString() == "package:kernel/ast.dart"))
@@ -49,7 +49,7 @@ Future<void> main(List<String> args) async {
     for (Library library in c.libraries) {
       for (Class c in library.classes) {
         if (c.isAbstract) continue;
-        if (classHierarchy.isSubtypeOf(c, nodeClass)) {
+        if (classHierarchy.isSubInterfaceOf(c, nodeClass)) {
           List<Member> toStringList = classHierarchy
               .getInterfaceMembers(c)
               .where((Member m) =>
@@ -99,9 +99,10 @@ Future<void> main(List<String> args) async {
         int from = 0;
         for (Class c in classes) {
           String innerContent = "";
-          if (classHierarchy.isSubtypeOf(c, memberClass)) {
+          if (classHierarchy.isSubInterfaceOf(c, memberClass)) {
             innerContent = "\$name";
-          } else if (classHierarchy.isSubtypeOf(c, primitiveConstantClass)) {
+          } else if (classHierarchy.isSubInterfaceOf(
+              c, primitiveConstantClass)) {
             innerContent = "\$value";
           }
           int to = c.fileEndOffset;
@@ -146,9 +147,9 @@ Future<void> main(List<String> args) async {
       int from = 0;
       for (Class c in classes) {
         String innerContent = "()";
-        if (classHierarchy.isSubtypeOf(c, memberClass)) {
+        if (classHierarchy.isSubInterfaceOf(c, memberClass)) {
           innerContent = r"($name)";
-        } else if (classHierarchy.isSubtypeOf(c, primitiveConstantClass)) {
+        } else if (classHierarchy.isSubInterfaceOf(c, primitiveConstantClass)) {
           innerContent = r"($value)";
         }
 
@@ -168,9 +169,9 @@ Future<void> main(List<String> args) async {
         }
 
         innerContent = "";
-        if (classHierarchy.isSubtypeOf(c, memberClass)) {
+        if (classHierarchy.isSubInterfaceOf(c, memberClass)) {
           innerContent = "\$name";
-        } else if (classHierarchy.isSubtypeOf(c, primitiveConstantClass)) {
+        } else if (classHierarchy.isSubInterfaceOf(c, primitiveConstantClass)) {
           innerContent = "\$value";
         }
 

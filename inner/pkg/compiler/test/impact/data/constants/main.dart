@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 import 'lib.dart';
 import 'lib.dart' deferred as defer;
 
@@ -153,7 +151,7 @@ symbolLiteral() => #foo;
 
 /*member: listLiteral:type=[
   inst:JSBool,
-  inst:List<bool*>]*/
+  inst:List<bool>]*/
 listLiteral() => const [true, false];
 
 /*member: mapLiteral:type=[
@@ -172,11 +170,9 @@ mapLiteral() => const {true: false};
 stringMapLiteral() => const {'foo': false};
 
 /*member: setLiteral:type=[
-  inst:ConstantMap<dynamic,dynamic>,
-  inst:ConstantStringMap<dynamic,dynamic>,
-  inst:GeneralConstantMap<dynamic,dynamic>,
-  inst:JSBool,
-  inst:_UnmodifiableSet<dynamic>]*/
+  inst:ConstantStringSet<dynamic>,
+  inst:GeneralConstantSet<dynamic>,
+  inst:JSBool]*/
 setLiteral() => const {true, false};
 
 /*member: instanceConstant:
@@ -196,7 +192,7 @@ instanceConstant() => const Class(true, false);
  type=[
   inst:Type,
   inst:_Type,
-  lit:String*]
+  lit:String]
 */
 typeLiteral() {
   const dynamic local = String;
@@ -263,7 +259,7 @@ symbolLiteralRef() => symbolLiteralField;
 
 /*member: listLiteralRef:type=[
   inst:JSBool,
-  inst:List<bool*>]*/
+  inst:List<bool>]*/
 listLiteralRef() => listLiteralField;
 
 /*member: mapLiteralRef:type=[
@@ -282,11 +278,9 @@ mapLiteralRef() => mapLiteralField;
 stringMapLiteralRef() => stringMapLiteralField;
 
 /*member: setLiteralRef:type=[
-  inst:ConstantMap<dynamic,dynamic>,
-  inst:ConstantStringMap<dynamic,dynamic>,
-  inst:GeneralConstantMap<dynamic,dynamic>,
-  inst:JSBool,
-  inst:_UnmodifiableSet<dynamic>]*/
+  inst:ConstantStringSet<dynamic>,
+  inst:GeneralConstantSet<dynamic>,
+  inst:JSBool]*/
 setLiteralRef() => setLiteralField;
 
 /*member: instanceConstantRef:
@@ -306,7 +300,7 @@ instanceConstantRef() => instanceConstantField;
  type=[
   inst:Type,
   inst:_Type,
-  lit:String*]
+  lit:String]
 */
 typeLiteralRef() => typeLiteralField;
 
@@ -363,7 +357,7 @@ symbolLiteralDeferred() => defer.symbolLiteralField;
 // TODO(johnniwinther): Should we record that this is deferred?
 /*member: listLiteralDeferred:type=[
   inst:JSBool,
-  inst:List<bool*>]*/
+  inst:List<bool>]*/
 listLiteralDeferred() => defer.listLiteralField;
 
 // TODO(johnniwinther): Should we record that this is deferred?
@@ -385,11 +379,9 @@ stringMapLiteralDeferred() => defer.stringMapLiteralField;
 
 // TODO(johnniwinther): Should we record that this is deferred?
 /*member: setLiteralDeferred:type=[
-  inst:ConstantMap<dynamic,dynamic>,
-  inst:ConstantStringMap<dynamic,dynamic>,
-  inst:GeneralConstantMap<dynamic,dynamic>,
-  inst:JSBool,
-  inst:_UnmodifiableSet<dynamic>]*/
+  inst:ConstantStringSet<dynamic>,
+  inst:GeneralConstantSet<dynamic>,
+  inst:JSBool]*/
 setLiteralDeferred() => defer.setLiteralField;
 
 /*member: instanceConstantDeferred:
@@ -409,7 +401,7 @@ instanceConstantDeferred() => defer.instanceConstantField;
  type=[
   inst:Type,
   inst:_Type,
-  lit:String*{defer}]
+  lit:String{defer}]
 */
 typeLiteralDeferred() => defer.typeLiteralField;
 

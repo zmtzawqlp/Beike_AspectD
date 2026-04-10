@@ -3,8 +3,8 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:_fe_analyzer_shared/src/exhaustiveness/key.dart';
-import 'package:_fe_analyzer_shared/src/exhaustiveness/static_type.dart';
 import 'package:_fe_analyzer_shared/src/exhaustiveness/shared.dart';
+import 'package:_fe_analyzer_shared/src/exhaustiveness/static_type.dart';
 import 'package:_fe_analyzer_shared/src/exhaustiveness/types.dart';
 
 class TestEnvironment implements ObjectPropertyLookup {
@@ -14,7 +14,10 @@ class TestEnvironment implements ObjectPropertyLookup {
       new _SealedClassOperations(this);
   late final _ExhaustivenessCache _exhaustivenessCache =
       new _ExhaustivenessCache(
-          _typeOperations, _enumOperations, _sealedClassOperations);
+        _typeOperations,
+        _enumOperations,
+        _sealedClassOperations,
+      );
 
   TestEnvironment() {
     _addClass(_Class.Object);
@@ -52,7 +55,8 @@ class TestEnvironment implements ObjectPropertyLookup {
       return _Type.Never;
     }
     throw new UnsupportedError(
-        "Unexpected StaticType $type (${type.runtimeType}).");
+      "Unexpected StaticType $type (${type.runtimeType}).",
+    );
   }
 
   Set<_InterfaceType> _getSupertypes(_Class cls) {
@@ -67,10 +71,12 @@ class TestEnvironment implements ObjectPropertyLookup {
     return _fields[cls] ?? const {};
   }
 
-  StaticType createClass(String name,
-      {bool isSealed = false,
-      List<StaticType> inherits = const [],
-      Map<String, StaticType> fields = const {}}) {
+  StaticType createClass(
+    String name, {
+    bool isSealed = false,
+    List<StaticType> inherits = const [],
+    Map<String, StaticType> fields = const {},
+  }) {
     _Class cls = new _Class(name, isSealed: isSealed);
     _addClass(cls);
     _InterfaceType type = new _InterfaceType(cls);
@@ -81,15 +87,21 @@ class TestEnvironment implements ObjectPropertyLookup {
         _addSupertype(type, supertype);
       } else {
         throw new UnsupportedError(
-            "Unexpected supertype $supertype (${supertype.runtimeType}).");
+          "Unexpected supertype $supertype (${supertype.runtimeType}).",
+        );
       }
     }
 
     if (fields.isNotEmpty) {
       Map<Key, _Type> fieldMap = _fields[cls] ??= {};
       for (MapEntry<String, StaticType> entry in fields.entries) {
-        assert(!fieldMap.containsKey(entry.key),
-            "Duplicate field '${entry.key}' in $cls.");
+        // TODO(srawlins): Look into fixing this code. Right now we get:
+        // "The argument type 'String' isn't related to 'Key'."
+        assert(
+          // ignore: collection_methods_unrelated_type
+          !fieldMap.containsKey(entry.key),
+          "Duplicate field '${entry.key}' in $cls.",
+        );
         fieldMap[new NameKey(entry.key)] = _typeFromStaticType(entry.value);
       }
     }
@@ -120,8 +132,9 @@ class TestEnvironment implements ObjectPropertyLookup {
   StaticType createRecordType(Map<String, StaticType> named) {
     Map<Key, _Type> namedTypes = {};
     for (MapEntry<String, StaticType> entry in named.entries) {
-      namedTypes[new RecordNameKey(entry.key)] =
-          _typeFromStaticType(entry.value);
+      namedTypes[new RecordNameKey(entry.key)] = _typeFromStaticType(
+        entry.value,
+      );
     }
     _Type type = new _RecordType([], namedTypes);
     return _exhaustivenessCache.getStaticType(type);
@@ -209,9 +222,10 @@ class _RecordType implements _Type {
 
   @override
   int get hashCode => Object.hash(
-      Object.hashAll(positional),
-      Object.hashAllUnordered(named.keys),
-      Object.hashAllUnordered(named.values));
+    Object.hashAll(positional),
+    Object.hashAllUnordered(named.keys),
+    Object.hashAllUnordered(named.values),
+  );
 
   @override
   bool operator ==(other) {
@@ -281,8 +295,11 @@ class _TypeOperations implements TypeOperations<_Type> {
       for (int i = 0; i < type.positional.length; i++) {
         fields[new RecordIndexKey(i)] = type.positional[i];
       }
-      fields.addAll(type.named.map(
-          (key, value) => new MapEntry(new RecordNameKey(key.name), value)));
+      fields.addAll(
+        type.named.map(
+          (key, value) => new MapEntry(new RecordNameKey(key.name), value),
+        ),
+      );
       return fields;
     } else {
       return getFieldTypes(_Type.Object);
@@ -324,6 +341,12 @@ class _TypeOperations implements TypeOperations<_Type> {
 
   @override
   bool isNullable(_Type type) {
+    return type is _NullableType;
+  }
+
+  @override
+  bool isPotentiallyNullable(_Type type) {
+    // TODO(johnniwinther): Support type variables.
     return type is _NullableType;
   }
 
@@ -427,6 +450,12 @@ class _TypeOperations implements TypeOperations<_Type> {
     // TODO(johnniwinther): Support type variable bounds in testing.
     return null;
   }
+
+  @override
+  _Type getExtensionTypeErasure(_Type type) {
+    // TODO(johnniwinther): Support extension types in testing.
+    return type;
+  }
 }
 
 class _EnumOperations
@@ -499,8 +528,18 @@ class _SealedClassOperations implements SealedClassOperations<_Type, _Class> {
   }
 }
 
-class _ExhaustivenessCache extends ExhaustivenessCache<_Type, _Class,
-    _EnumClass, _EnumElement, _EnumElementValue> {
+class _ExhaustivenessCache
+    extends
+        ExhaustivenessCache<
+          _Type,
+          _Class,
+          _EnumClass,
+          _EnumElement,
+          _EnumElementValue
+        > {
   _ExhaustivenessCache(
-      super.typeOperations, super.enumOperations, super.sealedClassOperations);
+    super.typeOperations,
+    super.enumOperations,
+    super.sealedClassOperations,
+  );
 }

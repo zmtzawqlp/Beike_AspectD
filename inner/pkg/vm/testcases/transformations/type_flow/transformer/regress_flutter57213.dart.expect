@@ -1,4 +1,4 @@
-library #lib /*isNonNullableByDefault*/;
+library #lib;
 import self as self;
 import "dart:core" as core;
 
@@ -7,8 +7,11 @@ class A extends core::Object {
   constructor •() → self::A
     : super core::Object::•()
     ;
+
+  [@vm.inferred-return-type.metadata=#lib::B]
+  [@vm.unboxing-info.metadata=[!regcc]]
   @#C3
-  static factory foo() → self::A
+  static factory foo() → self::A /* redirection-target: self::B::• */
     return new self::B::•();
 }
 class B extends self::A {
@@ -20,15 +23,20 @@ abstract class C extends core::Object {
   constructor •() → self::C
     : super core::Object::•()
     ;
+
+  [@vm.inferred-return-type.metadata=#lib::E]
+  [@vm.unboxing-info.metadata=[!regcc]]
   @#C3
-  static factory bar() → self::C
+  static factory bar() → self::C /* redirection-target: self::D::baz */
     return [@vm.inferred-type.metadata=#lib::E] self::D::baz();
 }
 abstract class D extends self::C {
   constructor •() → self::D
     : super self::C::•()
     ;
-  static factory baz() → self::D
+
+  [@vm.inferred-return-type.metadata=#lib::E]
+  static factory baz() → self::D /* redirection-target: self::E::• */
     return new self::E::•();
 }
 class E extends self::D {
@@ -36,6 +44,8 @@ class E extends self::D {
     : super self::D::•()
     ;
 }
+
+[@vm.inferred-return-type.metadata=dart.core::Null? (value: null)]
 static method main() → void {}
 constants  {
   #C1 = "vm:entry-point"

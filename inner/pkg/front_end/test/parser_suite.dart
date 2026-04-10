@@ -13,31 +13,24 @@ import 'package:_fe_analyzer_shared/src/experiments/flags.dart' as shared
 import 'package:_fe_analyzer_shared/src/parser/parser.dart'
     show Parser, lengthOfSpan;
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
-    show ErrorToken, ScannerConfiguration, Token, Utf8BytesScanner;
+    show ErrorToken, ScannerConfiguration, ScannerResult, Token, scan;
 import 'package:_fe_analyzer_shared/src/scanner/token.dart'
     show SyntheticStringToken;
-import 'package:front_end/src/fasta/command_line_reporting.dart'
+import 'package:front_end/src/base/command_line_reporting.dart'
     as command_line_reporting;
-import 'package:front_end/src/fasta/messages.dart' show Message;
-import 'package:front_end/src/fasta/source/diet_parser.dart'
+import 'package:front_end/src/base/messages.dart' show Message;
+import 'package:front_end/src/source/diet_parser.dart'
     show useImplicitCreationExpressionInCfe;
-import 'package:front_end/src/fasta/source/stack_listener_impl.dart'
+import 'package:front_end/src/source/stack_listener_impl.dart'
     show offsetForToken;
-import 'package:front_end/src/fasta/util/parser_ast.dart' show getAST;
-import 'package:front_end/src/fasta/util/parser_ast_helper.dart'
-    show ParserAstNode;
+import 'package:front_end/src/util/parser_ast.dart';
+import 'package:front_end/src/util/parser_ast_helper.dart';
 import 'package:kernel/ast.dart';
 import 'package:testing/testing.dart'
-    show
-        Chain,
-        ChainContext,
-        ExpectationSet,
-        Result,
-        Step,
-        TestDescription,
-        runMe;
+    show Chain, ChainContext, ExpectationSet, Result, Step, TestDescription;
 
-import 'fasta/testing/suite.dart' show UPDATE_EXPECTATIONS;
+import 'utils/suite_utils.dart';
+import 'testing/environment_keys.dart';
 import 'parser_test_listener.dart' show ParserTestListener;
 import 'parser_test_parser.dart' show TestParser;
 import 'testing_utils.dart' show checkEnvironment;
@@ -56,57 +49,46 @@ const String EXPECTATIONS = '''
 ]
 ''';
 
-void main([List<String> arguments = const []]) =>
-    runMe(arguments, createContext, configurationPath: "../testing.json");
+void main([List<String> arguments = const []]) => internalMain(createContext,
+    arguments: arguments,
+    displayName: "parser suite",
+    configurationPath: "../testing.json");
 
-Future<Context> createContext(
-    Chain suite, Map<String, String> environment) async {
+Future<Context> createContext(Chain suite, Map<String, String> environment) {
   const Set<String> knownEnvironmentKeys = {
-    UPDATE_EXPECTATIONS,
-    "trace",
-    "annotateLines"
+    EnvironmentKeys.updateExpectations,
+    EnvironmentKeys.trace,
+    EnvironmentKeys.annotateLines,
   };
   checkEnvironment(environment, knownEnvironmentKeys);
 
-  bool updateExpectations = environment[UPDATE_EXPECTATIONS] == "true";
-  bool trace = environment["trace"] == "true";
-  bool annotateLines = environment["annotateLines"] == "true";
+  bool updateExpectations =
+      environment[EnvironmentKeys.updateExpectations] == "true";
+  bool trace = environment[EnvironmentKeys.trace] == "true";
+  bool annotateLines = environment[EnvironmentKeys.annotateLines] == "true";
 
-  return new Context(suite.name, updateExpectations, trace, annotateLines);
+  return new Future.value(
+      new Context(suite.name, updateExpectations, trace, annotateLines));
 }
 
 ScannerConfiguration scannerConfiguration = new ScannerConfiguration(
-    enableTripleShift: true,
-    enableExtensionMethods: true,
-    enableNonNullable: true,
-    forAugmentationLibrary: false);
-
-ScannerConfiguration scannerConfigurationNonNNBD = new ScannerConfiguration(
-    enableTripleShift: true,
-    enableExtensionMethods: true,
-    enableNonNullable: false,
-    forAugmentationLibrary: false);
+    enableTripleShift: true, forAugmentationLibrary: false);
 
 ScannerConfiguration scannerConfigurationNonTripleShift =
     new ScannerConfiguration(
-        enableTripleShift: false,
-        enableExtensionMethods: true,
-        enableNonNullable: true,
-        forAugmentationLibrary: false);
+        enableTripleShift: false, forAugmentationLibrary: false);
 
 ScannerConfiguration scannerConfigurationAugmentation =
     new ScannerConfiguration(
-        enableTripleShift: true,
-        enableExtensionMethods: true,
-        enableNonNullable: true,
-        forAugmentationLibrary: true);
+        enableTripleShift: true, forAugmentationLibrary: true);
 
 class Context extends ChainContext with MatchContext {
   @override
   final bool updateExpectations;
 
   @override
-  String get updateExpectationsOption => '${UPDATE_EXPECTATIONS}=true';
+  String get updateExpectationsOption =>
+      '${EnvironmentKeys.updateExpectations}=true';
 
   @override
   bool get canBeFixWithUpdateExpectations => true;
@@ -122,6 +104,7 @@ class Context extends ChainContext with MatchContext {
   final List<Step> steps = const <Step>[
     const TokenStep(true, ".scanner.expect"),
     const TokenStep(false, ".parser.expect"),
+    const ParserAstStep(true),
     const ListenerStep(true),
     const IntertwinedStep(),
   ];
@@ -129,13 +112,6 @@ class Context extends ChainContext with MatchContext {
   @override
   final ExpectationSet expectationSet =
       new ExpectationSet.fromJsonList(jsonDecode(EXPECTATIONS));
-
-  // Override special handling of negative tests.
-  @override
-  Result processTestResult(
-      TestDescription description, Result result, bool last) {
-    return result;
-  }
 }
 
 class ContextChecksOnly extends Context {
@@ -144,23 +120,17 @@ class ContextChecksOnly extends Context {
   @override
   final List<Step> steps = const <Step>[
     const ListenerStep(false),
-    const ParserAstStep(),
+    const ParserAstStep(false),
   ];
 
   @override
   final ExpectationSet expectationSet =
       new ExpectationSet.fromJsonList(jsonDecode(EXPECTATIONS));
-
-  // Override special handling of negative tests.
-  @override
-  Result processTestResult(
-      TestDescription description, Result result, bool last) {
-    return result;
-  }
 }
 
 class ParserAstStep extends Step<TestDescription, TestDescription, Context> {
-  const ParserAstStep();
+  final bool enablePossibleExpectFile;
+  const ParserAstStep(this.enablePossibleExpectFile);
 
   @override
   String get name => "ParserAst";
@@ -170,13 +140,44 @@ class ParserAstStep extends Step<TestDescription, TestDescription, Context> {
       TestDescription description, Context context) {
     Uri uri = description.uri;
     File f = new File.fromUri(uri);
-    List<int> rawBytes = f.readAsBytesSync();
+    Uint8List rawBytes = f.readAsBytesSync();
     ParserAstNode ast = getAST(rawBytes);
     if (ast.what != "CompilationUnit") {
       throw "Expected a single element for 'CompilationUnit' "
           "but got ${ast.what}";
     }
+    if (enablePossibleExpectFile && shouldDoOutline(description.shortName)) {
+      ExtractSomeMembers indexer = new ExtractSomeMembers();
+      ast.accept(indexer);
+      return context.match<TestDescription>(".outline.expect",
+          indexer.sb.toString(), description.uri, description);
+    }
     return new Future.value(new Result<TestDescription>.pass(description));
+  }
+}
+
+class ExtractSomeMembers extends RecursiveParserAstVisitor {
+  StringBuffer sb = new StringBuffer();
+  String? currentContainerName;
+
+  @override
+  void visitClassDeclarationEnd(ClassDeclarationEnd node) {
+    currentContainerName = node.getClassIdentifier().token.lexeme;
+    sb.writeln("Class: $currentContainerName");
+    super.visitClassDeclarationEnd(node);
+    currentContainerName = null;
+  }
+
+  @override
+  void visitTopLevelMethodEnd(TopLevelMethodEnd node) {
+    String name = node.getNameIdentifier().token.lexeme;
+    sb.writeln("Top-level method: $name");
+  }
+
+  @override
+  void visitClassMethodEnd(ClassMethodEnd node) {
+    sb.writeln(
+        "Class method: $currentContainerName.${node.getNameIdentifier()}");
   }
 }
 
@@ -197,13 +198,8 @@ class ListenerStep extends Step<TestDescription, TestDescription, Context> {
     List<int> lineStarts = <int>[];
     Token firstToken = scanUri(uri, shortName, lineStarts: lineStarts);
 
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      return null;
-    }
-
     File f = new File.fromUri(uri);
-    List<int> rawBytes = f.readAsBytesSync();
+    Uint8List rawBytes = f.readAsBytesSync();
     Source source = new Source(lineStarts, rawBytes, uri, uri);
     String shortNameId = "${suiteName}/${shortName}";
     ParserTestListenerWithMessageFormatting parserTestListener =
@@ -211,7 +207,8 @@ class ListenerStep extends Step<TestDescription, TestDescription, Context> {
             addTrace, annotateLines, source, shortNameId);
     Parser parser = new Parser(parserTestListener,
         useImplicitCreationExpression: useImplicitCreationExpressionInCfe,
-        allowPatterns: shouldAllowPatterns(shortName));
+        allowPatterns: shouldAllowPatterns(shortName),
+        enableFeatureEnhancedParts: shouldAllowEnhancedParts(shortName));
     parser.parseUnit(firstToken);
     return parserTestListener;
   }
@@ -261,13 +258,8 @@ class IntertwinedStep extends Step<TestDescription, TestDescription, Context> {
     Token firstToken =
         scanUri(description.uri, description.shortName, lineStarts: lineStarts);
 
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      return Future.value(crash(description, StackTrace.current));
-    }
-
     File f = new File.fromUri(description.uri);
-    List<int> rawBytes = f.readAsBytesSync();
+    Uint8List rawBytes = f.readAsBytesSync();
     Source source =
         new Source(lineStarts, rawBytes, description.uri, description.uri);
 
@@ -275,7 +267,8 @@ class IntertwinedStep extends Step<TestDescription, TestDescription, Context> {
         new ParserTestListenerForIntertwined(
             context.addTrace, context.annotateLines, source);
     TestParser parser = new TestParser(parserTestListener, context.addTrace,
-        allowPatterns: shouldAllowPatterns(description.shortName));
+        allowPatterns: shouldAllowPatterns(description.shortName),
+        enableEnhancedParts: shouldAllowEnhancedParts(description.shortName));
     parserTestListener.parser = parser;
     parser.sb = parserTestListener.sb;
     parser.parseUnit(firstToken);
@@ -301,11 +294,6 @@ class TokenStep extends Step<TestDescription, TestDescription, Context> {
     Token firstToken =
         scanUri(description.uri, description.shortName, lineStarts: lineStarts);
 
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      return Future.value(crash(description, StackTrace.current));
-    }
-
     StringBuffer beforeParser = tokenStreamToString(firstToken, lineStarts);
     StringBuffer beforeParserWithTypes =
         tokenStreamToString(firstToken, lineStarts, addTypes: true);
@@ -321,7 +309,9 @@ class TokenStep extends Step<TestDescription, TestDescription, Context> {
         new ParserTestListener(context.addTrace);
     Parser parser = new Parser(parserTestListener,
         useImplicitCreationExpression: useImplicitCreationExpressionInCfe,
-        allowPatterns: shouldAllowPatterns(description.shortName));
+        allowPatterns: shouldAllowPatterns(description.shortName),
+        enableFeatureEnhancedParts:
+            shouldAllowEnhancedParts(description.shortName));
     bool parserCrashed = false;
     dynamic parserCrashedE;
     StackTrace? parserCrashedSt;
@@ -434,11 +424,17 @@ StringBuffer tokenStreamToString(Token firstToken, List<int> lineStarts,
 }
 
 Token scanUri(Uri uri, String shortName, {List<int>? lineStarts}) {
+  File f = new File.fromUri(uri);
+  Uint8List rawBytes = f.readAsBytesSync();
+  return scanRawBytes(rawBytes, _getConfig(shortName), lineStarts);
+}
+
+ScannerConfiguration _getConfig(String shortName) {
   ScannerConfiguration config;
 
   String firstDir = shortName.split("/")[0];
-  if (firstDir == "non-nnbd") {
-    config = scannerConfigurationNonNNBD;
+  if (firstDir == "also-nnbd") {
+    config = scannerConfigurationNonTripleShift;
   } else if (firstDir == "no-triple-shift") {
     config = scannerConfigurationNonTripleShift;
   } else if (firstDir == "augmentation") {
@@ -446,11 +442,12 @@ Token scanUri(Uri uri, String shortName, {List<int>? lineStarts}) {
   } else {
     config = scannerConfiguration;
   }
+  return config;
+}
 
-  File f = new File.fromUri(uri);
-  List<int> rawBytes = f.readAsBytesSync();
-
-  return scanRawBytes(rawBytes, config, lineStarts);
+bool shouldDoOutline(String shortName) {
+  List<String> split = shortName.split("/");
+  return (split.length > 1 && split[split.length - 2] == "with_outline");
 }
 
 bool shouldAllowPatterns(String shortName) {
@@ -458,16 +455,18 @@ bool shouldAllowPatterns(String shortName) {
   return firstDir == "patterns";
 }
 
-Token scanRawBytes(
-    List<int> rawBytes, ScannerConfiguration config, List<int>? lineStarts) {
-  Uint8List bytes = new Uint8List(rawBytes.length + 1);
-  bytes.setRange(0, rawBytes.length, rawBytes);
+bool shouldAllowEnhancedParts(String shortName) {
+  String firstDir = shortName.split("/")[0];
+  return firstDir == "enhanced_parts";
+}
 
-  Utf8BytesScanner scanner =
-      new Utf8BytesScanner(bytes, includeComments: true, configuration: config);
-  Token firstToken = scanner.tokenize();
+Token scanRawBytes(
+    Uint8List rawBytes, ScannerConfiguration config, List<int>? lineStarts) {
+  ScannerResult scanResult =
+      scan(rawBytes, configuration: config, includeComments: true);
+  Token firstToken = scanResult.tokens;
   if (lineStarts != null) {
-    lineStarts.addAll(scanner.lineStarts);
+    lineStarts.addAll(scanResult.lineStarts);
   }
   return firstToken;
 }

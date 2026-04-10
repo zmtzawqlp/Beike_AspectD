@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -25,7 +25,19 @@ abstract class B extends core::Object implements self::Interface {
   abstract method method(core::num i) → core::String;
 }
 abstract class D extends core::Object implements self::Interface, self::Interface2 /*isMixinDeclaration*/  {
-  abstract forwarding-stub method method(covariant-by-declaration core::num i) → core::String;
+  abstract forwarding-stub synthetic method method(covariant-by-declaration core::num i) → core::String;
+}
+class E extends self::_E&Object&A&D {
+  synthetic constructor •() → self::E
+    : super self::_E&Object&A&D::•()
+    ;
+}
+abstract class F extends core::Object implements self::Interface /*isMixinDeclaration*/  {
+}
+class G extends self::_G&Object&A&F {
+  synthetic constructor •() → self::G
+    : super self::_G&Object&A&F::•()
+    ;
 }
 abstract class _E&Object&A extends core::Object implements self::A /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
   const synthetic constructor •() → self::_E&Object&A
@@ -38,15 +50,8 @@ abstract class _E&Object&A&D extends self::_E&Object&A implements self::D /*isAn
   const synthetic constructor •() → self::_E&Object&A&D
     : super self::_E&Object&A::•()
     ;
-  forwarding-stub method method(covariant-by-declaration core::num i, {core::String s = #C1}) → core::String
+  forwarding-stub synthetic method method(covariant-by-declaration core::num i, {core::String s = #C1}) → core::String
     return super.{self::_E&Object&A::method}(i, s: s);
-}
-class E extends self::_E&Object&A&D {
-  synthetic constructor •() → self::E
-    : super self::_E&Object&A&D::•()
-    ;
-}
-abstract class F extends core::Object implements self::Interface /*isMixinDeclaration*/  {
 }
 abstract class _G&Object&A extends core::Object implements self::A /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
   const synthetic constructor •() → self::_G&Object&A
@@ -58,11 +63,6 @@ abstract class _G&Object&A extends core::Object implements self::A /*isAnonymous
 abstract class _G&Object&A&F extends self::_G&Object&A implements self::F /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
   const synthetic constructor •() → self::_G&Object&A&F
     : super self::_G&Object&A::•()
-    ;
-}
-class G extends self::_G&Object&A&F {
-  synthetic constructor •() → self::G
-    : super self::_G&Object&A&F::•()
     ;
 }
 static method main() → dynamic {}

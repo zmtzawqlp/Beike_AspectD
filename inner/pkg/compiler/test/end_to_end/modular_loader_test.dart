@@ -2,10 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:typed_data';
+
 import 'package:compiler/src/elements/names.dart';
 
 import 'package:compiler/src/util/memory_compiler.dart';
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'package:compiler/src/common/elements.dart';
 import 'package:compiler/src/elements/entities.dart'
     show LibraryEntity, ClassEntity;
@@ -16,7 +18,6 @@ import 'package:front_end/src/api_prototype/front_end.dart';
 import 'package:front_end/src/api_prototype/memory_file_system.dart';
 import 'package:front_end/src/api_prototype/standard_file_system.dart';
 import 'package:front_end/src/api_unstable/dart2js.dart';
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
 import 'package:kernel/ast.dart';
 import 'package:kernel/target/targets.dart' show TargetFlags;
 
@@ -25,33 +26,54 @@ main() {
   asyncTest(() async {
     var aDill = await compileUnit(['a0.dart'], {'a0.dart': sourceA});
     var bDill = await compileUnit(
-        ['b1.dart'], {'b1.dart': sourceB, 'a.dill': aDill},
-        deps: ['a.dill']);
+      ['b1.dart'],
+      {'b1.dart': sourceB, 'a.dill': aDill},
+      deps: ['a.dill'],
+    );
     var cDill = await compileUnit(
-        ['c2.dart'], {'c2.dart': sourceC, 'a.dill': aDill, 'b.dill': bDill},
-        deps: ['a.dill', 'b.dill']);
+      ['c2.dart'],
+      {'c2.dart': sourceC, 'a.dill': aDill, 'b.dill': bDill},
+      deps: ['a.dill', 'b.dill'],
+    );
+    var unusedDill = await compileUnit(
+      ['unused0.dart'],
+      {'unused0.dart': unusedSource},
+    );
 
     DiagnosticCollector diagnostics = DiagnosticCollector();
     OutputCollector output = OutputCollector();
     Uri entryPoint = Uri.parse('org-dartlang-test:///c2.dart');
     var compiler = compilerFor(
-        entryPoint: entryPoint,
-        options: [
-          '--input-dill=memory:c.dill',
-          '--dill-dependencies=memory:a.dill,memory:b.dill',
-          '--sound-null-safety',
-        ],
-        memorySourceFiles: {'a.dill': aDill, 'b.dill': bDill, 'c.dill': cDill},
-        diagnosticHandler: diagnostics,
-        outputProvider: output);
-    load_kernel.Output result = (await load_kernel.run(load_kernel.Input(
+      entryPoint: entryPoint,
+      options: [
+        '--input-dill=memory:c.dill',
+        '--dill-dependencies=memory:a.dill,memory:b.dill,memory:unused.dill',
+      ],
+      memorySourceFiles: {
+        'a.dill': aDill,
+        'b.dill': bDill,
+        'c.dill': cDill,
+        'unused.dill': unusedDill,
+      },
+      diagnosticHandler: diagnostics,
+      outputProvider: output,
+    );
+    load_kernel.Output result = (await load_kernel.run(
+      load_kernel.Input(
         compiler.options,
         compiler.provider,
         compiler.reporter,
         compiler.initializedCompilerState,
-        false)))!;
-    compiler.frontendStrategy
-        .registerLoadedLibraries(result.component, result.libraries!);
+        false,
+      ),
+    ))!;
+
+    // Make sure we trim the unused library.
+    Expect.isFalse(result.libraries!.any((l) => l.path == '/unused0.dart'));
+    compiler.frontendStrategy.registerLoadedLibraries(
+      result.component,
+      result.libraries!,
+    );
 
     Expect.equals(0, diagnostics.errors.length);
     Expect.equals(0, diagnostics.warnings.length);
@@ -68,8 +90,11 @@ main() {
 }
 
 /// Generate a component for a modular compilation unit.
-Future<List<int>> compileUnit(List<String> inputs, Map<String, dynamic> sources,
-    {List<String> deps = const []}) async {
+Future<Uint8List> compileUnit(
+  List<String> inputs,
+  Map<String, dynamic> sources, {
+  List<String> deps = const [],
+}) async {
   var fs = MemoryFileSystem(_defaultDir);
   sources.forEach((name, data) {
     var entity = fs.entityForUri(toTestUri(name));
@@ -88,7 +113,6 @@ Future<List<int>> compileUnit(List<String> inputs, Map<String, dynamic> sources,
   var options = CompilerOptions()
     ..target = Dart2jsTarget("dart2js", TargetFlags())
     ..fileSystem = TestFileSystem(fs)
-    ..nnbdMode = NnbdMode.Strong
     ..additionalDills = additionalDills
     ..packagesFileUri = toTestUri('.dart_tool/package_config.json')
     ..explicitExperimentalFlags = {ExperimentalFlag.nonNullable: true};
@@ -100,8 +124,10 @@ Future<List<int>> compileUnit(List<String> inputs, Map<String, dynamic> sources,
       lib.bindCanonicalNames(component.root);
     }
   }
-  return serializeComponent(component,
-      filter: (Library lib) => inputUriSet.contains(lib.importUri));
+  return serializeComponent(
+    component,
+    filter: (Library lib) => inputUriSet.contains(lib.importUri),
+  );
 }
 
 Uri _defaultDir = Uri.parse('org-dartlang-test:///');
@@ -145,4 +171,8 @@ class C2 extends B1 {
 }
 
 main() => print(C2().foo.buffer.toString());
+''';
+
+const unusedSource = '''
+void unused() => throw 'Unused';
 ''';

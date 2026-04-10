@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart_template_buffer.dart';
 import 'key.dart';
 import 'path.dart';
 import 'static_type.dart';
@@ -71,17 +72,22 @@ class Witness {
 
   String get asCorrection => _witness.asCorrection;
 
+  /// Writes a representation of this witness to the given [buffer].
+  void toDart(DartTemplateBuffer buffer, {required bool forCorrection}) {
+    _witness.witnessToDart(buffer, forCorrection: forCorrection);
+  }
+
   @override
   String toString() => _witness.toString();
 }
 
-/// Helper class used to turn a list of [Predicates] into a string.
+/// Helper class used to turn a list of [Predicate]s into a string.
 class PropertyWitness {
   StaticType staticType = StaticType.nullableObject;
   StaticType valueType = StaticType.nullableObject;
   final Map<Key, PropertyWitness> properties = {};
 
-  void witnessToText(StringBuffer buffer, {required bool forCorrection}) {
+  void witnessToDart(DartTemplateBuffer buffer, {required bool forCorrection}) {
     if (properties.isNotEmpty) {
       Map<StaticType, Map<Key, PropertyWitness>> witnessFieldsByType = {};
       for (MapEntry<Key, PropertyWitness> entry in properties.entries) {
@@ -104,16 +110,28 @@ class PropertyWitness {
           Map<Key, PropertyWitness> witnessFields = entry.value;
           buffer.write(and);
           and = ' && ';
-          type.witnessToText(buffer, this, witnessFields,
-              forCorrection: forCorrection);
+          type.witnessToDart(
+            buffer,
+            this,
+            witnessFields,
+            forCorrection: forCorrection,
+          );
         }
       } else {
-        valueType.witnessToText(buffer, this, const {},
-            forCorrection: forCorrection);
+        valueType.witnessToDart(
+          buffer,
+          this,
+          const {},
+          forCorrection: forCorrection,
+        );
       }
     } else {
-      valueType.witnessToText(buffer, this, const {},
-          forCorrection: forCorrection);
+      valueType.witnessToDart(
+        buffer,
+        this,
+        const {},
+        forCorrection: forCorrection,
+      );
     }
   }
 
@@ -129,17 +147,17 @@ class PropertyWitness {
 
   /// Returns the witness as pattern syntax including all subproperties.
   String get asWitness {
-    StringBuffer sb = new StringBuffer();
-    witnessToText(sb, forCorrection: false);
-    return sb.toString();
+    DartTemplateBuffer buffer = new SimpleDartBuffer();
+    witnessToDart(buffer, forCorrection: false);
+    return buffer.toString();
   }
 
   /// Return the witness as pattern syntax without subproperties that fully
   /// match the static type.
   String get asCorrection {
-    StringBuffer sb = new StringBuffer();
-    witnessToText(sb, forCorrection: true);
-    return sb.toString();
+    DartTemplateBuffer buffer = new SimpleDartBuffer();
+    witnessToDart(buffer, forCorrection: true);
+    return buffer.toString();
   }
 
   @override

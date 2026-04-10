@@ -15,27 +15,41 @@
 /// number may have a lot more variability depending on system conditions.
 /// Our goal with this number is not so much to be exact, but to have a good
 /// metric we can track overtime and use to detect improvements and regressions.
+library;
+
 import 'dart:developer';
 import 'package:vm_service/vm_service_io.dart' as vm_service_io;
 
 Future<int?> _currentHeapCapacity() async {
-  final info =
-      await Service.controlWebServer(enable: true, silenceOutput: true);
-  final observatoryUri = info.serverUri;
-  if (observatoryUri == null) return null;
-  final wsUri = 'ws://${observatoryUri.authority}${observatoryUri.path}ws';
-  final vmService = await vm_service_io.vmServiceConnectUri(wsUri);
-  int sum = 0;
-  for (final group in (await vmService.getVM()).isolateGroups!) {
+  final info = await Service.controlWebServer(
+    enable: true,
+    silenceOutput: true,
+  );
+  final vmServiceWsUri = info.serverWebSocketUri?.toString();
+  if (vmServiceWsUri == null) return null;
+
+  final vmService = await vm_service_io.vmServiceConnectUri(vmServiceWsUri);
+  final vm = await vmService.getVM();
+
+  final nonSystemIsolateGroups = vm.isolateGroups;
+  final relevantSystemIsolateGroups = vm.systemIsolateGroups?.where(
+    (group) => group.name?.contains('dart2js') ?? false,
+  );
+
+  var relevantMemoryUsage = 0;
+  for (final group in [
+    ...?nonSystemIsolateGroups,
+    ...?relevantSystemIsolateGroups,
+  ]) {
     final usage = await vmService.getIsolateGroupMemoryUsage(group.id!);
-    sum += usage.heapCapacity!;
+    relevantMemoryUsage += usage.heapCapacity ?? 0;
   }
   vmService.dispose();
-  return sum;
+  return relevantMemoryUsage;
 }
 
-Future<String> currentHeapCapacityInMb() async {
+Future<String?> currentHeapCapacityInMb() async {
   final capacity = await _currentHeapCapacity();
-  if (capacity == null) return "N/A MB";
+  if (capacity == null || capacity == 0) return null;
   return "${(capacity / (1024 * 1024)).toStringAsFixed(3)} MB";
 }

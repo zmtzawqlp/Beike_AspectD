@@ -1,8 +1,8 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
-typedef Parser<unrelated T extends core::Object? = dynamic> = (core::String) → (self::Result<T%>, core::String);
+typedef Parser<T extends core::Object? = dynamic> = (core::String) → (self::Result<T%>, core::String);
 abstract sealed class Result<T extends core::Object? = dynamic> extends core::Object /*hasConstConstructor*/  {
   const constructor •() → self::Result<self::Result::T%>
     : super core::Object::•()
@@ -27,7 +27,7 @@ static method not((core::String) → (self::Result<dynamic>, core::String) parse
     #L1:
     {
       {
-        if(#0#0.$1{self::Result<dynamic>} is{ForNonNullableByDefault} self::Ok<dynamic>) {
+        if(#0#0.$1{self::Result<dynamic>} is self::Ok<dynamic>) {
           #t1 = (#C2, input);
           break #L1;
         }

@@ -59,7 +59,7 @@
 ///```
 ///
 /// This example is very similar to [defaultGrouping].
-library dart2js_info.bin.library_size_split;
+library;
 
 import 'dart:io';
 import 'dart:math' show max;
@@ -79,8 +79,10 @@ class LibrarySizeCommand extends Command<void> with PrintUsageException {
   final String description = "See breakdown of code size by library.";
 
   LibrarySizeCommand() {
-    argParser.addOption('grouping',
-        help: 'YAML file specifying how libraries should be grouped.');
+    argParser.addOption(
+      'grouping',
+      help: 'YAML file specifying how libraries should be grouped.',
+    );
   }
 
   @override
@@ -100,8 +102,9 @@ class LibrarySizeCommand extends Command<void> with PrintUsageException {
     final groupingYaml = loadYaml(groupingText);
     final groups = [];
     for (var group in groupingYaml['groups']) {
-      groups.add(_Group(
-          group['name'], RegExp(group['regexp']), group['cluster'] ?? 0));
+      groups.add(
+        _Group(group['name'], RegExp(group['regexp']), group['cluster'] ?? 0),
+      );
     }
 
     final sizes = {};
@@ -144,8 +147,10 @@ class LibrarySizeCommand extends Command<void> with PrintUsageException {
       var percent = row.value == realTotal
           ? '100'
           : (row.value * 100 / realTotal).toStringAsFixed(2);
-      print(' ${_pad(row.label, longest + 1, right: true)}'
-          ' ${_pad(row.value, 8)} ${_pad(percent, 6)}%');
+      print(
+        ' ${_pad(row.label, longest + 1, right: true)}'
+        ' ${_pad(row.value, 8)} ${_pad(percent, 6)}%',
+      );
     }
 
     var lastCluster = 0;
@@ -206,7 +211,7 @@ class _Divider extends _Row {
   const _Divider() : super('', 0);
 }
 
-String _pad(value, n, {bool right = false}) {
+String _pad(Object value, int n, {bool right = false}) {
   final s = '$value';
   if (s.length >= n) return s;
   var pad = ' ' * (n - s.length);
@@ -216,7 +221,8 @@ String _pad(value, n, {bool right = false}) {
 /// Default grouping specification that includes an entry per library, and
 /// grouping entries for each package, all packages, all core libs, and loose
 /// files.
-final defaultGrouping = """
+final defaultGrouping =
+    """
 groups:
 - { name: "Loose files", regexp: "file://.*", cluster: 2}
 - { name: "All packages", regexp: "package:.*", cluster: 2}

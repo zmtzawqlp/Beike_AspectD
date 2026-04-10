@@ -9,8 +9,9 @@ part of view;
 /// Utility class to efficiently word break and measure text without requiring
 /// access to the DOM.
 class MeasureText {
-  static late final _context = (Element.tag('canvas') as CanvasElement)
-      .getContext('2d') as CanvasRenderingContext2D;
+  static late final _context =
+      (Element.tag('canvas') as CanvasElement).getContext('2d')
+          as CanvasRenderingContext2D;
 
   final String font;
   late final num _spaceLength;
@@ -56,7 +57,11 @@ class MeasureText {
   /// This function is safe to call with [:sb == null:] in which case just the
   /// line count is returned.
   int addLineBrokenText(
-      StringBuffer? sb, String text, num lineWidth, int maxLines) {
+    StringBuffer? sb,
+    String text,
+    num lineWidth,
+    int maxLines,
+  ) {
     // Strip surrounding whitespace. This ensures we create zero lines if there
     // is no visible text.
     text = text.trim();
@@ -118,8 +123,9 @@ class MeasureText {
       // Treat the char after the end of the string as whitespace.
       bool whitespace = i == len || isWhitespace(text[i]);
       if (whitespace && !lastWhitespace) {
-        num wordLength =
-            _context.measureText(text.substring(wordStartIndex!, i)).width!;
+        num wordLength = _context
+            .measureText(text.substring(wordStartIndex!, i))
+            .width!;
         // TODO(jimhug): Replace the line above with this one to workaround
         //               dartium bug - error: unimplemented code
         // num wordLength = (i - wordStartIndex) * 17;

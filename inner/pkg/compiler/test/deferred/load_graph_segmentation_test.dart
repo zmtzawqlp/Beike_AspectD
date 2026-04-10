@@ -6,10 +6,10 @@
 // to determine which elements can be deferred and which libraries
 // much be included in the initial download (loaded eagerly).
 
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/compiler.dart';
 import 'package:compiler/src/deferred_load/output_unit.dart' show OutputUnit;
 import 'package:compiler/src/js_emitter/startup_emitter/fragment_merger.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
 
@@ -25,9 +25,10 @@ List<OutputUnit> collectOutputUnits(List<FinalizedFragment> fragments) {
 
 void main() {
   asyncTest(() async {
-    CompilationResult result =
-        await runCompiler(memorySourceFiles: MEMORY_SOURCE_FILES);
-    Compiler compiler = result.compiler;
+    CompilationResult result = await runCompiler(
+      memorySourceFiles: MEMORY_SOURCE_FILES,
+    );
+    Compiler compiler = result.compiler!;
 
     var closedWorld = compiler.backendClosedWorldForTesting!;
     var env = closedWorld.elementEnvironment;

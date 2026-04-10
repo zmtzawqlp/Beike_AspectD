@@ -8,18 +8,15 @@ import '../ast.dart';
 import '../class_hierarchy.dart';
 import '../core_types.dart';
 import '../reference_from_index.dart';
+import '../verifier.dart';
 import 'changed_structure_notifier.dart';
-
-final List<String> targetNames = targets.keys.toList();
 
 class TargetFlags {
   final bool trackWidgetCreation;
-  final bool soundNullSafety;
   final bool supportMirrors;
 
   const TargetFlags(
       {this.trackWidgetCreation = false,
-      this.soundNullSafety = true,
       this.supportMirrors = true});
 
   @override
@@ -27,7 +24,6 @@ class TargetFlags {
     if (identical(this, other)) return true;
     return other is TargetFlags &&
         trackWidgetCreation == other.trackWidgetCreation &&
-        soundNullSafety == other.soundNullSafety &&
         supportMirrors == other.supportMirrors;
   }
 
@@ -35,7 +31,6 @@ class TargetFlags {
   int get hashCode {
     int hash = 485786;
     hash = 0x3fffffff & (hash * 31 + (hash ^ trackWidgetCreation.hashCode));
-    hash = 0x3fffffff & (hash * 31 + (hash ^ soundNullSafety.hashCode));
     hash = 0x3fffffff & (hash * 31 + (hash ^ supportMirrors.hashCode));
     return hash;
   }
@@ -165,9 +160,9 @@ abstract class DartLibrarySupport {
   /// libraries specification.
   ///
   /// This is used to allow AOT to consider `dart:mirrors` as unsupported
-  /// despite it being supported in the platform dill, and dart2js to consider
-  /// `dart:_dart2js_runtime_metrics` to be supported despite it being an
-  /// internal library.
+  /// despite it being supported in the platform dill, and for dart2js and DDC
+  /// to consider `dart:_dart2js_only` and `dart:_ddc_only`, respectively, to be
+  /// supported despite them being internal libraries.
   bool computeDartLibrarySupport(String libraryName,
       {required bool isSupportedBySpec});
 
@@ -182,12 +177,13 @@ abstract class DartLibrarySupport {
     return dottedName.substring(dartLibraryPrefix.length);
   }
 
-  /// Returns `"true"` if the "dart:[libraryName]" is supported and `""`
-  /// otherwise.
+  /// Whether the "dart:[libraryName]" is supported.
   ///
   /// This is used to determine conditional imports and `bool.fromEnvironment`
   /// constant values for "dart.library.[libraryName]" values.
-  static String getDartLibrarySupportValue(String libraryName,
+  /// If the value is `false`, no environment entry exists for the library name,
+  /// otherwise an entry with value `"true"` is created.
+  static bool isDartLibrarySupported(String libraryName,
       {required bool libraryExists,
       required bool isSynthetic,
       required bool isUnsupported,
@@ -209,7 +205,7 @@ abstract class DartLibrarySupport {
     bool isSupported = libraryExists && !isSynthetic && !isUnsupported;
     isSupported = dartLibrarySupport.computeDartLibrarySupport(libraryName,
         isSupportedBySpec: isSupported);
-    return isSupported ? "true" : "";
+    return isSupported;
   }
 }
 
@@ -269,13 +265,6 @@ abstract class Target {
   /// A list of URIs of libraries to be indexed in the CoreTypes index, not
   /// including dart:_internal, dart:async, dart:core and dart:mirrors.
   List<String> get extraIndexedLibraries => const <String>[];
-
-  /// Additional declared variables implied by this target.
-  ///
-  /// These can also be passed on the command-line of form `-D<name>=<value>`,
-  /// and those provided on the command-line take precedence over those defined
-  /// by the target.
-  Map<String, String> get extraDeclaredVariables => const <String, String>{};
 
   /// Classes from the SDK whose interface is required for the modular
   /// transformations.
@@ -354,23 +343,15 @@ abstract class Target {
   bool allowPlatformPrivateLibraryAccess(Uri importer, Uri imported) =>
       importer.isScheme("dart") ||
       (importer.isScheme("package") &&
-          importer.path.startsWith("dart_internal/"));
+          (importer.path.startsWith("dart_internal/") ||
+              importer.path.startsWith("dynamic_modules/")));
 
   /// Whether the `native` language extension is supported within the library
   /// with the given import [uri].
   ///
   /// The `native` language extension is not part of the language specification,
-  /// it means something else to each target, and it is enabled under different
-  /// circumstances for each target implementation. For example, the VM target
-  /// enables it everywhere because of existing support for "dart-ext:" native
-  /// extensions, but targets like dart2js only enable it on the core libraries.
+  /// it is an extension that is used by dart2js/ddc.
   bool enableNative(Uri uri) => false;
-
-  /// There are two variants of the `native` language extension. The VM expects
-  /// the native token to be followed by string, whereas dart2js and DDC do not.
-  // TODO(sigmund, ahe): ideally we should remove the `native` syntax, if not,
-  // we should at least unify the VM and non-VM variants.
-  bool get nativeExtensionExpectsString => false;
 
   /// Whether integer literals that cannot be represented exactly on the web
   /// (i.e. in JavaScript) should cause an error to be issued.
@@ -401,12 +382,6 @@ abstract class Target {
       {required bool hasInitializer,
       required bool isFinal,
       required bool isStatic}) {
-    // ignore: unnecessary_null_comparison
-    assert(hasInitializer != null);
-    // ignore: unnecessary_null_comparison
-    assert(isFinal != null);
-    // ignore: unnecessary_null_comparison
-    assert(isStatic != null);
     int mask = LateLowering.getFieldLowering(
         hasInitializer: hasInitializer, isFinal: isFinal, isStatic: isStatic);
     return enabledLateLowerings & mask != 0;
@@ -460,12 +435,6 @@ abstract class Target {
       {required bool hasInitializer,
       required bool isFinal,
       required bool isPotentiallyNullable}) {
-    // ignore: unnecessary_null_comparison
-    assert(hasInitializer != null);
-    // ignore: unnecessary_null_comparison
-    assert(isFinal != null);
-    // ignore: unnecessary_null_comparison
-    assert(isPotentiallyNullable != null);
     int mask = LateLowering.getLocalLowering(
         hasInitializer: hasInitializer,
         isFinal: isFinal,
@@ -526,6 +495,7 @@ abstract class Target {
   Class? concreteConstMapLiteralClass(CoreTypes coreTypes) => null;
   Class? concreteSetLiteralClass(CoreTypes coreTypes) => null;
   Class? concreteConstSetLiteralClass(CoreTypes coreTypes) => null;
+  Class? concreteClosureClass(CoreTypes coreTypes) => null;
   Class getRecordImplementationClass(CoreTypes coreTypes,
           int numPositionalFields, List<String> namedFields) =>
       throw UnsupportedError('Target.getRecordImplementationClass');
@@ -534,10 +504,17 @@ abstract class Target {
   Class? concreteDoubleLiteralClass(CoreTypes coreTypes, double value) => null;
   Class? concreteStringLiteralClass(CoreTypes coreTypes, String value) => null;
 
+  /// When a comparison `x == <literal>` is true, whether we can assume the
+  /// class of `x` to be `concreteStringLiteralClass(<literal>)`.
+  bool get canInferStringClassAfterEqualityComparison => true;
+
   Class? concreteAsyncResultClass(CoreTypes coreTypes) => null;
   Class? concreteSyncStarResultClass(CoreTypes coreTypes) => null;
 
   ConstantsBackend get constantsBackend;
+
+  /// Object that defines how AST nodes are verified for this [Target].
+  Verification get verification => const Verification();
 
   /// Returns an [DartLibrarySupport] the defines which, if any, of the
   /// `dart:` libraries supported in the platform, that should not be
@@ -652,12 +629,6 @@ class LateLowering {
       {required bool hasInitializer,
       required bool isFinal,
       required bool isPotentiallyNullable}) {
-    // ignore: unnecessary_null_comparison
-    assert(hasInitializer != null);
-    // ignore: unnecessary_null_comparison
-    assert(isFinal != null);
-    // ignore: unnecessary_null_comparison
-    assert(isPotentiallyNullable != null);
     if (hasInitializer) {
       if (isFinal) {
         if (isPotentiallyNullable) {
@@ -693,12 +664,6 @@ class LateLowering {
       {required bool hasInitializer,
       required bool isFinal,
       required bool isStatic}) {
-    // ignore: unnecessary_null_comparison
-    assert(hasInitializer != null);
-    // ignore: unnecessary_null_comparison
-    assert(isFinal != null);
-    // ignore: unnecessary_null_comparison
-    assert(isStatic != null);
     if (hasInitializer) {
       if (isFinal) {
         if (isStatic) {
@@ -765,12 +730,10 @@ class TestTargetFlags extends TargetFlags {
       this.forceStaticFieldLoweringForTesting,
       this.forceNoExplicitGetterCallsForTesting,
       this.forceConstructorTearOffLoweringForTesting,
-      bool soundNullSafety = false,
       this.supportedDartLibraries = const {},
       this.unsupportedDartLibraries = const {}})
       : super(
-            trackWidgetCreation: trackWidgetCreation,
-            soundNullSafety: soundNullSafety);
+            trackWidgetCreation: trackWidgetCreation);
 }
 
 mixin TestTargetMixin on Target {
@@ -909,10 +872,6 @@ class TargetWrapper extends Target {
   bool get errorOnUnexactWebIntLiterals => _target.errorOnUnexactWebIntLiterals;
 
   @override
-  Map<String, String> get extraDeclaredVariables =>
-      _target.extraDeclaredVariables;
-
-  @override
   List<String> get extraIndexedLibraries => _target.extraIndexedLibraries;
 
   @override
@@ -963,9 +922,6 @@ class TargetWrapper extends Target {
 
   @override
   String get name => _target.name;
-
-  @override
-  bool get nativeExtensionExpectsString => _target.nativeExtensionExpectsString;
 
   @override
   void performModularTransformationsOnLibraries(
@@ -1031,6 +987,9 @@ class TargetWrapper extends Target {
   Map<String, String> updateEnvironmentDefines(Map<String, String> map) {
     return _target.updateEnvironmentDefines(map);
   }
+
+  @override
+  Verification get verification => _target.verification;
 }
 
 class TestTargetWrapper extends TargetWrapper with TestTargetMixin {

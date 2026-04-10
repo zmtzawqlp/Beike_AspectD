@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 // ignore: implementation_imports
 import 'package:front_end/src/api_unstable/build_integration.dart';
@@ -35,7 +36,7 @@ class MultiRootFileSystem implements FileSystem {
   final List<Uri> roots;
   final FileSystem original;
 
-  MultiRootFileSystem(this.markerScheme, List roots, this.original)
+  MultiRootFileSystem(this.markerScheme, List<Uri> roots, this.original)
       : roots = roots.map(_normalize).toList();
 
   @override
@@ -81,10 +82,10 @@ class MultiRootFileSystemEntity implements FileSystemEntity {
       (await delegate).existsAsyncIfPossible();
 
   @override
-  Future<List<int>> readAsBytes() async => (await delegate).readAsBytes();
+  Future<Uint8List> readAsBytes() async => (await delegate).readAsBytes();
 
   @override
-  Future<List<int>> readAsBytesAsyncIfPossible() async =>
+  Future<Uint8List> readAsBytesAsyncIfPossible() async =>
       (await delegate).readAsBytes();
 
   @override
@@ -104,18 +105,17 @@ class MissingFileSystemEntity implements FileSystemEntity {
   Future<bool> existsAsyncIfPossible() => exists();
 
   @override
-  Future<List<int>> readAsBytes() =>
+  Future<Uint8List> readAsBytes() =>
       Future.error(FileSystemException(uri, 'File not found'));
 
   @override
-  Future<List<int>> readAsBytesAsyncIfPossible() => readAsBytes();
+  Future<Uint8List> readAsBytesAsyncIfPossible() => readAsBytes();
 
   @override
   Future<String> readAsString() =>
       Future.error(FileSystemException(uri, 'File not found'));
 }
 
-Uri _normalize(root) {
-  Uri uri = root;
+Uri _normalize(Uri uri) {
   return uri.path.endsWith('/') ? uri : uri.replace(path: '${uri.path}/');
 }

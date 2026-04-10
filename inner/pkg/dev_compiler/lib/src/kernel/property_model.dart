@@ -4,7 +4,6 @@
 
 import 'dart:collection' show HashMap, HashSet, Queue;
 
-import 'package:collection/collection.dart' show IterableNullableExtension;
 import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart';
 import 'package:kernel/type_environment.dart';
@@ -77,8 +76,9 @@ class _LibraryVirtualFieldModel {
     // The set of public types is our initial extensible type set.
     // From there, visit all immediate private types in this library, and so on
     // from those private types, marking them as extensible.
-    var classesToVisit =
-        Queue<Class>.from(allClasses.where((c) => !c.name.startsWith('_')));
+    var classesToVisit = Queue<Class>.from(
+      allClasses.where((c) => !c.name.startsWith('_')),
+    );
     while (classesToVisit.isNotEmpty) {
       var c = classesToVisit.removeFirst();
 
@@ -101,11 +101,15 @@ class _LibraryVirtualFieldModel {
     Map<String, Field> getInstanceFieldMap(Class c) {
       var instanceFields = c.fields.where((f) => !f.isStatic);
       return HashMap.fromIterables(
-          instanceFields.map((f) => f.name.text), instanceFields);
+        instanceFields.map((f) => f.name.text),
+        instanceFields,
+      );
     }
 
-    var allFields =
-        HashMap.fromIterables(allClasses, allClasses.map(getInstanceFieldMap));
+    var allFields = HashMap.fromIterables(
+      allClasses,
+      allClasses.map(getInstanceFieldMap),
+    );
 
     for (var class_ in allClasses) {
       Set<Class>? superclasses;
@@ -147,7 +151,8 @@ class _LibraryVirtualFieldModel {
         // library, if so mark that field as overridden.
         var name = member.name.text;
         _overriddenPrivateFields.addAll(
-            superclasses.map((c) => allFields[c]![name]).whereNotNull());
+          superclasses.map((c) => allFields[c]![name]).nonNulls,
+        );
       }
     }
   }
@@ -200,7 +205,7 @@ class ClassPropertyModel {
   /// pair in JavaScript.
   ///
   /// The value property stores the symbol used for the field's storage slot.
-  final virtualFields = <Field, js_ast.TemporaryId>{};
+  final virtualFields = <Field, js_ast.ScopedId>{};
 
   /// The set of inherited getters, used because JS getters/setters are paired,
   /// so if we're generating a setter we may need to emit a getter that calls
@@ -216,8 +221,12 @@ class ClassPropertyModel {
 
   final extensionAccessors = <String>{};
 
-  ClassPropertyModel.build(this.types, this.extensionTypes,
-      VirtualFieldModel fieldModel, Class class_) {
+  ClassPropertyModel.build(
+    this.types,
+    this.extensionTypes,
+    VirtualFieldModel fieldModel,
+    Class class_,
+  ) {
     // Visit superclasses to collect information about their fields/accessors.
     // This is expensive so we try to collect everything in one pass.
     var superclasses = [class_, ...getSuperclasses(class_)];
@@ -273,7 +282,7 @@ class ClassPropertyModel {
           fieldModel.isVirtual(field) ||
           field.isCovariantByDeclaration ||
           field.isCovariantByClass) {
-        virtualFields[field] = js_ast.TemporaryId(js_ast.toJSIdentifier(name));
+        virtualFields[field] = js_ast.ScopedId(js_ast.toJSIdentifier(name));
       }
     }
   }
@@ -337,7 +346,10 @@ class ClassPropertyModel {
   /// By tracking the set of seen members, we can visit superclasses and mixins
   /// and ultimately collect every most-derived member exposed by a given type.
   void _findExtensionMembers(
-      Class c, HashSet<String> seenConcreteMembers, Set<String> allNatives) {
+    Class c,
+    HashSet<String> seenConcreteMembers,
+    Set<String> allNatives,
+  ) {
     // We only visit each most derived concrete member.
     // To avoid visiting an overridden superclass member, we skip members
     // we've seen, and visit starting from the class, then mixins in

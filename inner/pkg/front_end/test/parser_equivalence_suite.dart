@@ -4,28 +4,26 @@
 
 import 'dart:io';
 
+import 'package:testing/testing.dart'
+    show Chain, ChainContext, Result, Step, TestDescription;
 import "package:yaml/yaml.dart" show YamlMap, loadYamlNode;
 
-import 'package:testing/testing.dart'
-    show Chain, ChainContext, Result, Step, TestDescription, runMe;
-
-import 'testing_utils.dart' show checkEnvironment;
-
+import 'utils/suite_utils.dart';
 import 'parser_suite.dart'
     show ListenerStep, ParserTestListenerWithMessageFormatting;
+import 'testing_utils.dart' show checkEnvironment;
 
-void main([List<String> arguments = const []]) => runMe(
-      arguments,
-      createContext,
-      configurationPath: "../testing.json",
-    );
+void main([List<String> arguments = const []]) => internalMain(createContext,
+    arguments: arguments,
+    displayName: "parser equivalence suite",
+    configurationPath: "../testing.json");
 
 Future<Context> createContext(
-    Chain suite, Map<String, String> environment) async {
+    Chain suite, Map<String, String> environment) {
   const Set<String> knownEnvironmentKeys = {};
   checkEnvironment(environment, knownEnvironmentKeys);
 
-  return new Context(suite.name);
+  return new Future.value(new Context(suite.name));
 }
 
 class Context extends ChainContext {

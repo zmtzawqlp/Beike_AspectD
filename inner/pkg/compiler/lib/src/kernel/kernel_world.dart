@@ -6,7 +6,6 @@ import '../common.dart';
 import '../common/elements.dart';
 import '../common/names.dart';
 import '../elements/entities.dart';
-import '../elements/indexed.dart';
 import '../elements/types.dart';
 import '../js_backend/annotations.dart';
 import '../js_backend/field_analysis.dart' show KFieldAnalysis;
@@ -15,6 +14,7 @@ import '../js_backend/interceptor_data.dart';
 import '../js_backend/native_data.dart';
 import '../js_backend/no_such_method_registry.dart';
 import '../js_backend/runtime_types_resolution.dart';
+import '../js_model/elements.dart';
 import '../options.dart';
 import '../universe/class_hierarchy.dart';
 import '../universe/member_usage.dart';
@@ -61,7 +61,7 @@ class KClosedWorld implements BuiltWorld {
   final Set<DartType> isChecks;
 
   @override
-  final Set<TypeVariableType> namedTypeVariablesNewRti;
+  final Set<TypeVariableType> namedTypeVariables;
 
   final Map<Entity, Set<DartType>> staticTypeArgumentDependencies;
 
@@ -91,38 +91,39 @@ class KClosedWorld implements BuiltWorld {
 
   RuntimeTypesNeed get rtiNeed => _rtiNeed;
 
-  KClosedWorld(this.elementMap,
-      {required CompilerOptions options,
-      required this.elementEnvironment,
-      required this.dartTypes,
-      required this.commonElements,
-      required this.nativeData,
-      required this.interceptorData,
-      required this.backendUsage,
-      required this.noSuchMethodData,
-      required RuntimeTypesNeedBuilder rtiNeedBuilder,
-      required this.fieldAnalysis,
-      required Set<ClassEntity> implementedClasses,
-      required this.liveNativeClasses,
-      required this.liveInstanceMembers,
-      required this.liveAbstractInstanceMembers,
-      required this.assignedInstanceMembers,
-      required this.liveMemberUsage,
-      required this.mixinUses,
-      required this.typesImplementedBySubclasses,
-      required this.classHierarchy,
-      required this.annotationsData,
-      required this.isChecks,
-      required this.namedTypeVariablesNewRti,
-      required this.staticTypeArgumentDependencies,
-      required this.dynamicTypeArgumentDependencies,
-      required this.typeVariableTypeLiterals,
-      required this.genericLocalFunctions,
-      required this.closurizedMembersWithFreeTypeVariables,
-      required this.localFunctions,
-      required this.instantiatedTypes,
-      required this.instantiatedRecordTypes})
-      : _implementedClasses = implementedClasses {
+  KClosedWorld(
+    this.elementMap, {
+    required CompilerOptions options,
+    required this.elementEnvironment,
+    required this.dartTypes,
+    required this.commonElements,
+    required this.nativeData,
+    required this.interceptorData,
+    required this.backendUsage,
+    required this.noSuchMethodData,
+    required RuntimeTypesNeedBuilder rtiNeedBuilder,
+    required this.fieldAnalysis,
+    required Set<ClassEntity> implementedClasses,
+    required this.liveNativeClasses,
+    required this.liveInstanceMembers,
+    required this.liveAbstractInstanceMembers,
+    required this.assignedInstanceMembers,
+    required this.liveMemberUsage,
+    required this.mixinUses,
+    required this.typesImplementedBySubclasses,
+    required this.classHierarchy,
+    required this.annotationsData,
+    required this.isChecks,
+    required this.namedTypeVariables,
+    required this.staticTypeArgumentDependencies,
+    required this.dynamicTypeArgumentDependencies,
+    required this.typeVariableTypeLiterals,
+    required this.genericLocalFunctions,
+    required this.closurizedMembersWithFreeTypeVariables,
+    required this.localFunctions,
+    required this.instantiatedTypes,
+    required this.instantiatedRecordTypes,
+  }) : _implementedClasses = implementedClasses {
     _rtiNeed = rtiNeedBuilder.computeRuntimeTypesNeed(this, options);
     assert(_checkIntegrity());
   }
@@ -131,12 +132,13 @@ class KClosedWorld implements BuiltWorld {
     for (MemberEntity member in liveMemberUsage.keys) {
       if (member.enclosingClass != null) {
         if (!elementMap.classes
-            .getEnv(member.enclosingClass as IndexedClass)
+            .getEnv(member.enclosingClass as JClass)
             .checkHasMember(elementMap.getMemberNode(member))) {
           throw SpannableAssertionFailure(
-              member,
-              "Member $member is not in the environment of its enclosing class"
-              " ${member.enclosingClass}.");
+            member,
+            "Member $member is not in the environment of its enclosing class"
+            " ${member.enclosingClass}.",
+          );
         }
       }
     }
@@ -153,13 +155,15 @@ class KClosedWorld implements BuiltWorld {
 
   @override
   void forEachStaticTypeArgument(
-      void f(Entity function, Set<DartType> typeArguments)) {
+    void Function(Entity function, Set<DartType> typeArguments) f,
+  ) {
     staticTypeArgumentDependencies.forEach(f);
   }
 
   @override
   void forEachDynamicTypeArgument(
-      void f(Selector selector, Set<DartType> typeArguments)) {
+    void Function(Selector selector, Set<DartType> typeArguments) f,
+  ) {
     dynamicTypeArgumentDependencies.forEach(f);
   }
 

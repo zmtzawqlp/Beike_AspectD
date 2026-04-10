@@ -1,9 +1,9 @@
-library test /*isNonNullableByDefault*/;
+library test;
 import self as self;
 import "dart:core" as core;
 
 static method main() → dynamic {
-  () → core::Iterable<Null> f = () → core::Iterable<Null> sync* {
+  () → core::Iterable<Null> f = () → core::Iterable<Null> sync* /* emittedValueType= Null */ {
     yield null;
   };
   core::Iterable<dynamic> y = f(){() → core::Iterable<Null>};

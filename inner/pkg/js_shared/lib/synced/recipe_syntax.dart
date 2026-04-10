@@ -2,12 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// ignore_for_file: library_names
-
 /// Constants and predicates used for encoding and decoding type recipes.
 ///
 /// This library is synchronized between the compiler and the runtime system.
-library js_shared._recipe_syntax;
+library;
 
 abstract class Recipe {
   Recipe._();
@@ -30,8 +28,6 @@ abstract class Recipe {
   static const int pushVoid = _tilde;
   static const String pushVoidString = _tildeString;
 
-  static const int wrapStar = _asterisk;
-  static const String wrapStarString = _asteriskString;
   static const int wrapQuestion = _question;
   static const String wrapQuestionString = _questionString;
   static const int wrapFutureOr = _slash;
@@ -189,28 +185,42 @@ abstract class Recipe {
     test("pushErased", pushErased, pushErasedString);
     test("pushDynamic", pushDynamic, pushDynamicString);
     test("pushVoid", pushVoid, pushVoidString);
-    test("wrapStar", wrapStar, wrapStarString);
     test("wrapQuestion", wrapQuestion, wrapQuestionString);
     test("wrapFutureOr", wrapFutureOr, wrapFutureOrString);
     test("startTypeArguments", startTypeArguments, startTypeArgumentsString);
     test("endTypeArguments", endTypeArguments, endTypeArgumentsString);
-    test("startFunctionArguments", startFunctionArguments,
-        startFunctionArgumentsString);
-    test("endFunctionArguments", endFunctionArguments,
-        endFunctionArgumentsString);
+    test(
+      "startFunctionArguments",
+      startFunctionArguments,
+      startFunctionArgumentsString,
+    );
+    test(
+      "endFunctionArguments",
+      endFunctionArguments,
+      endFunctionArgumentsString,
+    );
     test("startOptionalGroup", startOptionalGroup, startOptionalGroupString);
     test("endOptionalGroup", endOptionalGroup, endOptionalGroupString);
     test("startNamedGroup", startNamedGroup, startNamedGroupString);
     test("endNamedGroup", endNamedGroup, endNamedGroupString);
     test("nameSeparator", nameSeparator, nameSeparatorString);
-    test("requiredNameSeparator", requiredNameSeparator,
-        requiredNameSeparatorString);
-    test("genericFunctionTypeParameterIndex", genericFunctionTypeParameterIndex,
-        genericFunctionTypeParameterIndexString);
+    test(
+      "requiredNameSeparator",
+      requiredNameSeparator,
+      requiredNameSeparatorString,
+    );
+    test(
+      "genericFunctionTypeParameterIndex",
+      genericFunctionTypeParameterIndex,
+      genericFunctionTypeParameterIndexString,
+    );
     test("startRecord", startRecord, startRecordString);
     test("extensionOp", extensionOp, extensionOpString);
     testExtension(
-        "pushNeverExtension", pushNeverExtension, pushNeverExtensionString);
+      "pushNeverExtension",
+      pushNeverExtension,
+      pushNeverExtensionString,
+    );
     testExtension("pushAnyExtension", pushAnyExtension, pushAnyExtensionString);
 
     test("_formfeed", _formfeed, _formfeedString);

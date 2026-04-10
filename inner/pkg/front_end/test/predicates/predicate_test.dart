@@ -3,16 +3,16 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
+
+import 'package:_fe_analyzer_shared/src/testing/features.dart';
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, runTests;
-import 'package:_fe_analyzer_shared/src/testing/features.dart';
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
-import 'package:front_end/src/base/nnbd_mode.dart';
+import 'package:front_end/src/api_prototype/lowering_predicates.dart';
 import 'package:front_end/src/testing/id_extractor.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
-import 'package:front_end/src/api_prototype/lowering_predicates.dart';
 import 'package:kernel/ast.dart';
 import 'package:kernel/src/printer.dart';
 import 'package:kernel/target/targets.dart';
@@ -27,7 +27,7 @@ Future<void> main(List<String> args) async {
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
       runTest: runTestFor(const PredicateDataComputer(), [
-        const TestConfig(isNullMarker, 'use is-null',
+        const CfeTestConfig(isNullMarker, 'use is-null',
             explicitExperimentalFlags: const {
               ExperimentalFlag.nonNullable: true
             },
@@ -35,9 +35,8 @@ Future<void> main(List<String> args) async {
                 forceConstructorTearOffLoweringForTesting:
                     ConstructorTearOffLowering.all,
                 forceLateLoweringsForTesting: LateLowering.all,
-                forceLateLoweringSentinelForTesting: false),
-            nnbdMode: NnbdMode.Strong),
-        const TestConfig(sentinelMarker, 'use sentinel',
+                forceLateLoweringSentinelForTesting: false)),
+        const CfeTestConfig(sentinelMarker, 'use sentinel',
             explicitExperimentalFlags: const {
               ExperimentalFlag.nonNullable: true
             },
@@ -45,8 +44,7 @@ Future<void> main(List<String> args) async {
                 forceConstructorTearOffLoweringForTesting:
                     ConstructorTearOffLowering.all,
                 forceLateLoweringsForTesting: LateLowering.all,
-                forceLateLoweringSentinelForTesting: true),
-            nnbdMode: NnbdMode.Strong)
+                forceLateLoweringSentinelForTesting: true))
       ]));
 }
 
@@ -67,6 +65,7 @@ class Tags {
   static const String lateLocalSetter = 'lateLocalSetter';
 
   static const String extensionThis = 'extensionThis';
+  static const String extensionName = 'extensionName';
 
   static const String tearoffLowering = 'tearoffLowering';
   static const String tearoffConstructor = 'tearoffConstructor';
@@ -75,14 +74,14 @@ class Tags {
   static const String joinedIntermediate = 'joinedIntermediate';
 }
 
-class PredicateDataComputer extends DataComputer<Features> {
+class PredicateDataComputer extends CfeDataComputer<Features> {
   const PredicateDataComputer();
 
   /// Function that computes a data mapping for [library].
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     new PredicateDataExtractor(testResultData.compilerResult, actualMap)
@@ -90,7 +89,7 @@ class PredicateDataComputer extends DataComputer<Features> {
   }
 
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     member.accept(
@@ -163,6 +162,10 @@ class PredicateDataExtractor extends CfeDataExtractor<Features> {
       }
       if (isTypedefTearOffLowering(node)) {
         features.add(Tags.tearoffTypedef);
+      }
+      if (node.isExtensionMember || node.isExtensionTypeMember) {
+        features[Tags.extensionName] =
+            extractQualifiedNameFromExtensionMember(node)!;
       }
     }
     if (isTearOffLowering(node)) {

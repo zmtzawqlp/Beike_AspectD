@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -26,7 +26,7 @@ library /*isNonNullableByDefault*/;
 //   nonNullableClass1.method().field;
 //                           ^
 //
-// pkg/front_end/testcases/none/property_get.dart:113:21: Error: The getter 'unresolved' isn't defined for the class 'Class1'.
+// pkg/front_end/testcases/none/property_get.dart:113:21: Error: The getter 'unresolved' isn't defined for the type 'Class1'.
 //  - 'Class1' is from 'pkg/front_end/testcases/none/property_get.dart'.
 // Try correcting the name to the name of an existing getter, or defining a getter or field named 'unresolved'.
 //   nonNullableClass1.unresolved;
@@ -105,11 +105,11 @@ static method test<T1 extends core::Function, T2 extends () → core::int>(self:
   const dynamic dyn_get = dyn.field;
                           ^^^");
   core::print("InstanceGet (Object)");
-  dyn.{core::Object::hashCode}{core::int};
-  nullableClass1.{core::Object::hashCode}{core::int};
+  dyn.{core::Object::hashCode}{<object>}.{core::int};
+  nullableClass1.{core::Object::hashCode}{<object>}.{core::int};
   core::print("InstanceGetTearOff (Object)");
-  dyn.{core::Object::toString}{() → core::String};
-  nullableClass1.{core::Object::toString}{() → core::String};
+  dyn.{core::Object::toString}{<object>}.{() → core::String};
+  nullableClass1.{core::Object::toString}{<object>}.{() → core::String};
   core::print("DynamicGet (Never)");
   never{Never}.field;
   never{Never}.hashCode;
@@ -133,7 +133,7 @@ static method test<T1 extends core::Function, T2 extends () → core::int>(self:
   nonNullableClass1.method().field;
                           ^" in nonNullableClass1.{self::Class1::method}{<inapplicable>}.(){() → invalid-type}{<invalid>}.field;
   core::print("DynamicGet (Unresolved)");
-  invalid-expression "pkg/front_end/testcases/none/property_get.dart:113:21: Error: The getter 'unresolved' isn't defined for the class 'Class1'.
+  invalid-expression "pkg/front_end/testcases/none/property_get.dart:113:21: Error: The getter 'unresolved' isn't defined for the type 'Class1'.
  - 'Class1' is from 'pkg/front_end/testcases/none/property_get.dart'.
 Try correcting the name to the name of an existing getter, or defining a getter or field named 'unresolved'.
   nonNullableClass1.unresolved;

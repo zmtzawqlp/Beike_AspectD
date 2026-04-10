@@ -2,97 +2,145 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:dev_compiler/src/command/command.dart'
+    show addGeneratedVariables;
 import 'package:dev_compiler/src/compiler/module_builder.dart'
     show ModuleFormat;
-import 'package:dev_compiler/src/kernel/command.dart'
-    show addGeneratedVariables, getSdkPath;
 import 'package:dev_compiler/src/kernel/target.dart' show DevCompilerTarget;
-import 'package:front_end/src/api_unstable/ddc.dart';
-import 'package:front_end/src/compute_platform_binaries_location.dart';
-import 'package:front_end/src/fasta/incremental_serializer.dart';
+import 'package:front_end/src/api_unstable/ddc.dart' as fe;
 import 'package:kernel/ast.dart' show Component;
-import 'package:kernel/target/targets.dart';
-import 'package:path/path.dart' as p;
+import 'package:kernel/target/targets.dart' show TargetFlags;
 
-class DevelopmentIncrementalCompiler extends IncrementalCompiler {
+class DevelopmentIncrementalCompiler extends fe.IncrementalCompiler {
   Uri entryPoint;
 
-  DevelopmentIncrementalCompiler(CompilerOptions options, this.entryPoint,
-      [Uri? initializeFrom,
-      bool? outlineOnly,
-      IncrementalSerializer? incrementalSerializer])
-      : super(
-            CompilerContext(
-                ProcessedOptions(options: options, inputs: [entryPoint])),
-            initializeFrom,
-            outlineOnly,
-            incrementalSerializer);
+  DevelopmentIncrementalCompiler(
+    fe.CompilerOptions options,
+    this.entryPoint, [
+    Uri? initializeFrom,
+    bool? outlineOnly,
+    fe.IncrementalSerializer? incrementalSerializer,
+  ]) : super(
+         fe.CompilerContext(
+           fe.ProcessedOptions(options: options, inputs: [entryPoint]),
+         ),
+         initializeFrom,
+         outlineOnly,
+         incrementalSerializer,
+       );
 
-  DevelopmentIncrementalCompiler.fromComponent(CompilerOptions options,
-      this.entryPoint, Component componentToInitializeFrom,
-      [bool? outlineOnly, IncrementalSerializer? incrementalSerializer])
-      : super.fromComponent(
-            CompilerContext(
-                ProcessedOptions(options: options, inputs: [entryPoint])),
-            componentToInitializeFrom,
-            outlineOnly,
-            incrementalSerializer);
+  DevelopmentIncrementalCompiler.fromComponent(
+    fe.CompilerOptions options,
+    this.entryPoint,
+    Component componentToInitializeFrom, [
+    bool? outlineOnly,
+    fe.IncrementalSerializer? incrementalSerializer,
+  ]) : super.fromComponent(
+         fe.CompilerContext(
+           fe.ProcessedOptions(options: options, inputs: [entryPoint]),
+         ),
+         componentToInitializeFrom,
+         outlineOnly,
+         incrementalSerializer,
+       );
 }
 
 class SetupCompilerOptions {
-  static final sdkRoot = computePlatformBinariesLocation();
-  // Unsound .dill files are not longer in the released SDK so this file must be
-  // read from the build output directory.
-  static final sdkUnsoundSummaryPath =
-      computePlatformBinariesLocation(forceBuildDir: true)
-          .resolve('ddc_outline_unsound.dill');
-  // Use the outline copied to the released SDK.
-  static final sdkSoundSummaryPath = sdkRoot.resolve('ddc_outline.dill');
-  static final librariesSpecificationUri =
-      p.join(p.dirname(p.dirname(getSdkPath())), 'libraries.json');
+  static final sdkRoot = fe.computePlatformBinariesLocation();
+  static final buildRoot = fe.computePlatformBinariesLocation(
+    forceBuildDir: true,
+  );
 
-  static CompilerOptions getOptions(bool soundNullSafety) {
-    var options = CompilerOptions()
-      ..verbose = false // set to true for debugging
+  final List<String> errors = [];
+  final List<String> diagnosticMessages = [];
+  final ModuleFormat moduleFormat;
+  final fe.CompilerOptions options;
+  final bool canaryFeatures;
+  final bool enableAsserts;
+
+  static fe.CompilerOptions _getOptions({
+    required bool enableAsserts,
+    required List<String> enableExperiments,
+  }) {
+    var options = fe.CompilerOptions()
+      ..verbose =
+          false // set to true for debugging
       ..sdkRoot = sdkRoot
-      ..target =
-          DevCompilerTarget(TargetFlags(soundNullSafety: soundNullSafety))
-      ..librariesSpecificationUri = Uri.base.resolve('sdk/lib/libraries.json')
+      ..target = DevCompilerTarget(TargetFlags())
       ..omitPlatform = true
-      ..sdkSummary =
-          soundNullSafety ? sdkSoundSummaryPath : sdkUnsoundSummaryPath
-      ..environmentDefines = addGeneratedVariables({}, enableAsserts: true)
-      ..nnbdMode = soundNullSafety ? NnbdMode.Strong : NnbdMode.Weak;
+      ..sdkSummary = buildRoot.resolve('ddc_outline.dill')
+      ..environmentDefines = addGeneratedVariables(
+        {},
+        enableAsserts: enableAsserts,
+      )
+      ..explicitExperimentalFlags = fe.parseExperimentalFlags(
+        fe.parseExperimentalArguments(enableExperiments),
+        onError: (e) => throw e,
+      );
     return options;
   }
 
-  static final String dartUnsoundComment = '// @dart = 2.9';
-  static final String dartSoundComment = '//';
-
-  final List<String> errors = [];
-  final CompilerOptions options;
-  final String dartLangComment;
-  final ModuleFormat moduleFormat;
-  final bool soundNullSafety;
-
-  SetupCompilerOptions(
-      {this.soundNullSafety = true, this.moduleFormat = ModuleFormat.amd})
-      : options = getOptions(soundNullSafety),
-        dartLangComment =
-            soundNullSafety ? dartSoundComment : dartUnsoundComment {
-    options.onDiagnostic = (DiagnosticMessage m) {
-      errors.addAll(m.plainTextFormatted);
+  SetupCompilerOptions._({
+    this.enableAsserts = true,
+    this.moduleFormat = ModuleFormat.amd,
+    this.canaryFeatures = false,
+    List<String> enableExperiments = const [],
+  }) : options = _getOptions(
+         enableAsserts: enableAsserts,
+         enableExperiments: enableExperiments,
+       ) {
+    options.onDiagnostic = (fe.DiagnosticMessage m) {
+      diagnosticMessages.addAll(m.plainTextFormatted);
+      if (m.severity == fe.Severity.error ||
+          m.severity == fe.Severity.internalProblem) {
+        errors.addAll(m.plainTextFormatted);
+      }
     };
   }
 
-  String get loadModule {
-    switch (moduleFormat) {
-      case ModuleFormat.amd:
-        return 'require';
-      case ModuleFormat.ddc:
-        return 'dart_library.import';
-      default:
-        throw UnsupportedError('Module format: $moduleFormat');
+  /// Creates current compiler setup options.
+  ///
+  /// Reads options determined by the test configuration from the configuration
+  /// environment variable set by the test runner.
+  ///
+  /// To run tests locally using test.py, pass a vm option defining required
+  /// configuration, for example:
+  ///
+  /// `./tools/test.py -n web-dev-canary-unittest-asserts-mac`
+  ///
+  /// To run a single test locally, pass the --canary or --enable-asserts flags
+  /// to the command line to enable corresponding features, for example:
+  ///
+  /// `dart test/expression_compiler/assertions_enabled_test.dart --canary --enable-asserts`
+  factory SetupCompilerOptions({
+    ModuleFormat moduleFormat = ModuleFormat.amd,
+    List<String> enableExperiments = const [],
+    List<String> args = const [],
+  }) {
+    // Find if the test is run with arguments overriding the configuration
+    late bool enableAsserts;
+    late bool canaryFeatures;
+
+    // Read configuration settings from matrix.json
+    var configuration = String.fromEnvironment('test_runner.configuration');
+    if (configuration.isEmpty) {
+      // If not running from test runner, read options from the args
+      enableAsserts = args.contains('--enable-asserts');
+      canaryFeatures = args.contains('--canary');
+    } else {
+      // If running from the test runner, read options from the environment
+      // (set to configuration settings from matrix.json).
+      enableAsserts = configuration.contains('-asserts-');
+      canaryFeatures = configuration.contains('-canary-');
     }
+    return SetupCompilerOptions._(
+      enableAsserts: enableAsserts,
+      moduleFormat: moduleFormat,
+      canaryFeatures: canaryFeatures,
+      enableExperiments: enableExperiments,
+    );
   }
+
+  bool get emitLibraryBundle =>
+      canaryFeatures && moduleFormat == ModuleFormat.ddc;
 }

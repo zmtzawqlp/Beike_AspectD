@@ -3,33 +3,25 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, File, exit;
+import 'dart:typed_data';
 
+import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
 import 'package:front_end/src/api_prototype/compiler_options.dart'
     show CompilerOptions, DiagnosticMessage;
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
 import 'package:front_end/src/api_prototype/incremental_kernel_generator.dart'
     show IncrementalCompilerResult;
-
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
-
+import 'package:front_end/src/kernel/utils.dart' show serializeComponent;
 import 'package:kernel/binary/ast_from_binary.dart' show BinaryBuilder;
-
 import 'package:kernel/import_table.dart' show ImportTable;
-
 import 'package:kernel/kernel.dart'
     show Component, Library, LibraryPart, MetadataRepository, Name, Reference;
-
 import 'package:kernel/target/targets.dart' show Target, TargetFlags;
-
 import 'package:kernel/text/ast_to_text.dart'
     show Annotator, NameSystem, Printer;
+import "package:vm/modular/target/flutter.dart" show FlutterTarget;
 
 import 'incremental_suite.dart' as helper;
-
-import "package:vm/target/flutter.dart" show FlutterTarget;
-
-import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
-
 import "incremental_utils.dart" as util;
 
 Never usage(String extraMessage) {
@@ -89,8 +81,8 @@ Future<void> main(List<String> args) async {
   print("Compiled to Component with ${c.libraries.length} "
       "libraries in ${stopwatch.elapsedMilliseconds} ms.");
   stopwatch.reset();
-  late List<int> firstCompileData;
-  late Map<Uri, List<int>> libToData;
+  late Uint8List firstCompileData;
+  late Map<Uri, Uint8List> libToData;
   if (fast) {
     libToData = {};
     c.libraries.sort((l1, l2) {
@@ -102,12 +94,10 @@ Future<void> main(List<String> args) async {
     c.computeCanonicalNames();
 
     for (Library library in c.libraries) {
-      library.additionalExports.sort((Reference r1, Reference r2) {
-        return "${r1.canonicalName}".compareTo("${r2.canonicalName}");
-      });
+      library.additionalExports.sort();
       library.problemsAsJson?.sort();
 
-      List<int> libSerialized =
+      Uint8List libSerialized =
           serializeComponent(c, filter: (l) => l == library);
       libToData[library.importUri] = libSerialized;
     }
@@ -177,12 +167,10 @@ Future<void> main(List<String> args) async {
         if (!uris.contains(uri)) continue;
 
         foundCount++;
-        library.additionalExports.sort((Reference r1, Reference r2) {
-          return "${r1.canonicalName}".compareTo("${r2.canonicalName}");
-        });
+        library.additionalExports.sort();
         library.problemsAsJson?.sort();
 
-        List<int> libSerialized =
+        Uint8List libSerialized =
             serializeComponent(c2, filter: (l) => l == library);
         if (!isEqual(libToData[library.importUri]!, libSerialized)) {
           print("=====");
@@ -201,7 +189,7 @@ Future<void> main(List<String> args) async {
       }
       print("Serialized library in ${localStopwatch.elapsedMilliseconds} ms");
     } else {
-      List<int> thisCompileData = util.postProcess(c2);
+      Uint8List thisCompileData = util.postProcess(c2);
       print("Serialized in ${localStopwatch.elapsedMilliseconds} ms");
       if (!isEqual(firstCompileData, thisCompileData)) {
         print("=====");
@@ -227,7 +215,7 @@ Future<void> main(List<String> args) async {
       "${stopwatch.elapsedMilliseconds} ms");
 }
 
-bool isEqual(List<int> a, List<int> b) {
+bool isEqual(Uint8List a, Uint8List b) {
   bool result = isEqualBitForBit(a, b);
   if (result) return result;
   // Not binary equal. Do a to-text, if that is not equal, do a to to-text
@@ -245,7 +233,7 @@ bool isEqual(List<int> a, List<int> b) {
   return false;
 }
 
-String toText(List<int> data, {bool skipInterfaceTarget = false}) {
+String toText(Uint8List data, {bool skipInterfaceTarget = false}) {
   Component component = new Component();
   new BinaryBuilder(data).readComponent(component);
   StringBuffer buffer = new StringBuffer();

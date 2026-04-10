@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-// Derived from tests/web_2/constant_folding_test
+// Derived from tests/web/constant_folding_test
 
 import "package:expect/expect.dart";
 
@@ -20,7 +18,7 @@ void main() {
 }
 
 /*member: jsEquals:calls=[Expect_equals(3),Expect_equals(3),get$isNegative(1),get$isNegative(1),toString$0(1),toString$0(1)],params=3*/
-void jsEquals(expected, actual, [String reason = null]) {
+void jsEquals(expected, actual, [String reason = ""]) {
   if (expected is num && actual is num) {
     if (expected.isNaN && actual.isNaN) return;
   }
@@ -29,11 +27,12 @@ void jsEquals(expected, actual, [String reason = null]) {
 
   if (expected == 0 && actual == 0) {
     Expect.equals(
-        expected.isNegative,
-        actual.isNegative,
-        (reason == null ? "" : "$reason ") +
-            "${expected.toString()} and "
-                "${actual.toString()} have different signs.");
+      expected.isNegative,
+      actual.isNegative,
+      (reason == null ? "" : "$reason ") +
+          "${expected.toString()} and "
+              "${actual.toString()} have different signs.",
+    );
   }
 }
 
@@ -47,10 +46,16 @@ abstract class TestOp {
   /*member: TestOp.checkAll:access=[arg,expected,result],calls=[jsEquals(3),jsEquals(3),jsEquals(3)],params=1*/
   @pragma('dart2js:noInline')
   checkAll(evalResult) {
-    jsEquals(expected, result,
-        "Frontend constant evaluation does not yield expected value.");
-    jsEquals(expected, evalResult,
-        "Backend constant evaluation does not yield expected value.");
+    jsEquals(
+      expected,
+      result,
+      "Frontend constant evaluation does not yield expected value.",
+    );
+    jsEquals(
+      expected,
+      evalResult,
+      "Backend constant evaluation does not yield expected value.",
+    );
     jsEquals(expected, eval(), "eval() does not yield expected value.");
   }
 

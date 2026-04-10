@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "comment": "Recorded usages of objects tagged with a `RecordUse` annotation",
+    "version": "0.2.0"
+  },
+  "locations": [
+    {
+      "uri": "tearoff.dart"
+    }
+  ],
+  "recordings": [
+    {
+      "definition": {
+        "identifier": {
+          "uri": "tearoff.dart",
+          "scope": "SomeClass",
+          "name": "someStaticMethod"
+        },
+        "loading_unit": "1"
+      },
+      "calls": [
+        {
+          "type": "tearoff",
+          "loading_unit": "1",
+          "@": 0
+        }
+      ]
+    }
+  ]
+}

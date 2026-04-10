@@ -4,11 +4,10 @@
 
 import 'dart:io' show Directory, File;
 
+import 'package:dev_compiler/src/command/command.dart';
+import 'package:dev_compiler/src/command/options.dart' show Options;
 import 'package:dev_compiler/src/compiler/module_builder.dart'
     show ModuleFormat;
-import 'package:dev_compiler/src/compiler/shared_command.dart'
-    show SharedCompilerOptions;
-import 'package:dev_compiler/src/kernel/command.dart';
 import 'package:dev_compiler/src/kernel/compiler.dart' show ProgramCompiler;
 import 'package:dev_compiler/src/kernel/module_symbols.dart';
 import 'package:kernel/ast.dart' show Component, Library;
@@ -34,13 +33,13 @@ class TestCompiler {
 
     // Initialize DDC.
     var moduleName = 'foo.dart';
-    var classHierarchy = compilerResult.classHierarchy!;
-    var compilerOptions = SharedCompilerOptions(
-        replCompile: true,
-        moduleName: moduleName,
-        soundNullSafety: setup.soundNullSafety,
-        moduleFormats: [setup.moduleFormat],
-        emitDebugSymbols: true);
+    var classHierarchy = compilerResult.classHierarchy;
+    var compilerOptions = Options(
+      replCompile: true,
+      moduleName: moduleName,
+      moduleFormats: [setup.moduleFormat],
+      emitDebugSymbols: true,
+    );
     var coreTypes = compilerResult.coreTypes;
 
     final importToSummary = Map<Library, Component>.identity();
@@ -51,16 +50,24 @@ class TestCompiler {
     summaryToModule[component] = moduleName;
 
     // Compile Kernel AST to JS AST.
-    var kernel2jsCompiler = ProgramCompiler(component, classHierarchy,
-        compilerOptions, importToSummary, summaryToModule,
-        coreTypes: coreTypes);
+    var kernel2jsCompiler = ProgramCompiler(
+      component,
+      classHierarchy,
+      compilerOptions,
+      importToSummary,
+      summaryToModule,
+      coreTypes: coreTypes,
+    );
     var moduleTree = kernel2jsCompiler.emitModule(component);
 
     // Compile JS AST to code.
-    return jsProgramToCode(moduleTree, ModuleFormat.amd,
-        emitDebugSymbols: true,
-        compiler: kernel2jsCompiler,
-        component: component);
+    return jsProgramToCode(
+      moduleTree,
+      ModuleFormat.amd,
+      emitDebugSymbols: true,
+      compiler: kernel2jsCompiler,
+      component: component,
+    );
   }
 }
 
@@ -95,8 +102,9 @@ class TestDriver {
   }
 
   Future<ModuleSymbols> compileAndGetSymbols() async {
-    var result =
-        await TestCompiler(options).compile(input: input, packages: packages);
+    var result = await TestCompiler(
+      options,
+    ).compile(input: input, packages: packages);
     var symbols = result.symbols;
     if (symbols == null) {
       throw Exception('No symbols found in compilation result.');
@@ -108,11 +116,4 @@ class TestDriver {
     tempDir.delete(recursive: true);
     options.errors.clear();
   }
-}
-
-class NullSafetyTestOption {
-  final String description;
-  final bool soundNullSafety;
-
-  NullSafetyTestOption(this.description, this.soundNullSafety);
 }

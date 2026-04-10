@@ -1,16 +1,15 @@
 // Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:io' show Directory, File, InternetAddress, stdin;
+import 'dart:io' show Directory, File, InternetAddress, Socket, stdin;
 
 import 'package:args/args.dart';
 import 'package:path/path.dart' as path;
 import 'package:vm/incremental_compiler.dart' show IncrementalCompiler;
 
 import 'frontend_server.dart';
-import 'src/binary_protocol.dart';
 import 'src/resident_frontend_server.dart';
 
 /// Entry point for this module, that creates either a `_FrontendCompiler`
@@ -35,16 +34,15 @@ Future<int> starter(
     return 1;
   }
   if (options['resident-info-file-name'] != null) {
-    var serverSubscription = await residentListenAndCompile(
-        InternetAddress.loopbackIPv4,
-        0,
-        File(options['resident-info-file-name']));
+    StreamSubscription<Socket>? serverSubscription =
+        await residentListenAndCompile(InternetAddress.loopbackIPv4, 0,
+            new File(options['resident-info-file-name']));
     return serverSubscription == null ? 1 : 0;
   }
 
   if (options['train']) {
     if (options.rest.isEmpty) {
-      throw Exception('Must specify input.dart');
+      throw new Exception('Must specify input.dart');
     }
 
     final String input = options.rest[0];
@@ -60,11 +58,11 @@ Future<int> starter(
         '--output-dill=$outputTrainingDill',
       ];
       if (platform != null) {
-        args.add('--platform=${Uri.file(platform)}');
+        args.add('--platform=${new Uri.file(platform)}');
       }
       options = argParser.parse(args);
       compiler ??=
-          FrontendCompiler(output, printerFactory: binaryPrinterFactory);
+          new FrontendCompiler(output, printerFactory: binaryPrinterFactory);
 
       await compiler.compile(input, options, generator: generator);
       compiler.acceptLastDelta();
@@ -81,19 +79,24 @@ Future<int> starter(
     }
   }
 
-  final binaryProtocolAddressStr = options['binary-protocol-address'];
-  if (binaryProtocolAddressStr is String) {
-    await runBinaryProtocol(binaryProtocolAddressStr);
-    return 0;
-  }
+  compiler ??= new FrontendCompiler(
+    output,
+    printerFactory: binaryPrinterFactory,
+    unsafePackageSerialization: options["unsafe-package-serialization"],
+    incrementalSerialization: options["incremental-serialization"],
+    useDebuggerModuleNames: options['debugger-module-names'],
+    emitDebugMetadata: options['experimental-emit-debug-metadata'],
+    emitDebugSymbols: options['emit-debug-symbols'],
+    canaryFeatures: options['dartdevc-canary'],
+  );
 
-  compiler ??= FrontendCompiler(output,
-      printerFactory: binaryPrinterFactory,
-      unsafePackageSerialization: options["unsafe-package-serialization"],
-      incrementalSerialization: options["incremental-serialization"],
-      useDebuggerModuleNames: options['debugger-module-names'],
-      emitDebugMetadata: options['experimental-emit-debug-metadata'],
-      emitDebugSymbols: options['emit-debug-symbols']);
+  if (options['native-assets-only']) {
+    final bool compileResult = await compiler.compileNativeAssetsOnly(
+      options,
+      generator: generator,
+    );
+    return compileResult ? 0 : 254;
+  }
 
   if (options.rest.isNotEmpty) {
     return await compiler.compile(options.rest[0], options,
@@ -102,8 +105,8 @@ Future<int> starter(
         : 254;
   }
 
-  Completer<int> completer = Completer<int>();
-  var subscription = listenAndCompile(
+  Completer<int> completer = new Completer<int>();
+  StreamSubscription<String> subscription = listenAndCompile(
       compiler, input ?? stdin, options, completer,
       generator: generator);
   return completer.future.then((value) {

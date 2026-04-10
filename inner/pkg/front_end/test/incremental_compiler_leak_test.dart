@@ -1,6 +1,6 @@
 // Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
 import 'dart:io';
@@ -46,8 +46,7 @@ class LeakFinder extends vmService.LaunchingVMServiceHelper {
     });
 
     Completer<String> cRunDone = new Completer();
-    // ignore: unawaited_futures
-    runInternal(
+    unawaited(runInternal(
         isolateRef,
         classInfo,
         instanceCounts,
@@ -57,7 +56,7 @@ class LeakFinder extends vmService.LaunchingVMServiceHelper {
             cTimeout.isCompleted ||
             cProcessExited.isCompleted).then((value) {
       cRunDone.complete("Done");
-    });
+    }));
 
     await Future.any([cRunDone.future, cTimeout.future, cProcessExited.future]);
     timer.cancel();
@@ -252,7 +251,9 @@ class LeakFinder extends vmService.LaunchingVMServiceHelper {
 
   bool strictClass(vmService.Class classDetails) {
     if (!kernelAstStrictClasses.contains(classDetails.name) &&
-        !frontEndStrictClasses.containsKey(classDetails.name)) return false;
+        !frontEndStrictClasses.containsKey(classDetails.name)) {
+      return false;
+    }
 
     if (kernelAstStrictClasses.contains(classDetails.name) &&
         classDetails.location?.script?.uri == "package:kernel/ast.dart") {

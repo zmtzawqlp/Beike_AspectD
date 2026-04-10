@@ -9,7 +9,6 @@ library dart2js.kernel.compiler_helper;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:compiler/src/commandline_options.dart' show Flags;
 import 'package:compiler/src/common.dart';
 import 'package:compiler/src/dart2js.dart' as dart2js;
 import 'package:_fe_analyzer_shared/src/util/filenames.dart';
@@ -17,8 +16,11 @@ import 'package:expect/expect.dart';
 import 'package:sourcemap_testing/src/stacktrace_helper.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
 
-Future createTemp(Uri entryPoint, Map<String, String> memorySourceFiles,
-    {bool printSteps = false}) async {
+Future createTemp(
+  Uri entryPoint,
+  Map<String, String> memorySourceFiles, {
+  bool printSteps = false,
+}) async {
   if (memorySourceFiles.isNotEmpty) {
     Directory dir = await Directory.systemTemp.createTemp('dart2js-with-dill');
     if (printSteps) {
@@ -32,27 +34,50 @@ Future createTemp(Uri entryPoint, Map<String, String> memorySourceFiles,
   return entryPoint;
 }
 
-Future<D8Result> runWithD8(
-    {Uri? entryPoint,
-    Map<String, String> memorySourceFiles = const <String, String>{},
-    List<String> options = const <String>[],
-    String? expectedOutput,
-    bool printJs = false,
-    bool printSteps = false}) async {
+Future<D8Result> runWithD8({
+  Uri? entryPoint,
+  Map<String, String> memorySourceFiles = const <String, String>{},
+  List<String> options = const <String>[],
+  String? expectedOutput,
+  bool printJs = false,
+  bool printSteps = false,
+}) async {
   retainDataForTesting = true;
   entryPoint ??= Uri.parse('memory:main.dart');
-  Uri mainFile =
-      await createTemp(entryPoint, memorySourceFiles, printSteps: printSteps);
-  String output = uriPathToNative(mainFile.resolve('out.js').path);
+  Uri mainFile = await createTemp(
+    entryPoint,
+    memorySourceFiles,
+    printSteps: printSteps,
+  );
+  Uri output = nativeToUri(mainFile.resolve('out.js').path);
+
+  CompilationResult compilationResult = await getCompilationResultsForD8(
+    mainFile,
+    output,
+    options: options,
+    printJs: printJs,
+    printSteps: printSteps,
+  );
+  final d8Result = executeJsWithD8(
+    [output],
+    expectedOutput: expectedOutput,
+    printSteps: printSteps,
+  );
+  return D8Result(compilationResult, d8Result, output.toFilePath());
+}
+
+Future<CompilationResult> getCompilationResultsForD8(
+  Uri mainFile,
+  Uri outputFile, {
+  List<String> options = const <String>[],
+  bool printJs = false,
+  bool printSteps = false,
+}) async {
   List<String> dart2jsArgs = [
     mainFile.toString(),
-    '-o$output',
+    '-o${outputFile.toFilePath()}',
     if (Platform.packageConfig != null) '--packages=${Platform.packageConfig}',
     ...options,
-    if (options.contains(Flags.noSoundNullSafety))
-      // Unsound platform dill files are no longer packaged in the SDK and must
-      // be read from the build directory during tests.
-      '--platform-binaries=$buildPlatformBinariesPath',
   ];
   if (printSteps) print('Running: dart2js ${dart2jsArgs.join(' ')}');
 
@@ -60,12 +85,19 @@ Future<D8Result> runWithD8(
   Expect.isTrue(result.isSuccess);
   if (printJs) {
     print('dart2js output:');
-    print(new File(output).readAsStringSync());
+    print(new File(outputFile.toFilePath()).readAsStringSync());
   }
+  return result;
+}
 
+ProcessResult executeJsWithD8(
+  List<Uri> jsFiles, {
+  String? expectedOutput,
+  bool printSteps = false,
+}) {
   List<String> d8Args = [
     '$sdkPath/_internal/js_runtime/lib/preambles/d8.js',
-    output
+    ...jsFiles.map((u) => u.toFilePath()),
   ];
   if (printSteps) print('Running: d8 ${d8Args.join(' ')}');
   ProcessResult runResult = Process.runSync(d8executable, d8Args);
@@ -74,10 +106,12 @@ Future<D8Result> runWithD8(
   if (printSteps) print(out);
   if (expectedOutput != null) {
     Expect.equals(0, runResult.exitCode, "Unexpected exit code.");
-    Expect.stringEquals(expectedOutput.trim(),
-        runResult.stdout.replaceAll('\r\n', '\n').trim());
+    Expect.stringEquals(
+      expectedOutput.trim(),
+      runResult.stdout.replaceAll('\r\n', '\n').trim(),
+    );
   }
-  return D8Result(result, runResult, output);
+  return runResult;
 }
 
 class D8Result {

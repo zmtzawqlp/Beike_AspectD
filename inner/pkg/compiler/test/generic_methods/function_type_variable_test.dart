@@ -2,10 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
-import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/elements/entities.dart';
 import 'package:compiler/src/elements/types.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import '../helpers/type_test_helper.dart';
 
@@ -44,13 +43,20 @@ class SubstTestData {
   final String expected;
 
   const SubstTestData(
-      this.arguments, this.parameters, this.type, this.expected);
+    this.arguments,
+    this.parameters,
+    this.type,
+    this.expected,
+  );
 }
 
 main() {
   asyncTest(() async {
     var env = await TypeEnvironment.create(
-        createTypedefs(existentialTypeData, additionalData: """
+      createTypedefs(
+        existentialTypeData,
+        additionalData:
+            """
     class C1 {}
     class C2 {}
     class C3<T> {
@@ -62,15 +68,15 @@ main() {
     F10() {
       void local<A extends B, B>(A a, B b) {}
     }
-    void F11<Q extends C3<Q>>(Q q) {}
-    void F12<P extends C3<P>>(P p) {}
+    void F11<Q extends C3<Q>?>(Q q) {}
+    void F12<P extends C3<P>?>(P p) {}
     class C5<T> {
-      Map<T,A> F15<A extends B, B extends T>(A a, B b) => null;
-      Map<T,A> F16<A extends T, B extends A>(A a, B b) => null;
-      T F17<A extends List<B>, B extends Map<T,A>>(A a, B b, T t) => null;
-      T F18<P extends T>(
-         [Q Function<Q extends P>(P, Q, T) f1,
-          X Function<X extends P>(P, X, T) f2]) => null;
+      Map<T,A>? F15<A extends B, B extends T>(A a, B b) => null;
+      Map<T,A>? F16<A extends T, B extends A>(A a, B b) => null;
+      T? F17<A extends List<B>?, B extends Map<T,A>?>(A a, B b, T? t) => null;
+      T? F18<P extends T>(
+         [Q Function<Q extends P>(P, Q, T)? f1,
+          X Function<X extends P>(P, X, T)? f2]) => null;
     }
 
     main() {
@@ -90,8 +96,9 @@ main() {
       C5<num>().F17(null, null, null);
       C5<num>().F18();
     }
-    """),
-        options: [Flags.noSoundNullSafety, Flags.printLegacyStars]);
+    """,
+      ),
+    );
 
     var types = env.types;
 
@@ -101,59 +108,85 @@ main() {
 
     testBounds(DartType type, List<DartType> expectedBounds) {
       FunctionType functionType = type.withoutNullabilityAs<FunctionType>();
-      Expect.equals(expectedBounds.length, functionType.typeVariables.length,
-          "Unexpected type variable count in ${env.printType(type)}.");
+      Expect.equals(
+        expectedBounds.length,
+        functionType.typeVariables.length,
+        "Unexpected type variable count in ${env.printType(type)}.",
+      );
       for (int i = 0; i < expectedBounds.length; i++) {
         Expect.equals(
-            env.legacyWrap(expectedBounds[i]),
-            functionType.typeVariables[i].bound,
-            "Unexpected ${i}th bound in ${env.printType(type)}.");
+          expectedBounds[i],
+          functionType.typeVariables[i].bound,
+          "Unexpected ${i}th bound in ${env.printType(type)}.",
+        );
       }
     }
 
     testInstantiate(
-        DartType type, List<DartType> instantiation, String expectedToString) {
+      DartType type,
+      List<DartType> instantiation,
+      String expectedToString,
+    ) {
       DartType result = types.instantiate(
-          type.withoutNullabilityAs<FunctionType>(), instantiation);
+        type.withoutNullabilityAs<FunctionType>(),
+        instantiation,
+      );
       String resultString = env.printType(result);
       Expect.equals(
-          expectedToString,
-          resultString,
-          "Unexpected instantiation of ${env.printType(type)} with $instantiation: "
-          "$resultString");
+        expectedToString,
+        resultString,
+        "Unexpected instantiation of ${env.printType(type)} with $instantiation: "
+        "$resultString",
+      );
     }
 
-    void testSubst(List<DartType> arguments, List<DartType> parameters,
-        DartType type1, String expectedToString) {
+    void testSubst(
+      List<DartType> arguments,
+      List<DartType> parameters,
+      DartType type1,
+      String expectedToString,
+    ) {
       DartType subst = types.subst(arguments, parameters, type1);
-      Expect.equals(expectedToString, env.printType(subst),
-          "${env.printType(type1)}.subst(${env.printTypes(arguments)},${env.printTypes(parameters)})");
+      Expect.equals(
+        expectedToString,
+        env.printType(subst),
+        "${env.printType(type1)}.subst(${env.printTypes(arguments)},${env.printTypes(parameters)})",
+      );
     }
 
-    testRelations(DartType a, DartType b,
-        {bool areEqual = false, bool isSubtype = false}) {
+    testRelations(
+      DartType a,
+      DartType b, {
+      bool areEqual = false,
+      bool isSubtype = false,
+    }) {
       if (areEqual) {
         isSubtype = true;
       }
       String aString = env.printType(a);
       String bString = env.printType(b);
       Expect.equals(
-          areEqual,
-          a == b,
-          "Expected `$aString` and `$bString` to be "
-          "${areEqual ? 'equal' : 'non-equal'}, but they are not.");
+        areEqual,
+        a == b,
+        "Expected `$aString` and `$bString` to be "
+        "${areEqual ? 'equal' : 'non-equal'}, but they are not.",
+      );
       Expect.equals(
-          isSubtype,
-          env.isSubtype(a, b),
-          "Expected `$aString` ${isSubtype ? '' : 'not '}to be a subtype of "
-          "`$bString`, but it is${isSubtype ? ' not' : ''}.");
+        isSubtype,
+        env.isSubtype(a, b),
+        "Expected `$aString` ${isSubtype ? '' : 'not '}to be a subtype of "
+        "`$bString`, but it is${isSubtype ? ' not' : ''}.",
+      );
       if (isSubtype) {
-        Expect.isTrue(env.isPotentialSubtype(a, b),
-            '$aString <: $bString but not a potential subtype.');
+        Expect.isTrue(
+          env.isPotentialSubtype(a, b),
+          '$aString <: $bString but not a potential subtype.',
+        );
       }
     }
 
     final Object_ = env['Object'] as InterfaceType;
+    final nullableObject = types.nullableType(Object_);
     final num_ = env['num'] as InterfaceType;
     final int_ = env['int'] as InterfaceType;
     final C1 = env.instantiate(env.getClass('C1'), []) as InterfaceType;
@@ -175,9 +208,9 @@ main() {
     final F13 = env.getFieldType('F13');
     final F14 = env.getFieldType('F14');
     final C5 = env.getClass('C5');
-    final C5_T = (env.getElementType('C5') as InterfaceType)
-        .typeArguments
-        .single as TypeVariableType;
+    final C5_T =
+        (env.getElementType('C5') as InterfaceType).typeArguments.single
+            as TypeVariableType;
     final F15 = env.getMemberType('F15', C5) as FunctionType;
     final F16 = env.getMemberType('F16', C5) as FunctionType;
     final F17 = env.getMemberType('F17', C5) as FunctionType;
@@ -207,77 +240,87 @@ main() {
     all.forEach(print);
 
     List<ToStringTestData> toStringExpected = [
-      ToStringTestData(F1, 'void Function<#A>(#A*)*'),
-      ToStringTestData(F2, 'void Function<#A>(#A*)*'),
-      ToStringTestData(F3, 'void Function<#A,#B>(#A*,#B*)*'),
-      ToStringTestData(F4, 'void Function<#A,#B>(#B*,#A*)*'),
-      ToStringTestData(F5, 'void Function<#A extends num*>(#A*)*'),
-      ToStringTestData(F6, 'void Function<#A extends int*>(#A*)*'),
-      ToStringTestData(F7, 'void Function<#A extends num*>(#A*,[int*])*'),
-      ToStringTestData(F8, '#A* Function<#A extends num*>(#A*)*'),
-      ToStringTestData(F9, 'void Function<#A extends #B*,#B>(#A*,#B*)'),
-      ToStringTestData(F10, 'void Function<#A extends #B*,#B>(#A*,#B*)'),
-      ToStringTestData(F11, 'void Function<#A extends C3<#A*>*>(#A*)'),
-      ToStringTestData(F12, 'void Function<#A extends C3<#A*>*>(#A*)'),
-      ToStringTestData(F13, '#A* Function<#A>(#A*,#A*)*'),
-      ToStringTestData(F14, '#A* Function<#A>(#A*,#A*)*'),
-      ToStringTestData(F15,
-          'Map<C5.T*,#A*>* Function<#A extends #B*,#B extends C5.T*>(#A*,#B*)'),
-      ToStringTestData(F16,
-          'Map<C5.T*,#A*>* Function<#A extends C5.T*,#B extends #A*>(#A*,#B*)'),
+      ToStringTestData(F1, 'void Function<#A>(#A)'),
+      ToStringTestData(F2, 'void Function<#A>(#A)'),
+      ToStringTestData(F3, 'void Function<#A,#B>(#A,#B)'),
+      ToStringTestData(F4, 'void Function<#A,#B>(#B,#A)'),
+      ToStringTestData(F5, 'void Function<#A extends num>(#A)'),
+      ToStringTestData(F6, 'void Function<#A extends int>(#A)'),
+      ToStringTestData(F7, 'void Function<#A extends num>(#A,[int])'),
+      ToStringTestData(F8, '#A Function<#A extends num>(#A)'),
+      ToStringTestData(F9, 'void Function<#A extends #B,#B>(#A,#B)'),
+      ToStringTestData(F10, 'void Function<#A extends #B,#B>(#A,#B)'),
+      ToStringTestData(F11, 'void Function<#A extends C3<#A>?>(#A)'),
+      ToStringTestData(F12, 'void Function<#A extends C3<#A>?>(#A)'),
+      ToStringTestData(F13, '#A Function<#A>(#A,#A)'),
+      ToStringTestData(F14, '#A Function<#A>(#A,#A)'),
       ToStringTestData(
-          F17,
-          'C5.T* Function<#A extends List<#B*>*,'
-          '#B extends Map<C5.T*,#A*>*>(#A*,#B*,Object*)'),
+        F15,
+        'Map<C5.T,#A>? Function<#A extends #B,#B extends C5.T>(#A,#B)',
+      ),
       ToStringTestData(
-          F18,
-          'C5.T* Function<#A extends C5.T*>(['
-          '#A2* Function<#A2 extends #A*>(#A*,#A2*,C5.T*)*,'
-          '#A3* Function<#A3 extends #A*>(#A*,#A3*,C5.T*)*])'),
+        F16,
+        'Map<C5.T,#A>? Function<#A extends C5.T,#B extends #A>(#A,#B)',
+      ),
+      ToStringTestData(
+        F17,
+        'C5.T? Function<#A extends List<#B>?,'
+        '#B extends Map<C5.T,#A>?>(#A,#B,Object?)',
+      ),
+      ToStringTestData(
+        F18,
+        'C5.T? Function<#A extends C5.T>(['
+        '#A2 Function<#A2 extends #A>(#A,#A2,C5.T)?,'
+        '#A3 Function<#A3 extends #A>(#A,#A3,C5.T)?])',
+      ),
     ];
 
     for (var test in toStringExpected) {
       testToString(test.type, test.expected);
     }
 
-    testBounds(F1, [Object_]);
-    testBounds(F2, [Object_]);
-    testBounds(F3, [Object_, Object_]);
-    testBounds(F4, [Object_, Object_]);
+    testBounds(F1, [nullableObject]);
+    testBounds(F2, [nullableObject]);
+    testBounds(F3, [nullableObject, nullableObject]);
+    testBounds(F4, [nullableObject, nullableObject]);
     testBounds(F5, [num_]);
     testBounds(F6, [int_]);
     testBounds(F7, [num_]);
     testBounds(F8, [num_]);
-    testBounds(F9, [F9.typeVariables.last, Object_]);
-    testBounds(F10, [F10.typeVariables.last, Object_]);
+    testBounds(F9, [F9.typeVariables.last, nullableObject]);
+    testBounds(F10, [F10.typeVariables.last, nullableObject]);
     testBounds(F11, [
-      env.instantiate(C3, [F11.typeVariables.last])
+      types.nullableType(env.instantiate(C3, [F11.typeVariables.last])),
     ]);
     testBounds(F12, [
-      env.instantiate(C3, [F12.typeVariables.last])
+      types.nullableType(env.instantiate(C3, [F12.typeVariables.last])),
     ]);
-    testBounds(F13, [Object_]);
-    testBounds(F14, [Object_]);
+    testBounds(F13, [nullableObject]);
+    testBounds(F14, [nullableObject]);
 
     List<InstantiateTestData> instantiateExpected = [
-      InstantiateTestData(F1, [C1], 'void Function(C1*)'),
-      InstantiateTestData(F2, [C2], 'void Function(C2*)'),
-      InstantiateTestData(F3, [C1, C2], 'void Function(C1*,C2*)'),
-      InstantiateTestData(F4, [C1, C2], 'void Function(C2*,C1*)'),
-      InstantiateTestData(F5, [num_], 'void Function(num*)'),
-      InstantiateTestData(F6, [int_], 'void Function(int*)'),
-      InstantiateTestData(F7, [int_], 'void Function(int*,[int*])'),
-      InstantiateTestData(F8, [int_], 'int* Function(int*)'),
-      InstantiateTestData(F9, [int_, num_], 'void Function(int*,num*)'),
-      InstantiateTestData(F10, [int_, num_], 'void Function(int*,num*)'),
-      InstantiateTestData(F11, [C4], 'void Function(C4*)'),
-      InstantiateTestData(F12, [C4], 'void Function(C4*)'),
-      InstantiateTestData(F13, [C1], 'C1* Function(C1*,C1*)'),
-      InstantiateTestData(F14, [C2], 'C2* Function(C2*,C2*)'),
-      InstantiateTestData(
-          F15, [int_, num_], 'Map<C5.T*,int*>* Function(int*,num*)'),
-      InstantiateTestData(
-          F16, [num_, int_], 'Map<C5.T*,num*>* Function(num*,int*)'),
+      InstantiateTestData(F1, [C1], 'void Function(C1)'),
+      InstantiateTestData(F2, [C2], 'void Function(C2)'),
+      InstantiateTestData(F3, [C1, C2], 'void Function(C1,C2)'),
+      InstantiateTestData(F4, [C1, C2], 'void Function(C2,C1)'),
+      InstantiateTestData(F5, [num_], 'void Function(num)'),
+      InstantiateTestData(F6, [int_], 'void Function(int)'),
+      InstantiateTestData(F7, [int_], 'void Function(int,[int])'),
+      InstantiateTestData(F8, [int_], 'int Function(int)'),
+      InstantiateTestData(F9, [int_, num_], 'void Function(int,num)'),
+      InstantiateTestData(F10, [int_, num_], 'void Function(int,num)'),
+      InstantiateTestData(F11, [C4], 'void Function(C4)'),
+      InstantiateTestData(F12, [C4], 'void Function(C4)'),
+      InstantiateTestData(F13, [C1], 'C1 Function(C1,C1)'),
+      InstantiateTestData(F14, [C2], 'C2 Function(C2,C2)'),
+      InstantiateTestData(F15, [
+        int_,
+        num_,
+      ], 'Map<C5.T,int>? Function(int,num)'),
+      InstantiateTestData(F16, [
+        num_,
+        int_,
+      ], 'Map<C5.T,num>? Function(num,int)'),
     ];
 
     for (var test in instantiateExpected) {
@@ -285,23 +328,33 @@ main() {
     }
 
     List<SubstTestData> substExpected = [
-      SubstTestData([num_], [C5_T], F15,
-          'Map<num*,#A*>* Function<#A extends #B*,#B extends num*>(#A*,#B*)'),
-      SubstTestData([num_], [C5_T], F16,
-          'Map<num*,#A*>* Function<#A extends num*,#B extends #A*>(#A*,#B*)'),
       SubstTestData(
-          [num_],
-          [C5_T],
-          F17,
-          'num* Function<#A extends List<#B*>*,'
-          '#B extends Map<num*,#A*>*>(#A*,#B*,Object*)'),
+        [num_],
+        [C5_T],
+        F15,
+        'Map<num,#A>? Function<#A extends #B,#B extends num>(#A,#B)',
+      ),
       SubstTestData(
-          [num_],
-          [C5_T],
-          F18,
-          'num* Function<#A extends num*>(['
-          '#A2* Function<#A2 extends #A*>(#A*,#A2*,num*)*,'
-          '#A3* Function<#A3 extends #A*>(#A*,#A3*,num*)*])'),
+        [num_],
+        [C5_T],
+        F16,
+        'Map<num,#A>? Function<#A extends num,#B extends #A>(#A,#B)',
+      ),
+      SubstTestData(
+        [num_],
+        [C5_T],
+        F17,
+        'num? Function<#A extends List<#B>?,'
+        '#B extends Map<num,#A>?>(#A,#B,Object?)',
+      ),
+      SubstTestData(
+        [num_],
+        [C5_T],
+        F18,
+        'num? Function<#A extends num>(['
+        '#A2 Function<#A2 extends #A>(#A,#A2,num)?,'
+        '#A3 Function<#A3 extends #A>(#A,#A3,num)?])',
+      ),
     ];
 
     for (var test in substExpected) {
@@ -326,34 +379,44 @@ main() {
 
     for (DartType f1 in all) {
       for (DartType f2 in all) {
-        testRelations(f1, f2,
-            areEqual: identical(f1, f2) ||
-                (expectedEquals[f1]?.contains(f2) ?? false),
-            isSubtype: expectedSubtype[f1]?.contains(f2) ?? false);
+        testRelations(
+          f1,
+          f2,
+          areEqual:
+              identical(f1, f2) || (expectedEquals[f1]?.contains(f2) ?? false),
+          isSubtype: expectedSubtype[f1]?.contains(f2) ?? false,
+        );
       }
     }
 
     var functionF1 = F1.withoutNullabilityAs<FunctionType>();
     var functionF2 = F2.withoutNullabilityAs<FunctionType>();
     testRelations(
-        functionF1.typeVariables.first, functionF1.typeVariables.first,
-        areEqual: true);
+      functionF1.typeVariables.first,
+      functionF1.typeVariables.first,
+      areEqual: true,
+    );
     testRelations(
-        functionF1.typeVariables.first, functionF2.typeVariables.first);
+      functionF1.typeVariables.first,
+      functionF2.typeVariables.first,
+    );
 
-    env.elementEnvironment.forEachConstructor(C3,
-        (ConstructorEntity constructor) {
+    env.elementEnvironment.forEachConstructor(C3, (
+      ConstructorEntity constructor,
+    ) {
       Expect.equals(
-          0,
-          constructor.parameterStructure.typeParameters,
-          "Type parameters found on constructor $constructor: "
-          "${constructor.parameterStructure}");
-      List<TypeVariableType> functionTypeVariables =
-          env.elementEnvironment.getFunctionTypeVariables(constructor);
+        0,
+        constructor.parameterStructure.typeParameters,
+        "Type parameters found on constructor $constructor: "
+        "${constructor.parameterStructure}",
+      );
+      List<TypeVariableType> functionTypeVariables = env.elementEnvironment
+          .getFunctionTypeVariables(constructor);
       Expect.isTrue(
-          functionTypeVariables.isEmpty,
-          "Function type variables found on constructor $constructor: "
-          "${env.printTypes(functionTypeVariables)}");
+        functionTypeVariables.isEmpty,
+        "Function type variables found on constructor $constructor: "
+        "${env.printTypes(functionTypeVariables)}",
+      );
     });
   });
 }

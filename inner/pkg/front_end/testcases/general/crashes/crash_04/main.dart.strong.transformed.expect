@@ -1,16 +1,16 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
-// pkg/front_end/testcases/general/crashes/crash_04/main.dart:1:19: Error: Type 'C' not found.
+// pkg/front_end/testcases/general/crashes/crash_04/main.dart:5:19: Error: Type 'C' not found.
 // mixin A<T extends C> on D {}
 //                   ^
 //
-// pkg/front_end/testcases/general/crashes/crash_04/main.dart:1:25: Error: Type 'D' not found.
+// pkg/front_end/testcases/general/crashes/crash_04/main.dart:5:25: Error: Type 'D' not found.
 // mixin A<T extends C> on D {}
 //                         ^
 //
-// pkg/front_end/testcases/general/crashes/crash_04/main.dart:3:17: Error: Type 'D' not found.
+// pkg/front_end/testcases/general/crashes/crash_04/main.dart:7:17: Error: Type 'D' not found.
 // class B extends D with A {}
 //                 ^
 //
@@ -19,14 +19,14 @@ import "dart:core" as core;
 
 abstract class A<T extends invalid-type> extends core::Object /*isMixinDeclaration*/  {
 }
-abstract class _B&D&A extends core::Object implements self::A<invalid-type> /*isAnonymousMixin,isEliminatedMixin*/  {
-  synthetic constructor •() → self::_B&D&A
-    : super core::Object::•()
-    ;
-}
 class B extends self::_B&D&A {
   synthetic constructor •() → self::B
     : super self::_B&D&A::•()
+    ;
+}
+abstract class _B&D&A extends core::Object implements self::A<invalid-type> /*isAnonymousMixin,isEliminatedMixin*/  {
+  synthetic constructor •() → self::_B&D&A
+    : super core::Object::•()
     ;
 }
 static method main() → dynamic {}

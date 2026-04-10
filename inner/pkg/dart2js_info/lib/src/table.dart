@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js_info.src.table;
-
 import 'dart:math' show max;
 
 /// Helper class to present data on the command-line in a table form.
@@ -38,14 +36,19 @@ class Table {
   List? _currentRow;
 
   /// Add a column with the given [name].
-  void declareColumn(String name,
-      {bool abbreviate = false, String color = _noColor}) {
+  void declareColumn(
+    String name, {
+    bool abbreviate = false,
+    String color = _noColor,
+  }) {
     assert(!_sealed);
     var headerName = name;
     if (abbreviate) {
       // abbreviate the header by using only the initials of each word
-      headerName =
-          name.split(' ').map((s) => s.substring(0, 1).toUpperCase()).join('');
+      headerName = name
+          .split(' ')
+          .map((s) => s.substring(0, 1).toUpperCase())
+          .join('');
       while (abbreviations[headerName] != null) {
         headerName = "$headerName'";
       }
@@ -60,7 +63,7 @@ class Table {
 
   /// Add an entry in the table, creating a new row each time [totalColumns]
   /// entries are added.
-  void addEntry(entry) {
+  void addEntry(Object entry) {
     if (_currentRow == null) {
       _sealed = true;
       _currentRow = [];
@@ -112,8 +115,9 @@ class Table {
         }
         // Align first column to the left, everything else to the right.
         sb.write(
-            // ignore: avoid_dynamic_calls
-            i == 0 ? entry.padRight(widths[i]) : entry.padLeft(widths[i] + 1));
+          // ignore: avoid_dynamic_calls
+          i == 0 ? entry.padRight(widths[i]) : entry.padLeft(widths[i] + 1),
+        );
       }
       if (lastColor != _noColor) sb.write(_noColor);
       sb.write('\n');

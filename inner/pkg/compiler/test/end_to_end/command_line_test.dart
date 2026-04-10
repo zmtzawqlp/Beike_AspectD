@@ -6,369 +6,590 @@
 
 import 'dart:async';
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 
 import 'package:compiler/compiler_api.dart' as api;
 import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/dart2js.dart' as entry;
-import 'package:compiler/src/options.dart' show CompilerOptions;
+import 'package:compiler/src/options.dart' show CompilerOptions, CompilerStage;
 
 main() {
   entry.enableWriteString = false;
   asyncTest(() async {
-    await test([], exitCode: 1);
+    // Full compile from Dart source
     await test(['foo.dart'], out: 'out.js');
     await test(['foo.dart', '-ofoo.js'], out: 'foo.js');
     await test(['foo.dart', '--out=foo.js'], out: 'foo.js');
-
-    await test([Flags.cfeOnly], exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart'], out: 'out.dill');
-    await test([Flags.cfeOnly, 'foo.dart', '--out=out.dill'], out: 'out.dill');
-    await test([Flags.cfeOnly, 'foo.dart', Flags.readClosedWorld], exitCode: 1);
-    await test(['foo.dart', Flags.readClosedWorld, Flags.cfeOnly], exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart', Flags.readData], exitCode: 1);
-    await test(['foo.dart', Flags.readData, Flags.cfeOnly], exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart', Flags.readCodegen], exitCode: 1);
-    await test(['foo.dart', Flags.readCodegen, Flags.cfeOnly], exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart', Flags.writeClosedWorld],
-        exitCode: 1);
-    await test(['foo.dart', Flags.writeClosedWorld, Flags.cfeOnly],
-        exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart', Flags.writeData], exitCode: 1);
-    await test(['foo.dart', Flags.writeData, Flags.cfeOnly], exitCode: 1);
-    await test([Flags.cfeOnly, 'foo.dart', Flags.writeCodegen], exitCode: 1);
-    await test(['foo.dart', Flags.writeCodegen, Flags.cfeOnly], exitCode: 1);
-
-    await test([Flags.writeData, 'foo.dart'], writeData: 'global.data');
-    await test(['${Flags.writeData}=foo.data', 'foo.dart', '--out=foo.dill'],
-        out: 'foo.dill', writeData: 'foo.data');
-    await test(['${Flags.writeData}=foo.data', 'foo.dart'],
-        writeData: 'foo.data');
-    await test([Flags.readClosedWorld, Flags.writeClosedWorld, 'foo.dart'],
-        exitCode: 1);
-    await test([Flags.writeClosedWorld, Flags.readClosedWorld, 'foo.dart'],
-        exitCode: 1);
-    await test([Flags.readData, Flags.writeData, 'foo.dart'], exitCode: 1);
-    await test([Flags.writeData, Flags.readData, 'foo.dart'], exitCode: 1);
-    await test([Flags.readCodegen, Flags.writeClosedWorld, 'foo.dart'],
-        exitCode: 1);
-    await test([Flags.readCodegen, Flags.writeData, 'foo.dart'], exitCode: 1);
-    await test([Flags.writeClosedWorld, Flags.readData, 'foo.dart'],
-        exitCode: 1);
-    await test([Flags.writeClosedWorld, Flags.readCodegen, 'foo.dart'],
-        exitCode: 1);
-    await test([Flags.writeData, Flags.readCodegen, 'foo.dart'], exitCode: 1);
-
+    await test(['foo.dart', '--out=/some/path/'], out: '/some/path/out.js');
+    await test(['foo.dart', '--out=prefix-'], out: 'prefix-');
     await test([
-      Flags.writeClosedWorld,
       'foo.dart',
-    ], out: 'out.dill', writeClosedWorld: 'out.dill.world');
-    await test(
-        ['${Flags.writeClosedWorld}=foo.world', 'foo.dart', '--out=foo.dill'],
-        out: 'foo.dill', writeClosedWorld: 'foo.world');
+      '--out=/some/path/prefix-',
+    ], out: '/some/path/prefix-');
 
-    await test([Flags.readClosedWorld, 'foo.dill'],
-        out: 'out.js', readClosedWorld: 'foo.dill.world');
-    await test([Flags.readClosedWorld, 'foo.dill', '--out=foo.js'],
-        out: 'foo.js', readClosedWorld: 'foo.dill.world');
-    await test(['${Flags.readClosedWorld}=out.world', 'foo.dill'],
-        out: 'out.js', readClosedWorld: 'out.world');
+    // Full compile from dill
+    await test(['foo.dill'], allFromDill: true, out: 'out.js');
+    await test(['foo.dill', '-ofoo.js'], allFromDill: true, out: 'foo.js');
+    await test(['foo.dill', '--out=foo.js'], allFromDill: true, out: 'foo.js');
     await test(
-        ['${Flags.readClosedWorld}=out.world', 'foo.dill', '--out=foo.js'],
-        out: 'foo.js', readClosedWorld: 'out.world');
+      ['foo.dill', '--out=/some/path/'],
+      allFromDill: true,
+      out: '/some/path/out.js',
+    );
     await test(
-      [Flags.readClosedWorld, Flags.writeData, 'foo.dill'],
-      readClosedWorld: 'foo.dill.world',
+      ['foo.dill', '--out=prefix-'],
+      allFromDill: true,
+      out: 'prefix-',
+    );
+    await test(
+      ['foo.dill', '--out=/some/path/prefix-'],
+      allFromDill: true,
+      out: '/some/path/prefix-',
+    );
+
+    // Run CFE only
+    await test(['${Flags.stage}=cfe', 'foo.dart'], out: 'out.dill');
+    await test([
+      '${Flags.stage}=cfe',
+      '--out=out1.dill',
+      'foo.dart',
+    ], out: 'out1.dill');
+    await test([Flags.cfeOnly, 'foo.dart'], out: 'out.dill');
+    await test([
+      Flags.cfeOnly,
+      'foo.dart',
+      '--out=out1.dill',
+    ], out: 'out1.dill');
+    await test([Flags.cfeOnly, 'foo.dart', '-oout1.dill'], out: 'out1.dill');
+    await test([Flags.cfeOnly, 'foo.dart', '--out=prefix-'], out: 'prefix-');
+    await test([
+      Flags.cfeOnly,
+      'foo.dart',
+      '--out=/some/path/prefix-',
+    ], out: '/some/path/prefix-');
+    await test([
+      'foo.dart',
+      '${Flags.stage}=cfe',
+      '--out=/some/path/',
+    ], out: '/some/path/out.dill');
+    await test([
+      'foo.dart',
+      '${Flags.stage}=cfe',
+      '--out=prefix-',
+    ], out: 'prefix-out.dill');
+    await test([
+      'foo.dart',
+      '${Flags.stage}=cfe',
+      '--out=/some/path/prefix-',
+    ], out: '/some/path/prefix-out.dill');
+
+    // Run CFE only from dill
+    await test(
+      ['${Flags.stage}=cfe', 'foo.dill'],
+      cfeFromDill: true,
+      out: 'out.dill',
+    );
+    await test(
+      ['${Flags.stage}=cfe', '--out=out1.dill', 'foo.dill'],
+      cfeFromDill: true,
+      out: 'out1.dill',
+    );
+    await test([Flags.cfeOnly, 'foo.dill'], cfeFromDill: true, out: 'out.dill');
+    await test([
+      Flags.cfeOnly,
+      'foo.dill',
+      '--out=out1.dill',
+    ], out: 'out1.dill');
+    await test(
+      [Flags.cfeOnly, 'foo.dill', '-oout1.dill'],
+      cfeFromDill: true,
+      out: 'out1.dill',
+    );
+    await test(
+      [Flags.cfeOnly, 'foo.dill', '--out=prefix-'],
+      cfeFromDill: true,
+      out: 'prefix-',
+    );
+    await test(
+      [Flags.cfeOnly, 'foo.dill', '--out=/some/path/prefix-'],
+      cfeFromDill: true,
+      out: '/some/path/prefix-',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=cfe', '--out=/some/path/'],
+      cfeFromDill: true,
+      out: '/some/path/out.dill',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=cfe', '--out=prefix-'],
+      cfeFromDill: true,
+      out: 'prefix-out.dill',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=cfe', '--out=/some/path/prefix-'],
+      cfeFromDill: true,
+      out: '/some/path/prefix-out.dill',
+    );
+
+    // Run deferred load ids only
+    await test([
+      '${Flags.stage}=deferred-load-ids',
+      'foo.dill',
+      '${Flags.deferredLoadIdMapUri}=load_ids.data',
+    ], writeDeferredLoadIds: 'load_ids.data');
+    await test([
+      '${Flags.stage}=deferred-load-ids',
+      'foo.dill',
+    ], writeDeferredLoadIds: 'deferred_load_ids.data');
+
+    // Run closed world only
+    await test([
+      '${Flags.stage}=closed-world',
+      'foo.dill',
+    ], writeClosedWorld: 'world.data');
+    await test([
+      '${Flags.stage}=closed-world',
+      '${Flags.inputDill}=foo.dill',
+    ], writeClosedWorld: 'world.data');
+    await test([
+      '${Flags.stage}=closed-world',
+      'foo.dill',
+    ], writeClosedWorld: 'world.data');
+    await test([
+      '${Flags.stage}=closed-world',
+      '${Flags.closedWorldUri}=world1.data',
+      'foo.dill',
+    ], writeClosedWorld: 'world1.data');
+    await test([
+      'foo.dill',
+      '${Flags.stage}=closed-world',
+      '--out=/some/path/',
+    ], writeClosedWorld: '/some/path/world.data');
+    await test([
+      'foo.dill',
+      '${Flags.stage}=closed-world',
+      '--out=prefix-',
+    ], writeClosedWorld: 'prefix-world.data');
+    await test([
+      'foo.dill',
+      '${Flags.stage}=closed-world',
+      '--out=/some/path/prefix-',
+    ], writeClosedWorld: '/some/path/prefix-world.data');
+    await test([
+      '${Flags.stage}=closed-world',
+      'foo.dart',
+    ], writeClosedWorld: 'world.data');
+
+    // Run global inference only
+    await test(
+      ['${Flags.stage}=global-inference', 'foo.dill'],
+      readClosedWorld: 'world.data',
       writeData: 'global.data',
     );
-    await test([
-      '${Flags.readClosedWorld}=foo.world',
-      '${Flags.writeData}=foo.data',
-      'foo.dart',
-      '--out=foo.dill'
-    ], out: 'foo.dill', readClosedWorld: 'foo.world', writeData: 'foo.data');
-
-    await test([Flags.readData, 'foo.dill'], exitCode: 1);
-    await test([Flags.readClosedWorld, Flags.readData, 'foo.dill'],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data');
     await test(
-        [Flags.readClosedWorld, Flags.readData, 'foo.dill', '--out=foo.js'],
-        out: 'foo.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data');
-    await test([
-      '${Flags.readClosedWorld}=out.world',
-      '${Flags.readData}=out.data',
-      'foo.dill'
-    ], out: 'out.js', readClosedWorld: 'out.world', readData: 'out.data');
-    await test([
-      '${Flags.readClosedWorld}=out.world',
-      '${Flags.readData}=out.data',
-      'foo.dill',
-      '--out=foo.js'
-    ], out: 'foo.js', readClosedWorld: 'out.world', readData: 'out.data');
-
-    await test([
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShard}=0',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
-    await test([
-      Flags.readClosedWorld,
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShard}=0',
-      '${Flags.codegenShards}=2'
-    ],
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        writeCodegen: 'codegen.code',
-        codegenShard: 0,
-        codegenShards: 2);
-    await test([
-      Flags.writeCodegen,
-      Flags.readData,
-      Flags.readClosedWorld,
-      'foo.dill',
-      '${Flags.codegenShard}=1',
-      '${Flags.codegenShards}=2'
-    ],
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        writeCodegen: 'codegen.code',
-        codegenShard: 1,
-        codegenShards: 2);
-    await test([
-      '${Flags.readClosedWorld}=foo.world',
-      '${Flags.readData}=foo.data',
-      '${Flags.writeCodegen}=foo.code',
-      'foo.dill',
-      '${Flags.codegenShard}=0',
-      '${Flags.codegenShards}=3'
-    ],
-        readClosedWorld: 'foo.world',
-        readData: 'foo.data',
-        writeCodegen: 'foo.code',
-        codegenShard: 0,
-        codegenShards: 3);
-    await test([
-      '${Flags.readData}=foo.data',
-      '${Flags.writeCodegen}',
-      '${Flags.readClosedWorld}=foo.world',
-      'foo.dill',
-      '--out=foo.js',
-      '${Flags.codegenShard}=0',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'foo.js',
-        readClosedWorld: 'foo.world',
-        readData: 'foo.data',
-        writeCodegen: 'foo.js.code',
-        codegenShard: 0,
-        codegenShards: 2);
-    await test([Flags.writeCodegen, 'foo.dill', Flags.readCodegen],
-        exitCode: 1);
-    await test([Flags.readCodegen, Flags.writeCodegen, 'foo.dill'],
-        exitCode: 1);
+      ['${Flags.stage}=global-inference', '${Flags.inputDill}=foo.dill'],
+      readClosedWorld: 'world.data',
+      writeData: 'global.data',
+    );
     await test(
-        [Flags.readData, Flags.writeCodegen, 'foo.dill', Flags.readCodegen],
-        exitCode: 1);
+      [
+        '${Flags.stage}=global-inference',
+        '${Flags.closedWorldUri}=world1.data',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world1.data',
+      writeData: 'global.data',
+    );
     await test(
-        [Flags.readCodegen, Flags.readData, Flags.writeCodegen, 'foo.dill'],
-        exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShard}=0'
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=0'
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShard}=-1',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.writeCodegen,
-      'foo.dill',
-      '${Flags.codegenShard}=2',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
+      [
+        '${Flags.stage}=global-inference',
+        '${Flags.globalInferenceUri}=global1.data',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      writeData: 'global1.data',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=global-inference', '--out=/some/path/'],
+      readClosedWorld: '/some/path/world.data',
+      writeData: '/some/path/global.data',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=global-inference', '--out=prefix-'],
+      readClosedWorld: 'prefix-world.data',
+      writeData: 'prefix-global.data',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=global-inference',
+        '--out=/some/path/prefix-',
+      ],
+      readClosedWorld: '/some/path/prefix-world.data',
+      writeData: '/some/path/prefix-global.data',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=global-inference',
+        '--out=/some/path/foo.data',
+      ],
+      readClosedWorld: '/some/path/foo.dataworld.data',
+      writeData: '/some/path/foo.dataglobal.data',
+    );
+    await test(
+      ['foo.dart', '${Flags.stage}=global-inference'],
+      readClosedWorld: 'world.data',
+      writeData: 'global.data',
+    );
 
-    // These three flags should parse in any order, but all are required.
-    await test([
-      Flags.readClosedWorld,
-      Flags.readData,
-      Flags.readCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readClosedWorld,
-      Flags.readCodegen,
-      Flags.readData,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readCodegen,
-      Flags.readClosedWorld,
-      Flags.readData,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readCodegen,
-      Flags.readData,
-      Flags.readClosedWorld,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readData,
-      Flags.readCodegen,
-      Flags.readClosedWorld,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readData,
-      Flags.readClosedWorld,
-      Flags.readCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      Flags.readClosedWorld,
-      Flags.readCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
-    await test([
-      Flags.readData,
-      Flags.readCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ], exitCode: 1);
+    // Run codegen only
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      writeCodegen: 'codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+        '${Flags.inputDill}=foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      writeCodegen: 'codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.closedWorldUri}=world1.data',
+        '${Flags.globalInferenceUri}=global1.data',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world1.data',
+      readData: 'global1.data',
+      writeCodegen: 'codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenUri}=codegen1',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      writeCodegen: 'codegen1',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen',
+        '--out=/some/path/',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: '/some/path/world.data',
+      readData: '/some/path/global.data',
+      writeCodegen: '/some/path/codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen',
+        '--out=prefix-',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: 'prefix-world.data',
+      readData: 'prefix-global.data',
+      writeCodegen: 'prefix-codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen',
+        '--out=/some/path/prefix-',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: '/some/path/prefix-world.data',
+      readData: '/some/path/prefix-global.data',
+      writeCodegen: '/some/path/prefix-codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen',
+        '--out=/some/path/foo.data',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: '/some/path/foo.dataworld.data',
+      readData: '/some/path/foo.dataglobal.data',
+      writeCodegen: '/some/path/foo.datacodegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen',
+        '--out=foo.data',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: 'foo.dataworld.data',
+      readData: 'foo.dataglobal.data',
+      writeCodegen: 'foo.datacodegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenShard}=10',
+        '${Flags.codegenShards}=11',
+        'foo.dart',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      writeCodegen: 'codegen',
+      codegenShard: 10,
+      codegenShards: 11,
+    );
 
-    await test([
-      Flags.readData,
-      Flags.readClosedWorld,
-      Flags.readCodegen,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      '${Flags.readCodegen}=foo.code',
-      'foo.dill',
-      '${Flags.codegenShards}=3',
-      Flags.readData,
-      Flags.readClosedWorld,
-    ],
-        out: 'out.js',
-        readData: 'foo.dill.data',
-        readClosedWorld: 'foo.dill.world',
-        readCodegen: 'foo.code',
-        codegenShards: 3);
+    // Run emitter only
+    await test(
+      ['${Flags.stage}=emit-js', '${Flags.codegenShards}=11', 'foo.dill'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      readCodegen: 'codegen',
+      codegenShards: 11,
+      out: 'out.js',
+    );
+    await test(
+      [
+        '${Flags.stage}=emit-js',
+        '${Flags.codegenShards}=11',
+        '${Flags.inputDill}=foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      readCodegen: 'codegen',
+      codegenShards: 11,
+      out: 'out.js',
+    );
+    await test(
+      [
+        '${Flags.stage}=emit-js',
+        '${Flags.closedWorldUri}=world1.data',
+        '${Flags.globalInferenceUri}=global1.data',
+        '${Flags.codegenUri}=codegen1',
+        '${Flags.codegenShards}=11',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world1.data',
+      readData: 'global1.data',
+      readCodegen: 'codegen1',
+      codegenShards: 11,
+      out: 'out.js',
+    );
+    await test(
+      [
+        '${Flags.stage}=emit-js',
+        '--out=out.js',
+        '${Flags.codegenShards}=11',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      readCodegen: 'codegen',
+      codegenShards: 11,
+      out: 'out.js',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=emit-js',
+        '--out=/some/path/',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: '/some/path/world.data',
+      readData: '/some/path/global.data',
+      readCodegen: '/some/path/codegen',
+      codegenShards: 11,
+      out: '/some/path/out.js',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=emit-js',
+        '--out=prefix-',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: 'prefix-world.data',
+      readData: 'prefix-global.data',
+      readCodegen: 'prefix-codegen',
+      codegenShards: 11,
+      out: 'prefix-out.js',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=emit-js',
+        '--out=/some/path/prefix-',
+        '${Flags.codegenShards}=11',
+      ],
+      readClosedWorld: '/some/path/prefix-world.data',
+      readData: '/some/path/prefix-global.data',
+      readCodegen: '/some/path/prefix-codegen',
+      codegenShards: 11,
+      out: '/some/path/prefix-out.js',
+    );
+    await test(
+      ['${Flags.stage}=emit-js', '${Flags.codegenShards}=11', 'foo.dart'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      readCodegen: 'codegen',
+      codegenShards: 11,
+      out: 'out.js',
+    );
 
-    await test([
-      Flags.readData,
-      Flags.readCodegen,
-      Flags.readClosedWorld,
-      'foo.dill',
-      '${Flags.codegenShards}=2'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.dill.world',
-        readData: 'foo.dill.data',
-        readCodegen: 'foo.dill.code',
-        codegenShards: 2);
-    await test([
-      '${Flags.readData}=foo.data',
-      '${Flags.readCodegen}=foo.code',
-      'foo.dill',
-      '${Flags.codegenShards}=3',
-      '${Flags.readClosedWorld}=foo.world',
-      '-v'
-    ],
-        out: 'out.js',
-        readClosedWorld: 'foo.world',
-        readData: 'foo.data',
-        readCodegen: 'foo.code',
-        codegenShards: 3);
+    // Run codegen and emitter only
+    await test(
+      ['${Flags.stage}=codegen-emit-js', 'foo.dill'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      out: 'out.js',
+    );
+    await test(
+      ['${Flags.stage}=codegen-emit-js', '${Flags.inputDill}=foo.dill'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      out: 'out.js',
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen-emit-js',
+        '${Flags.closedWorldUri}=world1.data',
+        '${Flags.globalInferenceUri}=global1.data',
+        'foo.dill',
+      ],
+      readClosedWorld: 'world1.data',
+      readData: 'global1.data',
+      out: 'out.js',
+    );
+    await test(
+      ['${Flags.stage}=codegen-emit-js', '--out=out.js', 'foo.dill'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      out: 'out.js',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=codegen-emit-js', '--out=/some/path/'],
+      readClosedWorld: '/some/path/world.data',
+      readData: '/some/path/global.data',
+      out: '/some/path/out.js',
+    );
+    await test(
+      ['foo.dill', '${Flags.stage}=codegen-emit-js', '--out=prefix-'],
+      readClosedWorld: 'prefix-world.data',
+      readData: 'prefix-global.data',
+      out: 'prefix-out.js',
+    );
+    await test(
+      [
+        'foo.dill',
+        '${Flags.stage}=codegen-emit-js',
+        '--out=/some/path/prefix-',
+      ],
+      readClosedWorld: '/some/path/prefix-world.data',
+      readData: '/some/path/prefix-global.data',
+      out: '/some/path/prefix-out.js',
+    );
+    await test(
+      ['${Flags.stage}=codegen-emit-js', 'foo.dart'],
+      readClosedWorld: 'world.data',
+      readData: 'global.data',
+      out: 'out.js',
+    );
+
+    // Invalid states with stage flag
+    // Codegen stage
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenUri}=codegen',
+        '${Flags.codegenShards}=1',
+        'foo.dill',
+      ],
+      readCodegen: 'codegen',
+      out: 'out.js',
+      exitCode: 1,
+    );
+    await test(
+      [
+        '${Flags.stage}=codegen',
+        '${Flags.codegenUri}=codegen',
+        '${Flags.codegenShard}=0',
+        'foo.dill',
+      ],
+      readCodegen: 'codegen',
+      out: 'out.js',
+      exitCode: 1,
+    );
+
+    // JS Emitter stage
+    await test(['${Flags.stage}=emit-js', 'foo.dart'], exitCode: 1);
+
+    // Omit memory summary.
+    await test(['--omit-memory-summary', 'foo.dart'], out: 'out.js');
   });
 }
 
-Future test(List<String> arguments,
-    {int? exitCode,
-    String? out,
-    String? readClosedWorld,
-    String? writeClosedWorld,
-    String? readData,
-    String? writeData,
-    String? readCodegen,
-    String? writeCodegen,
-    int? codegenShard,
-    int? codegenShards}) async {
+Future test(
+  List<String> arguments, {
+  int? exitCode,
+  String? out,
+  bool allFromDill = false,
+  bool cfeFromDill = false,
+  bool cfeModularAnalysis = false,
+  String? readClosedWorld,
+  String? writeClosedWorld,
+  String? writeDeferredLoadIds,
+  String? readData,
+  String? writeData,
+  String? readCodegen,
+  String? writeCodegen,
+  int? codegenShard,
+  int? codegenShards,
+}) async {
   print('--------------------------------------------------------------------');
   print('dart2js ${arguments.join(' ')}');
   print('--------------------------------------------------------------------');
@@ -393,22 +614,89 @@ Future test(List<String> arguments,
   Expect.equals(exitCode, actualExitCode, "Unexpected exit code");
   if (actualExitCode == null) {
     Expect.equals(toUri(out), options.outputUri, "Unexpected output uri.");
-    Expect.equals(toUri(readClosedWorld), options.readClosedWorldUri,
-        "Unexpected readClosedWorld uri");
-    Expect.equals(toUri(writeClosedWorld), options.writeClosedWorldUri,
-        "Unexpected writeClosedWorld uri");
+    if (allFromDill || cfeFromDill) {
+      Expect.isNotNull(options.compilationTarget.path.endsWith('.dill'));
+    }
+    if (writeDeferredLoadIds == null) {
+      Expect.notEquals(options.stage, CompilerStage.deferredLoadIds);
+    } else {
+      Expect.equals(options.stage, CompilerStage.deferredLoadIds);
+      Expect.equals(
+        toUri(writeDeferredLoadIds),
+        options.dataUriForStage(CompilerStage.deferredLoadIds),
+        "Unexpected writeDeferredLoadIds uri",
+      );
+    }
+    if (readClosedWorld == null) {
+      Expect.isFalse(options.stage.shouldReadClosedWorld);
+    } else {
+      Expect.isTrue(options.stage.shouldReadClosedWorld);
+      Expect.equals(
+        toUri(readClosedWorld),
+        options.dataUriForStage(CompilerStage.closedWorld),
+        "Unexpected readClosedWorld uri",
+      );
+    }
+    if (writeClosedWorld == null) {
+      Expect.notEquals(options.stage, CompilerStage.closedWorld);
+    } else {
+      Expect.equals(options.stage, CompilerStage.closedWorld);
+      Expect.equals(
+        toUri(writeClosedWorld),
+        options.dataUriForStage(CompilerStage.closedWorld),
+        "Unexpected writeClosedWorld uri",
+      );
+    }
+    if (readData == null) {
+      Expect.isFalse(options.stage.shouldReadGlobalInference);
+    } else {
+      Expect.isTrue(options.stage.shouldReadGlobalInference);
+      Expect.equals(
+        toUri(readData),
+        options.dataUriForStage(CompilerStage.globalInference),
+        "Unexpected readData uri",
+      );
+    }
+    if (writeData == null) {
+      Expect.notEquals(options.stage, CompilerStage.globalInference);
+    } else {
+      Expect.equals(options.stage, CompilerStage.globalInference);
+      Expect.equals(
+        toUri(writeData),
+        options.dataUriForStage(CompilerStage.globalInference),
+        "Unexpected writeData uri",
+      );
+    }
+    if (readCodegen == null) {
+      Expect.isFalse(options.stage.shouldReadCodegenShards);
+    } else {
+      Expect.isTrue(options.stage.shouldReadCodegenShards);
+      Expect.equals(
+        toUri(readCodegen),
+        options.dataUriForStage(CompilerStage.codegenSharded),
+        "Unexpected readCodegen uri",
+      );
+    }
+    if (writeCodegen == null) {
+      Expect.notEquals(options.stage, CompilerStage.codegenSharded);
+    } else {
+      Expect.equals(options.stage, CompilerStage.codegenSharded);
+      Expect.equals(
+        toUri(writeCodegen),
+        options.dataUriForStage(CompilerStage.codegenSharded),
+        "Unexpected writeCodegen uri",
+      );
+    }
     Expect.equals(
-        toUri(readData), options.readDataUri, "Unexpected readData uri");
+      codegenShard,
+      options.codegenShard,
+      "Unexpected codegenShard uri",
+    );
     Expect.equals(
-        toUri(writeData), options.writeDataUri, "Unexpected writeData uri");
-    Expect.equals(toUri(readCodegen), options.readCodegenUri,
-        "Unexpected readCodegen uri");
-    Expect.equals(toUri(writeCodegen), options.writeCodegenUri,
-        "Unexpected writeCodegen uri");
-    Expect.equals(
-        codegenShard, options.codegenShard, "Unexpected codegenShard uri");
-    Expect.equals(
-        codegenShards, options.codegenShards, "Unexpected codegenShards uri");
+      codegenShards,
+      options.codegenShards,
+      "Unexpected codegenShards uri",
+    );
   }
 
   entry.compileFunc = oldCompileFunc;

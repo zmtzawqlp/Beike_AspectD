@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 @JS()
 library main;
 
@@ -18,20 +16,15 @@ import 'package:js/js.dart';
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -62,13 +55,14 @@ import 'package:js/js.dart';
   native:DomException,
   native:ErrorEvent,
   native:File,
+  native:LegacyJavaScriptObject,
   native:MediaError,
   native:NavigatorUserMediaError,
   native:OverconstrainedError,
   native:PositionError,
   native:SensorErrorEvent,
   native:SpeechRecognitionError,
-  param:void Function(String*,File*)*]
+  param:void Function(String,File)]
 */
 @JS()
 external set foo(void Function(String, File) f);
@@ -81,20 +75,15 @@ external set foo(void Function(String, File) f);
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -118,8 +107,8 @@ external set foo(void Function(String, File) f);
   inst:JSBool,
   inst:JSNull,
   inst:JSString,
-  param:File*,
-  param:String*]
+  param:File,
+  param:String]
 */
 void _doStuff(String name, File file) {
   if (file == null) {
@@ -130,7 +119,7 @@ void _doStuff(String name, File file) {
 
 /*member: main:static=[
   _doStuff,
-  allowInterop<void Function(String*,File*)*>(1),
+  allowInterop<void Function(String,File)>(1),
   set:foo]*/
 void main() {
   foo = allowInterop(_doStuff);

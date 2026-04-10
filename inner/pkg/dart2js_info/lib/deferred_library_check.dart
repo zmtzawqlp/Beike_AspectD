@@ -36,12 +36,14 @@
 /// instance, if you have `import 'package:foo/bar.dart' deferred as baz;` in
 /// your dart file, then the corresponding name in the specification file is
 /// 'baz'.
-library dart2js_info.deferred_library_check;
+library;
 
 import 'info.dart';
 
 List<ManifestComplianceFailure> checkDeferredLibraryManifest(
-    AllInfo info, Map manifest) {
+  AllInfo info,
+  Map manifest,
+) {
   var includedPackages = <String, Set<String>>{};
   var excludedPackages = <String, Set<String>>{};
   for (var part in manifest.keys) {
@@ -65,11 +67,11 @@ List<ManifestComplianceFailure> checkDeferredLibraryManifest(
     'main',
     ...info.outputUnits
         .where((unit) => unit.imports.length == 1)
-        .map((unit) => unit.imports.single)
+        .map((unit) => unit.imports.single),
   ];
   List<String> mentionedParts = [
     ...includedPackages.keys,
-    ...excludedPackages.keys
+    ...excludedPackages.keys,
   ];
   var partNameFailures = <_InvalidPartName>[];
   for (var part in mentionedParts) {
@@ -83,7 +85,7 @@ List<ManifestComplianceFailure> checkDeferredLibraryManifest(
 
   var mentionedPackages = {
     for (var values in includedPackages.values) ...values,
-    for (var values in excludedPackages.values) ...values
+    for (var values in excludedPackages.values) ...values,
   };
   var actualIncludedPackages = <String, Set<String>>{};
 

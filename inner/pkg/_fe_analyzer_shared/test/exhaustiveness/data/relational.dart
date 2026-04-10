@@ -7,19 +7,17 @@ equals(o1, o2) {
    checkingOrder={Object?,Object,Null},
    subtypes={Object,Null},
    type=Object?
-  */
-      switch (o1) {
+  */ switch (o1) {
     == 0 /*space=?*/ => 0,
-    _ /*space=()*/ => 1
+    _ /*space=()*/ => 1,
   };
 
   var b = /*
    checkingOrder={Object?,Object,Null},
-   error=non-exhaustive:Object(),
+   error=non-exhaustive:Object();null,
    subtypes={Object,Null},
    type=Object?
-  */
-      switch (o2) {
+  */ switch (o2) {
     == 0 /*space=?*/ => 0,
   };
 }
@@ -29,19 +27,17 @@ greaterThan(o1, o2) {
    checkingOrder={Object?,Object,Null},
    subtypes={Object,Null},
    type=Object?
-  */
-      switch (o1) {
+  */ switch (o1) {
     >= 0 /*space=?*/ => 0,
-    _ /*space=()*/ => 1
+    _ /*space=()*/ => 1,
   };
 
   var b = /*
    checkingOrder={Object?,Object,Null},
-   error=non-exhaustive:Object(),
+   error=non-exhaustive:Object();null,
    subtypes={Object,Null},
    type=Object?
-  */
-      switch (o2) {
+  */ switch (o2) {
     >= 0 /*space=?*/ => 0,
   };
 }

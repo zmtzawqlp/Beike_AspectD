@@ -7,17 +7,43 @@ library vm.transformations.obfuscation_prohibitions_annotator;
 import 'package:kernel/ast.dart';
 import 'package:kernel/core_types.dart' show CoreTypes;
 import 'package:kernel/target/targets.dart' show Target;
+import 'package:kernel/class_hierarchy.dart'
+    show ClassHierarchy, ClosedWorldClassHierarchy;
 
 import '../metadata/obfuscation_prohibitions.dart';
 import 'pragma.dart';
 
 void transformComponent(
-    Component component, CoreTypes coreTypes, Target target) {
+  Component component,
+  CoreTypes coreTypes,
+  Target target,
+  ClassHierarchy hierarchy,
+  List<String>? keepClassNamesImplementing,
+) {
   final repo = new ObfuscationProhibitionsMetadataRepository();
   component.addMetadataRepository(repo);
   final visitor = ObfuscationProhibitionsVisitor(
-      ConstantPragmaAnnotationParser(coreTypes, target));
+    ConstantPragmaAnnotationParser(coreTypes, target),
+  );
   visitor.visitComponent(component);
+
+  if (keepClassNamesImplementing != null &&
+      keepClassNamesImplementing.isNotEmpty) {
+    final subtypes =
+        (hierarchy as ClosedWorldClassHierarchy).computeSubtypesInformation();
+    final names = visitor.metadata.protectedNames;
+    for (final lib in component.libraries) {
+      for (final cls in lib.classes) {
+        if (keepClassNamesImplementing.contains(cls.name)) {
+          names.add(cls.name);
+          for (final sub in subtypes.getSubtypesOf(cls)) {
+            names.add(sub.name);
+          }
+        }
+      }
+    }
+  }
+
   repo.mapping[component] = visitor.metadata;
 }
 
@@ -27,11 +53,14 @@ class ObfuscationProhibitionsVisitor extends RecursiveVisitor {
 
   ObfuscationProhibitionsVisitor(this.parser);
 
-  void _addIfEntryPoint(
-      List<Expression> annotations, String name, TreeNode node) {
-    for (var ann in annotations) {
-      ParsedPragma? pragma = parser.parsePragma(ann);
-      if (pragma is ParsedEntryPointPragma) {
+  void _checkAnnotations(
+    List<Expression> annotations,
+    String name,
+    TreeNode node,
+  ) {
+    for (final annotation in annotations) {
+      final pragma = parser.parsePragma(annotation);
+      if (pragma is ParsedEntryPointPragma || pragma is ParsedKeepNamePragma) {
         metadata.protectedNames.add(name);
         if (node is Field) {
           metadata.protectedNames.add(name + "=");
@@ -54,22 +83,22 @@ class ObfuscationProhibitionsVisitor extends RecursiveVisitor {
 
   @override
   visitClass(Class klass) {
-    _addIfEntryPoint(klass.annotations, klass.name, klass);
+    _checkAnnotations(klass.annotations, klass.name, klass);
     klass.visitChildren(this);
   }
 
   @override
   visitConstructor(Constructor ctor) {
-    _addIfEntryPoint(ctor.annotations, ctor.name.text, ctor);
+    _checkAnnotations(ctor.annotations, ctor.name.text, ctor);
   }
 
   @override
   visitProcedure(Procedure proc) {
-    _addIfEntryPoint(proc.annotations, proc.name.text, proc);
+    _checkAnnotations(proc.annotations, proc.name.text, proc);
   }
 
   @override
   visitField(Field field) {
-    _addIfEntryPoint(field.annotations, field.name.text, field);
+    _checkAnnotations(field.annotations, field.name.text, field);
   }
 }

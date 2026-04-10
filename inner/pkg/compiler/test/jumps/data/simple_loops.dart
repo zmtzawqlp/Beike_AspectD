@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 simpleForLoop(count) {
   for (int i = 0; i < count; i++) {
     print(i);
@@ -11,21 +9,24 @@ simpleForLoop(count) {
 }
 
 simpleForLoopWithBreak(count) {
-  /*0@break*/ for (int i = 0; i < count; i = i + 1) {
+  /*0@break*/
+  for (int i = 0; i < count; i = i + 1) {
     if (i % 2 == 0) /*target=0*/ break;
     print(i);
   }
 }
 
 simpleForLoopWithContinue(count) {
-  /*0@continue*/ for (int i = 0; i < count; i = i + 1) {
+  /*0@continue*/
+  for (int i = 0; i < count; i = i + 1) {
     if (i % 2 == 0) /*target=0*/ continue;
     print(i);
   }
 }
 
 simpleForLoopWithBreakAndContinue(count) {
-  /*0@break,continue*/ for (int i = 0; i < count; i = i + 1) {
+  /*0@break,continue*/
+  for (int i = 0; i < count; i = i + 1) {
     if (i % 2 == 0) /*target=0*/ continue;
     if (i % 3 == 0) /*target=0*/ break;
     print(i);
@@ -57,21 +58,24 @@ simpleForInLoop(list) {
 }
 
 simpleForInLoopWithBreak(list) {
-  /*0@break*/ for (int i in list) {
+  /*0@break*/
+  for (int i in list) {
     if (i % 2 == 0) /*target=0*/ break;
     print(i);
   }
 }
 
 simpleForInLoopWithContinue(list) {
-  /*0@continue*/ for (int i in list) {
+  /*0@continue*/
+  for (int i in list) {
     if (i % 2 == 0) /*target=0*/ continue;
     print(i);
   }
 }
 
 simpleForInLoopWithBreakAndContinue(list) {
-  /*0@break,continue*/ for (int i in list) {
+  /*0@break,continue*/
+  for (int i in list) {
     if (i % 2 == 0) /*target=0*/ continue;
     if (i % 3 == 0) /*target=0*/ break;
     print(i);
@@ -106,7 +110,8 @@ simpleWhileLoop(count) {
 
 simpleWhileLoopWithBreak(count) {
   int i = 0;
-  /*0@break*/ while (i < count) {
+  /*0@break*/
+  while (i < count) {
     if (i % 2 == 0) /*target=0*/ break;
     print(i);
     i = i + 1;
@@ -115,7 +120,8 @@ simpleWhileLoopWithBreak(count) {
 
 simpleWhileLoopWithContinue(count) {
   int i = 0;
-  /*0@continue*/ while (i < count) {
+  /*0@continue*/
+  while (i < count) {
     if (i % 2 == 0) /*target=0*/ continue;
     print(i);
     i = i + 1;
@@ -124,7 +130,8 @@ simpleWhileLoopWithContinue(count) {
 
 simpleWhileLoopWithBreakAndContinue(count) {
   int i = 0;
-  /*0@break,continue*/ while (i < count) {
+  /*0@break,continue*/
+  while (i < count) {
     if (i % 2 == 0) /*target=0*/ continue;
     if (i % 3 == 0) /*target=0*/ break;
     print(i);
@@ -163,7 +170,8 @@ simpleDoLoop(count) {
 
 simpleDoLoopWithBreak(count) {
   int i = 0;
-  /*0@break*/ do {
+  /*0@break*/
+  do {
     if (i % 2 == 0) /*target=0*/ break;
     print(i);
     i = i + 1;
@@ -172,7 +180,8 @@ simpleDoLoopWithBreak(count) {
 
 simpleDoLoopWithContinue(count) {
   int i = 0;
-  /*0@continue*/ do {
+  /*0@continue*/
+  do {
     if (i % 2 == 0) /*target=0*/ continue;
     print(i);
     i = i + 1;
@@ -181,7 +190,8 @@ simpleDoLoopWithContinue(count) {
 
 simpleDoLoopWithBreakAndContinue(count) {
   int i = 0;
-  /*0@break,continue*/ do {
+  /*0@break,continue*/
+  do {
     if (i % 2 == 0) /*target=0*/ continue;
     if (i % 3 == 0) /*target=0*/ break;
     print(i);

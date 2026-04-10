@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import '../helpers/compiler_helper.dart';
 
 const String MOD1 = r"""
@@ -56,7 +56,7 @@ foo(param) {
 
 const String REM3 = r"""
 foo(param) {
-  var a = param ? 123 : null;
+  dynamic a = param ? 123 : null;
   return 100.remainder(a);
   // No specialization for possibly null inputs.
   // present: 'remainder'

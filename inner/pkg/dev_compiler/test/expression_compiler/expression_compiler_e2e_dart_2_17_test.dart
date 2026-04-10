@@ -6,56 +6,39 @@ import 'package:dev_compiler/src/compiler/module_builder.dart'
     show ModuleFormat;
 import 'package:test/test.dart';
 
+import '../shared_test_options.dart';
 import 'expression_compiler_e2e_suite.dart';
 
-void main() async {
-  var driver = await TestDriver.init();
+void main(List<String> args) async {
+  var driver = await ExpressionEvaluationTestDriver.init();
 
   group('Dart 2.17 language features', () {
     tearDownAll(() async {
       await driver.finish();
     });
-
-    group('(Unsound null safety)', () {
-      group('(AMD module system)', () {
-        var setup = SetupCompilerOptions(
-            soundNullSafety: false,
-            legacyCode: false,
-            moduleFormat: ModuleFormat.amd);
-        runSharedTests(setup, driver);
-      });
-
-      group('(DDC module system)', () {
-        var setup = SetupCompilerOptions(
-            soundNullSafety: false,
-            legacyCode: false,
-            moduleFormat: ModuleFormat.ddc);
-        runSharedTests(setup, driver);
-      });
+    group('(AMD module system)', () {
+      var setup = SetupCompilerOptions(
+        moduleFormat: ModuleFormat.amd,
+        args: args,
+      );
+      runSharedTests(setup, driver);
     });
 
-    group('(Sound null safety)', () {
-      group('(AMD module system)', () {
-        var setup = SetupCompilerOptions(
-            soundNullSafety: true,
-            legacyCode: false,
-            moduleFormat: ModuleFormat.amd);
-        runSharedTests(setup, driver);
-      });
-
-      group('(DDC module system)', () {
-        var setup = SetupCompilerOptions(
-            soundNullSafety: true,
-            legacyCode: false,
-            moduleFormat: ModuleFormat.ddc);
-        runSharedTests(setup, driver);
-      });
+    group('(DDC module system)', () {
+      var setup = SetupCompilerOptions(
+        moduleFormat: ModuleFormat.ddc,
+        args: args,
+      );
+      runSharedTests(setup, driver);
     });
   });
 }
 
 /// Shared tests for language features introduced in version 2.17.0.
-void runSharedTests(SetupCompilerOptions setup, TestDriver driver) {
+void runSharedTests(
+  SetupCompilerOptions setup,
+  ExpressionEvaluationTestDriver driver,
+) {
   group('Named arguments anywhere', () {
     var source = r'''
       String topLevelMethod(int param1, String param2,
@@ -100,34 +83,39 @@ void runSharedTests(SetupCompilerOptions setup, TestDriver driver) {
     });
 
     test('in top level method', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'topLevelMethod(param3: 3, 1, param4: "four", "two")',
-          expectedResult: '1, two, 3, four');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'topLevelMethod(param3: 3, 1, param4: "four", "two")',
+        expectedResult: '1, two, 3, four',
+      );
     });
     test('in local method', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'topLevelMethod(param3: 3, 1, param4: "four", "two")',
-          expectedResult: '1, two, 3, four');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'topLevelMethod(param3: 3, 1, param4: "four", "two")',
+        expectedResult: '1, two, 3, four',
+      );
     });
     test('in class constructor', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'C(param3: 3, 1, param4: "four", "two").toString()',
-          expectedResult: '1, two, 3, four');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'C(param3: 3, 1, param4: "four", "two").toString()',
+        expectedResult: '1, two, 3, four',
+      );
     });
     test('in class static method', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'C.staticMethod(param3: 3, 1, param4: "four", "two")',
-          expectedResult: '1, two, 3, four');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'C.staticMethod(param3: 3, 1, param4: "four", "two")',
+        expectedResult: '1, two, 3, four',
+      );
     });
     test('in class instance method', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'c.instanceMethod(param3: 3, 1, param4: "four", "two")',
-          expectedResult: '1, two, 3, four');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.instanceMethod(param3: 3, 1, param4: "four", "two")',
+        expectedResult: '1, two, 3, four',
+      );
     });
   });
 
@@ -169,28 +157,58 @@ void runSharedTests(SetupCompilerOptions setup, TestDriver driver) {
     });
 
     test('in constructor mixed with regular parameters', () async {
-      await driver.check(
-          breakpointId: 'bp', expression: 'c.i1', expectedResult: '1');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c.i', expectedResult: '2');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c.i2', expectedResult: '3');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c.s', expectedResult: 'bar');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c.d', expectedResult: '3.14');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.i1',
+        expectedResult: '1',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.i',
+        expectedResult: '2',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.i2',
+        expectedResult: '3',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.s',
+        expectedResult: 'bar',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c.d',
+        expectedResult: '3.14',
+      );
     });
     test('in named constructor mixed with regular parameters', () async {
-      await driver.check(
-          breakpointId: 'bp', expression: 'c2.i1', expectedResult: '10');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c2.i', expectedResult: '20');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c2.i2', expectedResult: '30');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c2.s', expectedResult: 'default');
-      await driver.check(
-          breakpointId: 'bp', expression: 'c2.d', expectedResult: '2.71');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c2.i1',
+        expectedResult: '10',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c2.i',
+        expectedResult: '20',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c2.i2',
+        expectedResult: '30',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c2.s',
+        expectedResult: 'default',
+      );
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'c2.d',
+        expectedResult: '2.71',
+      );
     });
   });
 
@@ -235,64 +253,74 @@ void runSharedTests(SetupCompilerOptions setup, TestDriver driver) {
     });
 
     test('evaluate to the correct string', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E.id_string.toString()',
-          expectedResult: 'E.id_string');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E.id_string.toString()',
+        expectedResult: 'E.id_string',
+      );
     });
     test('evaluate to the correct index', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E.id_string.index',
-          expectedResult: '2');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E.id_string.index',
+        expectedResult: '2',
+      );
     });
     test('compare properly against themselves', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'e == E.id_string && E.id_string == E.id_string',
-          expectedResult: 'true');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'e == E.id_string && E.id_string == E.id_string',
+        expectedResult: 'true',
+      );
     });
     test('compare properly against other enums', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'e != E2.id_string && E.id_string != E2.id_string',
-          expectedResult: 'true');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'e != E2.id_string && E.id_string != E2.id_string',
+        expectedResult: 'true',
+      );
     });
     test('with instance methods', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E.id_bool.instanceMethod()',
-          expectedResult: '42');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E.id_bool.instanceMethod()',
+        expectedResult: '42',
+      );
     });
     test('with instance methods from local instance', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'e.instanceMethod()',
-          expectedResult: '13');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'e.instanceMethod()',
+        expectedResult: '13',
+      );
     });
     test('with getters', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E.id_int.fieldGetter',
-          expectedResult: '0');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E.id_int.fieldGetter',
+        expectedResult: '0',
+      );
     });
     test('with getters from local instance', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'e.fieldGetter',
-          expectedResult: 'hello world');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'e.fieldGetter',
+        expectedResult: 'hello world',
+      );
     });
     test('with mixin calls', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E.id_string.mixinMethod()',
-          expectedResult: '200');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E.id_string.mixinMethod()',
+        expectedResult: '200',
+      );
     });
     test('with mixin calls through overridden indices', () async {
-      await driver.check(
-          breakpointId: 'bp',
-          expression: 'E2.v2.mixinMethod()',
-          expectedResult: '100');
+      await driver.checkInFrame(
+        breakpointId: 'bp',
+        expression: 'E2.v2.mixinMethod()',
+        expectedResult: '100',
+      );
     });
   });
 }

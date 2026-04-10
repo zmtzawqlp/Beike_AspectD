@@ -3,14 +3,19 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart';
-import '../fasta/kernel/late_lowering.dart';
-export '../fasta/kernel/constructor_tearoff_lowering.dart'
+
+import '../kernel/late_lowering.dart';
+import '../source/name_scheme.dart';
+
+export '../kernel/constructor_tearoff_lowering.dart'
     show
         extractConstructorNameFromTearOff,
         isConstructorTearOffLowering,
         isTearOffLowering,
         isTypedefTearOffLowering;
+export '../kernel/wildcard_lowering.dart';
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the field holding the value of a lowered late
 /// field.
 ///
@@ -31,12 +36,11 @@ export '../fasta/kernel/constructor_tearoff_lowering.dart'
 /// The default value of this field is `null`.
 bool isLateLoweredField(Field node) {
   return node.isInternalImplementation &&
-      // ignore: unnecessary_null_comparison
-      node.name != null &&
       node.name.text.startsWith(lateFieldPrefix) &&
       !node.name.text.endsWith(lateIsSetSuffix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original field for a lowered late field where
 /// [node] is the field holding the value of a lowered late field.
 ///
@@ -65,6 +69,7 @@ Name extractFieldNameFromLateLoweredField(Field node) {
   return new Name(node.name.text.substring(prefix.length), node.name.library);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the field holding the marker for whether a
 /// lowered late field has been set or not.
 ///
@@ -87,12 +92,11 @@ Name extractFieldNameFromLateLoweredField(Field node) {
 /// The default value of this field is `false`.
 bool isLateLoweredIsSetField(Field node) {
   return node.isInternalImplementation &&
-      // ignore: unnecessary_null_comparison
-      node.name != null &&
       node.name.text.startsWith(lateFieldPrefix) &&
       node.name.text.endsWith(lateIsSetSuffix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original field for a lowered late field where [node]
 /// is the field holding the marker for whether the lowered late field has been
 /// set or not.
@@ -127,6 +131,7 @@ Name extractFieldNameFromLateLoweredIsSetField(Field node) {
       node.name.library);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the getter for reading the value of a lowered
 /// late field.
 ///
@@ -162,6 +167,7 @@ bool isLateLoweredFieldGetter(Procedure node) {
   return false;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original field for a lowered late field where [node]
 /// is the getter for reading the value of a lowered late field.
 ///
@@ -186,6 +192,7 @@ Name extractFieldNameFromLateLoweredFieldGetter(Procedure node) {
   return node.name;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the setter for setting the value of a lowered
 /// late field.
 ///
@@ -221,6 +228,7 @@ bool isLateLoweredFieldSetter(Procedure node) {
   return false;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original field for a lowered late field where [node]
 /// is the setter for setting the value of a lowered late field.
 ///
@@ -245,6 +253,7 @@ Name extractFieldNameFromLateLoweredFieldSetter(Procedure node) {
   return node.name;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the original initializer of a lowered late field where [node] is
 /// either the field holding the value, the field holding the marker for whether
 /// it has been set or not, getter for reading the value, or the setter for
@@ -396,6 +405,7 @@ Expression? getLateFieldInitializer(Member node) {
   return null;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns getter for reading the value of a lowered late field where [node] is
 /// either the field holding the value, the field holding the marker for whether
 /// it has been set or not, getter for reading the value, or the setter for
@@ -430,6 +440,7 @@ Procedure? _getLateFieldTarget(Member node) {
   return null;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the field holding the value for a lowered late field where [node] is
 /// either the field holding the value, the field holding the marker for whether
 /// it has been set or not, getter for reading the value, or the setter for
@@ -483,6 +494,7 @@ Field? getLateFieldTarget(Member node) {
   return null;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the local variable holding the value of a
 /// lowered late variable.
 ///
@@ -505,6 +517,7 @@ bool isLateLoweredLocal(VariableDeclaration node) {
   return node.isLowered && isLateLoweredLocalName(node.name!);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of a local variable holding the value
 /// of a lowered late variable.
 bool isLateLoweredLocalName(String name) {
@@ -516,6 +529,7 @@ bool isLateLoweredLocalName(String name) {
       !name.contains(joinedIntermediateInfix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original late local variable from the [name] of the
 /// local variable holding the value of the lowered late variable.
 ///
@@ -524,6 +538,7 @@ String extractLocalNameFromLateLoweredLocal(String name) {
   return name.substring(lateLocalPrefix.length);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the local variable holding the marker for
 /// whether a lowered late local variable has been set or not.
 ///
@@ -548,12 +563,14 @@ bool isLateLoweredIsSetLocal(VariableDeclaration node) {
   return node.isLowered && isLateLoweredIsSetLocalName(node.name!);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of a local variable holding the marker
 /// for whether a lowered late local variable has been set or not.
 bool isLateLoweredIsSetLocalName(String name) {
   return name.startsWith(lateLocalPrefix) && name.endsWith(lateIsSetSuffix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original late local variable from the [name] of the
 /// local variable holding the marker for whether the lowered late local
 /// variable has been set or not.
@@ -564,6 +581,7 @@ String extractLocalNameFromLateLoweredIsSet(String name) {
       lateLocalPrefix.length, name.length - lateIsSetSuffix.length);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the local variable for the local function for
 /// reading the value of a lowered late variable.
 ///
@@ -584,6 +602,7 @@ bool isLateLoweredLocalGetter(VariableDeclaration node) {
   return node.isLowered && isLateLoweredLocalGetterName(node.name!);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of the local variable for the local
 /// function for reading the value of a lowered late variable.
 bool isLateLoweredLocalGetterName(String name) {
@@ -591,6 +610,7 @@ bool isLateLoweredLocalGetterName(String name) {
       name.endsWith(lateLocalGetterSuffix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original late local variable from the [name] of the
 /// local variable for the local function for reading the value of the lowered
 /// late variable.
@@ -601,6 +621,7 @@ String extractLocalNameFromLateLoweredGetter(String name) {
       lateLocalPrefix.length, name.length - lateLocalGetterSuffix.length);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is the local variable for the local function for
 /// setting the value of a lowered late variable.
 ///
@@ -622,6 +643,7 @@ bool isLateLoweredLocalSetter(VariableDeclaration node) {
   return node.isLowered && isLateLoweredLocalSetterName(node.name!);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of the local variable for the local
 /// function for setting the value of a lowered late variable.
 bool isLateLoweredLocalSetterName(String name) {
@@ -629,6 +651,7 @@ bool isLateLoweredLocalSetterName(String name) {
       name.endsWith(lateLocalSetterSuffix);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original late local variable from the [name] of the
 /// local variable for the local function for setting the value of the lowered
 /// late variable.
@@ -660,7 +683,7 @@ bool isExtensionThis(VariableDeclaration node) {
 }
 
 /// Name used for synthetic 'this' variables in extension instance members and
-/// inline class instance members.
+/// extension type instance members.
 const String syntheticThisName = '#this';
 
 /// Returns `true` if [name] is the name of the synthetic parameter holding the
@@ -669,12 +692,22 @@ bool isExtensionThisName(String? name) {
   return name == syntheticThisName;
 }
 
+// Coverage-ignore(suite): Not run.
+/// Return `true` if [node] is the synthetic parameter holding the `this` value
+/// in the encoding of extension type instance members and constructors.
+bool isExtensionTypeThis(VariableDeclaration node) {
+  return node.isLowered && isExtensionTypeThisName(node.name);
+}
+
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of the synthetic parameter holding the
-/// `this` value in the encoding of inline class instance members.
-bool isInlineClassThisName(String? name) {
+/// `this` value in the encoding of extension type instance members and
+/// constructors.
+bool isExtensionTypeThisName(String? name) {
   return name == syntheticThisName;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the name of the original variable from the [name] of the synthetic
 /// parameter holding the `this` value in the encoding of extension instance
 /// members.
@@ -684,6 +717,7 @@ String extractLocalNameForExtensionThis(String name) {
   return 'this';
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the original name of the variable [node].
 ///
 /// If [node] is a lowered variable then the name before lowering is returned.
@@ -702,6 +736,7 @@ String? extractLocalNameFromVariable(VariableDeclaration node) {
   return node.name;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the original name of a variable by the given [name].
 ///
 /// If [name] is the name of a lowered variable then the name before lowering is
@@ -712,6 +747,7 @@ String extractLocalName(String name) {
   return _extractLocalName(name) ?? name;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the original name of a lowered variable by the given [name].
 ///
 /// If [name] doesn't correspond to a lowered name `null` is returned.
@@ -737,6 +773,7 @@ String? _extractLocalName(String name) {
 /// See [isJoinedIntermediateName] for details.
 const String joinedIntermediateInfix = "#case#";
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [node] is a joined intermediate variable.
 ///
 /// See [isJoinedIntermediateName] for details.
@@ -746,6 +783,7 @@ bool isJoinedIntermediateVariable(VariableDeclaration node) {
       isJoinedIntermediateName(node.name!);
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if [name] is the name of the "joined intermediate" variable
 /// for a "joined local variable".
 ///
@@ -789,6 +827,7 @@ bool isJoinedIntermediateName(String name) {
       null;
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns the original name for a joined intermediate variable from the [name]
 /// of the lowered variable.
 ///
@@ -805,4 +844,80 @@ String extractJoinedIntermediateName(String name) {
 /// See [isJoinedIntermediateName] for details.
 String createJoinedIntermediateName(String variableName, int index) {
   return '$variableName$joinedIntermediateInfix$index';
+}
+
+const String unnamedExtensionSentinel = '<unnamed extension>';
+
+/// Returns the qualified name of an extension or extension type member.
+///
+/// This turns `Foo|bar` and `Foo|get#bar` into `Foo.bar`.
+///
+/// For members of unnamed extensions, the extension name
+/// [unnamedExtensionSentinel] is used.
+///
+/// No-name extension type constructors use `new` as the name.
+///
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName(null),
+///   null)
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('Foo'),
+///   null)
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('Foo|bar'),
+///   'Foo.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('Foo|get#bar'),
+///   'Foo.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('Foo|set#bar'),
+///   'Foo.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('Foo|constructor#bar'),
+///   'Foo.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('_extension#1|bar'),
+///   '<unnamed extension>.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('_extension#2|get#bar'),
+///   '<unnamed extension>.bar')
+/// DartDocTest(
+///   extractQualifiedNameFromExtensionMethodName('_extension#3|set#bar'),
+///   '<unnamed extension>.bar')
+///
+String? extractQualifiedNameFromExtensionMethodName(String? methodName) {
+  if (methodName == null) return null;
+  int delimiterIndex = methodName.indexOf(NameScheme.extensionNameDelimiter);
+  if (delimiterIndex == -1) return null;
+  String extensionName = methodName.substring(0, delimiterIndex);
+  if (extensionName.startsWith(NameScheme.unnamedExtensionNamePrefix)) {
+    extensionName = unnamedExtensionSentinel;
+  }
+  String memberName = methodName
+      .substring(delimiterIndex + NameScheme.extensionNameDelimiter.length);
+  if (memberName.startsWith(NameScheme.extensionTypeConstructorPrefix)) {
+    memberName =
+        memberName.substring(NameScheme.extensionTypeConstructorPrefix.length);
+  }
+  if (memberName.startsWith(NameScheme.extensionGetterPrefix)) {
+    memberName = memberName.substring(NameScheme.extensionGetterPrefix.length);
+  }
+  if (memberName.startsWith(NameScheme.extensionSetterPrefix)) {
+    // Coverage-ignore-block(suite): Not run.
+    memberName = memberName.substring(NameScheme.extensionSetterPrefix.length);
+  }
+  if (memberName.isEmpty) {
+    memberName = 'new';
+  }
+  return '$extensionName.$memberName';
+}
+
+// Coverage-ignore(suite): Not run.
+/// Returns the qualified name of [member] if it is an extension or extension
+/// type member, and otherwise `null`.
+String? extractQualifiedNameFromExtensionMember(Member member) {
+  if (member.isExtensionMember || member.isExtensionTypeMember) {
+    return extractQualifiedNameFromExtensionMethodName(member.name.text);
+  }
+  return null;
 }

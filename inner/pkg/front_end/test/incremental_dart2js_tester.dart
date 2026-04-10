@@ -9,14 +9,10 @@ import 'package:front_end/src/api_prototype/compiler_options.dart';
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
 import 'package:front_end/src/api_prototype/incremental_kernel_generator.dart'
     show IncrementalCompilerResult;
-
-import 'package:front_end/src/fasta/kernel/utils.dart';
-
-import 'package:kernel/kernel.dart'
-    show Component, Library, LibraryPart, Reference;
+import 'package:front_end/src/kernel/utils.dart';
+import 'package:kernel/kernel.dart' show Component, Library, LibraryPart;
 
 import 'incremental_suite.dart' as helper;
-
 import "incremental_utils.dart" as util;
 
 Future<void> main(List<String> args) async {
@@ -133,9 +129,7 @@ class Dart2jsTester {
         }
         if (!uris.contains(uri)) continue;
         foundCount++;
-        library.additionalExports.sort((Reference r1, Reference r2) {
-          return "${r1.canonicalName}".compareTo("${r2.canonicalName}");
-        });
+        library.additionalExports.sort();
         library.problemsAsJson?.sort();
 
         List<int> libSerialized =
@@ -180,7 +174,7 @@ class Dart2jsTester {
   Future<helper.TestIncrementalCompiler> setup() async {
     stopwatch.reset();
     stopwatch.start();
-    Uri input = Platform.script.resolve("../../compiler/bin/dart2js.dart");
+    Uri input = Platform.script.resolve("../../compiler/lib/src/dart2js.dart");
     CompilerOptions options = helper.getOptions();
     options.explicitExperimentalFlags[ExperimentalFlag
         .alternativeInvalidationStrategy] = useExperimentalInvalidation;
@@ -203,9 +197,7 @@ class Dart2jsTester {
       c.computeCanonicalNames();
 
       for (Library library in c.libraries) {
-        library.additionalExports.sort((Reference r1, Reference r2) {
-          return "${r1.canonicalName}".compareTo("${r2.canonicalName}");
-        });
+        library.additionalExports.sort();
         library.problemsAsJson?.sort();
 
         List<int> libSerialized =

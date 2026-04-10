@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: main:
  static=[
   testDefaultValuesNamed(0),
@@ -37,20 +35,15 @@ main() {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -70,7 +63,7 @@ main() {
  type=[
   inst:Closure,
   inst:JSBool,
-  param:bool*]
+  param:bool]
 */
 testDefaultValuesPositional([bool value = false]) {}
 
@@ -81,20 +74,15 @@ testDefaultValuesPositional([bool value = false]) {}
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -114,7 +102,7 @@ testDefaultValuesPositional([bool value = false]) {}
  type=[
   inst:Closure,
   inst:JSBool,
-  param:bool*]
+  param:bool]
 */
 testDefaultValuesNamed({bool value = false}) {}
 
@@ -195,20 +183,15 @@ class ClassInstanceFieldWithInitializer {
     _arrayInstanceType(1),
     _asBool(1),
     _asBoolQ(1),
-    _asBoolS(1),
     _asDouble(1),
     _asDoubleQ(1),
-    _asDoubleS(1),
     _asInt(1),
     _asIntQ(1),
-    _asIntS(1),
     _asNum(1),
     _asNumQ(1),
-    _asNumS(1),
     _asObject(1),
     _asString(1),
     _asStringQ(1),
-    _asStringS(1),
     _asTop(1),
     _generalAsCheckImplementation(1),
     _generalIsTestImplementation(1),
@@ -228,7 +211,7 @@ class ClassInstanceFieldWithInitializer {
    type=[
     inst:Closure,
     inst:JSBool,
-    param:bool*]
+    param:bool]
   */
   var field = false;
 }
@@ -245,20 +228,15 @@ class ClassInstanceFieldTyped {
     _arrayInstanceType(1),
     _asBool(1),
     _asBoolQ(1),
-    _asBoolS(1),
     _asDouble(1),
     _asDoubleQ(1),
-    _asDoubleS(1),
     _asInt(1),
     _asIntQ(1),
-    _asIntS(1),
     _asNum(1),
     _asNumQ(1),
-    _asNumS(1),
     _asObject(1),
     _asString(1),
     _asStringQ(1),
-    _asStringS(1),
     _asTop(1),
     _generalAsCheckImplementation(1),
     _generalIsTestImplementation(1),
@@ -279,9 +257,9 @@ class ClassInstanceFieldTyped {
     inst:Closure,
     inst:JSBool,
     inst:JSNull,
-    param:int*]
+    param:int?]
   */
-  int field;
+  int? field;
 }
 
 /*member: testInstanceFieldTyped:static=[ClassInstanceFieldTyped.(0)]*/
@@ -315,20 +293,15 @@ class ClassGeneric<T> {
     _arrayInstanceType(1),
     _asBool(1),
     _asBoolQ(1),
-    _asBoolS(1),
     _asDouble(1),
     _asDoubleQ(1),
-    _asDoubleS(1),
     _asInt(1),
     _asIntQ(1),
-    _asIntS(1),
     _asNum(1),
     _asNumQ(1),
-    _asNumS(1),
     _asObject(1),
     _asString(1),
     _asStringQ(1),
-    _asStringS(1),
     _asTop(1),
     _generalAsCheckImplementation(1),
     _generalIsTestImplementation(1),
@@ -354,7 +327,7 @@ class ClassGeneric<T> {
     inst:JSFixedArray<dynamic>,
     inst:JSMutableArray<dynamic>,
     inst:JSUnmodifiableArray<dynamic>,
-    param:ClassGeneric.T*]
+    param:ClassGeneric.T]
   */
   ClassGeneric(T arg);
 }

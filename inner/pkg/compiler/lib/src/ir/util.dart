@@ -2,10 +2,11 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:js_shared/variance.dart';
 import 'package:kernel/ast.dart' as ir;
 
 import '../common.dart';
-import '../elements/entities.dart' show AsyncMarker, MemberEntity, Variance;
+import '../elements/entities.dart' show AsyncMarker, MemberEntity;
 import '../universe/record_shape.dart';
 
 /// Returns a textual representation of [node] that include the runtime type and
@@ -13,9 +14,9 @@ import '../universe/record_shape.dart';
 String nodeToDebugString(ir.Node node, [int textLength = 40]) {
   String blockText = node.toString().replaceAll('\n', ' ');
   if (blockText.length > textLength) {
-    blockText = blockText.substring(0, textLength - 3) + '...';
+    blockText = '${blockText.substring(0, textLength - 3)}...';
   }
-  return '(${node.runtimeType}:${node.hashCode})${blockText}';
+  return '(${node.runtimeType}:${node.hashCode})$blockText';
 }
 
 /// Comparator for the canonical order for named parameters.
@@ -49,10 +50,11 @@ SourceSpan computeSourceSpanFromTreeNode(ir.TreeNode node) {
 
 RecordShape recordShapeOfRecordType(ir.RecordType node) {
   return RecordShape(
-      node.positional.length,
-      node.named.isEmpty
-          ? const []
-          : node.named.map((n) => n.name).toList(growable: false));
+    node.positional.length,
+    node.named.isEmpty
+        ? const []
+        : node.named.map((n) => n.name).toList(growable: false),
+  );
 }
 
 /// Computes `recordShapeOfRecordType(node).indexOfFieldName(name)` without
@@ -69,16 +71,13 @@ int indexOfNameInRecordShapeOfRecordType(ir.RecordType node, String name) {
 AsyncMarker getAsyncMarker(ir.FunctionNode node) {
   switch (node.asyncMarker) {
     case ir.AsyncMarker.Async:
-      return AsyncMarker.ASYNC;
+      return AsyncMarker.async;
     case ir.AsyncMarker.AsyncStar:
-      return AsyncMarker.ASYNC_STAR;
+      return AsyncMarker.asyncStar;
     case ir.AsyncMarker.Sync:
-      return AsyncMarker.SYNC;
+      return AsyncMarker.sync;
     case ir.AsyncMarker.SyncStar:
-      return AsyncMarker.SYNC_STAR;
-    default:
-      throw UnsupportedError(
-          "Async marker ${node.asyncMarker} is not supported.");
+      return AsyncMarker.syncStar;
   }
 }
 
@@ -92,7 +91,7 @@ Variance convertVariance(ir.TypeParameter node) {
       return Variance.contravariant;
     case ir.Variance.invariant:
       return Variance.invariant;
-    default:
+    case ir.Variance.unrelated:
       throw UnsupportedError("Variance ${node.variance} is not supported.");
   }
 }
@@ -101,52 +100,6 @@ Variance convertVariance(ir.TypeParameter node) {
 bool isNullLiteral(ir.Expression node) {
   return node is ir.NullLiteral ||
       (node is ir.ConstantExpression && node.constant is ir.NullConstant);
-}
-
-/// Kernel encodes a null-aware expression `a?.b` as
-///
-///     let final #1 = a in #1 == null ? null : #1.b
-///
-/// [getNullAwareExpression] recognizes such expressions storing the result in
-/// a [NullAwareExpression] object.
-///
-/// [syntheticVariable] holds the synthesized `#1` variable. [expression] holds
-/// the `#1.b` expression. [receiver] returns `a` expression. [parent] returns
-/// the parent of the let node, i.e. the parent node of the original null-aware
-/// expression. [let] returns the let node created for the encoding.
-class NullAwareExpression {
-  final ir.Let let;
-  final ir.VariableDeclaration syntheticVariable;
-  final ir.Expression expression;
-
-  NullAwareExpression(this.let, this.syntheticVariable, this.expression);
-
-  ir.Expression get receiver => syntheticVariable.initializer!;
-
-  ir.TreeNode get parent => let.parent!;
-
-  @override
-  String toString() => let.toString();
-}
-
-NullAwareExpression? getNullAwareExpression(ir.TreeNode node) {
-  if (node is ir.Let) {
-    ir.Expression body = node.body;
-    if (node.variable.name == null &&
-        node.variable.isFinal &&
-        body is ir.ConditionalExpression) {
-      final condition = body.condition;
-      if (condition is ir.EqualsNull) {
-        ir.Expression receiver = condition.expression;
-        if (receiver is ir.VariableGet && receiver.variable == node.variable) {
-          // We have
-          //   let #t1 = e0 in #t1 == null ? null : e1
-          return NullAwareExpression(node, node.variable, body.otherwise);
-        }
-      }
-    }
-  }
-  return null;
 }
 
 /// Check whether [node] is immediately guarded by a
@@ -212,6 +165,11 @@ class _FreeVariableVisitor implements ir.DartTypeVisitor<bool> {
   }
 
   @override
+  bool visitStructuralParameterType(ir.StructuralParameterType node) {
+    return true;
+  }
+
+  @override
   bool visitIntersectionType(ir.IntersectionType node) {
     return true;
   }
@@ -242,12 +200,7 @@ class _FreeVariableVisitor implements ir.DartTypeVisitor<bool> {
 
   @override
   bool visitExtensionType(ir.ExtensionType node) {
-    return visitList(node.typeArguments);
-  }
-
-  @override
-  bool visitInlineType(ir.InlineType node) {
-    return visit(node.instantiatedRepresentationType);
+    return visit(node.extensionTypeErasure);
   }
 
   @override
@@ -271,8 +224,10 @@ class _FreeVariableVisitor implements ir.DartTypeVisitor<bool> {
   bool visitInvalidType(ir.InvalidType node) => false;
 
   @override
-  bool defaultDartType(ir.DartType node) {
-    throw UnsupportedError("FreeVariableVisitor.defaultTypeNode");
+  bool visitAuxiliaryType(ir.AuxiliaryType node) {
+    throw UnsupportedError(
+      'Unsupported auxiliary type $node (${node.runtimeType}).',
+    );
   }
 }
 
@@ -294,8 +249,9 @@ bool _isWebLibrary(Uri importUri) =>
             importUri.path == 'web_sql' ||
             importUri.path == 'html_common') ||
     // Mock web library path for testing.
-    importUri.path
-        .contains('native_null_assertions/web_library_interfaces.dart');
+    importUri.path.contains(
+      'native_null_assertions/web_library_interfaces.dart',
+    );
 
 bool nodeIsInWebLibrary(ir.TreeNode? node) {
   if (node == null) return false;
@@ -316,15 +272,10 @@ bool memberEntityIsInWebLibrary(MemberEntity entity) {
 ///
 /// See [ir.ProcedureStubKind.ConcreteMixinStub] for why concrete mixin stubs
 /// are inserted in the first place.
-ir.Member? getEffectiveSuperTarget(ir.Member? target) {
+ir.Member getEffectiveSuperTarget(ir.Member target) {
   if (target is ir.Procedure) {
     if (target.stubKind == ir.ProcedureStubKind.ConcreteMixinStub) {
-      return getEffectiveSuperTarget(target.stubTarget);
-    }
-    // TODO(johnniwinther): Remove this when the CFE reports an error on
-    // missing concrete super targets.
-    if (target.isAbstract) {
-      return null;
+      return getEffectiveSuperTarget(target.stubTarget!);
     }
   }
   return target;

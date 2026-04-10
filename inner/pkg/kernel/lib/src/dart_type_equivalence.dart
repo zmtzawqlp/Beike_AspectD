@@ -1,6 +1,6 @@
 // Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import '../ast.dart';
 import '../core_types.dart';
@@ -13,7 +13,7 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
   final bool ignoreTopLevelNullability;
 
   bool _atTopLevel = true;
-  List<Map<TypeParameter, TypeParameter>> _alphaRenamingStack = [];
+  List<Map<StructuralParameter, StructuralParameter>> _alphaRenamingStack = [];
 
   DartTypeEquivalence(this.coreTypes,
       {this.equateTopTypes = false,
@@ -27,8 +27,9 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
   }
 
   @override
-  bool defaultDartType(DartType node, DartType other) {
-    throw new UnsupportedError("${node.runtimeType}");
+  bool visitAuxiliaryType(AuxiliaryType node, DartType other) {
+    throw new UnsupportedError(
+        "Unsupported auxiliary type ${node} (${node.runtimeType}).");
   }
 
   @override
@@ -129,18 +130,19 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
         }
       }
 
-      // The named fields of [RecordType]s are supposed to be sorted, so we can
-      // use a linear search to compare them.
-      int nodeIndex = 0;
-      int otherIndex = 0;
-      while (result && nodeIndex < node.named.length) {
-        NamedType nodeNamedType = node.named[nodeIndex];
-        NamedType otherNamedType = other.named[otherIndex];
+      // The named fields of [RecordType]s are supposed to be sorted and we know
+      // there are the same number of named fields, so we can use a linear
+      // search to compare them.
+      int i = 0;
+      while (result && i < node.named.length) {
+        NamedType nodeNamedType = node.named[i];
+        NamedType otherNamedType = other.named[i];
         if (nodeNamedType.name != otherNamedType.name) {
           result = false;
         } else {
           result = nodeNamedType.type.accept1(this, otherNamedType.type);
         }
+        i++;
       }
 
       return result;
@@ -186,33 +188,7 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
           node.declaredNullability, other.declaredNullability)) {
         return false;
       }
-      if (node.extension != other.extension) {
-        return false;
-      }
-      assert(node.typeArguments.length == other.typeArguments.length);
-      for (int i = 0; i < node.typeArguments.length; ++i) {
-        if (!node.typeArguments[i].accept1(this, other.typeArguments[i])) {
-          return false;
-        }
-      }
-      return true;
-    }
-    return false;
-  }
-
-  @override
-  bool visitInlineType(InlineType node, DartType other) {
-    // First, check Object*, Object?.
-    if (equateTopTypes && coreTypes.isTop(node)) {
-      return coreTypes.isTop(other);
-    }
-
-    if (other is InlineType) {
-      if (!_checkAndRegisterNullabilities(
-          node.declaredNullability, other.declaredNullability)) {
-        return false;
-      }
-      if (node.inlineClass != other.inlineClass) {
+      if (node.extensionTypeDeclaration != other.extensionTypeDeclaration) {
         return false;
       }
       assert(node.typeArguments.length == other.typeArguments.length);
@@ -268,6 +244,22 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
   @override
   bool visitTypeParameterType(TypeParameterType node, DartType other) {
     if (other is TypeParameterType) {
+      if (!_checkAndRegisterNullabilities(
+          node.declaredNullability, other.declaredNullability)) {
+        return false;
+      }
+      if (!identical(node.parameter, other.parameter)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  bool visitStructuralParameterType(
+      StructuralParameterType node, DartType other) {
+    if (other is StructuralParameterType) {
       if (!_checkAndRegisterNullabilities(
           node.declaredNullability, other.declaredNullability)) {
         return false;
@@ -330,10 +322,10 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
   }
 
   void _pushTypeParameters(
-      List<TypeParameter> keys, List<TypeParameter> values) {
+      List<StructuralParameter> keys, List<StructuralParameter> values) {
     assert(keys.length == values.length);
-    Map<TypeParameter, TypeParameter> parameters =
-        new Map<TypeParameter, TypeParameter>.identity();
+    Map<StructuralParameter, StructuralParameter> parameters =
+        new Map<StructuralParameter, StructuralParameter>.identity();
     for (int i = 0; i < keys.length; ++i) {
       parameters[keys[i]] = values[i];
     }
@@ -344,19 +336,12 @@ class DartTypeEquivalence implements DartTypeVisitor1<bool, DartType> {
     _alphaRenamingStack.removeLast();
   }
 
-  TypeParameter _lookup(TypeParameter parameter) {
+  StructuralParameter _lookup(StructuralParameter parameter) {
     for (int i = _alphaRenamingStack.length - 1; i >= 0; --i) {
       if (_alphaRenamingStack[i].containsKey(parameter)) {
         return _alphaRenamingStack[i][parameter]!;
       }
     }
     return parameter;
-  }
-
-  DartTypeEquivalence copy() {
-    return new DartTypeEquivalence(coreTypes,
-        equateTopTypes: equateTopTypes,
-        ignoreAllNullabilities: ignoreAllNullabilities,
-        ignoreTopLevelNullability: ignoreTopLevelNullability);
   }
 }

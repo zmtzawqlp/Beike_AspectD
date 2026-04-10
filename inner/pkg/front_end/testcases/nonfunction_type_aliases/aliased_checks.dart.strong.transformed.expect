@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -29,20 +29,20 @@ library /*isNonNullableByDefault*/;
 // typedef B<X extends A<X>> = A<X>;
 //           ^
 //
-// pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:26:22: Error: Type argument 'A<int>' doesn't conform to the bound 'A<X>' of the type variable 'X' on 'B'.
-//  - 'A' is from 'pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart'.
-// Try changing type arguments so that they conform to the bounds.
-//   barBar13<X extends B<A<int>>>() => throw 42;
-//                      ^
-// pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:7:11: Context: This is the type variable whose bound isn't conformed to.
-// typedef B<X extends A<X>> = A<X>;
-//           ^
-//
 // pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:29:24: Error: Type argument 'A<int>' doesn't conform to the bound 'A<X>' of the type variable 'X' on 'B'.
 //  - 'A' is from 'pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart'.
 // Try changing type arguments so that they conform to the bounds.
 // class Bar2<X extends A<B<A<int>>>> {
 //                        ^
+// pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:7:11: Context: This is the type variable whose bound isn't conformed to.
+// typedef B<X extends A<X>> = A<X>;
+//           ^
+//
+// pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:26:22: Error: Type argument 'A<int>' doesn't conform to the bound 'A<X>' of the type variable 'X' on 'B'.
+//  - 'A' is from 'pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart'.
+// Try changing type arguments so that they conform to the bounds.
+//   barBar13<X extends B<A<int>>>() => throw 42;
+//                      ^
 // pkg/front_end/testcases/nonfunction_type_aliases/aliased_checks.dart:7:11: Context: This is the type variable whose bound isn't conformed to.
 // typedef B<X extends A<X>> = A<X>;
 //           ^
@@ -214,5 +214,5 @@ static method bar3a<X extends self::A<self::A<core::int>>>() → dynamic
 static method bar3b<X extends self::A<self::A<self::A<core::int>>>>() → dynamic
   return throw 42;
 static method main() → dynamic {}
-static method _#B#new#tearOff<X extends self::A<self::_#B#new#tearOff::X> = self::A<dynamic>>() → self::A<self::_#B#new#tearOff::X>
+static synthetic method _#B#new#tearOff<X extends self::A<self::_#B#new#tearOff::X> = self::A<dynamic>>() → self::A<self::_#B#new#tearOff::X>
   return new self::A::•<self::_#B#new#tearOff::X>();

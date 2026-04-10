@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 /// Type flow summary of a member, function or initializer.
+library;
 
 import 'dart:core' hide Type;
 
@@ -14,8 +15,12 @@ import 'types.dart';
 import 'utils.dart';
 
 abstract class CallHandler {
-  Type applyCall(Call callSite, Selector selector, Args<Type> args,
-      {required bool isResultUsed});
+  Type applyCall(
+    Call callSite,
+    Selector selector,
+    Args<Type> args, {
+    required bool isResultUsed,
+  });
   void typeCheckTriggered();
   void addAllocatedClass(Class c);
 }
@@ -26,10 +31,13 @@ abstract class Statement extends TypeExpr {
   int index = -1;
   late Summary summary;
 
+  TypeExpr? condition;
+
   @override
   Type getComputedType(List<Type?> types) => types[index]!;
 
   String get label => "t$index";
+  String get _conditionSuffix => (condition != null) ? ' {$condition}' : '';
 
   @override
   String toString() => label;
@@ -40,25 +48,36 @@ abstract class Statement extends TypeExpr {
   /// Visit this statement by calling a corresponding [visitor] method.
   void accept(StatementVisitor visitor);
 
+  /// Simplifies this statement during summary normalization.
+  ///
+  /// Returns replacement (Type or one of the arguments), or null if
+  /// this statement cannot be replaced.
+  TypeExpr? simplify(TypesBuilder typesBuilder) => null;
+
   /// Execute this statement and compute its resulting type.
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler);
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  );
 }
 
 /// Statement visitor.
-class StatementVisitor {
-  void visitDefault(TypeExpr expr) {}
-
-  void visitParameter(Parameter expr) => visitDefault(expr);
-  void visitNarrow(Narrow expr) => visitDefault(expr);
-  void visitJoin(Join expr) => visitDefault(expr);
-  void visitUse(Use expr) => visitDefault(expr);
-  void visitCall(Call expr) => visitDefault(expr);
-  void visitExtract(Extract expr) => visitDefault(expr);
-  void visitApplyNullability(ApplyNullability expr) => visitDefault(expr);
-  void visitCreateConcreteType(CreateConcreteType expr) => visitDefault(expr);
-  void visitCreateRuntimeType(CreateRuntimeType expr) => visitDefault(expr);
-  void visitTypeCheck(TypeCheck expr) => visitDefault(expr);
+abstract class StatementVisitor {
+  void visitParameter(Parameter expr);
+  void visitNarrow(Narrow expr);
+  void visitJoin(Join expr);
+  void visitUse(Use expr);
+  void visitCall(Call expr);
+  void visitExtract(Extract expr);
+  void visitApplyNullability(ApplyNullability expr);
+  void visitCreateConcreteType(CreateConcreteType expr);
+  void visitCreateRuntimeType(CreateRuntimeType expr);
+  void visitTypeCheck(TypeCheck expr);
+  void visitUnaryOperation(UnaryOperation expr);
+  void visitBinaryOperation(BinaryOperation expr);
+  void visitReadVariable(ReadVariable expr);
+  void visitWriteVariable(WriteVariable expr);
 }
 
 /// Input parameter of the summary.
@@ -71,7 +90,7 @@ class Parameter extends Statement {
   final Type? staticTypeForNarrowing;
 
   Type? defaultValue;
-  Type _argumentType = const EmptyType();
+  Type _argumentType = emptyType;
 
   Parameter(this.name, this.staticTypeForNarrowing);
 
@@ -87,13 +106,16 @@ class Parameter extends Statement {
     if (staticTypeForNarrowing != null) {
       text += " [$staticTypeForNarrowing]";
     }
+    text += _conditionSuffix;
     return text;
   }
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-          CallHandler callHandler) =>
-      throw 'Unable to apply _Parameter';
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) => throw 'Unable to apply _Parameter';
 
   Type get argumentType => _argumentType;
 
@@ -121,12 +143,31 @@ class Narrow extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitNarrow(this);
 
   @override
-  String dump() => "$label = _Narrow ($arg to $type)";
+  String dump() => "$label = _Narrow ($arg to $type)$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-          CallHandler callHandler) =>
-      arg.getComputedType(computedTypes).intersection(type, typeHierarchy);
+  TypeExpr? simplify(TypesBuilder typesBuilder) {
+    // This pattern may appear after approximations during summary
+    // normalization (so it's not enough to handle it in
+    // SummaryCollector._makeNarrow).
+    final arg = this.arg;
+    if (type is AnyInstanceType) {
+      if (arg is Type) {
+        return (arg is NullableType) ? arg.baseType : arg;
+      }
+      if (arg is Call && arg.isInstanceCreation) {
+        return arg;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) => arg.getComputedType(computedTypes).intersection(type, typeHierarchy);
 }
 
 /// A flavor of [Narrow] statement which narrows argument
@@ -137,15 +178,15 @@ class NarrowNotNull extends Narrow {
   static const int canBeNotNullFlag = 1 << 1;
   int _flags = 0;
 
-  NarrowNotNull(TypeExpr arg) : super(arg, const AnyType());
+  NarrowNotNull(TypeExpr arg) : super(arg, anyInstanceType);
 
   // Shared NarrowNotNull instances which are used when the outcome is
   // known at summary creation time.
-  static final NarrowNotNull alwaysNotNull = NarrowNotNull(const EmptyType())
+  static final NarrowNotNull alwaysNotNull = NarrowNotNull(emptyType)
     .._flags = canBeNotNullFlag;
-  static final NarrowNotNull alwaysNull = NarrowNotNull(const EmptyType())
+  static final NarrowNotNull alwaysNull = NarrowNotNull(emptyType)
     .._flags = canBeNullFlag;
-  static final NarrowNotNull unknown = NarrowNotNull(const EmptyType())
+  static final NarrowNotNull unknown = NarrowNotNull(emptyType)
     .._flags = canBeNullFlag | canBeNotNullFlag;
 
   bool get isAlwaysNull => (_flags & canBeNotNullFlag) == 0;
@@ -167,9 +208,23 @@ class NarrowNotNull extends Narrow {
   }
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-          CallHandler callHandler) =>
-      handleArgument(arg.getComputedType(computedTypes));
+  TypeExpr? simplify(TypesBuilder typesBuilder) {
+    // This pattern may appear after approximations during summary
+    // normalization, so it's not enough to handle it in
+    // SummaryCollector._makeNarrowNotNull.
+    final arg = this.arg;
+    if (arg is Type) {
+      return handleArgument(arg);
+    }
+    return null;
+  }
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) => handleArgument(arg.getComputedType(computedTypes));
 }
 
 /// Joins values from multiple sources. Its type is a union of [values].
@@ -187,12 +242,64 @@ class Join extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitJoin(this);
 
   @override
-  String dump() => "$label = _Join [${nodeToText(staticType)}]"
-      " (${values.join(", ")})";
+  String dump() =>
+      "$label = _Join [${nodeToText(staticType)}]"
+      " (${values.join(", ")})$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  TypeExpr? simplify(TypesBuilder typesBuilder) {
+    final values = this.values;
+    // Calculate the set of values and remove duplicates and empty types.
+    final valuesSet = Set<TypeExpr>();
+    int n = values.length;
+    int j = 0;
+    for (int i = 0; i < n; ++i) {
+      final v = values[i];
+      if (v is! EmptyType && valuesSet.add(v)) {
+        values[j++] = v;
+      }
+    }
+    n = j;
+    j = 0;
+    // Remove duplicate moves and narrow.
+    for (int i = 0; i < n; ++i) {
+      final v = values[i];
+      bool redundant = false;
+      for (TypeExpr e = v; ;) {
+        TypeExpr arg;
+        if (e is UnaryOperation && e.op == UnaryOp.Move) {
+          arg = e.arg;
+        } else if (e is Narrow) {
+          arg = e.arg;
+        } else {
+          break;
+        }
+        if (arg is EmptyType || valuesSet.contains(arg)) {
+          redundant = true;
+          break;
+        }
+        e = arg;
+      }
+      if (!redundant) {
+        values[j++] = v;
+      }
+    }
+    n = j;
+    if (n == 0) {
+      return emptyType;
+    } else if (n == 1) {
+      return values[0];
+    }
+    values.removeRange(n, values.length);
+    return null;
+  }
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     Type? type = null;
     for (var value in values) {
       final valueType = value.getComputedType(computedTypes);
@@ -212,12 +319,14 @@ class Use extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitUse(this);
 
   @override
-  String dump() => "$label = _Use ($arg)";
+  String dump() => "$label = _Use ($arg)$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-          CallHandler callHandler) =>
-      throw 'Use statements should be removed during summary normalization';
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) => throw 'Use statements should be removed during summary normalization';
 }
 
 /// Call site.
@@ -226,11 +335,13 @@ class Call extends Statement {
   final Args<TypeExpr> args;
   final Type? staticResultType;
 
-  Call(this.selector, this.args, this.staticResultType,
-      bool isInstanceCreation) {
-    // TODO(sjindel/tfa): Support inferring unchecked entry-points for dynamic
-    // and direct calls as well.
-    if (selector is DynamicSelector || selector is DirectSelector) {
+  Call(
+    this.selector,
+    this.args,
+    this.staticResultType,
+    bool isInstanceCreation,
+  ) {
+    if (selector is! InterfaceSelector) {
       setUseCheckedEntry();
     }
     if (isInstanceCreation) {
@@ -242,18 +353,25 @@ class Call extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitCall(this);
 
   @override
-  String dump() => "$label${isResultUsed ? '*' : ''} = _Call $selector $args";
+  String dump() =>
+      "$label${isResultUsed ? '*' : ''} = _Call $selector $args"
+      "$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
-    final List<Type> argTypes =
-        new List<Type>.filled(args.values.length, const EmptyType());
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
+    final List<Type> argTypes = new List<Type>.filled(
+      args.values.length,
+      emptyType,
+    );
     for (int i = 0; i < args.values.length; i++) {
       final Type type = args.values[i].getComputedType(computedTypes);
-      if (type == const EmptyType()) {
+      if (type.hasEmptySpecialization(typeHierarchy)) {
         debugPrint("Optimized call with empty arg");
-        return const EmptyType();
+        return emptyType;
       }
       argTypes[i] = type;
     }
@@ -262,13 +380,17 @@ class Call extends Statement {
       _observeReceiverType(argTypes[0], typeHierarchy);
     }
     if (isInstanceCreation) {
-      callHandler
-          .addAllocatedClass((argTypes[0] as ConcreteType).cls.classNode);
+      callHandler.addAllocatedClass(
+        (argTypes[0] as ConcreteType).cls.classNode,
+      );
     }
     final Stopwatch? timer = kPrintTimings ? (new Stopwatch()..start()) : null;
     Type result = callHandler.applyCall(
-        this, selector, new Args<Type>(argTypes, names: args.names),
-        isResultUsed: isResultUsed);
+      this,
+      selector,
+      new Args<Type>(argTypes, names: args.names),
+      isResultUsed: isResultUsed,
+    );
     summary.calleeTime += kPrintTimings ? timer!.elapsedMicroseconds : 0;
     if (isInstanceCreation) {
       result = argTypes[0];
@@ -286,7 +408,7 @@ class Call extends Statement {
   // --- Inferred call site information. ---
 
   int _flags = 0;
-  Type _resultType = const EmptyType();
+  Type _resultType = emptyType;
 
   static const int kMonomorphic = (1 << 0);
   static const int kPolymorphic = (1 << 1);
@@ -299,7 +421,7 @@ class Call extends Statement {
 
   Member? _monomorphicTarget;
 
-  Member? get monomorphicTarget => filterArtificialNode(_monomorphicTarget);
+  Member? get monomorphicTarget => _monomorphicTarget;
 
   bool get isMonomorphic => (_flags & kMonomorphic) != 0;
 
@@ -357,11 +479,14 @@ class Call extends Statement {
     if (receiver is NullableType) {
       _flags |= kNullableReceiver;
     }
-    final receiverIntIntersect =
-        receiver.intersection(typeHierarchy.intType, typeHierarchy);
-    if (receiverIntIntersect != EmptyType() &&
-        receiverIntIntersect != NullableType(EmptyType())) {
-      _flags |= kReceiverMayBeInt;
+    if (!receiverMayBeInt) {
+      final receiverIntIntersect = receiver.intersection(
+        typeHierarchy.intType,
+        typeHierarchy,
+      );
+      if (receiverIntIntersect != emptyType) {
+        _flags |= kReceiverMayBeInt;
+      }
     }
   }
 
@@ -387,22 +512,28 @@ class Extract extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitExtract(this);
 
   @override
-  String dump() => "$label = _Extract ($arg[${nodeToText(referenceClass)}"
-      "/$paramIndex]${nullability.suffix})";
+  String dump() =>
+      "$label = _Extract ($arg[${nodeToText(referenceClass)}"
+      "/$paramIndex]${nullability.suffix})$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     Type argType = arg.getComputedType(computedTypes);
     Type? extractedType;
 
     void extractType(ConcreteType c) {
       final typeArgs = c.typeArgs;
       if (typeArgs == null) {
-        extractedType = const UnknownType();
+        extractedType = unknownType;
       } else {
         final interfaceOffset = typeHierarchy.genericInterfaceOffsetFor(
-            c.cls.classNode, referenceClass);
+          c.cls.classNode,
+          referenceClass,
+        );
         final typeArg = typeArgs[interfaceOffset + paramIndex];
         Type extracted = typeArg;
         if (typeArg is RuntimeType) {
@@ -413,7 +544,7 @@ class Extract extends Statement {
         if (extractedType == null || extracted == extractedType) {
           extractedType = extracted;
         } else {
-          extractedType = const UnknownType();
+          extractedType = unknownType;
         }
       }
     }
@@ -425,7 +556,7 @@ class Extract extends Statement {
       argType.types.forEach(extractType);
     }
 
-    return extractedType ?? const UnknownType();
+    return extractedType ?? unknownType;
   }
 }
 
@@ -441,11 +572,16 @@ class ApplyNullability extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitApplyNullability(this);
 
   @override
-  String dump() => "$label = _ApplyNullability ($arg, ${nullability.suffix})";
+  String dump() =>
+      "$label = _ApplyNullability ($arg, ${nullability.suffix})"
+      "$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     Type argType = arg.getComputedType(computedTypes);
     if (argType is RuntimeType) {
       return argType.applyNullability(nullability);
@@ -475,12 +611,15 @@ class CreateConcreteType extends Statement {
   String dump() {
     int numImmediateTypeArgs = cls.classNode.typeParameters.length;
     return "$label = _CreateConcreteType ($cls @ "
-        "${flattenedTypeArgs.take(numImmediateTypeArgs)})";
+        "${flattenedTypeArgs.take(numImmediateTypeArgs)})$_conditionSuffix";
   }
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     bool hasRuntimeType = false;
     final types = List<Type>.generate(flattenedTypeArgs.length, (int i) {
       final computed = flattenedTypeArgs[i].getComputedType(computedTypes);
@@ -488,7 +627,7 @@ class CreateConcreteType extends Statement {
       if (computed is RuntimeType) hasRuntimeType = true;
       return computed;
     });
-    return new ConcreteType(cls, hasRuntimeType ? types : null);
+    return hasRuntimeType ? ConcreteType(cls, types) : cls.concreteType;
   }
 }
 
@@ -506,17 +645,22 @@ class CreateRuntimeType extends Statement {
   void accept(StatementVisitor visitor) => visitor.visitCreateRuntimeType(this);
 
   @override
-  String dump() => "$label = _CreateRuntimeType (${nodeToText(klass)} @ "
+  String dump() =>
+      "$label = _CreateRuntimeType (${nodeToText(klass)} @ "
       "${flattenedTypeArgs.take(klass.typeParameters.length)}"
-      "${nullability.suffix})";
+      "${nullability.suffix})$_conditionSuffix";
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     final types = <RuntimeType>[];
     for (TypeExpr arg in flattenedTypeArgs) {
       final computed = arg.getComputedType(computedTypes);
-      if (computed is UnknownType) return const UnknownType();
+      if (computed is UnknownType) return unknownType;
+      if (computed is EmptyType) return emptyType;
       types.add(computed as RuntimeType);
     }
     DartType dartType;
@@ -525,7 +669,7 @@ class CreateRuntimeType extends Statement {
     } else {
       dartType = new InterfaceType(klass, nullability);
     }
-    return new RuntimeType(dartType, types);
+    return RuntimeType(dartType, types);
   }
 }
 
@@ -543,7 +687,6 @@ class TypeCheck extends Statement {
   final TreeNode node;
 
   final Type staticType;
-  final SubtypeTestKind kind;
 
   // 'isTestedOnlyOnCheckedEntryPoint' is whether or not this parameter's type-check will
   // occur on the "checked" entrypoint in the VM but will be skipped on
@@ -556,9 +699,9 @@ class TypeCheck extends Statement {
   bool alwaysPass = true;
   bool alwaysFail = true;
 
-  TypeCheck(this.arg, this.type, this.node, this.staticType, this.kind)
-      : isTestedOnlyOnCheckedEntryPoint =
-            node is VariableDeclaration && !node.isCovariantByDeclaration;
+  TypeCheck(this.arg, this.type, this.node, this.staticType)
+    : isTestedOnlyOnCheckedEntryPoint =
+          node is VariableDeclaration && !node.isCovariantByDeclaration;
 
   @override
   void accept(StatementVisitor visitor) => visitor.visitTypeCheck(this);
@@ -567,14 +710,21 @@ class TypeCheck extends Statement {
   String dump() {
     String result = "$label = _TypeCheck ($arg against $type)";
     result += " (for ${nodeToText(node)})";
+    result += _conditionSuffix;
     return result;
   }
 
   @override
-  Type apply(List<Type?> computedTypes, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     Type argType = arg.getComputedType(computedTypes);
     Type checkType = type.getComputedType(computedTypes);
+    if (argType is EmptyType || checkType is EmptyType) {
+      return emptyType;
+    }
     // TODO(sjindel/tfa): Narrow the result if possible.
     assert(checkType is UnknownType || checkType is RuntimeType);
 
@@ -585,10 +735,11 @@ class TypeCheck extends Statement {
       // guarantee that it will pass.
       pass = false;
     } else if (checkType is RuntimeType) {
-      pass = argType.isSubtypeOfRuntimeType(typeHierarchy, checkType, kind);
+      pass = argType.isSubtypeOfRuntimeType(typeHierarchy, checkType);
       argType = argType.intersection(
-          typeHierarchy.fromStaticType(checkType.representedTypeRaw, true),
-          typeHierarchy);
+        typeHierarchy.fromStaticType(checkType.representedTypeRaw, true),
+        typeHierarchy,
+      );
     } else {
       throw "Cannot see $checkType on RHS of TypeCheck.";
     }
@@ -618,6 +769,258 @@ class TypeCheck extends Statement {
   }
 }
 
+enum UnaryOp {
+  Move,
+
+  // IsNull(Empty) = Empty
+  // IsNull(Nullable(Empty)) = bool(true)
+  // IsNull(Nullable(other)) = bool
+  // IsNull(other) = bool(false)
+  IsNull,
+
+  // IsEmpty(Empty) = bool(true)
+  // IsEmpty(other) = bool
+  IsEmpty,
+
+  // Not(Empty) = Empty
+  // Not(bool(true)) = bool(false)
+  // Not(bool(false)) = bool(true)
+  // Not(other) = bool
+  Not,
+}
+
+class UnaryOperation extends Statement {
+  final UnaryOp op;
+  TypeExpr arg;
+
+  UnaryOperation(this.op, this.arg);
+
+  @override
+  void accept(StatementVisitor visitor) => visitor.visitUnaryOperation(this);
+
+  @override
+  String dump() => "$label = ${op.name} ($arg)$_conditionSuffix";
+
+  @override
+  TypeExpr? simplify(TypesBuilder typesBuilder) {
+    if (op == UnaryOp.Move && condition == null) {
+      return arg;
+    }
+    return null;
+  }
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
+    final Type arg = this.arg.getComputedType(computedTypes);
+    switch (op) {
+      case UnaryOp.Move:
+        return arg;
+      case UnaryOp.IsNull:
+        if (arg is EmptyType) {
+          return emptyType;
+        }
+        if (arg is NullableType) {
+          if (arg.baseType.hasEmptySpecialization(typeHierarchy)) {
+            return typeHierarchy.constantTrue;
+          }
+          return typeHierarchy.boolType;
+        } else {
+          return typeHierarchy.constantFalse;
+        }
+      case UnaryOp.IsEmpty:
+        return (arg.hasEmptySpecialization(typeHierarchy))
+            ? typeHierarchy.constantTrue
+            : typeHierarchy.boolType;
+      case UnaryOp.Not:
+        if (arg is EmptyType) {
+          return emptyType;
+        }
+        if (identical(arg, typeHierarchy.constantTrue)) {
+          return typeHierarchy.constantFalse;
+        } else if (identical(arg, typeHierarchy.constantFalse)) {
+          return typeHierarchy.constantTrue;
+        } else {
+          return typeHierarchy.boolType;
+        }
+    }
+  }
+}
+
+enum BinaryOp {
+  // And(Empty, _) = Empty
+  // And(bool(false), _) = bool(false)
+  // And(bool(true), Empty) = Empty
+  // And(bool(true), bool(true)) = bool(true)
+  // And(bool(true), bool(false)) = bool(false)
+  // And(bool(true), other) = bool
+  // And(other, _) = bool
+  And,
+
+  // Or(Empty, _) = Empty
+  // Or(bool(true), _) = bool(true)
+  // Or(bool(false), Empty) = Empty
+  // Or(bool(false), bool(true)) = bool(true)
+  // Or(bool(false), bool(false)) = bool(false)
+  // Or(bool(false), other) = bool
+  // Or(other, _) = bool
+  Or,
+}
+
+class BinaryOperation extends Statement {
+  final BinaryOp op;
+  TypeExpr arg1;
+  TypeExpr arg2;
+
+  BinaryOperation(this.op, this.arg1, this.arg2);
+
+  @override
+  void accept(StatementVisitor visitor) => visitor.visitBinaryOperation(this);
+
+  @override
+  String dump() => "$label = ${op.name} ($arg1, $arg2)$_conditionSuffix";
+
+  @override
+  TypeExpr? simplify(TypesBuilder typesBuilder) {
+    final TypeExpr left = arg1;
+    switch (op) {
+      case BinaryOp.Or:
+        if (identical(left, typesBuilder.constantTrue)) {
+          return typesBuilder.constantTrue;
+        }
+        if (identical(left, typesBuilder.constantFalse)) {
+          return arg2;
+        }
+        break;
+      case BinaryOp.And:
+        if (identical(left, typesBuilder.constantFalse)) {
+          return typesBuilder.constantFalse;
+        }
+        if (identical(left, typesBuilder.constantTrue)) {
+          return arg2;
+        }
+        break;
+    }
+    return null;
+  }
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
+    final Type left = arg1.getComputedType(computedTypes);
+    if (left is EmptyType) {
+      return emptyType;
+    }
+    switch (op) {
+      case BinaryOp.Or:
+        if (identical(left, typeHierarchy.constantTrue)) {
+          return typeHierarchy.constantTrue;
+        }
+        if (identical(left, typeHierarchy.constantFalse)) {
+          final Type right = arg2.getComputedType(computedTypes);
+          if (right is EmptyType) {
+            return emptyType;
+          } else if (identical(right, typeHierarchy.constantTrue)) {
+            return typeHierarchy.constantTrue;
+          } else if (identical(right, typeHierarchy.constantFalse)) {
+            return typeHierarchy.constantFalse;
+          }
+        }
+        return typeHierarchy.boolType;
+      case BinaryOp.And:
+        if (identical(left, typeHierarchy.constantFalse)) {
+          return typeHierarchy.constantFalse;
+        }
+        if (identical(left, typeHierarchy.constantTrue)) {
+          final Type right = arg2.getComputedType(computedTypes);
+          if (right is EmptyType) {
+            return emptyType;
+          } else if (identical(right, typeHierarchy.constantTrue)) {
+            return typeHierarchy.constantTrue;
+          } else if (identical(right, typeHierarchy.constantFalse)) {
+            return typeHierarchy.constantFalse;
+          }
+        }
+        return typeHierarchy.boolType;
+    }
+  }
+}
+
+/// Box holding the value of a variable, shared among multiple summaries.
+/// Used to represent captured variables.
+abstract class SharedVariable {
+  Type getValue(TypeHierarchy typeHierarchy, CallHandler callHandler);
+  void setValue(
+    Type newValue,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  );
+}
+
+abstract class SharedVariableBuilder {
+  /// [SharedVariable] representing captured [variable].
+  SharedVariable getSharedVariable(VariableDeclaration variable);
+
+  /// [SharedVariable] representing captured `this` in [member].
+  SharedVariable getSharedCapturedThis(Member member);
+}
+
+/// Reads value from [variable].
+class ReadVariable extends Statement {
+  final SharedVariable variable;
+
+  ReadVariable(this.variable);
+
+  @override
+  void accept(StatementVisitor visitor) => visitor.visitReadVariable(this);
+
+  @override
+  String dump() => "$label = read $variable$_conditionSuffix";
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
+    return variable.getValue(typeHierarchy, callHandler);
+  }
+}
+
+/// Writes value [arg] to [variable].
+class WriteVariable extends Statement {
+  final SharedVariable variable;
+  TypeExpr arg;
+
+  WriteVariable(this.variable, this.arg);
+
+  @override
+  void accept(StatementVisitor visitor) => visitor.visitWriteVariable(this);
+
+  @override
+  String dump() => "write $variable = $arg$_conditionSuffix";
+
+  @override
+  Type apply(
+    List<Type?> computedTypes,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
+    variable.setValue(
+      arg.getComputedType(computedTypes),
+      typeHierarchy,
+      callHandler,
+    );
+    return emptyType;
+  }
+}
+
 /// Summary is a linear sequence of statements representing a type flow in
 /// one member, function or initializer.
 class Summary {
@@ -627,16 +1030,18 @@ class Summary {
   int requiredParameterCount;
 
   List<Statement> _statements = <Statement>[];
-  TypeExpr result = const EmptyType();
-  Type resultType = const EmptyType();
+  TypeExpr result = emptyType;
+  Type resultType = emptyType;
 
   // Analysis time of callees. Populated only if kPrintTimings.
   int calleeTime = 0;
 
-  Summary(this.name,
-      {this.parameterCount = 0,
-      this.positionalParameterCount = 0,
-      this.requiredParameterCount = 0});
+  Summary(
+    this.name, {
+    this.parameterCount = 0,
+    this.positionalParameterCount = 0,
+    this.requiredParameterCount = 0,
+  });
 
   List<Statement> get statements => _statements;
 
@@ -659,8 +1064,11 @@ class Summary {
   }
 
   /// Apply this summary to the given arguments and return the resulting type.
-  Type apply(Args<Type> arguments, TypeHierarchy typeHierarchy,
-      CallHandler callHandler) {
+  Type apply(
+    Args<Type> arguments,
+    TypeHierarchy typeHierarchy,
+    CallHandler callHandler,
+  ) {
     final Stopwatch? timer = kPrintTimings ? (new Stopwatch()..start()) : null;
     final int oldCalleeTime = calleeTime;
     calleeTime = 0;
@@ -709,31 +1117,48 @@ class Summary {
       final Parameter param = _statements[i] as Parameter;
       assert(param.defaultValue != null);
       if ((argIndex < namedArgCount) && (argNames[argIndex] == param.name)) {
-        final argType =
-            args[positionalArgCount + argIndex].specialize(typeHierarchy);
+        final argType = args[positionalArgCount + argIndex].specialize(
+          typeHierarchy,
+        );
         argIndex++;
         param._observeArgumentType(argType, typeHierarchy);
         final staticTypeForNarrowing = param.staticTypeForNarrowing;
         if (staticTypeForNarrowing != null) {
-          types[i] =
-              argType.intersection(staticTypeForNarrowing, typeHierarchy);
+          types[i] = argType.intersection(
+            staticTypeForNarrowing,
+            typeHierarchy,
+          );
         } else {
           types[i] = argType;
         }
       } else {
-        assert((argIndex == namedArgCount) ||
-            (param.name.compareTo(argNames[argIndex]) < 0));
+        assert(
+          (argIndex == namedArgCount) ||
+              (param.name.compareTo(argNames[argIndex]) < 0),
+        );
         types[i] = param._observeNotPassed(typeHierarchy);
       }
     }
     assert(argIndex == namedArgCount);
 
     for (int i = parameterCount; i < _statements.length; i++) {
+      final statement = _statements[i];
       // Test if tracing is enabled to avoid expensive message formatting.
       if (kPrintTrace) {
-        tracePrint("EVAL ${_statements[i].dump()}");
+        tracePrint("EVAL ${statement.dump()}");
       }
-      types[i] = _statements[i].apply(types, typeHierarchy, callHandler);
+      final condition = statement.condition;
+      if (condition != null) {
+        final cval = condition.getComputedType(types);
+        if (cval is EmptyType || identical(cval, typeHierarchy.constantFalse)) {
+          types[i] = emptyType;
+          if (kPrintTrace) {
+            tracePrint("Skipped statement");
+          }
+          continue;
+        }
+      }
+      types[i] = statement.apply(types, typeHierarchy, callHandler);
       if (kPrintTrace) {
         tracePrint("RESULT ${types[i]}");
       }
@@ -757,9 +1182,11 @@ class Summary {
   }
 
   Args<Type> get argumentTypes {
-    final argTypes = new List<Type>.filled(parameterCount, const EmptyType());
-    final argNames =
-        new List<String>.filled(parameterCount - positionalParameterCount, '');
+    final argTypes = new List<Type>.filled(parameterCount, emptyType);
+    final argNames = new List<String>.filled(
+      parameterCount - positionalParameterCount,
+      '',
+    );
     for (int i = 0; i < parameterCount; i++) {
       Parameter param = _statements[i] as Parameter;
       argTypes[i] = param.argumentType;

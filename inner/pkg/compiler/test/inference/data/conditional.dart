@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   simpleConditional();
   simpleConditionalTrue();
@@ -21,10 +19,10 @@ main() {
 /// Simple conditional with unknown condition value.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _simpleConditional:Union([exact=JSString], [exact=JSUInt31])*/
-_simpleConditional(/*[exact=JSBool]*/ c) => c ? '' : 0;
+/*member: _simpleConditional:Union([exact=JSString|powerset={I}{O}{I}], [exact=JSUInt31|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_simpleConditional(/*[exact=JSBool|powerset={I}{O}{N}]*/ c) => c ? '' : 0;
 
-/*member: simpleConditional:[null]*/
+/*member: simpleConditional:[null|powerset={null}]*/
 simpleConditional() {
   _simpleConditional(true);
   _simpleConditional(false);
@@ -34,10 +32,12 @@ simpleConditional() {
 /// Simple conditional with unknown condition value.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _simpleConditionalTrue:Union([exact=JSString], [exact=JSUInt31])*/
-_simpleConditionalTrue(/*Value([exact=JSBool], value: true)*/ c) => c ? '' : 0;
+/*member: _simpleConditionalTrue:Union([exact=JSString|powerset={I}{O}{I}], [exact=JSUInt31|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_simpleConditionalTrue(
+  /*Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/ c,
+) => c ? '' : 0;
 
-/*member: simpleConditionalTrue:[null]*/
+/*member: simpleConditionalTrue:[null|powerset={null}]*/
 simpleConditionalTrue() {
   _simpleConditionalTrue(true);
 }
@@ -46,11 +46,12 @@ simpleConditionalTrue() {
 /// Simple conditional with unknown condition value.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _simpleConditionalFalse:Union([exact=JSString], [exact=JSUInt31])*/
-_simpleConditionalFalse(/*Value([exact=JSBool], value: false)*/ c) =>
-    c ? '' : 0;
+/*member: _simpleConditionalFalse:Union([exact=JSString|powerset={I}{O}{I}], [exact=JSUInt31|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_simpleConditionalFalse(
+  /*Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/ c,
+) => c ? '' : 0;
 
-/*member: simpleConditionalFalse:[null]*/
+/*member: simpleConditionalFalse:[null|powerset={null}]*/
 simpleConditionalFalse() {
   _simpleConditionalFalse(false);
 }
@@ -58,11 +59,11 @@ simpleConditionalFalse() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is test.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalIs:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalIs(/*[null|exact=JSUInt31]*/ o) =>
-    o is int ? o. /*invoke: [exact=JSUInt31]*/ abs() : '';
+/*member: _conditionalIs:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalIs(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) =>
+    o is int ? o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs() : '';
 
-/*member: conditionalIs:[null]*/
+/*member: conditionalIs:[null|powerset={null}]*/
 conditionalIs() {
   _conditionalIs(null);
   _conditionalIs(1);
@@ -71,11 +72,11 @@ conditionalIs() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is `int` test known to be true.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalIsInt:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalIsInt(/*[exact=JSUInt31]*/ o) =>
-    o is int ? o. /*invoke: [exact=JSUInt31]*/ abs() : '';
+/*member: _conditionalIsInt:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalIsInt(/*[exact=JSUInt31|powerset={I}{O}{N}]*/ o) =>
+    o is int ? o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs() : '';
 
-/*member: conditionalIsInt:[null]*/
+/*member: conditionalIsInt:[null|powerset={null}]*/
 conditionalIsInt() {
   _conditionalIsInt(1);
 }
@@ -83,11 +84,11 @@ conditionalIsInt() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is-not test.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalIsNot:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalIsNot(/*[null|exact=JSUInt31]*/ o) =>
-    o is! int ? '' : o. /*invoke: [exact=JSUInt31]*/ abs();
+/*member: _conditionalIsNot:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalIsNot(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) =>
+    o is! int ? '' : o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs();
 
-/*member: conditionalIsNot:[null]*/
+/*member: conditionalIsNot:[null|powerset={null}]*/
 conditionalIsNot() {
   _conditionalIsNot(null);
   _conditionalIsNot(1);
@@ -96,11 +97,11 @@ conditionalIsNot() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is-not `int` test known to be false.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalIsNotInt:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalIsNotInt(/*[exact=JSUInt31]*/ o) =>
-    o is! int ? '' : o. /*invoke: [exact=JSUInt31]*/ abs();
+/*member: _conditionalIsNotInt:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalIsNotInt(/*[exact=JSUInt31|powerset={I}{O}{N}]*/ o) =>
+    o is! int ? '' : o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs();
 
-/*member: conditionalIsNotInt:[null]*/
+/*member: conditionalIsNotInt:[null|powerset={null}]*/
 conditionalIsNotInt() {
   _conditionalIsNotInt(1);
 }
@@ -108,11 +109,11 @@ conditionalIsNotInt() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is test.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalNull:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalNull(/*[null|exact=JSUInt31]*/ o) =>
-    o == null ? '' : o. /*invoke: [exact=JSUInt31]*/ abs();
+/*member: _conditionalNull:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalNull(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) =>
+    o == null ? '' : o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs();
 
-/*member: conditionalNull:[null]*/
+/*member: conditionalNull:[null|powerset={null}]*/
 conditionalNull() {
   _conditionalNull(null);
   _conditionalNull(1);
@@ -121,11 +122,11 @@ conditionalNull() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Conditional with an is `int` test known to be true.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _conditionalNotNull:Union([exact=JSString], [subclass=JSPositiveInt])*/
-_conditionalNotNull(/*[null|exact=JSUInt31]*/ o) =>
-    o != null ? o. /*invoke: [exact=JSUInt31]*/ abs() : '';
+/*member: _conditionalNotNull:Union([exact=JSString|powerset={I}{O}{I}], [subclass=JSPositiveInt|powerset={I}{O}{N}], powerset: {I}{O}{IN})*/
+_conditionalNotNull(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) =>
+    o != null ? o. /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ abs() : '';
 
-/*member: conditionalNotNull:[null]*/
+/*member: conditionalNotNull:[null|powerset={null}]*/
 conditionalNotNull() {
   _conditionalNotNull(null);
   _conditionalNotNull(1);

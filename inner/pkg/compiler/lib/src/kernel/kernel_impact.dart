@@ -10,14 +10,11 @@ import '../common/names.dart';
 import '../common/elements.dart';
 import '../constants/values.dart';
 import '../elements/entities.dart';
-import '../elements/indexed.dart';
 import '../elements/types.dart';
 import '../ir/constants.dart';
 import '../ir/impact.dart';
 import '../ir/impact_data.dart';
 import '../ir/runtime_type_analysis.dart';
-import '../ir/static_type.dart';
-import '../ir/util.dart';
 import '../ir/visitors.dart';
 import '../js_backend/annotations.dart';
 import '../js_backend/backend_impact.dart';
@@ -25,9 +22,9 @@ import '../js_backend/backend_usage.dart';
 import '../js_backend/custom_elements_analysis.dart';
 import '../js_backend/native_data.dart';
 import '../js_backend/runtime_types_resolution.dart';
+import '../js_model/elements.dart';
 import '../native/behavior.dart';
 import '../native/enqueue.dart';
-import '../options.dart';
 import '../universe/call_structure.dart';
 import '../universe/feature.dart';
 import '../universe/selector.dart';
@@ -39,10 +36,8 @@ import 'element_map.dart';
 /// [ImpactRegistry] that converts kernel based impact data to world impact
 /// object based on the K model.
 class KernelImpactConverter implements ImpactRegistry {
-  final WorldImpactBuilder impactBuilder;
   final KernelToElementMap elementMap;
   final DiagnosticReporter reporter;
-  final CompilerOptions _options;
   final MemberEntity currentMember;
   final ConstantValuefier _constantValuefier;
   final ir.StaticTypeContext staticTypeContext;
@@ -52,21 +47,22 @@ class KernelImpactConverter implements ImpactRegistry {
   final CustomElementsResolutionAnalysis _customElementsResolutionAnalysis;
   final RuntimeTypesNeedBuilder _rtiNeedBuilder;
   final AnnotationsData _annotationsData;
+  WorldImpactBuilder? _impactBuilder;
+  WorldImpactBuilder get impactBuilder => _impactBuilder!;
 
   KernelImpactConverter(
-      this.elementMap,
-      this.currentMember,
-      this.reporter,
-      this._options,
-      this._constantValuefier,
-      this.staticTypeContext,
-      this._impacts,
-      this._nativeResolutionEnqueuer,
-      this._backendUsageBuilder,
-      this._customElementsResolutionAnalysis,
-      this._rtiNeedBuilder,
-      this._annotationsData)
-      : this.impactBuilder = WorldImpactBuilderImpl(currentMember);
+    this.elementMap,
+    this.currentMember,
+    this.reporter,
+    this._constantValuefier,
+    this.staticTypeContext,
+    this._impacts,
+    this._nativeResolutionEnqueuer,
+    this._backendUsageBuilder,
+    this._customElementsResolutionAnalysis,
+    this._rtiNeedBuilder,
+    this._annotationsData,
+  );
 
   ir.TypeEnvironment get typeEnvironment => elementMap.typeEnvironment;
 
@@ -78,20 +74,17 @@ class KernelImpactConverter implements ImpactRegistry {
 
   DartTypes get dartTypes => commonElements.dartTypes;
 
-  String typeToString(DartType type) =>
-      type.toStructuredText(dartTypes, _options);
+  String typeToString(DartType type) => type.toStructuredText(dartTypes);
 
-  Object? _computeReceiverConstraint(
-      ir.DartType receiverType, ClassRelation relation) {
+  Object? _computeReceiverConstraint(ir.DartType receiverType) {
     if (receiverType is ir.InterfaceType) {
-      return StrongModeConstraint(commonElements, _nativeBasicData,
-          elementMap.getClass(receiverType.classNode), relation);
+      return defaultReceiverClass(
+        commonElements,
+        _nativeBasicData,
+        elementMap.getClass(receiverType.classNode),
+      );
     } else if (receiverType is ir.NullType) {
-      return StrongModeConstraint(
-          commonElements,
-          _nativeBasicData,
-          elementMap.getClass(typeEnvironment.coreTypes.deprecatedNullClass),
-          relation);
+      return elementMap.getClass(typeEnvironment.coreTypes.deprecatedNullClass);
     }
     return null;
   }
@@ -103,7 +96,10 @@ class KernelImpactConverter implements ImpactRegistry {
 
   void registerNativeImpact(NativeBehavior behavior) {
     _nativeResolutionEnqueuer.registerNativeBehavior(
-        impactBuilder, behavior, impactBuilder);
+      impactBuilder,
+      behavior,
+      impactBuilder,
+    );
   }
 
   // TODO(johnniwinther): Maybe split this into [onAssertType] and [onTestType].
@@ -154,112 +150,161 @@ class KernelImpactConverter implements ImpactRegistry {
   @override
   void registerFieldNode(ir.Field field) {
     if (field.isInstanceMember &&
-        _nativeBasicData
-            .isNativeClass(elementMap.getClass(field.enclosingClass!))) {
+        _nativeBasicData.isNativeClass(
+          elementMap.getClass(field.enclosingClass!),
+        )) {
       MemberEntity member = elementMap.getMember(field);
       // TODO(johnniwinther): NativeDataBuilder already has the native behavior
       // at this point. Use that instead.
       bool isJsInterop = _nativeBasicData.isJsInteropMember(member);
       Iterable<ConstantValue> metadata = elementMap.elementEnvironment
-          .getMemberMetadata(member as IndexedMember);
-      Iterable<String> createsAnnotations =
-          getCreatesAnnotations(dartTypes, reporter, commonElements, metadata);
-      Iterable<String> returnsAnnotations =
-          getReturnsAnnotations(dartTypes, reporter, commonElements, metadata);
-      registerNativeImpact(elementMap.getNativeBehaviorForFieldLoad(
-          field, createsAnnotations, returnsAnnotations,
-          isJsInterop: isJsInterop));
+          .getMemberMetadata(member as JMember);
+      Iterable<String> createsAnnotations = getCreatesAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      Iterable<String> returnsAnnotations = getReturnsAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      registerNativeImpact(
+        elementMap.getNativeBehaviorForFieldLoad(
+          field,
+          createsAnnotations,
+          returnsAnnotations,
+          isJsInterop: isJsInterop,
+        ),
+      );
       registerNativeImpact(elementMap.getNativeBehaviorForFieldStore(field));
     }
   }
 
   @override
-  void registerConstructorNode(ir.Constructor constructor) {
+  void registerExternalConstructorNode(ir.Constructor constructor) {
     MemberEntity member = elementMap.getMember(constructor);
     if (constructor.isExternal && !commonElements.isForeignHelper(member)) {
       // TODO(johnniwinther): NativeDataBuilder already has the native behavior
       // at this point. Use that instead.
       bool isJsInterop = _nativeBasicData.isJsInteropMember(member);
       Iterable<ConstantValue> metadata = elementMap.elementEnvironment
-          .getMemberMetadata(member as IndexedMember);
-      Iterable<String> createsAnnotations =
-          getCreatesAnnotations(dartTypes, reporter, commonElements, metadata);
-      Iterable<String> returnsAnnotations =
-          getReturnsAnnotations(dartTypes, reporter, commonElements, metadata);
-      registerNativeImpact(elementMap.getNativeBehaviorForMethod(
-          constructor, createsAnnotations, returnsAnnotations,
-          isJsInterop: isJsInterop));
+          .getMemberMetadata(member as JMember);
+      Iterable<String> createsAnnotations = getCreatesAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      Iterable<String> returnsAnnotations = getReturnsAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      registerNativeImpact(
+        elementMap.getNativeBehaviorForMethod(
+          constructor,
+          createsAnnotations,
+          returnsAnnotations,
+          isJsInterop: isJsInterop,
+        ),
+      );
     }
   }
 
   @override
   void registerSyncStar(ir.DartType elementType) {
     registerBackendImpact(_impacts.syncStarBody);
-    impactBuilder.registerStaticUse(StaticUse.staticInvoke(
+    impactBuilder.registerStaticUse(
+      StaticUse.staticInvoke(
         commonElements.syncStarIterableFactory,
         CallStructure.unnamed(1, 1),
-        <DartType>[elementMap.getDartType(elementType)]));
+        <DartType>[elementMap.getDartType(elementType)],
+      ),
+    );
   }
 
   @override
   void registerAsync(ir.DartType elementType) {
     registerBackendImpact(_impacts.asyncBody);
-    impactBuilder.registerStaticUse(StaticUse.staticInvoke(
+    impactBuilder.registerStaticUse(
+      StaticUse.staticInvoke(
         commonElements.asyncAwaitCompleterFactory,
         CallStructure.unnamed(0, 1),
-        <DartType>[elementMap.getDartType(elementType)]));
+        <DartType>[elementMap.getDartType(elementType)],
+      ),
+    );
   }
 
   @override
   void registerAsyncStar(ir.DartType elementType) {
     registerBackendImpact(_impacts.asyncStarBody);
-    impactBuilder.registerStaticUse(StaticUse.staticInvoke(
+    impactBuilder.registerStaticUse(
+      StaticUse.staticInvoke(
         commonElements.asyncStarStreamControllerFactory,
         CallStructure.unnamed(1, 1),
-        <DartType>[elementMap.getDartType(elementType)]));
+        <DartType>[elementMap.getDartType(elementType)],
+      ),
+    );
   }
 
   @override
-  void registerProcedureNode(ir.Procedure procedure) {
+  void registerExternalProcedureNode(ir.Procedure procedure) {
     MemberEntity member = elementMap.getMember(procedure);
     if (procedure.isExternal && !commonElements.isForeignHelper(member)) {
       // TODO(johnniwinther): NativeDataBuilder already has the native behavior
       // at this point. Use that instead.
       bool isJsInterop = _nativeBasicData.isJsInteropMember(member);
       Iterable<ConstantValue> metadata = elementMap.elementEnvironment
-          .getMemberMetadata(member as IndexedMember);
-      Iterable<String> createsAnnotations =
-          getCreatesAnnotations(dartTypes, reporter, commonElements, metadata);
-      Iterable<String> returnsAnnotations =
-          getReturnsAnnotations(dartTypes, reporter, commonElements, metadata);
-      registerNativeImpact(elementMap.getNativeBehaviorForMethod(
-          procedure, createsAnnotations, returnsAnnotations,
-          isJsInterop: isJsInterop));
+          .getMemberMetadata(member as JMember);
+      Iterable<String> createsAnnotations = getCreatesAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      Iterable<String> returnsAnnotations = getReturnsAnnotations(
+        dartTypes,
+        reporter,
+        commonElements,
+        metadata,
+      );
+      registerNativeImpact(
+        elementMap.getNativeBehaviorForMethod(
+          procedure,
+          createsAnnotations,
+          returnsAnnotations,
+          isJsInterop: isJsInterop,
+        ),
+      );
     }
   }
 
   @override
-  void registerIntLiteral(int value) {
+  void registerIntLiteral() {
     registerBackendImpact(_impacts.intLiteral);
   }
 
   @override
-  void registerDoubleLiteral(double value) {
+  void registerDoubleLiteral() {
     registerBackendImpact(_impacts.doubleLiteral);
   }
 
   @override
-  void registerBoolLiteral(bool value) {
+  void registerBoolLiteral() {
     registerBackendImpact(_impacts.boolLiteral);
   }
 
   @override
-  void registerStringLiteral(String value) {
+  void registerStringLiteral() {
     registerBackendImpact(_impacts.stringLiteral);
   }
 
   @override
-  void registerSymbolLiteral(String value) {
+  void registerSymbolLiteral() {
     registerBackendImpact(_impacts.constSymbol);
   }
 
@@ -269,44 +314,67 @@ class KernelImpactConverter implements ImpactRegistry {
   }
 
   @override
-  void registerListLiteral(ir.DartType elementType,
-      {required bool isConst, required bool isEmpty}) {
+  void registerListLiteral(
+    ir.DartType elementType, {
+    required bool isConst,
+    required bool isEmpty,
+  }) {
     // TODO(johnniwinther): Use the [isConstant] and [isEmpty] property when
     // factory constructors are registered directly.
-    impactBuilder.registerTypeUse(TypeUse.instantiation(
-        commonElements.listType(elementMap.getDartType(elementType))));
+    impactBuilder.registerTypeUse(
+      TypeUse.instantiation(
+        commonElements.listType(elementMap.getDartType(elementType)),
+      ),
+    );
   }
 
   @override
-  void registerSetLiteral(ir.DartType elementType,
-      {required bool isConst, required bool isEmpty}) {
+  void registerSetLiteral(
+    ir.DartType elementType, {
+    required bool isConst,
+    required bool isEmpty,
+  }) {
     // TODO(johnniwinther): Use the [isEmpty] property when factory
     // constructors are registered directly.
     if (isConst) {
       registerBackendImpact(_impacts.constantSetLiteral);
     } else {
-      impactBuilder.registerTypeUse(TypeUse.instantiation(
-          commonElements.setType(elementMap.getDartType(elementType))));
+      impactBuilder.registerTypeUse(
+        TypeUse.instantiation(
+          commonElements.setType(elementMap.getDartType(elementType)),
+        ),
+      );
     }
   }
 
   @override
-  void registerMapLiteral(ir.DartType keyType, ir.DartType valueType,
-      {required bool isConst, required bool isEmpty}) {
+  void registerMapLiteral(
+    ir.DartType keyType,
+    ir.DartType valueType, {
+    required bool isConst,
+    required bool isEmpty,
+  }) {
     // TODO(johnniwinther): Use the [isEmpty] property when factory
     // constructors are registered directly.
     if (isConst) {
       registerBackendImpact(_impacts.constantMapLiteral);
     } else {
-      impactBuilder.registerTypeUse(TypeUse.instantiation(
-          commonElements.mapType(elementMap.getDartType(keyType),
-              elementMap.getDartType(valueType))));
+      impactBuilder.registerTypeUse(
+        TypeUse.instantiation(
+          commonElements.mapType(
+            elementMap.getDartType(keyType),
+            elementMap.getDartType(valueType),
+          ),
+        ),
+      );
     }
   }
 
   @override
-  void registerRecordLiteral(ir.RecordType recordType,
-      {required bool isConst}) {
+  void registerRecordLiteral(
+    ir.RecordType recordType, {
+    required bool isConst,
+  }) {
     registerBackendImpact(_impacts.recordInstantiation);
     final type = elementMap.getDartType(recordType) as RecordType;
     impactBuilder.registerTypeUse(TypeUse.recordInstantiation(type));
@@ -314,24 +382,36 @@ class KernelImpactConverter implements ImpactRegistry {
 
   @override
   void registerNew(
-      ir.Member target,
-      ir.InterfaceType type,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments,
-      ir.LibraryDependency? import,
-      {required bool isConst}) {
+    ir.Member target,
+    ir.InterfaceType type,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+    ir.LibraryDependency? import, {
+    required bool isConst,
+  }) {
     ConstructorEntity constructor = elementMap.getConstructor(target);
     CallStructure callStructure = CallStructure(
-        positionalArguments + namedArguments.length,
-        namedArguments,
-        typeArguments.length);
+      positionalArguments + namedArguments.length,
+      namedArguments,
+      typeArguments.length,
+    );
     ImportEntity? deferredImport = elementMap.getImport(import);
-    impactBuilder.registerStaticUse(isConst
-        ? StaticUse.constConstructorInvoke(constructor, callStructure,
-            elementMap.getInterfaceType(type), deferredImport)
-        : StaticUse.typedConstructorInvoke(constructor, callStructure,
-            elementMap.getInterfaceType(type), deferredImport));
+    impactBuilder.registerStaticUse(
+      isConst
+          ? StaticUse.constConstructorInvoke(
+              constructor,
+              callStructure,
+              elementMap.getInterfaceType(type),
+              deferredImport,
+            )
+          : StaticUse.typedConstructorInvoke(
+              constructor,
+              callStructure,
+              elementMap.getInterfaceType(type),
+              deferredImport,
+            ),
+    );
     if (type.typeArguments.any((ir.DartType type) => type is! ir.DynamicType)) {
       registerBackendImpact(_impacts.typeVariableBoundCheck);
     }
@@ -346,12 +426,16 @@ class KernelImpactConverter implements ImpactRegistry {
   }
 
   @override
-  void registerConstInstantiation(ir.Class cls, List<ir.DartType> typeArguments,
-      ir.LibraryDependency? import) {
+  void registerConstInstantiation(
+    ir.Class cls,
+    List<ir.DartType> typeArguments,
+    ir.LibraryDependency? import,
+  ) {
     ImportEntity? deferredImport = elementMap.getImport(import);
     InterfaceType type = elementMap.createInterfaceType(cls, typeArguments);
-    impactBuilder
-        .registerTypeUse(TypeUse.constInstantiation(type, deferredImport));
+    impactBuilder.registerTypeUse(
+      TypeUse.constInstantiation(type, deferredImport),
+    );
   }
 
   @override
@@ -361,74 +445,97 @@ class KernelImpactConverter implements ImpactRegistry {
 
   @override
   void registerSuperInitializer(
-      ir.Constructor source,
-      ir.Constructor target,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.Constructor source,
+    ir.Constructor target,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     // TODO(johnniwinther): Maybe rewrite `node.target` to point to a
     // synthesized unnamed mixin constructor when needed. This would require us
     // to consider impact building a required pre-step for inference and
     // ssa-building.
-    ConstructorEntity constructor =
-        elementMap.getSuperConstructor(source, target);
-    impactBuilder.registerStaticUse(StaticUse.superConstructorInvoke(
+    ConstructorEntity constructor = elementMap.getSuperConstructor(
+      source,
+      target,
+    );
+    impactBuilder.registerStaticUse(
+      StaticUse.superConstructorInvoke(
         constructor,
-        CallStructure(positionalArguments + namedArguments.length,
-            namedArguments, typeArguments.length)));
+        CallStructure(
+          positionalArguments + namedArguments.length,
+          namedArguments,
+          typeArguments.length,
+        ),
+      ),
+    );
   }
 
   @override
   void registerStaticInvocation(
-      ir.Procedure procedure,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments,
-      ir.LibraryDependency? import) {
+    ir.Procedure procedure,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+    ir.LibraryDependency? import,
+  ) {
     FunctionEntity target = elementMap.getMethod(procedure);
     CallStructure callStructure = CallStructure(
-        positionalArguments + namedArguments.length,
-        namedArguments,
-        typeArguments.length);
+      positionalArguments + namedArguments.length,
+      namedArguments,
+      typeArguments.length,
+    );
     List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
     if (commonElements.isExtractTypeArguments(target)) {
       _handleExtractTypeArguments(target, dartTypeArguments!, callStructure);
       return;
     } else {
       ImportEntity? deferredImport = elementMap.getImport(import);
-      impactBuilder.registerStaticUse(StaticUse.staticInvoke(
-          target, callStructure, dartTypeArguments, deferredImport));
+      impactBuilder.registerStaticUse(
+        StaticUse.staticInvoke(
+          target,
+          callStructure,
+          dartTypeArguments,
+          deferredImport,
+        ),
+      );
     }
   }
 
   @override
-  void registerStaticInvocationNode(ir.StaticInvocation node) {
+  void registerForeignStaticInvocationNode(ir.StaticInvocation node) {
     switch (elementMap.getForeignKind(node)) {
-      case ForeignKind.JS:
+      case ForeignKind.js:
         registerNativeImpact(elementMap.getNativeBehaviorForJsCall(node));
         break;
-      case ForeignKind.JS_BUILTIN:
+      case ForeignKind.jsBuiltin:
         registerNativeImpact(
-            elementMap.getNativeBehaviorForJsBuiltinCall(node));
+          elementMap.getNativeBehaviorForJsBuiltinCall(node),
+        );
         break;
-      case ForeignKind.JS_EMBEDDED_GLOBAL:
+      case ForeignKind.jsEmbeddedGlobal:
         registerNativeImpact(
-            elementMap.getNativeBehaviorForJsEmbeddedGlobalCall(node));
+          elementMap.getNativeBehaviorForJsEmbeddedGlobalCall(node),
+        );
         break;
-      case ForeignKind.JS_INTERCEPTOR_CONSTANT:
-        InterfaceType? type =
-            elementMap.getInterfaceTypeForJsInterceptorCall(node);
+      case ForeignKind.jsInterceptorConstant:
+        InterfaceType? type = elementMap.getInterfaceTypeForJsInterceptorCall(
+          node,
+        );
         if (type != null) {
           impactBuilder.registerTypeUse(TypeUse.instantiation(type));
         }
         break;
-      case ForeignKind.NONE:
+      case ForeignKind.none:
         break;
     }
   }
 
-  void _handleExtractTypeArguments(FunctionEntity target,
-      List<DartType> typeArguments, CallStructure callStructure) {
+  void _handleExtractTypeArguments(
+    FunctionEntity target,
+    List<DartType> typeArguments,
+    CallStructure callStructure,
+  ) {
     // extractTypeArguments<Map>(obj, fn) has additional impacts:
     //
     //   1. All classes implementing Map need to carry type arguments (similar
@@ -437,10 +544,11 @@ class KernelImpactConverter implements ImpactRegistry {
     //   2. There is an invocation of fn with some number of type arguments.
     //
     impactBuilder.registerStaticUse(
-        StaticUse.staticInvoke(target, callStructure, typeArguments));
+      StaticUse.staticInvoke(target, callStructure, typeArguments),
+    );
 
     if (typeArguments.length != 1) return;
-    DartType matchedType = dartTypes.eraseLegacy(typeArguments.first);
+    DartType matchedType = typeArguments.single;
 
     if (matchedType is! InterfaceType) return;
     InterfaceType interfaceType = matchedType;
@@ -449,238 +557,290 @@ class KernelImpactConverter implements ImpactRegistry {
     _registerIsCheckInternal(thisType);
 
     Selector selector = Selector.callClosure(
-        0, const <String>[], thisType.typeArguments.length);
-    impactBuilder
-        .registerDynamicUse(DynamicUse(selector, null, thisType.typeArguments));
+      0,
+      const <String>[],
+      thisType.typeArguments.length,
+    );
+    impactBuilder.registerDynamicUse(
+      DynamicUse(selector, null, thisType.typeArguments),
+    );
   }
 
   @override
   void registerStaticTearOff(
-      ir.Procedure procedure, ir.LibraryDependency? import) {
-    impactBuilder.registerStaticUse(StaticUse.staticTearOff(
-        elementMap.getMethod(procedure), elementMap.getImport(import)));
+    ir.Procedure procedure,
+    ir.LibraryDependency? import,
+  ) {
+    impactBuilder.registerStaticUse(
+      StaticUse.staticTearOff(
+        elementMap.getMethod(procedure),
+        elementMap.getImport(import),
+      ),
+    );
   }
 
   @override
   void registerWeakStaticTearOff(
-      ir.Procedure procedure, ir.LibraryDependency? import) {
-    impactBuilder.registerStaticUse(StaticUse.weakStaticTearOff(
-        elementMap.getMethod(procedure), elementMap.getImport(import)));
+    ir.Procedure procedure,
+    ir.LibraryDependency? import,
+  ) {
+    impactBuilder.registerStaticUse(
+      StaticUse.weakStaticTearOff(
+        elementMap.getMethod(procedure),
+        elementMap.getImport(import),
+      ),
+    );
   }
 
   @override
   void registerStaticGet(ir.Member member, ir.LibraryDependency? import) {
-    impactBuilder.registerStaticUse(StaticUse.staticGet(
-        elementMap.getMember(member), elementMap.getImport(import)));
+    impactBuilder.registerStaticUse(
+      StaticUse.staticGet(
+        elementMap.getMember(member),
+        elementMap.getImport(import),
+      ),
+    );
   }
 
   @override
   void registerStaticSet(ir.Member member, ir.LibraryDependency? import) {
-    impactBuilder.registerStaticUse(StaticUse.staticSet(
-        elementMap.getMember(member), elementMap.getImport(import)));
+    impactBuilder.registerStaticUse(
+      StaticUse.staticSet(
+        elementMap.getMember(member),
+        elementMap.getImport(import),
+      ),
+    );
   }
 
   @override
-  void registerSuperInvocation(ir.Member? target, int positionalArguments,
-      List<String> namedArguments, List<ir.DartType> typeArguments) {
-    if (target != null) {
-      FunctionEntity method = elementMap.getMember(target) as FunctionEntity;
-      List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
-      impactBuilder.registerStaticUse(StaticUse.superInvoke(
-          method,
-          CallStructure(positionalArguments + namedArguments.length,
-              namedArguments, typeArguments.length),
-          dartTypeArguments));
+  void registerSuperInvocation(
+    ir.Member target,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
+    FunctionEntity method = elementMap.getMember(target) as FunctionEntity;
+    List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
+    impactBuilder.registerStaticUse(
+      StaticUse.superInvoke(
+        method,
+        CallStructure(
+          positionalArguments + namedArguments.length,
+          namedArguments,
+          typeArguments.length,
+        ),
+        dartTypeArguments,
+      ),
+    );
+  }
+
+  @override
+  void registerSuperGet(ir.Member target) {
+    MemberEntity member = elementMap.getMember(target);
+    if (member.isFunction) {
+      impactBuilder.registerStaticUse(
+        StaticUse.superTearOff(member as FunctionEntity),
+      );
     } else {
-      // TODO(johnniwinther): Remove this when the CFE checks for missing
-      //  concrete super targets.
-      impactBuilder.registerStaticUse(StaticUse.superInvoke(
-          elementMap.getSuperNoSuchMethod(currentMember.enclosingClass!),
-          CallStructure.ONE_ARG));
-      registerBackendImpact(_impacts.superNoSuchMethod);
+      impactBuilder.registerStaticUse(StaticUse.superGet(member));
     }
   }
 
   @override
-  void registerSuperGet(ir.Member? target) {
-    if (target != null) {
-      MemberEntity member = elementMap.getMember(target);
-      if (member.isFunction) {
-        impactBuilder.registerStaticUse(
-            StaticUse.superTearOff(member as FunctionEntity));
-      } else {
-        impactBuilder.registerStaticUse(StaticUse.superGet(member));
-      }
+  void registerSuperSet(ir.Member target) {
+    MemberEntity member = elementMap.getMember(target);
+    if (member is FieldEntity) {
+      impactBuilder.registerStaticUse(StaticUse.superFieldSet(member));
     } else {
-      // TODO(johnniwinther): Remove this when the CFE checks for missing
-      //  concrete super targets.
-      impactBuilder.registerStaticUse(StaticUse.superInvoke(
-          elementMap.getSuperNoSuchMethod(currentMember.enclosingClass!),
-          CallStructure.ONE_ARG));
-      registerBackendImpact(_impacts.superNoSuchMethod);
-    }
-  }
-
-  @override
-  void registerSuperSet(ir.Member? target) {
-    if (target != null) {
-      MemberEntity member = elementMap.getMember(target);
-      if (member is FieldEntity) {
-        impactBuilder.registerStaticUse(StaticUse.superFieldSet(member));
-      } else {
-        impactBuilder.registerStaticUse(
-            StaticUse.superSetterSet(member as FunctionEntity));
-      }
-    } else {
-      // TODO(johnniwinther): Remove this when the CFE checks for missing
-      //  concrete super targets.
-      impactBuilder.registerStaticUse(StaticUse.superInvoke(
-          elementMap.getSuperNoSuchMethod(currentMember.enclosingClass!),
-          CallStructure.ONE_ARG));
-      registerBackendImpact(_impacts.superNoSuchMethod);
+      impactBuilder.registerStaticUse(
+        StaticUse.superSetterSet(member as FunctionEntity),
+      );
     }
   }
 
   @override
   void registerLocalFunctionInvocation(
-      ir.FunctionDeclaration localFunction,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.FunctionDeclaration localFunction,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     CallStructure callStructure = CallStructure(
-        positionalArguments + namedArguments.length,
-        namedArguments,
-        typeArguments.length);
+      positionalArguments + namedArguments.length,
+      namedArguments,
+      typeArguments.length,
+    );
     List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
     // Invocation of a local function. No need for dynamic use, but
     // we need to track the type arguments.
-    impactBuilder.registerStaticUse(StaticUse.closureCall(
+    impactBuilder.registerStaticUse(
+      StaticUse.closureCall(
         elementMap.getLocalFunction(localFunction),
         callStructure,
-        dartTypeArguments));
+        dartTypeArguments,
+      ),
+    );
     // TODO(johnniwinther): Yet, alas, we need the dynamic use for now. Remove
     // this when kernel adds an `isFunctionCall` flag to
     // [ir.MethodInvocation].
     impactBuilder.registerDynamicUse(
-        DynamicUse(callStructure.callSelector, null, dartTypeArguments));
+      DynamicUse(callStructure.callSelector, null, dartTypeArguments),
+    );
   }
 
   @override
   void registerDynamicInvocation(
-      ir.DartType receiverType,
-      ClassRelation relation,
-      ir.Name name,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.DartType receiverType,
+    ir.Name name,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     Selector selector = elementMap.getInvocationSelector(
-        name, positionalArguments, namedArguments, typeArguments.length);
+      name,
+      positionalArguments,
+      namedArguments,
+      typeArguments.length,
+    );
     List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
-    impactBuilder.registerDynamicUse(DynamicUse(selector,
-        _computeReceiverConstraint(receiverType, relation), dartTypeArguments));
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
+        selector,
+        _computeReceiverConstraint(receiverType),
+        dartTypeArguments,
+      ),
+    );
   }
 
   @override
   void registerFunctionInvocation(
-      ir.DartType receiverType,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.DartType receiverType,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     CallStructure callStructure = CallStructure(
-        positionalArguments + namedArguments.length,
-        namedArguments,
-        typeArguments.length);
+      positionalArguments + namedArguments.length,
+      namedArguments,
+      typeArguments.length,
+    );
     List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
-    impactBuilder.registerDynamicUse(DynamicUse(
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
         callStructure.callSelector,
-        _computeReceiverConstraint(receiverType, ClassRelation.subtype),
-        dartTypeArguments));
+        _computeReceiverConstraint(receiverType),
+        dartTypeArguments,
+      ),
+    );
   }
 
   @override
   void registerInstanceInvocation(
-      ir.DartType receiverType,
-      ClassRelation relation,
-      ir.Member target,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.DartType receiverType,
+    ir.Member target,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     List<DartType>? dartTypeArguments = _getTypeArguments(typeArguments);
-    impactBuilder.registerDynamicUse(DynamicUse(
-        elementMap.getInvocationSelector(target.name, positionalArguments,
-            namedArguments, typeArguments.length),
-        _computeReceiverConstraint(receiverType, relation),
-        dartTypeArguments));
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
+        elementMap.getInvocationSelector(
+          target.name,
+          positionalArguments,
+          namedArguments,
+          typeArguments.length,
+        ),
+        _computeReceiverConstraint(receiverType),
+        dartTypeArguments,
+      ),
+    );
   }
 
   @override
-  void registerDynamicGet(
-      ir.DartType receiverType, ClassRelation relation, ir.Name name) {
-    impactBuilder.registerDynamicUse(DynamicUse(
+  void registerDynamicGet(ir.DartType receiverType, ir.Name name) {
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
         Selector.getter(elementMap.getName(name)),
-        _computeReceiverConstraint(receiverType, relation),
-        const <DartType>[]));
+        _computeReceiverConstraint(receiverType),
+        const <DartType>[],
+      ),
+    );
   }
 
   @override
-  void registerInstanceGet(
-      ir.DartType receiverType, ClassRelation relation, ir.Member target) {
-    impactBuilder.registerDynamicUse(DynamicUse(
+  void registerInstanceGet(ir.DartType receiverType, ir.Member target) {
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
         Selector.getter(elementMap.getName(target.name)),
-        _computeReceiverConstraint(receiverType, relation),
-        const <DartType>[]));
+        _computeReceiverConstraint(receiverType),
+        const <DartType>[],
+      ),
+    );
   }
 
   @override
-  void registerDynamicSet(
-      ir.DartType receiverType, ClassRelation relation, ir.Name name) {
-    impactBuilder.registerDynamicUse(DynamicUse(
+  void registerDynamicSet(ir.DartType receiverType, ir.Name name) {
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
         Selector.setter(elementMap.getName(name)),
-        _computeReceiverConstraint(receiverType, relation),
-        const <DartType>[]));
+        _computeReceiverConstraint(receiverType),
+        const <DartType>[],
+      ),
+    );
   }
 
   @override
-  void registerInstanceSet(
-      ir.DartType receiverType, ClassRelation relation, ir.Member target) {
-    impactBuilder.registerDynamicUse(DynamicUse(
+  void registerInstanceSet(ir.DartType receiverType, ir.Member target) {
+    impactBuilder.registerDynamicUse(
+      DynamicUse(
         Selector.setter(elementMap.getName(target.name)),
-        _computeReceiverConstraint(receiverType, relation),
-        const <DartType>[]));
+        _computeReceiverConstraint(receiverType),
+        const <DartType>[],
+      ),
+    );
   }
 
   @override
-  void registerRuntimeTypeUse(RuntimeTypeUseKind kind, ir.DartType receiverType,
-      ir.DartType? argumentType) {
+  void registerRuntimeTypeUse(
+    RuntimeTypeUseKind kind,
+    ir.DartType receiverType,
+    ir.DartType? argumentType,
+  ) {
     DartType receiverDartType = elementMap.getDartType(receiverType);
-    DartType? argumentDartType =
-        argumentType == null ? null : elementMap.getDartType(argumentType);
+    DartType? argumentDartType = argumentType == null
+        ? null
+        : elementMap.getDartType(argumentType);
 
     // Enable runtime type support if we discover a getter called
     // runtimeType. We have to enable runtime type before hitting the
     // codegen, so that constructors know whether they need to generate code
     // for runtime type.
     _backendUsageBuilder.registerRuntimeTypeUse(
-        RuntimeTypeUse(kind, receiverDartType, argumentDartType));
+      RuntimeTypeUse(kind, receiverDartType, argumentDartType),
+    );
   }
 
   @override
   void registerAssert({required bool withMessage}) {
-    registerBackendImpact(withMessage
-        ? _impacts.assertWithMessage
-        : _impacts.assertWithoutMessage);
+    registerBackendImpact(
+      withMessage ? _impacts.assertWithMessage : _impacts.assertWithoutMessage,
+    );
   }
 
   @override
   void registerGenericInstantiation(
-      ir.FunctionType expressionType, List<ir.DartType> typeArguments) {
+    ir.FunctionType expressionType,
+    List<ir.DartType> typeArguments,
+  ) {
     // TODO(johnniwinther): Track which arities are used in instantiation.
     final instantiation = GenericInstantiation(
-        elementMap.getDartType(expressionType).withoutNullability
-            as FunctionType,
-        typeArguments.map(elementMap.getDartType).toList());
+      elementMap.getDartType(expressionType).withoutNullability as FunctionType,
+      typeArguments.map(elementMap.getDartType).toList(),
+    );
     registerBackendImpact(
-        _impacts.getGenericInstantiation(instantiation.typeArguments.length));
+      _impacts.getGenericInstantiation(instantiation.typeArguments.length),
+    );
     _rtiNeedBuilder.registerGenericInstantiation(instantiation);
   }
 
@@ -700,8 +860,9 @@ class KernelImpactConverter implements ImpactRegistry {
 
   @override
   void registerLocalWithoutInitializer() {
-    impactBuilder
-        .registerTypeUse(TypeUse.instantiation(commonElements.nullType));
+    impactBuilder.registerTypeUse(
+      TypeUse.instantiation(commonElements.nullType),
+    );
     registerBackendImpact(_impacts.nullLiteral);
   }
 
@@ -742,31 +903,33 @@ class KernelImpactConverter implements ImpactRegistry {
   }
 
   @override
-  void registerSyncForIn(ir.DartType iterableType, ir.DartType iteratorType,
-      ClassRelation iteratorClassRelation) {
-    Object? receiverConstraint =
-        _computeReceiverConstraint(iteratorType, iteratorClassRelation);
+  void registerSyncForIn(ir.DartType iterableType, ir.DartType iteratorType) {
+    Object? receiverConstraint = _computeReceiverConstraint(iteratorType);
     registerBackendImpact(_impacts.syncForIn);
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.iterator, receiverConstraint, const []));
+      DynamicUse(Selectors.iterator, receiverConstraint, const []),
+    );
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.current, receiverConstraint, const []));
+      DynamicUse(Selectors.current, receiverConstraint, const []),
+    );
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.moveNext, receiverConstraint, const []));
+      DynamicUse(Selectors.moveNext, receiverConstraint, const []),
+    );
   }
 
   @override
-  void registerAsyncForIn(ir.DartType iterableType, ir.DartType iteratorType,
-      ClassRelation iteratorClassRelation) {
-    Object? receiverConstraint =
-        _computeReceiverConstraint(iteratorType, iteratorClassRelation);
+  void registerAsyncForIn(ir.DartType iterableType, ir.DartType iteratorType) {
+    Object? receiverConstraint = _computeReceiverConstraint(iteratorType);
     registerBackendImpact(_impacts.asyncForIn);
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.cancel, receiverConstraint, const []));
+      DynamicUse(Selectors.cancel, receiverConstraint, const []),
+    );
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.current, receiverConstraint, const []));
+      DynamicUse(Selectors.current, receiverConstraint, const []),
+    );
     impactBuilder.registerDynamicUse(
-        DynamicUse(Selectors.moveNext, receiverConstraint, const []));
+      DynamicUse(Selectors.moveNext, receiverConstraint, const []),
+    );
   }
 
   @override
@@ -796,95 +959,84 @@ class KernelImpactConverter implements ImpactRegistry {
       _rtiNeedBuilder.registerTypeVariableLiteral(variable);
       registerBackendImpact(_impacts.typeVariableExpression);
     });
-    impactBuilder
-        .registerTypeUse(TypeUse.instantiation(commonElements.typeType));
+    impactBuilder.registerTypeUse(
+      TypeUse.instantiation(commonElements.typeType),
+    );
     registerBackendImpact(_impacts.typeLiteral);
   }
 
   @override
   void registerFieldInitialization(ir.Field node) {
-    impactBuilder
-        .registerStaticUse(StaticUse.fieldInit(elementMap.getField(node)));
+    impactBuilder.registerStaticUse(
+      StaticUse.fieldInit(elementMap.getField(node)),
+    );
   }
 
   @override
   void registerFieldConstantInitialization(
-      ir.Field node, ConstantReference constant) {
-    impactBuilder.registerStaticUse(StaticUse.fieldConstantInit(
+    ir.Field node,
+    ConstantReference constant,
+  ) {
+    impactBuilder.registerStaticUse(
+      StaticUse.fieldConstantInit(
         elementMap.getField(node),
-        _constantValuefier.visitConstant(constant.constant)));
+        _constantValuefier.visitConstant(constant.constant),
+      ),
+    );
   }
 
   @override
   void registerRedirectingInitializer(
-      ir.Constructor constructor,
-      int positionalArguments,
-      List<String> namedArguments,
-      List<ir.DartType> typeArguments) {
+    ir.Constructor constructor,
+    int positionalArguments,
+    List<String> namedArguments,
+    List<ir.DartType> typeArguments,
+  ) {
     ConstructorEntity target = elementMap.getConstructor(constructor);
-    impactBuilder.registerStaticUse(StaticUse.superConstructorInvoke(
+    impactBuilder.registerStaticUse(
+      StaticUse.superConstructorInvoke(
         target,
-        CallStructure(positionalArguments + namedArguments.length,
-            namedArguments, typeArguments.length)));
+        CallStructure(
+          positionalArguments + namedArguments.length,
+          namedArguments,
+          typeArguments.length,
+        ),
+      ),
+    );
   }
 
   @override
   void registerLoadLibrary() {
-    impactBuilder.registerStaticUse(StaticUse.staticInvoke(
-        commonElements.loadDeferredLibrary, CallStructure.ONE_ARG));
+    impactBuilder.registerStaticUse(
+      StaticUse.staticInvoke(
+        commonElements.loadDeferredLibrary,
+        CallStructure.oneArg,
+      ),
+    );
     registerBackendImpact(_impacts.loadLibrary);
-  }
-
-  @override
-  void registerSwitchStatementNode(ir.SwitchStatement node) {
-    bool overridesEquals(InterfaceType type) {
-      if (type == commonElements.symbolImplementationType) {
-        // Treat symbol constants as if Symbol doesn't override `==`.
-        return false;
-      }
-      ClassEntity? cls = type.element;
-      while (cls != null) {
-        MemberEntity member = elementMap.elementEnvironment
-            .lookupClassMember(cls, Names.EQUALS_NAME)!;
-        if (member.isAbstract) {
-          cls = elementMap.elementEnvironment.getSuperClass(cls);
-        } else {
-          return member.enclosingClass != commonElements.objectClass &&
-              member.enclosingClass != commonElements.jsInterceptorClass;
-        }
-      }
-      return false;
-    }
-
-    for (ir.SwitchCase switchCase in node.cases) {
-      for (ir.Expression expression in switchCase.expressions) {
-        ConstantValue value =
-            elementMap.getConstantValue(staticTypeContext, expression)!;
-        DartType type = value.getType(elementMap.commonElements);
-        if (type == commonElements.doubleType) {
-          reporter.reportErrorMessage(
-              computeSourceSpanFromTreeNode(expression),
-              MessageKind.SWITCH_CASE_VALUE_OVERRIDES_EQUALS,
-              {'type': "double"});
-        } else if (type == commonElements.functionType) {
-          reporter.reportErrorMessage(computeSourceSpanFromTreeNode(node),
-              MessageKind.SWITCH_CASE_FORBIDDEN, {'type': "Function"});
-        } else if (value is ObjectConstantValue &&
-            type != commonElements.typeLiteralType &&
-            overridesEquals(type as InterfaceType)) {
-          reporter.reportErrorMessage(
-              computeSourceSpanFromTreeNode(expression),
-              MessageKind.SWITCH_CASE_VALUE_OVERRIDES_EQUALS,
-              {'type': typeToString(type)});
-        }
-      }
-    }
   }
 
   /// Converts a [ImpactData] object based on kernel to the corresponding
   /// [WorldImpact] based on the K model.
   WorldImpact convert(ImpactData impactData) {
+    final oldBuilder = _impactBuilder;
+    final newBuilder = _impactBuilder = WorldImpactBuilderImpl(currentMember);
     impactData.apply(this);
-    return impactBuilder;
+    _impactBuilder = oldBuilder;
+    return newBuilder;
+  }
+
+  @override
+  void registerConditionalImpact(ConditionalImpactData impact) {
+    final conditionalUse = ConditionalUse.withReplacement(
+      impact: convert(impact.impactData),
+      replacementImpact: convert(impact.replacementImpactData),
+      originalConditions: impact.originalConditions
+          .map(elementMap.getMember)
+          .toList(),
+      original: impact.original,
+      replacement: impact.replacement,
+    );
+    impactBuilder.registerConditionalUse(conditionalUse);
   }
 }

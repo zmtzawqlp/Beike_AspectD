@@ -3,17 +3,25 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:math' as math;
+
+import 'package:dart_style/dart_style.dart';
+
 import '../../test/simple_stats.dart';
 
 /// Key used for a strategy in a test setup.
 class Strategy {
+  /// The Dart identifier for this strategy.
+  ///
+  /// This is used to generate code that refers to this strategy.
+  final String dartIdentifier;
+
   /// The short name of the strategy used in printouts.
   final String name;
 
   /// A full description of the strategy.
   final String description;
 
-  const Strategy(this.name, this.description);
+  const Strategy(this.dartIdentifier, this.name, this.description);
 
   @override
   int get hashCode => name.hashCode;
@@ -30,13 +38,18 @@ class Strategy {
 
 /// Key used for a scenario used when running a test.
 class Scenario {
+  /// The Dart identifier for this scenario.
+  ///
+  /// This is used to generate code that refers to this scenario.
+  final String dartIdentifier;
+
   /// The short name of the scenario used in printouts.
   final String name;
 
   /// A full description of the scenario.
   final String description;
 
-  const Scenario(this.name, this.description);
+  const Scenario(this.dartIdentifier, this.name, this.description);
 
   @override
   int get hashCode => name.hashCode;
@@ -55,7 +68,7 @@ class Scenario {
 class XAxis {
   final List<num> values;
 
-  XAxis(this.values);
+  const XAxis(this.values);
 }
 
 /// Key for a strategy/scenario pair.
@@ -93,7 +106,7 @@ class Series {
   /// measurements performed for that x-value.
   final List<List<num>> values;
 
-  Series(this.key, this.xAxis, this.values);
+  const Series(this.key, this.xAxis, this.values);
 
   /// Returns a new [Series] where measurements have been removed using
   /// [filter].
@@ -110,13 +123,15 @@ class Series {
 
 /// A full set of series collected for a set of strategies and scenarios.
 class SeriesSet {
+  final String name;
+
   /// The shared x-axis of all series in [seriesList].
   final XAxis xAxis;
 
   /// All collected [Series].
   final List<Series> seriesList;
 
-  SeriesSet(this.xAxis, this.seriesList);
+  const SeriesSet(this.name, this.xAxis, this.seriesList);
 
   /// Returns a new [SeriesSet] where measurements have been removed using
   /// [filter].
@@ -127,7 +142,7 @@ class SeriesSet {
     for (Series series in this.seriesList) {
       filteredSeries.add(series.filter(filter));
     }
-    return new SeriesSet(xAxis, filteredSeries);
+    return new SeriesSet(name, xAxis, filteredSeries);
   }
 
   /// Returns a tab-based table of the averages of all measurements for a given
@@ -158,7 +173,7 @@ class SeriesSet {
   }
 
   /// Returns a tab-based table of all measurements for a given [scenario].
-  String getFullSpreadByScenario(Scenario scenario) {
+  String getFullSpreadByScenarioTable(Scenario scenario) {
     List<Series> seriesList = [];
     for (Series series in this.seriesList) {
       if (series.key.scenario != scenario) continue;
@@ -185,6 +200,50 @@ class SeriesSet {
       sb.writeln();
     }
     return sb.toString();
+  }
+
+  /// Returns the Dart code for declaring this [SeriesSet].
+  ///
+  /// This can be used to store a measurement in code for later comparison.
+  String toDartCode() {
+    String xAxisName = 'xAxis_$name';
+    String seriesSetName = 'seriesSet_$name';
+    StringBuffer sb = new StringBuffer();
+    sb.write('const XAxis $xAxisName = const XAxis([');
+    for (int index = 0; index < xAxis.values.length; index++) {
+      if (index > 0) {
+        sb.write(', ');
+      }
+      sb.write(xAxis.values[index]);
+    }
+    sb.write(']);');
+
+    sb.write('''const SeriesSet $seriesSetName = 
+        const SeriesSet('$seriesSetName', $xAxisName, [''');
+    for (int seriesIndex = 0; seriesIndex < seriesList.length; seriesIndex++) {
+      Series series = seriesList[seriesIndex];
+      sb.write('''
+      Series(
+        SeriesKey(
+          ${series.key.strategy.dartIdentifier},
+          ${series.key.scenario.dartIdentifier}), 
+        $xAxisName, [''');
+      for (List<num> values in series.values) {
+        sb.write('[');
+        for (int index = 0; index < values.length; index++) {
+          if (index > 0) {
+            sb.write(', ');
+          }
+          sb.write(values[index]);
+        }
+        sb.write('],');
+      }
+      sb.write(']),');
+    }
+    sb.write(']);');
+    return new DartFormatter(
+            languageVersion: DartFormatter.latestShortStyleLanguageVersion)
+        .format(sb.toString());
   }
 }
 
@@ -215,7 +274,7 @@ class Registry {
     }
     _xAxisSet.clear();
     _seriesMap.clear();
-    return new SeriesSet(xAxis, series);
+    return new SeriesSet(new DateTime.now().toText(), xAxis, series);
   }
 }
 
@@ -230,4 +289,18 @@ List<num> removeMax(List<num> list, int removeMaxCount) {
     copy.removeLast();
   }
   return copy;
+}
+
+extension on DateTime {
+  String toText() {
+    String y = _padLeft(year, 4);
+    String m = _padLeft(month, 2);
+    String d = _padLeft(day, 2);
+    return '$y$m$d';
+  }
+
+  static String _padLeft(int value, int length) {
+    String text = '$value';
+    return '0' * (length - text.length) + text;
+  }
 }

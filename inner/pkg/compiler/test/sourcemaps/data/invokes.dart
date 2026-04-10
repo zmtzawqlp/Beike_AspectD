@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 // Test file for testing source mappings of invocations.
 
 var counter = 0;
@@ -59,8 +57,8 @@ final toplevelFinalField = toplevelFunction;
 const toplevelConstField = toplevelFunction;
 
 get toplevelGetter => () {
-      counter++;
-    };
+  counter++;
+};
 
 typedef F();
 
@@ -76,8 +74,8 @@ class B {
   };
 
   get superGetter => () {
-        counter++;
-      };
+    counter++;
+  };
 }
 
 class C<T> extends B {
@@ -96,8 +94,8 @@ class C<T> extends B {
   static const staticConstField = staticFunction;
 
   static get staticGetter => () {
-        counter++;
-      };
+    counter++;
+  };
 
   instanceMethod() {
     counter++;
@@ -108,8 +106,8 @@ class C<T> extends B {
   };
 
   get instanceGetter => () {
-        counter++;
-      };
+    counter++;
+  };
 
   instanceInvokes() {
     instanceMethod();

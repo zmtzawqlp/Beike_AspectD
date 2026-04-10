@@ -2,10 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: foo:[exact=JSString]*/
-foo(int /*[subclass=JSInt]*/ x) {
+/*member: foo:[exact=JSString|powerset={I}{O}{I}]*/
+foo(int /*[subclass=JSInt|powerset={I}{O}{N}]*/ x) {
   var a = "one";
   switch (x) {
     case 1:
@@ -18,6 +16,10 @@ foo(int /*[subclass=JSInt]*/ x) {
   return a;
 }
 
-/*member: main:[null]*/ main() {
-  foo(new DateTime.now(). /*[exact=DateTime]*/ millisecondsSinceEpoch);
+/*member: main:[null|powerset={null}]*/
+main() {
+  foo(
+    new DateTime.now()
+        . /*[exact=DateTime|powerset={N}{O}{N}]*/ millisecondsSinceEpoch,
+  );
 }

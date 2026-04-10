@@ -21,16 +21,16 @@ class ToJsonCommand extends Command<void> with PrintUsageException {
   final String description = "Convert any info file to JSON format.";
 
   ToJsonCommand() {
-    argParser.addFlag('compat-mode',
-        negatable: false,
-        help: 'Whether to generate an older version of the JSON format.\n\n'
-            'By default files are converted to the latest JSON format, but\n'
-            'passing `--compat-mode` will produce a JSON file that may still\n'
-            'work in the visualizer tool at:\n'
-            'https://dart-lang.github.io/dump-info-visualizer/.\n\n'
-            'This option enables `--inject-text` as well, but note that\n'
-            'files produced in this mode do not contain all the data\n'
-            'available in the input file.');
+    argParser.addFlag(
+      'compat-mode',
+      negatable: false,
+      help:
+          'Whether to generate an older version of the JSON format.\n\n'
+          'By default files are converted to the latest JSON format.\n'
+          'This option enables `--inject-text` as well, but note that\n'
+          'files produced in this mode do not contain all the data\n'
+          'available in the input file.',
+    );
   }
 
   @override
@@ -48,10 +48,38 @@ class ToJsonCommand extends Command<void> with PrintUsageException {
       injectText(info);
     }
 
-    var json = AllInfoJsonCodec(isBackwardCompatible: isBackwardCompatible)
-        .encode(info);
+    var json = AllInfoJsonCodec(
+      isBackwardCompatible: isBackwardCompatible,
+    ).encode(info);
     String outputFilename = args['out'] ?? '$filename.json';
-    File(outputFilename)
-        .writeAsStringSync(const JsonEncoder.withIndent("  ").convert(json));
+    final sink = File(outputFilename).openWrite();
+    final converterSink = const JsonEncoder.withIndent(
+      "  ",
+    ).startChunkedConversion(_BufferedStringOutputSink(sink));
+    converterSink.add(json);
+    converterSink.close();
+    await sink.close();
+  }
+}
+
+class _BufferedStringOutputSink implements Sink<String> {
+  StringBuffer buffer = StringBuffer();
+  final StringSink outputSink;
+  static const int _maxLength = 1024 * 1024 * 500;
+
+  _BufferedStringOutputSink(this.outputSink);
+
+  @override
+  void add(String data) {
+    buffer.write(data);
+    if (buffer.length > _maxLength) {
+      outputSink.write(buffer.toString());
+      buffer.clear();
+    }
+  }
+
+  @override
+  void close() {
+    outputSink.write(buffer.toString());
   }
 }

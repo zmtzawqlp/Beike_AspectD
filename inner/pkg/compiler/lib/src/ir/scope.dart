@@ -3,27 +3,25 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart' as ir;
+import 'package:kernel/type_environment.dart' as ir;
 import 'closure.dart';
-import 'constants.dart' show Dart2jsConstantEvaluator;
 import 'scope_visitor.dart';
-import 'package:front_end/src/api_prototype/constant_evaluator.dart' as ir;
 
 class ScopeModel {
   final ClosureScopeModel? closureScopeModel;
   final VariableScopeModel? variableScopeModel;
   final EvaluationComplexity initializerComplexity;
 
-  const ScopeModel(
-      {this.closureScopeModel,
-      this.variableScopeModel,
-      required this.initializerComplexity});
+  const ScopeModel({
+    this.closureScopeModel,
+    this.variableScopeModel,
+    required this.initializerComplexity,
+  });
 
   /// Inspect members and mark if those members capture any state that needs to
   /// be marked as free variables.
-  factory ScopeModel.from(
-      ir.Member node, ir.ConstantEvaluator constantEvaluator) {
-    ScopeModelBuilder builder =
-        ScopeModelBuilder(constantEvaluator as Dart2jsConstantEvaluator);
+  factory ScopeModel.from(ir.Member node, ir.TypeEnvironment typeEnvironment) {
+    ScopeModelBuilder builder = ScopeModelBuilder(typeEnvironment);
     return builder.computeModel(node);
   }
 }
@@ -31,7 +29,6 @@ class ScopeModel {
 abstract class VariableScopeModel {
   VariableScope getScopeFor(ir.TreeNode node);
   Iterable<ir.VariableDeclaration> get assignedVariables;
-  bool isEffectivelyFinal(ir.VariableDeclaration node);
 }
 
 class VariableScopeModelImpl implements VariableScopeModel {
@@ -54,11 +51,6 @@ class VariableScopeModelImpl implements VariableScopeModel {
   @override
   Iterable<ir.VariableDeclaration> get assignedVariables =>
       _assignedVariables ?? <ir.VariableDeclaration>[];
-
-  @override
-  bool isEffectivelyFinal(ir.VariableDeclaration node) {
-    return _assignedVariables == null || !_assignedVariables!.contains(node);
-  }
 }
 
 /// Variable information for a scope.
@@ -83,7 +75,7 @@ class VariableScopeImpl implements VariableScope {
   }
 
   void registerAssignedVariable(ir.VariableDeclaration variable) {
-    _assignedVariables ??= Set<ir.VariableDeclaration>();
+    _assignedVariables ??= <ir.VariableDeclaration>{};
     _assignedVariables!.add(variable);
   }
 
@@ -100,14 +92,15 @@ class VariableScopeImpl implements VariableScope {
   }
 }
 
-abstract class VariableCollectorMixin {
+mixin VariableCollectorMixin {
   VariableScopeImpl? currentVariableScope;
   VariableScopeModelImpl variableScopeModel = VariableScopeModelImpl();
 
-  void visitInVariableScope(ir.TreeNode root, void f()) {
+  void visitInVariableScope(ir.TreeNode root, void Function() f) {
     VariableScopeImpl? oldScope = currentVariableScope;
-    final newScope =
-        currentVariableScope = variableScopeModel.createScopeFor(root);
+    final newScope = currentVariableScope = variableScopeModel.createScopeFor(
+      root,
+    );
     oldScope?.addSubScope(newScope);
     f();
     currentVariableScope = oldScope;

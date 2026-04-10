@@ -3,11 +3,11 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import '../messages/codes.dart' as codes;
-import '../scanner/token.dart' show Keyword, Token;
+import '../scanner/token.dart'
+    show Keyword, Token, TokenIsAExtension, TokenType;
 import 'formal_parameter_kind.dart';
 import 'member_kind.dart' show MemberKind;
 import 'parser_impl.dart' show Parser;
-import 'util.dart' show optional;
 
 bool isModifier(Token token) {
   if (!token.isModifier) {
@@ -27,7 +27,7 @@ bool isModifier(Token token) {
     Keyword? keyword = next.keyword;
     if (keyword == null && !next.isIdentifier || keyword == Keyword.IN) {
       // Record type is a possibility.
-      if (optional("(", next)) {
+      if (next.isA(TokenType.OPEN_PAREN)) {
         Token afterGroup = next.endGroup!.next!;
         if (afterGroup.isIdentifier || _thisOrSuperWithDot(afterGroup)) {
           // We've seen either
@@ -35,7 +35,7 @@ bool isModifier(Token token) {
           // [modifier] [record type] `this` `.`, or
           // [modifier] [record type] `super` `.`
           return true;
-        } else if (optional('?', afterGroup) &&
+        } else if (afterGroup.isA(TokenType.QUESTION) &&
             (afterGroup.next!.isIdentifier ||
                 _thisOrSuperWithDot(afterGroup.next!))) {
           // We've seen either
@@ -52,8 +52,8 @@ bool isModifier(Token token) {
 }
 
 bool _thisOrSuperWithDot(Token token) {
-  if (optional("this", token) || optional("super", token)) {
-    return optional(".", token.next!);
+  if (token.isA(Keyword.THIS) || token.isA(Keyword.SUPER)) {
+    return token.next!.isA(TokenType.PERIOD);
   }
   return false;
 }
@@ -82,10 +82,10 @@ class ModifierContext {
     if (staticOrCovariant == null) {
       covariantToken = null;
       staticToken = null;
-    } else if (optional('covariant', staticOrCovariant)) {
+    } else if (staticOrCovariant.isA(Keyword.COVARIANT)) {
       covariantToken = staticOrCovariant;
       staticToken = null;
-    } else if (optional('static', staticOrCovariant)) {
+    } else if (staticOrCovariant.isA(Keyword.STATIC)) {
       covariantToken = null;
       staticToken = staticOrCovariant;
     } else {
@@ -101,15 +101,15 @@ class ModifierContext {
       varToken = null;
       finalToken = null;
       constToken = null;
-    } else if (optional('var', varFinalOrConst)) {
+    } else if (varFinalOrConst.isA(Keyword.VAR)) {
       varToken = varFinalOrConst;
       finalToken = null;
       constToken = null;
-    } else if (optional('final', varFinalOrConst)) {
+    } else if (varFinalOrConst.isA(Keyword.FINAL)) {
       varToken = null;
       finalToken = varFinalOrConst;
       constToken = null;
-    } else if (optional('const', varFinalOrConst)) {
+    } else if (varFinalOrConst.isA(Keyword.CONST)) {
       varToken = null;
       finalToken = null;
       constToken = varFinalOrConst;
@@ -141,10 +141,21 @@ class ModifierContext {
     reportTopLevelModifierError(constToken, keyword);
     reportTopLevelModifierError(externalToken, keyword);
     reportExtraneousModifier(abstractToken);
-    // TODO(johnniwinther): Should we support 'augment' on enums.
-    reportExtraneousModifier(augmentToken);
     reportExtraneousModifier(covariantToken);
-    reportExtraneousModifier(finalToken);
+    reportExtraneousModifier(lateToken);
+    reportExtraneousModifier(requiredToken);
+    reportExtraneousModifier(staticToken);
+    reportExtraneousModifier(varToken);
+    return token;
+  }
+
+  /// Parse modifiers for extension declarations.
+  Token parseExtensionModifiers(Token token, Token keyword) {
+    token = _parseModifiers(token);
+    reportTopLevelModifierError(constToken, keyword);
+    reportTopLevelModifierError(externalToken, keyword);
+    reportExtraneousModifier(abstractToken);
+    reportExtraneousModifier(covariantToken);
     reportExtraneousModifier(lateToken);
     reportExtraneousModifier(requiredToken);
     reportExtraneousModifier(staticToken);
@@ -192,25 +203,46 @@ class ModifierContext {
 
   /// Parse modifiers for formal parameters.
   Token parseFormalParameterModifiers(
-      Token token, FormalParameterKind parameterKind, MemberKind memberKind) {
+    Token token,
+    FormalParameterKind parameterKind,
+    MemberKind memberKind,
+  ) {
     token = _parseModifiers(token);
 
     if (parameterKind != FormalParameterKind.optionalNamed) {
       reportExtraneousModifier(requiredToken);
     }
-    if (memberKind == MemberKind.StaticMethod ||
-        memberKind == MemberKind.TopLevelMethod) {
-      reportExtraneousModifier(this.covariantToken);
-    } else if (memberKind == MemberKind.ExtensionNonStaticMethod ||
-        memberKind == MemberKind.ExtensionStaticMethod) {
-      reportExtraneousModifierInExtension(this.covariantToken);
+    switch (memberKind) {
+      case MemberKind.StaticMethod:
+      case MemberKind.TopLevelMethod:
+        reportExtraneousModifier(this.covariantToken);
+      case MemberKind.ExtensionNonStaticMethod:
+      case MemberKind.ExtensionStaticMethod:
+        reportExtraneousModifierInExtension(this.covariantToken);
+      case MemberKind.ExtensionTypeNonStaticMethod:
+      case MemberKind.ExtensionTypeStaticMethod:
+        reportExtraneousModifierInExtensionType(this.covariantToken);
+      case MemberKind.PrimaryConstructor:
+        reportExtraneousModifierInPrimaryConstructor(this.covariantToken);
+      case MemberKind.Catch:
+      case MemberKind.Factory:
+      case MemberKind.FunctionTypeAlias:
+      case MemberKind.FunctionTypedParameter:
+      case MemberKind.GeneralizedFunctionType:
+      case MemberKind.Local:
+      case MemberKind.NonStaticMethod:
+      case MemberKind.NonStaticField:
+      case MemberKind.StaticField:
+      case MemberKind.TopLevelField:
     }
     if (constToken != null) {
       reportExtraneousModifier(constToken);
     } else if (memberKind == MemberKind.GeneralizedFunctionType) {
       if (varFinalOrConst != null) {
         parser.reportRecoverableError(
-            varFinalOrConst!, codes.messageFunctionTypedParameterVar);
+          varFinalOrConst!,
+          codes.messageFunctionTypedParameterVar,
+        );
       }
     }
     reportExtraneousModifier(abstractToken);
@@ -220,13 +252,30 @@ class ModifierContext {
     return token;
   }
 
+  /// Parse modifiers for library directives.
+  Token parseLibraryDirectiveModifiers(Token token, Token keyword) {
+    token = _parseModifiers(token);
+    reportTopLevelModifierError(constToken, keyword);
+    reportTopLevelModifierError(externalToken, keyword);
+    reportExtraneousModifier(abstractToken);
+    reportExtraneousModifier(covariantToken);
+    reportExtraneousModifier(finalToken);
+    reportExtraneousModifier(lateToken);
+    reportExtraneousModifier(requiredToken);
+    reportExtraneousModifier(staticToken);
+    reportExtraneousModifier(varToken);
+    return token;
+  }
+
   /// Parse modifiers after the `factory` token.
   Token parseModifiersAfterFactory(Token token) {
     _afterFactory = true;
     token = _parseModifiers(token);
     if (abstractToken != null) {
       parser.reportRecoverableError(
-          abstractToken!, codes.messageAbstractClassMember);
+        abstractToken!,
+        codes.messageAbstractClassMember,
+      );
     }
     reportExtraneousModifier(lateToken);
     reportExtraneousModifier(requiredToken);
@@ -240,6 +289,20 @@ class ModifierContext {
     reportExtraneousModifier(covariantToken);
     reportExtraneousModifier(requiredToken);
     reportExtraneousModifier(staticToken);
+    return token;
+  }
+
+  Token parseTypedefModifiers(Token token, Token keyword) {
+    token = _parseModifiers(token);
+    reportTopLevelModifierError(constToken, keyword);
+    reportTopLevelModifierError(externalToken, keyword);
+    reportExtraneousModifier(abstractToken);
+    reportExtraneousModifier(covariantToken);
+    reportExtraneousModifier(finalToken);
+    reportExtraneousModifier(lateToken);
+    reportExtraneousModifier(requiredToken);
+    reportExtraneousModifier(staticToken);
+    reportExtraneousModifier(varToken);
     return token;
   }
 
@@ -297,7 +360,9 @@ class ModifierContext {
         }
       } else if (_afterFactory && identical('factory', value)) {
         parser.reportRecoverableErrorWithToken(
-            next, codes.templateDuplicatedModifier);
+          next,
+          codes.templateDuplicatedModifier,
+        );
         token = next;
       } else {
         break;
@@ -309,7 +374,7 @@ class ModifierContext {
 
   Token _parseAbstract(Token token) {
     Token next = token.next!;
-    assert(optional('abstract', next));
+    assert(next.isA(Keyword.ABSTRACT));
     if (abstractToken == null) {
       abstractToken = next;
 
@@ -323,13 +388,15 @@ class ModifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        next, codes.templateDuplicatedModifier);
+      next,
+      codes.templateDuplicatedModifier,
+    );
     return next;
   }
 
   Token _parseAugment(Token token) {
     Token next = token.next!;
-    assert(optional('augment', next));
+    assert(next.isA(Keyword.AUGMENT));
     if (augmentToken == null) {
       augmentToken = next;
 
@@ -355,13 +422,15 @@ class ModifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        next, codes.templateDuplicatedModifier);
+      next,
+      codes.templateDuplicatedModifier,
+    );
     return next;
   }
 
   Token _parseConst(Token token) {
     Token next = token.next!;
-    assert(optional('const', next));
+    assert(next.isA(Keyword.CONST));
     if (varFinalOrConst == null && covariantToken == null) {
       constToken = next;
 
@@ -376,7 +445,9 @@ class ModifierContext {
     // Recovery
     if (constToken != null) {
       parser.reportRecoverableErrorWithToken(
-          next, codes.templateDuplicatedModifier);
+        next,
+        codes.templateDuplicatedModifier,
+      );
     } else if (covariantToken != null) {
       reportConflictingModifiers(next, covariantToken!);
     } else if (finalToken != null) {
@@ -391,7 +462,7 @@ class ModifierContext {
 
   Token _parseCovariant(Token token) {
     Token next = token.next!;
-    assert(optional('covariant', next));
+    assert(next.isA(Keyword.COVARIANT));
     if (constToken == null &&
         covariantToken == null &&
         staticToken == null &&
@@ -411,7 +482,9 @@ class ModifierContext {
     // Recovery
     if (covariantToken != null) {
       parser.reportRecoverableErrorWithToken(
-          next, codes.templateDuplicatedModifier);
+        next,
+        codes.templateDuplicatedModifier,
+      );
     } else if (_afterFactory) {
       reportExtraneousModifier(next);
     } else if (constToken != null) {
@@ -426,7 +499,7 @@ class ModifierContext {
 
   Token _parseExternal(Token token) {
     Token next = token.next!;
-    assert(optional('external', next));
+    assert(next.isA(Keyword.EXTERNAL));
     if (externalToken == null) {
       externalToken = next;
 
@@ -450,13 +523,15 @@ class ModifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        next, codes.templateDuplicatedModifier);
+      next,
+      codes.templateDuplicatedModifier,
+    );
     return next;
   }
 
   Token _parseFinal(Token token) {
     Token next = token.next!;
-    assert(optional('final', next));
+    assert(next.isA(Keyword.FINAL));
     if (varFinalOrConst == null && !_afterFactory) {
       finalToken = next;
       return next;
@@ -465,7 +540,9 @@ class ModifierContext {
     // Recovery
     if (finalToken != null) {
       parser.reportRecoverableErrorWithToken(
-          next, codes.templateDuplicatedModifier);
+        next,
+        codes.templateDuplicatedModifier,
+      );
     } else if (_afterFactory) {
       reportExtraneousModifier(next);
     } else if (constToken != null) {
@@ -482,7 +559,7 @@ class ModifierContext {
 
   Token _parseLate(Token token) {
     Token next = token.next!;
-    assert(optional('late', next));
+    assert(next.isA(Keyword.LATE));
     if (lateToken == null) {
       lateToken = next;
 
@@ -498,13 +575,15 @@ class ModifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        next, codes.templateDuplicatedModifier);
+      next,
+      codes.templateDuplicatedModifier,
+    );
     return next;
   }
 
   Token _parseRequired(Token token) {
     Token next = token.next!;
-    assert(optional('required', next));
+    assert(next.isA(Keyword.REQUIRED));
     if (requiredToken == null) {
       requiredToken = next;
 
@@ -522,13 +601,15 @@ class ModifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        next, codes.templateDuplicatedModifier);
+      next,
+      codes.templateDuplicatedModifier,
+    );
     return next;
   }
 
   Token _parseStatic(Token token) {
     Token next = token.next!;
-    assert(optional('static', next));
+    assert(next.isA(Keyword.STATIC));
     if (covariantToken == null && staticToken == null && !_afterFactory) {
       staticToken = next;
 
@@ -549,7 +630,9 @@ class ModifierContext {
       parser.reportRecoverableError(next, codes.messageCovariantAndStatic);
     } else if (staticToken != null) {
       parser.reportRecoverableErrorWithToken(
-          next, codes.templateDuplicatedModifier);
+        next,
+        codes.templateDuplicatedModifier,
+      );
     } else if (_afterFactory) {
       reportExtraneousModifier(next);
     } else {
@@ -560,7 +643,7 @@ class ModifierContext {
 
   Token _parseVar(Token token) {
     Token next = token.next!;
-    assert(optional('var', next));
+    assert(next.isA(Keyword.VAR));
     if (varFinalOrConst == null && !_afterFactory) {
       varToken = next;
       return next;
@@ -569,7 +652,9 @@ class ModifierContext {
     // Recovery
     if (varToken != null) {
       parser.reportRecoverableErrorWithToken(
-          next, codes.templateDuplicatedModifier);
+        next,
+        codes.templateDuplicatedModifier,
+      );
     } else if (_afterFactory) {
       reportExtraneousModifier(next);
     } else if (constToken != null) {
@@ -584,15 +669,20 @@ class ModifierContext {
 
   void reportConflictingModifiers(Token modifier, Token earlierModifier) {
     parser.reportRecoverableError(
-        modifier,
-        codes.templateConflictingModifiers
-            .withArguments(modifier.lexeme, earlierModifier.lexeme));
+      modifier,
+      codes.templateConflictingModifiers.withArguments(
+        modifier.lexeme,
+        earlierModifier.lexeme,
+      ),
+    );
   }
 
   void reportExtraneousModifier(Token? modifier) {
     if (modifier != null) {
       parser.reportRecoverableErrorWithToken(
-          modifier, codes.templateExtraneousModifier);
+        modifier,
+        codes.templateExtraneousModifier,
+      );
     }
   }
 
@@ -600,22 +690,26 @@ class ModifierContext {
   // such as `import` or `class`.
   void reportTopLevelModifierError(Token? modifier, Token afterModifiers) {
     if (modifier != null) {
-      if (optional('const', modifier) && optional('class', afterModifiers)) {
+      if (modifier.isA(Keyword.CONST) && afterModifiers.isA(Keyword.CLASS)) {
         parser.reportRecoverableError(modifier, codes.messageConstClass);
-      } else if (optional('external', modifier)) {
-        if (optional('class', afterModifiers)) {
+      } else if (modifier.isA(Keyword.EXTERNAL)) {
+        if (afterModifiers.isA(Keyword.CLASS)) {
           parser.reportRecoverableError(modifier, codes.messageExternalClass);
-        } else if (optional('enum', afterModifiers)) {
+        } else if (afterModifiers.isA(Keyword.ENUM)) {
           parser.reportRecoverableError(modifier, codes.messageExternalEnum);
-        } else if (optional('typedef', afterModifiers)) {
+        } else if (afterModifiers.isA(Keyword.TYPEDEF)) {
           parser.reportRecoverableError(modifier, codes.messageExternalTypedef);
         } else {
           parser.reportRecoverableErrorWithToken(
-              modifier, codes.templateExtraneousModifier);
+            modifier,
+            codes.templateExtraneousModifier,
+          );
         }
       } else {
         parser.reportRecoverableErrorWithToken(
-            modifier, codes.templateExtraneousModifier);
+          modifier,
+          codes.templateExtraneousModifier,
+        );
       }
     }
   }
@@ -623,14 +717,37 @@ class ModifierContext {
   void reportExtraneousModifierInExtension(Token? modifier) {
     if (modifier != null) {
       parser.reportRecoverableErrorWithToken(
-          modifier, codes.templateExtraneousModifierInExtension);
+        modifier,
+        codes.templateExtraneousModifierInExtension,
+      );
+    }
+  }
+
+  void reportExtraneousModifierInExtensionType(Token? modifier) {
+    if (modifier != null) {
+      parser.reportRecoverableErrorWithToken(
+        modifier,
+        codes.templateExtraneousModifierInExtensionType,
+      );
+    }
+  }
+
+  void reportExtraneousModifierInPrimaryConstructor(Token? modifier) {
+    if (modifier != null) {
+      parser.reportRecoverableErrorWithToken(
+        modifier,
+        codes.templateExtraneousModifierInPrimaryConstructor,
+      );
     }
   }
 
   void reportModifierOutOfOrder(Token modifier, String beforeModifier) {
     parser.reportRecoverableError(
-        modifier,
-        codes.templateModifierOutOfOrder
-            .withArguments(modifier.lexeme, beforeModifier));
+      modifier,
+      codes.templateModifierOutOfOrder.withArguments(
+        modifier.lexeme,
+        beforeModifier,
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
@@ -16,30 +17,17 @@ Future<void> main(List<String> args) async {
       args: args,
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
-      runTest: runTestFor(const StaticTypeDataComputer(),
-          [cfeNoNonNullableConfig, cfeNonNullableConfig]),
-      skipMap: {
-        defaultCfeConfig.marker: [
-          // NNBD-only tests.
-          'constant_from_opt_in',
-          'constant_from_opt_out',
-          'from_opt_in',
-          'from_opt_out',
-          'if_null.dart',
-          'null_check.dart',
-          'never.dart',
-        ]
-      });
+      runTest: runTestFor(const StaticTypeDataComputer(), [defaultCfeConfig]));
 }
 
-class StaticTypeDataComputer extends DataComputer<String> {
+class StaticTypeDataComputer extends CfeDataComputer<String> {
   const StaticTypeDataComputer();
 
   /// Function that computes a data mapping for [library].
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     new StaticTypeDataExtractor(testResultData.compilerResult, actualMap)
@@ -47,7 +35,7 @@ class StaticTypeDataComputer extends DataComputer<String> {
   }
 
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     member.accept(
@@ -90,14 +78,9 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
   }
 
   @override
-  String computeLibraryValue(Id id, Library node) {
-    return 'nnbd=${node.isNonNullableByDefault}';
-  }
-
-  @override
   String? computeMemberValue(Id id, Member node) {
-    if (node is Procedure && node.function.futureValueType != null) {
-      return 'futureValueType=${typeToText(node.function.futureValueType!)}';
+    if (node is Procedure && node.function.emittedValueType != null) {
+      return 'futureValueType=${typeToText(node.function.emittedValueType!)}';
     }
     return null;
   }
@@ -109,9 +92,10 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
     }
     if (node is Expression) {
       DartType type = node.getStaticType(_staticTypeContext!);
-      if (node is FunctionExpression && node.function.futureValueType != null) {
+      if (node is FunctionExpression &&
+          node.function.emittedValueType != null) {
         return '${typeToText(type)},'
-            'futureValueType=${typeToText(node.function.futureValueType!)}';
+            'futureValueType=${typeToText(node.function.emittedValueType!)}';
       }
       return typeToText(type);
     } else if (node is Arguments) {
@@ -123,8 +107,8 @@ class StaticTypeDataExtractor extends CfeDataExtractor<String> {
         return typeToText(node.getElementType(_staticTypeContext!));
       }
     } else if (node is FunctionDeclaration) {
-      if (node.function.futureValueType != null) {
-        return 'futureValueType=${typeToText(node.function.futureValueType!)}';
+      if (node.function.emittedValueType != null) {
+        return 'futureValueType=${typeToText(node.function.emittedValueType!)}';
       }
     }
     return null;

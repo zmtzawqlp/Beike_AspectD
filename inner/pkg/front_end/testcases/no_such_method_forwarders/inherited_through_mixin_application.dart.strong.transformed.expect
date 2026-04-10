@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -16,8 +16,8 @@ class C extends core::Object implements self::A {
   method noSuchMethod(core::Invocation i) → dynamic {
     self::console = "C";
   }
-  no-such-method-forwarder get g() → core::String?
-    return this.{self::C::noSuchMethod}(new core::_InvocationMirror::_withType(#C1, 1, #C2, #C3, core::Map::unmodifiable<core::Symbol*, dynamic>(#C4))){(core::Invocation) → dynamic} as{TypeError,ForDynamic,ForNonNullableByDefault} core::String?;
+  synthetic no-such-method-forwarder get g() → core::String?
+    return this.{self::C::noSuchMethod}(new core::_InvocationMirror::_withType(#C1, 1, #C2, #C3, core::Map::unmodifiable<core::Symbol, dynamic>(#C4))){(core::Invocation) → dynamic} as{TypeError,ForDynamic} core::String?;
 }
 abstract class M extends self::A /*isMixinDeclaration*/  {
   method test() → dynamic {
@@ -26,6 +26,11 @@ abstract class M extends self::A /*isMixinDeclaration*/  {
   method noSuchMethod(core::Invocation i) → dynamic {
     self::console = "M";
   }
+}
+class MA extends self::_MA&C&M {
+  synthetic constructor •() → self::MA
+    : super self::_MA&C&M::•()
+    ;
 }
 abstract class _MA&C&M extends self::C implements self::M /*isAnonymousMixin,isEliminatedMixin*/  {
   synthetic constructor •() → self::_MA&C&M
@@ -37,11 +42,6 @@ abstract class _MA&C&M extends self::C implements self::M /*isAnonymousMixin,isE
   method test() → dynamic {
     super.{self::A::g};
   }
-}
-class MA extends self::_MA&C&M {
-  synthetic constructor •() → self::MA
-    : super self::_MA&C&M::•()
-    ;
 }
 static field core::String console = "";
 static method main() → dynamic {
@@ -57,7 +57,7 @@ static method expect(dynamic expected, dynamic actual) → dynamic {
 
 constants  {
   #C1 = #g
-  #C2 = <core::Type*>[]
+  #C2 = <core::Type>[]
   #C3 = <dynamic>[]
-  #C4 = <core::Symbol*, dynamic>{}
+  #C4 = <core::Symbol, dynamic>{}
 }

@@ -3,11 +3,10 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:convert' show utf8;
+import 'dart:typed_data';
 
 import "package:front_end/src/api_prototype/file_system.dart" show FileSystem;
-
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
-
+import 'package:front_end/src/kernel/utils.dart' show serializeComponent;
 import 'package:kernel/kernel.dart'
     show
         Class,
@@ -17,15 +16,20 @@ import 'package:kernel/kernel.dart'
         Library,
         Node,
         Procedure,
-        RecursiveVisitor,
-        Reference;
+        RecursiveVisitor;
 
-List<int> postProcess(Component c) {
-  postProcessComponent(c);
+Uint8List postProcess(Component c, {bool clearMetadata = true}) {
+  postProcessComponent(c, clearMetadata: clearMetadata);
   return serializeComponent(c);
 }
 
-void postProcessComponent(Component c) {
+void postProcessComponent(Component c, {bool clearMetadata = true}) {
+  if (clearMetadata) {
+    // For now metadata isn't great for recompiles because it will only contain
+    // what was just compiled. To avoid failures caused by this we for now just
+    // clear the metadata.
+    c.metadata.clear();
+  }
   c.libraries.sort((l1, l2) {
     return "${l1.fileUri}".compareTo("${l2.fileUri}");
   });
@@ -34,9 +38,7 @@ void postProcessComponent(Component c) {
 
   c.computeCanonicalNames();
   for (Library library in c.libraries) {
-    library.additionalExports.sort((Reference r1, Reference r2) {
-      return "${r1.canonicalName}".compareTo("${r2.canonicalName}");
-    });
+    library.additionalExports.sort();
     library.problemsAsJson?.sort();
   }
 }
@@ -78,8 +80,6 @@ Future<void> throwOnInsufficientUriToSource(Component component,
   if (fileSystem != null) {
     uris = uriFinder.seenUris.toSet();
     for (Uri uri in uris) {
-      // ignore: unnecessary_null_comparison
-      if (uri == null) continue;
       if (!uri.isScheme("org-dartlang-test")) continue;
       // The file system doesn't have the sources for any modules.
       // For now assume that that is always what's going on.

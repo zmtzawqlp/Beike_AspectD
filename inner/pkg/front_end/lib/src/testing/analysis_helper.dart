@@ -3,38 +3,64 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart';
-import 'package:front_end/src/api_prototype/compiler_options.dart';
-import 'package:front_end/src/api_prototype/kernel_generator.dart';
-import 'package:front_end/src/api_prototype/terminal_color_support.dart';
-import 'package:front_end/src/compute_platform_binaries_location.dart';
-import 'package:front_end/src/fasta/command_line_reporting.dart';
-import 'package:front_end/src/fasta/fasta_codes.dart';
-import 'package:front_end/src/fasta/kernel/redirecting_factory_body.dart';
-import 'package:front_end/src/kernel_generator_impl.dart';
 import 'package:kernel/ast.dart';
 import 'package:kernel/class_hierarchy.dart';
 import 'package:kernel/core_types.dart';
+import 'package:kernel/target/targets.dart';
 import 'package:kernel/type_environment.dart';
+
+import '../api_prototype/compiler_options.dart';
+import '../api_prototype/kernel_generator.dart';
+import '../api_prototype/terminal_color_support.dart';
+import '../base/command_line_reporting.dart';
+import '../codes/cfe_codes.dart';
+import '../compute_platform_binaries_location.dart';
+import '../kernel_generator_impl.dart';
 
 typedef PerformAnalysisFunction = void Function(
     DiagnosticMessageHandler onDiagnostic, Component component);
 typedef UriFilter = bool Function(Uri uri);
 
+/// Analysis the [entryPoints] using [performAnalysis].
 Future<void> runAnalysis(
     List<Uri> entryPoints, PerformAnalysisFunction performAnalysis) async {
   CompilerOptions options = new CompilerOptions();
   options.sdkRoot = computePlatformBinariesLocation(forceBuildDir: true);
-  options.packagesFileUri = Uri.base.resolve('.dart_tool/package_config.json');
+  await _runAnalysis(options, entryPoints, performAnalysis);
+}
 
+/// Analysis the platform libraries for [target] using [performAnalysis].
+Future<void> runPlatformAnalysis(
+    Target target, PerformAnalysisFunction performAnalysis) async {
+  CompilerOptions options = new CompilerOptions();
+  options.target = target;
+  options.environmentDefines = {};
+  options.librariesSpecificationUri =
+      Uri.base.resolve('sdk/lib/libraries.json');
+  Set<Uri> additionalSources = {};
+  for (String extraRequiredLibrary in target.extraRequiredLibraries) {
+    additionalSources.add(Uri.parse(extraRequiredLibrary));
+  }
+  for (String extraRequiredLibrary in target.extraRequiredLibrariesPlatform) {
+    additionalSources.add(Uri.parse(extraRequiredLibrary));
+  }
+  await _runAnalysis(
+      options, [Uri.parse('dart:core'), ...additionalSources], performAnalysis);
+}
+
+Future<void> _runAnalysis(CompilerOptions options, Iterable<Uri> entryPoints,
+    PerformAnalysisFunction performAnalysis) async {
+  options.packagesFileUri = Uri.base.resolve('.dart_tool/package_config.json');
   options.onDiagnostic = (DiagnosticMessage message) {
     printDiagnosticMessage(message, print);
   };
   InternalCompilerResult compilerResult = await kernelForProgramInternal(
-          entryPoints.first, options,
-          retainDataForTesting: true,
-          requireMain: false,
-          additionalSources: entryPoints.skip(1).toList())
-      as InternalCompilerResult;
+    entryPoints.first,
+    options,
+    retainDataForTesting: true,
+    requireMain: false,
+    additionalSources: entryPoints.skip(1).toList(),
+  ) as InternalCompilerResult;
 
   performAnalysis(options.onDiagnostic!, compilerResult.component!);
 }
@@ -50,7 +76,7 @@ class StaticTypeVisitorBase extends RecursiveVisitor {
 
   @override
   void visitProcedure(Procedure node) {
-    if (node.kind == ProcedureKind.Factory && isRedirectingFactory(node)) {
+    if (node.kind == ProcedureKind.Factory && node.isRedirectingFactory) {
       // Don't visit redirecting factories.
       return;
     }
@@ -61,10 +87,6 @@ class StaticTypeVisitorBase extends RecursiveVisitor {
 
   @override
   void visitField(Field node) {
-    if (isRedirectingFactoryField(node)) {
-      // Skip synthetic .dill members.
-      return;
-    }
     staticTypeContext = new StaticTypeContext(node, typeEnvironment);
     super.visitField(node);
     staticTypeContext = null;
@@ -117,7 +139,7 @@ class AnalysisVisitor extends StaticTypeVisitorBase {
         .withArguments(message)
         .withLocation(uri, node.fileOffset, noLength);
     FormattedMessage diagnosticMessage = locatedMessage.withFormatting(
-        format(locatedMessage, Severity.warning,
+        formatWithLocationNoSdk(locatedMessage, Severity.warning,
             location: location, uriToSource: component.uriToSource),
         location.line,
         location.column,
@@ -175,8 +197,7 @@ class AnalysisInterface {
   }
 
   bool isSubtypeOf(DartType subtype, DartType supertype) {
-    return _visitor.typeEnvironment
-        .isSubtypeOf(subtype, supertype, SubtypeCheckMode.withNullabilities);
+    return _visitor.typeEnvironment.isSubtypeOf(subtype, supertype);
   }
 }
 
@@ -265,7 +286,7 @@ class ClassLookup {
 // TODO(johnniwinther): Update this to include all files in the cfe, and not
 //  only those reachable from 'compiler.dart'.
 final List<Uri> cfeOnlyEntryPoints = [
-  Uri.base.resolve('pkg/front_end/tool/_fasta/compile.dart')
+  Uri.base.resolve('pkg/front_end/tool/compile.dart')
 ];
 
 /// Filter function used to only analyze cfe source code.
@@ -287,9 +308,9 @@ bool cfeOnly(Uri uri) {
 // TODO(johnniwinther): Update this to include all files in cfe and backends,
 //  and not only those reachable from these entry points.
 List<Uri> cfeAndBackendsEntryPoints = [
-  Uri.base.resolve('pkg/front_end/tool/_fasta/compile.dart'),
+  Uri.base.resolve('pkg/front_end/tool/compile.dart'),
   Uri.base.resolve('pkg/vm/lib/kernel_front_end.dart'),
-  Uri.base.resolve('pkg/compiler/bin/dart2js.dart'),
+  Uri.base.resolve('pkg/compiler/lib/src/dart2js.dart'),
   Uri.base.resolve('pkg/dev_compiler/bin/dartdevc.dart'),
   Uri.base.resolve('pkg/frontend_server/bin/frontend_server_starter.dart'),
 ];
@@ -313,3 +334,6 @@ bool cfeAndBackends(Uri uri) {
   }
   return false;
 }
+
+/// Filter function used to only analyze platform code.
+bool platformOnly(Uri uri) => uri.isScheme('dart');

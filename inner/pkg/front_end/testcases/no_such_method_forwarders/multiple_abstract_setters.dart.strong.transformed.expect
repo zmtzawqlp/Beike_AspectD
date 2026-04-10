@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -30,19 +30,19 @@ class D extends core::Object implements self::C, self::A, self::B {
   synthetic constructor •() → self::D
     : super core::Object::•()
     ;
-  method noSuchMethod(core::Invocation _) → dynamic
+  method noSuchMethod(wildcard core::Invocation _#wc0#formal) → dynamic
     return null;
-  no-such-method-forwarder get bar() → Null
-    return this.{self::D::noSuchMethod}(new core::_InvocationMirror::_withType(#C1, 1, #C2, #C3, core::Map::unmodifiable<core::Symbol*, dynamic>(#C4))){(core::Invocation) → dynamic} as{TypeError,ForDynamic,ForNonNullableByDefault} Null;
-  no-such-method-forwarder set foo(core::num? value) → void
-    return this.{self::D::noSuchMethod}(new core::_InvocationMirror::_withType(#C5, 2, #C2, core::List::unmodifiable<dynamic>(core::_GrowableList::_literal1<dynamic>(value)), core::Map::unmodifiable<core::Symbol*, dynamic>(#C4))){(core::Invocation) → dynamic};
+  synthetic no-such-method-forwarder get bar() → Null
+    return this.{self::D::noSuchMethod}(new core::_InvocationMirror::_withType(#C1, 1, #C2, #C3, core::Map::unmodifiable<core::Symbol, dynamic>(#C4))){(core::Invocation) → dynamic} as{TypeError,ForDynamic} Null;
+  synthetic no-such-method-forwarder set foo(core::num? value) → void
+    return this.{self::D::noSuchMethod}(new core::_InvocationMirror::_withType(#C5, 2, #C2, core::List::unmodifiable<dynamic>(core::_GrowableList::_literal1<dynamic>(value)), core::Map::unmodifiable<core::Symbol, dynamic>(#C4))){(core::Invocation) → dynamic};
 }
 static method main() → dynamic {}
 
 constants  {
   #C1 = #bar
-  #C2 = <core::Type*>[]
+  #C2 = <core::Type>[]
   #C3 = <dynamic>[]
-  #C4 = <core::Symbol*, dynamic>{}
+  #C4 = <core::Symbol, dynamic>{}
   #C5 = #foo=
 }

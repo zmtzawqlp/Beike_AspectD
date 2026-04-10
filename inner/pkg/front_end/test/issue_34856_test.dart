@@ -4,31 +4,23 @@
 
 import 'dart:io' show File;
 
-import 'package:async_helper/async_helper.dart' show asyncTest;
-
+import 'package:expect/async_helper.dart' show asyncTest;
 import 'package:front_end/src/api_prototype/compiler_options.dart'
     show CompilerOptions;
-
 import 'package:front_end/src/api_prototype/kernel_generator.dart'
     show kernelForModule;
-
 import 'package:front_end/src/api_prototype/memory_file_system.dart'
     show MemoryFileSystem;
-
+import 'package:front_end/src/base/compiler_context.dart' show CompilerContext;
 import 'package:front_end/src/base/processed_options.dart'
     show ProcessedOptions;
-
 import 'package:front_end/src/compute_platform_binaries_location.dart'
     show computePlatformBinariesLocation;
-
-import 'package:front_end/src/fasta/compiler_context.dart' show CompilerContext;
-
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
-
-import 'package:front_end/src/fasta/kernel/verifier.dart' show verifyComponent;
-
+import 'package:front_end/src/kernel/utils.dart' show serializeComponent;
+import 'package:front_end/src/kernel/cfe_verifier.dart' show verifyComponent;
 import 'package:kernel/ast.dart' show Component;
 import 'package:kernel/target/targets.dart';
+import 'package:kernel/verifier.dart' show VerificationStage;
 
 const Map<String, String> files = const <String, String>{
   "repro.dart": """
@@ -55,7 +47,7 @@ abstract class UnmodifiableMapView<K, V> extends MapView<K, V>
 };
 
 Future<void> test() async {
-  final String platformBaseName = "vm_platform_strong.dill";
+  final String platformBaseName = "vm_platform.dill";
   final Uri base = Uri.parse("org-dartlang-test:///");
   final Uri platformDill = base.resolve(platformBaseName);
   final List<int> platformDillBytes = await new File.fromUri(
@@ -96,8 +88,9 @@ Future<void> test() async {
 
   List<Object> errors = await CompilerContext.runWithOptions(
       new ProcessedOptions(options: options, inputs: inputs),
-      (_) => new Future<List<Object>>.value(
-          verifyComponent(component, options.target!, skipPlatform: true)));
+      (CompilerContext c) => new Future<List<Object>>.value(verifyComponent(
+          c, VerificationStage.afterModularTransformations, component,
+          skipPlatform: true)));
 
   serializeComponent(component);
 

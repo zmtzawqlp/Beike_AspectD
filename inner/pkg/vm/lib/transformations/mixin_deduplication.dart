@@ -3,16 +3,16 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart';
+import 'package:kernel/type_algebra.dart';
 
 /// De-duplication of identical mixin applications.
-void transformComponent(Component component) {
+void transformLibraries(List<Library> libraries) {
   final deduplicateMixins = new DeduplicateMixinsTransformer();
   final referenceUpdater = ReferenceUpdater(deduplicateMixins);
 
   // Deduplicate mixins and re-resolve super initializers.
   // (this is a shallow transformation)
-  component.libraries
-      .forEach((library) => deduplicateMixins.visitLibrary(library, null));
+  libraries.forEach((library) => deduplicateMixins.visitLibrary(library, null));
 
   // Do a deep transformation to update references to the removed mixin
   // application classes in the interface targets and types.
@@ -31,49 +31,90 @@ void transformComponent(Component component) {
   // TODO(dartbug.com/39375): Remove this extra O(N) pass over the AST if the
   // CFE decides to consistently let the interface target point to the mixin
   // class (instead of mixin application).
-  component.libraries.forEach(referenceUpdater.visitLibrary);
+  libraries.forEach(referenceUpdater.visitLibrary);
+}
+
+/// De-duplication of identical mixin applications.
+void transformComponent(Component component) {
+  transformLibraries(component.libraries);
 }
 
 class _DeduplicateMixinKey {
   final Class _class;
-  _DeduplicateMixinKey(this._class);
+  _DeduplicateMixinKey(this._class) {
+    // Mixins applications were lowered to anonymous mixin application classes.
+    assert(_class.mixedInType == null);
+    assert(_class.isAnonymousMixin);
+  }
 
   @override
   bool operator ==(Object other) {
-    if (other is _DeduplicateMixinKey) {
-      final thisClass = _class;
-      final otherClass = other._class;
-      if (identical(thisClass, otherClass)) {
-        return true;
-      }
-      // Do not deduplicate parameterized mixin applications.
-      if (thisClass.typeParameters.isNotEmpty ||
-          otherClass.typeParameters.isNotEmpty) {
+    if (other is! _DeduplicateMixinKey) return false;
+
+    final thisClass = _class;
+    final otherClass = other._class;
+    if (identical(thisClass, otherClass)) {
+      return true;
+    }
+
+    // If the shape of the two mixin application classes don't match, return
+    // `false` quickly.
+    final thisSupertype = thisClass.supertype!;
+    final otherSupertype = otherClass.supertype!;
+    if (thisSupertype.classNode != otherSupertype.classNode) return false;
+
+    final thisParameters = thisClass.typeParameters;
+    final otherParameters = otherClass.typeParameters;
+    if (thisParameters.length != otherParameters.length) return false;
+
+    final thisImplemented = thisClass.implementedTypes;
+    final otherImplemented = otherClass.implementedTypes;
+    if (thisImplemented.length != otherImplemented.length) return false;
+
+    // Non generic classes can use equalty compares of supertypes.
+    if (thisParameters.isEmpty) {
+      if (thisSupertype != otherSupertype) return false;
+      if (!listEquals(thisImplemented, otherImplemented)) return false;
+    }
+
+    // Generic classes must translate type parameter usages from one class to
+    // the other.
+    final substitution = Substitution.fromMap({
+      for (int i = 0; i < otherParameters.length; ++i)
+        otherParameters[i]: TypeParameterType(
+          thisParameters[i],
+          otherParameters[i].bound.nullability == Nullability.nonNullable
+              ? Nullability.nonNullable
+              : Nullability.undetermined,
+        ),
+    });
+    if (thisSupertype != substitution.substituteSupertype(otherSupertype)) {
+      return false;
+    }
+    for (int i = 0; i < thisImplemented.length; ++i) {
+      if (thisImplemented[i] !=
+          substitution.substituteSupertype(otherImplemented[i])) {
         return false;
       }
-      // Deduplicate mixin applications with matching supertype, mixed-in type,
-      // implemented interfaces and NNBD mode (CFE may add extra signature
-      // members depending on the NNBD mode).
-      return thisClass.supertype == otherClass.supertype &&
-          thisClass.mixedInType == otherClass.mixedInType &&
-          listEquals(thisClass.implementedTypes, otherClass.implementedTypes) &&
-          thisClass.enclosingLibrary.isNonNullableByDefault ==
-              otherClass.enclosingLibrary.isNonNullableByDefault;
     }
-    return false;
+    for (int i = 0; i < thisParameters.length; ++i) {
+      if (thisParameters[i].bound !=
+          substitution.substituteType(otherParameters[i].bound)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   @override
   int get hashCode {
-    if (_class.typeParameters.isNotEmpty) {
-      return _class.hashCode;
-    }
     int hash = 31;
-    hash = 0x3fffffff & (hash * 31 + _class.supertype.hashCode);
-    hash = 0x3fffffff & (hash * 31 + _class.mixedInType.hashCode);
+    hash = 0x3fffffff & (hash * 31 + _class.supertype!.classNode.hashCode);
     for (var i in _class.implementedTypes) {
-      hash = 0x3fffffff & (hash * 31 + i.hashCode);
+      hash = 0x3fffffff & (hash * 31 + i.classNode.hashCode);
     }
+    hash = 0x3fffffff & (hash * 31 + _class.typeParameters.length.hashCode);
     return hash;
   }
 }
@@ -107,10 +148,10 @@ class DeduplicateMixinsTransformer extends RemovingTransformer {
       return c;
     }
 
-    Class canonical =
-        _canonicalMixins.putIfAbsent(new _DeduplicateMixinKey(c), () => c);
-    // ignore: unnecessary_null_comparison
-    assert(canonical != null);
+    Class canonical = _canonicalMixins.putIfAbsent(
+      new _DeduplicateMixinKey(c),
+      () => c,
+    );
 
     if (canonical != c) {
       // Ensure that kernel file writer will not be able to
@@ -130,7 +171,10 @@ class DeduplicateMixinsTransformer extends RemovingTransformer {
   }
 
   Supertype _transformSupertype(
-      Supertype supertype, Class? cls, bool isSuperclass) {
+    Supertype supertype,
+    Class? cls,
+    bool isSuperclass,
+  ) {
     Class oldSuper = supertype.classNode;
     Class newSuper = visitClass(oldSuper, dummyClass) as Class;
     if (identical(newSuper, dummyClass)) {

@@ -2,10 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:_fe_analyzer_shared/src/scanner/scanner.dart';
 import 'package:_fe_analyzer_shared/src/scanner/abstract_scanner.dart'
     show AbstractScanner;
-import 'package:_fe_analyzer_shared/src/scanner/token_impl.dart' as fasta;
+import 'package:_fe_analyzer_shared/src/scanner/scanner.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token.dart';
 import 'package:test/test.dart';
 import 'package:test_reflective_loader/test_reflective_loader.dart';
@@ -16,7 +15,7 @@ void main() {
   });
 }
 
-/// Assert that fasta PrecedenceInfo implements analyzer TokenType.
+/// Assert that PrecedenceInfo implements analyzer TokenType.
 @reflectiveTest
 class PrecedenceInfoTest {
   void assertInfo(check(String source, Token token)) {
@@ -282,7 +281,7 @@ class PrecedenceInfoTest {
       var userDefinable = userDefinableOperatorLexemes.contains(source);
       expect(token.type.isUserDefinableOperator, userDefinable, reason: source);
       expect(token.isUserDefinableOperator, userDefinable, reason: source);
-      expect(fasta.isUserDefinableOperator(token.lexeme), userDefinable,
+      expect(isUserDefinableOperator(token.lexeme), userDefinable,
           reason: source);
     });
   }
@@ -399,17 +398,30 @@ class PrecedenceInfoTest {
   }
 
   void test_type() {
-    void assertLexeme(String source, TokenType tt) {
+    void assertLexeme(String source, TokenType tt,
+        {bool skipErrorTokens = false}) {
       var token = scanString(source, includeComments: true).tokens;
+      if (skipErrorTokens) {
+        while (token is ErrorToken) {
+          token = token.next!;
+        }
+      }
       expect(token.type, same(tt), reason: source);
     }
 
     assertLexeme('1.0', TokenType.DOUBLE);
+    assertLexeme('1_1.0_0', TokenType.DOUBLE_WITH_SEPARATORS);
     assertLexeme('0xA', TokenType.HEXADECIMAL);
+    assertLexeme('0xAA_BB', TokenType.HEXADECIMAL_WITH_SEPARATORS);
     assertLexeme('1', TokenType.INT);
+    assertLexeme('1_000', TokenType.INT_WITH_SEPARATORS);
     assertLexeme('var', Keyword.VAR);
     assertLexeme('#!/', TokenType.SCRIPT_TAG);
     assertLexeme('foo', TokenType.IDENTIFIER);
     assertLexeme('"foo"', TokenType.STRING);
+
+    // Invalid but recovers nicely.
+    assertLexeme('1_e', TokenType.DOUBLE_WITH_SEPARATORS,
+        skipErrorTokens: true);
   }
 }

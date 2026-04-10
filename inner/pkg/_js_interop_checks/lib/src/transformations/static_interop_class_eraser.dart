@@ -9,48 +9,66 @@ import 'package:kernel/ast.dart';
 import 'package:kernel/clone.dart';
 import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart';
-import 'package:kernel/reference_from_index.dart';
 import 'package:kernel/src/constant_replacer.dart';
 import 'package:kernel/src/replacement_visitor.dart';
 
+/// Erasure function for `@staticInterop` types for the JS compilers.
+InterfaceType eraseStaticInteropTypesForJSCompilers(
+  CoreTypes coreTypes,
+  InterfaceType staticInteropType,
+) => InterfaceType(
+  coreTypes.index.getClass('dart:_interceptors', 'JavaScriptObject'),
+  staticInteropType.declaredNullability,
+);
+
 class _TypeSubstitutor extends ReplacementVisitor {
-  final Class _javaScriptObject;
-  _TypeSubstitutor(this._javaScriptObject);
+  final InterfaceType Function(InterfaceType staticInteropType)
+  _eraseStaticInteropType;
+  _TypeSubstitutor(this._eraseStaticInteropType);
 
   @override
-  DartType? visitInterfaceType(InterfaceType type, int variance) {
+  DartType? visitInterfaceType(InterfaceType type, Variance variance) {
     if (hasStaticInteropAnnotation(type.classNode)) {
-      return InterfaceType(_javaScriptObject, type.declaredNullability);
+      return _eraseStaticInteropType(type);
     }
     return super.visitInterfaceType(type, variance);
   }
 }
 
-/// Erases usage of `@JS` classes that are annotated with `@staticInterop` in
-/// favor of `JavaScriptObject`.
+/// Erases usage of `@JS` classes that are annotated with `@staticInterop`.
 class StaticInteropClassEraser extends Transformer {
-  final Class _javaScriptObject;
   final CloneVisitorNotMembers _cloner = CloneVisitorNotMembers();
   late final _StaticInteropConstantReplacer _constantReplacer;
   late final _TypeSubstitutor _typeSubstitutor;
   Component? currentComponent;
-  ReferenceFromIndex? referenceFromIndex;
+  // Custom erasure function for `@staticInterop` types. This is useful for when
+  // they should be erased to another type besides `JavaScriptObject`, like in
+  // dart2wasm.
+  late final InterfaceType Function(InterfaceType staticInteropType)
+  _eraseStaticInteropType;
   // Visiting core libraries that don't contain `@staticInterop` adds overhead.
   // To avoid this, we use an allowlist that contains libraries that we know use
   // `@staticInterop`.
-  late final Set<String> _erasableCoreLibraries = {
+  final Set<String> _erasableCoreLibraries = {
+    'js_interop_unsafe',
     'ui',
+    'ui_web',
     '_engine',
-    '_skwasm_impl'
+    '_skwasm_impl',
+    '_wasm',
   };
 
-  StaticInteropClassEraser(CoreTypes coreTypes, this.referenceFromIndex,
-      {String libraryForJavaScriptObject = 'dart:_interceptors',
-      String classNameOfJavaScriptObject = 'JavaScriptObject',
-      Set<String> additionalCoreLibraries = const {}})
-      : _javaScriptObject = coreTypes.index
-            .getClass(libraryForJavaScriptObject, classNameOfJavaScriptObject) {
-    _typeSubstitutor = _TypeSubstitutor(_javaScriptObject);
+  StaticInteropClassEraser(
+    CoreTypes coreTypes, {
+    InterfaceType Function(InterfaceType staticInteropType)?
+    eraseStaticInteropType,
+    Set<String> additionalCoreLibraries = const {},
+  }) {
+    _eraseStaticInteropType =
+        eraseStaticInteropType ??
+        (staticInteropType) =>
+            eraseStaticInteropTypesForJSCompilers(coreTypes, staticInteropType);
+    _typeSubstitutor = _TypeSubstitutor(_eraseStaticInteropType);
     _constantReplacer = _StaticInteropConstantReplacer(this);
     _erasableCoreLibraries.addAll(additionalCoreLibraries);
   }
@@ -68,8 +86,9 @@ class StaticInteropClassEraser extends Transformer {
     var factoryClass = factoryTarget.enclosingClass!;
     assert(hasStaticInteropAnnotation(factoryClass));
     var stubName = _factoryStubName(factoryTarget);
-    var stubs = factoryClass.procedures
-        .where((procedure) => procedure.name.text == stubName);
+    var stubs = factoryClass.procedures.where(
+      (procedure) => procedure.name.text == stubName,
+    );
     if (stubs.isEmpty) {
       // We should only create the stub if we're processing the component in
       // which the stub should exist.
@@ -78,21 +97,21 @@ class StaticInteropClassEraser extends Transformer {
       }
       Name name = Name(stubName);
       var staticMethod = Procedure(
-          name, ProcedureKind.Method, FunctionNode(null),
-          isStatic: true,
-          fileUri: factoryTarget.fileUri,
-          reference: referenceFromIndex
-              ?.lookupLibrary(factoryClass.enclosingLibrary)
-              ?.lookupIndexedClass(factoryClass.name)
-              ?.lookupGetterReference(name))
-        ..fileOffset = factoryTarget.fileOffset;
+        name,
+        ProcedureKind.Method,
+        FunctionNode(null),
+        isStatic: true,
+        fileUri: factoryTarget.fileUri,
+      )..fileOffset = factoryTarget.fileOffset;
       factoryClass.addProcedure(staticMethod);
       // Clone function node after processing the stub in case of mutually
       // recursive factories. Note that the return type of the cloned function
       // is transformed.
-      var functionNode = super
-              .visitFunctionNode(_cloner.cloneInContext(factoryTarget.function))
-          as FunctionNode;
+      var functionNode =
+          super.visitFunctionNode(
+                _cloner.cloneInContext(factoryTarget.function),
+              )
+              as FunctionNode;
       staticMethod.function = functionNode;
       return staticMethod;
     } else {
@@ -143,7 +162,7 @@ class StaticInteropClassEraser extends Transformer {
         //
         // In order to circumvent this, we introduce a new static method that
         // clones the factory body and has a return type of
-        // `JavaScriptObject`. Invocations of the factory are turned into
+        // the erased type. Invocations of the factory are turned into
         // invocations of the static method. The original factory is still kept
         // in order to make modular compilations work.
         _findOrCreateFactoryStub(node);
@@ -158,12 +177,13 @@ class StaticInteropClassEraser extends Transformer {
         var signatureType = newProcedure.signatureType;
         if (signatureType != null && signatureReturnType != null) {
           newProcedure.signatureType = FunctionType(
-              signatureType.positionalParameters,
-              signatureReturnType,
-              signatureType.declaredNullability,
-              namedParameters: signatureType.namedParameters,
-              typeParameters: signatureType.typeParameters,
-              requiredParameterCount: signatureType.requiredParameterCount);
+            signatureType.positionalParameters,
+            signatureReturnType,
+            signatureType.declaredNullability,
+            namedParameters: signatureType.namedParameters,
+            typeParameters: signatureType.typeParameters,
+            requiredParameterCount: signatureType.requiredParameterCount,
+          );
         }
         return newProcedure;
       }
@@ -174,13 +194,14 @@ class StaticInteropClassEraser extends Transformer {
   @override
   TreeNode visitConstructorInvocation(ConstructorInvocation node) {
     if (hasStaticInteropAnnotation(node.target.enclosingClass)) {
-      // Add a cast so that the result gets typed as `JavaScriptObject`.
+      // Add a cast so that the result gets typed as the erased type.
       var newInvocation = super.visitConstructorInvocation(node) as Expression;
       return AsExpression(
-          newInvocation,
-          InterfaceType(_javaScriptObject,
-              node.target.function.returnType.declaredNullability))
-        ..fileOffset = newInvocation.fileOffset;
+        newInvocation,
+        _eraseStaticInteropType(
+          node.target.function.returnType as InterfaceType,
+        ),
+      )..fileOffset = newInvocation.fileOffset;
     }
     return super.visitConstructorInvocation(node);
   }
@@ -205,13 +226,14 @@ class StaticInteropClassEraser extends Transformer {
         return StaticInvocation(stub, args, isConst: node.isConst)
           ..fileOffset = node.fileOffset;
       } else {
-        // Add a cast so that the result gets typed as `JavaScriptObject`.
+        // Add a cast so that the result gets typed as the erased type.
         var newInvocation = super.visitStaticInvocation(node) as Expression;
         return AsExpression(
-            newInvocation,
-            InterfaceType(_javaScriptObject,
-                node.target.function.returnType.declaredNullability))
-          ..fileOffset = newInvocation.fileOffset;
+          newInvocation,
+          _eraseStaticInteropType(
+            node.target.function.returnType as InterfaceType,
+          ),
+        )..fileOffset = newInvocation.fileOffset;
       }
     }
     return super.visitStaticInvocation(node);

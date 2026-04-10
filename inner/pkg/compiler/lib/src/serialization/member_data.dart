@@ -34,9 +34,10 @@ class ComponentLookup {
 String computeMemberName(ir.Member member) {
   // This should mostly be empty except when serializing the name of nSM
   // forwarders (see dartbug.com/33732).
-  String libraryPrefix = member.name.isPrivate &&
-          member.name.libraryName != member.enclosingLibrary.reference
-      ? '${member.name.libraryName?.canonicalName?.name}:'
+  String libraryPrefix =
+      member.name.isPrivate &&
+          member.name.libraryReference != member.enclosingLibrary.reference
+      ? '${member.name.libraryReference?.canonicalName?.name}:'
       : '';
   String name = member.name.text;
   if (member is ir.Constructor) {
@@ -48,7 +49,7 @@ String computeMemberName(ir.Member member) {
       name += "=";
     }
   }
-  return '${libraryPrefix}${name}';
+  return '$libraryPrefix$name';
 }
 
 /// Helper for looking up classes and members from an [ir.Library] node.
@@ -63,9 +64,10 @@ class LibraryData {
   /// Cache of [ir.Typedef] nodes for typedefs in this library.
   late final Map<String, ir.Typedef> _typedefs = _initializeTypedefs();
 
-  /// Cache of [ir.InlineClass] nodes for inline classes in this library.
-  late final Map<String, ir.InlineClass> _inlineClasses =
-      _initializeInlineClasses();
+  /// Cache of [ir.ExtensionTypeDeclaration] nodes for extension type
+  /// declarations in this library.
+  late final Map<String, ir.ExtensionTypeDeclaration>
+  _extensionTypeDeclarations = _initializeExtensionTypeDeclarations();
 
   /// Cache of [MemberData] for members in this library.
   Map<String, MemberData>? _membersByName;
@@ -77,24 +79,30 @@ class LibraryData {
     final typedefs = <String, ir.Typedef>{};
     for (ir.Typedef typedef in node.typedefs) {
       assert(
-          !typedefs.containsKey(typedef.name),
-          "Duplicate typedef '${typedef.name}' in $typedefs "
-          "trying to add $typedef.");
+        !typedefs.containsKey(typedef.name),
+        "Duplicate typedef '${typedef.name}' in $typedefs "
+        "trying to add $typedef.",
+      );
       typedefs[typedef.name] = typedef;
     }
     return typedefs;
   }
 
-  Map<String, ir.InlineClass> _initializeInlineClasses() {
-    final inlineClasses = <String, ir.InlineClass>{};
-    for (ir.InlineClass inlineClass in node.inlineClasses) {
+  Map<String, ir.ExtensionTypeDeclaration>
+  _initializeExtensionTypeDeclarations() {
+    final extensionTypeDeclarations = <String, ir.ExtensionTypeDeclaration>{};
+    for (ir.ExtensionTypeDeclaration extensionTypeDeclaration
+        in node.extensionTypeDeclarations) {
       assert(
-          !inlineClasses.containsKey(inlineClass.name),
-          "Duplicate inline class '${inlineClass.name}' in $inlineClasses "
-          "trying to add $inlineClass.");
-      inlineClasses[inlineClass.name] = inlineClass;
+        !extensionTypeDeclarations.containsKey(extensionTypeDeclaration.name),
+        "Duplicate extension type declaration "
+        "'${extensionTypeDeclaration.name}' in  $extensionTypeDeclarations "
+        "trying to add $extensionTypeDeclaration.",
+      );
+      extensionTypeDeclarations[extensionTypeDeclaration.name] =
+          extensionTypeDeclaration;
     }
-    return inlineClasses;
+    return extensionTypeDeclarations;
   }
 
   void _ensureClasses() {
@@ -103,13 +111,15 @@ class LibraryData {
       final classesByNode = _classesByNode = {};
       for (ir.Class cls in node.classes) {
         assert(
-            !classesByName.containsKey(cls.name),
-            "Duplicate class '${cls.name}' in $classesByName "
-            "trying to add $cls.");
+          !classesByName.containsKey(cls.name),
+          "Duplicate class '${cls.name}' in $classesByName "
+          "trying to add $cls.",
+        );
         assert(
-            !classesByNode.containsKey(cls),
-            "Duplicate class '${cls.name}' in $classesByNode "
-            "trying to add $cls.");
+          !classesByNode.containsKey(cls),
+          "Duplicate class '${cls.name}' in $classesByNode "
+          "trying to add $cls.",
+        );
         classesByNode[cls] = classesByName[cls.name] = ClassData(cls);
       }
     }
@@ -127,9 +137,10 @@ class LibraryData {
     return _classesByNode![node];
   }
 
-  /// Returns the [InlineClass] for the given [name] in this library.
-  ir.InlineClass? lookupInlineClass(String name) {
-    return _inlineClasses[name];
+  /// Returns the [ExtensionTypeDeclaration] for the given [name] in this
+  /// library.
+  ir.ExtensionTypeDeclaration? lookupExtensionTypeDeclaration(String name) {
+    return _extensionTypeDeclarations[name];
   }
 
   ir.Typedef? lookupTypedef(String name) {
@@ -143,13 +154,15 @@ class LibraryData {
       for (ir.Member member in node.members) {
         String name = computeMemberName(member);
         assert(
-            !membersByName.containsKey(name),
-            "Duplicate member '$name' in $membersByName "
-            "trying to add $member.");
+          !membersByName.containsKey(name),
+          "Duplicate member '$name' in $membersByName "
+          "trying to add $member.",
+        );
         assert(
-            !membersByNode.containsKey(member),
-            "Duplicate member '$name' in $membersByNode "
-            "trying to add $member.");
+          !membersByNode.containsKey(member),
+          "Duplicate member '$name' in $membersByNode "
+          "trying to add $member.",
+        );
         membersByNode[member] = membersByName[name] = MemberData(member);
       }
     }
@@ -190,13 +203,15 @@ class ClassData {
       for (ir.Member member in node.members) {
         String name = computeMemberName(member);
         assert(
-            !membersByName.containsKey(name),
-            "Duplicate member '$name' in $membersByName "
-            "trying to add $member.");
+          !membersByName.containsKey(name),
+          "Duplicate member '$name' in $membersByName "
+          "trying to add $member.",
+        );
         assert(
-            !membersByNode.containsKey(member),
-            "Duplicate member '$name' in $membersByNode "
-            "trying to add $member.");
+          !membersByNode.containsKey(member),
+          "Duplicate member '$name' in $membersByNode "
+          "trying to add $member.",
+        );
         membersByNode[member] = membersByName[name] = MemberData(member);
       }
     }
@@ -235,7 +250,7 @@ class MemberData {
   /// Cached [ir.ConstantExpression] to [ConstantNodeIndexerVisitor] map used
   /// for fast serialization/deserialization of constant references.
   late final Map<ir.ConstantExpression, ConstantNodeIndexerVisitor>
-      _constantIndexMap = {};
+  _constantIndexMap = {};
 
   MemberData(this.node);
 
@@ -248,21 +263,22 @@ class MemberData {
   }
 
   ConstantNodeIndexerVisitor _createConstantIndexer(
-      ir.ConstantExpression node) {
+    ir.ConstantExpression node,
+  ) {
     ConstantNodeIndexerVisitor indexer = ConstantNodeIndexerVisitor();
     node.constant.accept(indexer);
     return indexer;
   }
 
   ir.Constant getConstantByIndex(ir.ConstantExpression node, int index) {
-    ConstantNodeIndexerVisitor indexer =
-        _constantIndexMap[node] ??= _createConstantIndexer(node);
+    ConstantNodeIndexerVisitor indexer = _constantIndexMap[node] ??=
+        _createConstantIndexer(node);
     return indexer.getConstant(index);
   }
 
   int getIndexByConstant(ir.ConstantExpression node, ir.Constant constant) {
-    ConstantNodeIndexerVisitor indexer =
-        _constantIndexMap[node] ??= _createConstantIndexer(node);
+    ConstantNodeIndexerVisitor indexer = _constantIndexMap[node] ??=
+        _createConstantIndexer(node);
     return indexer.getIndex(constant);
   }
 
@@ -277,7 +293,8 @@ class MemberData {
     _ensureMaps();
     return _nodeToIndexMap![node] ??
         (throw StateError(
-            'getIndexByTreeNode ${node.runtimeType} in member ${this.node}'));
+          'getIndexByTreeNode ${node.runtimeType} in member ${this.node}',
+        ));
   }
 
   @override

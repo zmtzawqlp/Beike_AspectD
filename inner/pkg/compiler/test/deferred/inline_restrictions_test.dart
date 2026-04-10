@@ -5,9 +5,9 @@
 // Test that we do not accidentally leak code from deferred libraries but do
 // allow inlining of empty functions and from main.
 
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/compiler_api.dart' as api;
 import 'package:compiler/src/compiler.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
 
@@ -15,8 +15,10 @@ void main() {
   asyncTest(() async {
     OutputCollector collector = OutputCollector();
     CompilationResult result = await runCompiler(
-        memorySourceFiles: MEMORY_SOURCE_FILES, outputProvider: collector);
-    Compiler compiler = result.compiler;
+      memorySourceFiles: MEMORY_SOURCE_FILES,
+      outputProvider: collector,
+    );
+    Compiler compiler = result.compiler!;
     var closedWorld = compiler.backendClosedWorldForTesting!;
     var env = closedWorld.elementEnvironment;
     var outputUnitForMember = closedWorld.outputUnitData.outputUnitForMember;
@@ -33,10 +35,14 @@ void main() {
     Expect.notEquals(ou_lib1.name, ou_lib3.name);
 
     String mainOutput = collector.getOutput("", api.OutputType.js)!;
-    String lib1Output =
-        collector.getOutput("out_${ou_lib1.name}", api.OutputType.jsPart)!;
-    String? lib3Output =
-        collector.getOutput("out_${ou_lib3.name}", api.OutputType.jsPart);
+    String lib1Output = collector.getOutput(
+      "out_${ou_lib1.name}",
+      api.OutputType.jsPart,
+    )!;
+    String? lib3Output = collector.getOutput(
+      "out_${ou_lib3.name}",
+      api.OutputType.jsPart,
+    );
 
     // Test that inlineMeAway was inlined and its argument thus dropped.
     //
@@ -107,5 +113,5 @@ test() {
 """,
   "lib3.dart": """
 sameContextInline(x) => "inline same context" + x;
-"""
+""",
 };

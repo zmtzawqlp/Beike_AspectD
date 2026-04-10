@@ -2,13 +2,13 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library info_visitor_test_classes;
+library;
 
 // Test superclass value.
 class A {
   A();
 
-  getValue() {
+  String getValue() {
     return "Value";
   }
 }
@@ -17,7 +17,7 @@ class A {
 class B extends A {
   B();
 
-  testSuper() {
+  String testSuper() {
     return super.getValue();
   }
 }
@@ -27,15 +27,15 @@ class C extends B {
   C();
 
   @override
-  getValue() {
+  String getValue() {
     return "Value";
   }
 }
 
 // Test class with mixins.
-class Mix1 {}
+mixin Mix1 {}
 
-class Mix2 {}
+mixin Mix2 {}
 
 class D with Mix1, Mix2 {
   D();
@@ -50,7 +50,7 @@ class E implements A {
   E();
 
   @override
-  getValue() {
+  String getValue() {
     return "E Value";
   }
 }

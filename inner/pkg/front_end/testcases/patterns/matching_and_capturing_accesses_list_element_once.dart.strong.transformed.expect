@@ -1,36 +1,31 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 import "dart:collection" as col;
 import "dart:_internal" as _in;
+import "dart:_compact_hash" as _co;
 import "dart:math" as math;
 
 import "dart:collection";
 
+class A extends self::_A&Object&ListMixin {
+  field core::int count = 0;
+  synthetic constructor •() → self::A
+    : super self::_A&Object&ListMixin::•()
+    ;
+  operator [](core::int index) → core::int {
+    this.{self::A::count} = this.{self::A::count}{core::int}.{core::num::+}(1){(core::num) → core::int};
+    return 0;
+  }
+  operator []=(core::int index, covariant-by-class core::int value) → void {}
+  get length() → core::int
+    return 2;
+  set length(core::int value) → void {}
+}
 abstract class _A&Object&ListMixin extends core::Object implements col::ListBase<core::int> /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
   const synthetic constructor •() → self::_A&Object&ListMixin
     : super core::Object::•()
     ;
-  get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ first() → core::int {
-    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
-      throw _in::IterableElementError::noElement();
-    return this.{core::List::[]}(0){(core::int) → core::int};
-  }
-  set /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ first(covariant-by-class core::int value) → void {
-    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
-      throw _in::IterableElementError::noElement();
-    this.{core::List::[]=}(0, value){(core::int, core::int) → void};
-  }
-  get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ last() → core::int {
-    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
-      throw _in::IterableElementError::noElement();
-    return this.{core::List::[]}(this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int}){(core::int) → core::int};
-  }
-  set /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ last(covariant-by-class core::int value) → void {
-    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
-      throw _in::IterableElementError::noElement();
-    this.{core::List::[]=}(this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int}, value){(core::int, core::int) → void};
-  }
   @#C3
   get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ iterator() → core::Iterator<core::int>
     return new _in::ListIterator::•<core::int>(this);
@@ -52,6 +47,26 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     return this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0;
   get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ isNotEmpty() → core::bool
     return !this.{col::ListBase::isEmpty}{core::bool};
+  get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ first() → core::int {
+    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
+      throw _in::IterableElementError::noElement();
+    return this.{core::List::[]}(0){(core::int) → core::int};
+  }
+  set /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ first(covariant-by-class core::int value) → void {
+    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
+      throw _in::IterableElementError::noElement();
+    this.{core::List::[]=}(0, value){(core::int, core::int) → void};
+  }
+  get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ last() → core::int {
+    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
+      throw _in::IterableElementError::noElement();
+    return this.{core::List::[]}(this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int}){(core::int) → core::int};
+  }
+  set /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ last(covariant-by-class core::int value) → void {
+    if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
+      throw _in::IterableElementError::noElement();
+    this.{core::List::[]=}(this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int}, value){(core::int, core::int) → void};
+  }
   get /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ single() → core::int {
     if(this.{core::List::length}{core::int} =={core::num::==}{(core::Object) → core::bool} 0)
       throw _in::IterableElementError::noElement();
@@ -204,7 +219,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     return result;
   }
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ toSet() → core::Set<core::int> {
-    core::Set<core::int> result = new col::_Set::•<core::int>();
+    core::Set<core::int> result = new _co::_Set::•<core::int>();
     for (core::int i = 0; i.{core::num::<}(this.{core::List::length}{core::int}){(core::num) → core::bool}; i = i.{core::num::+}(1){(core::num) → core::int}) {
       result.{core::Set::add}(this.{core::List::[]}(i){(core::int) → core::int}){(core::int) → core::bool};
     }
@@ -236,7 +251,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     }
     return false;
   }
-  method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ _closeGap(core::int start, core::int end) → void {
+  method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ col::_closeGap(core::int start, core::int end) → void {
     core::int length = this.{core::List::length}{core::int};
     assert(0.{core::num::<=}(start){(core::num) → core::bool});
     assert(start.{core::num::<}(end){(core::num) → core::bool});
@@ -253,7 +268,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ retainWhere((core::int) → core::bool test) → void {
     this.{col::ListBase::_filter}(test, true){((core::int) → core::bool, core::bool) → void};
   }
-  method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ _filter((core::int) → core::bool test, core::bool retainMatching) → void {
+  method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ col::_filter((core::int) → core::bool test, core::bool retainMatching) → void {
     core::List<core::int> retained = core::_GrowableList::•<core::int>(0);
     core::int length = this.{core::List::length}{core::int};
     for (core::int i = 0; i.{core::num::<}(length){(core::num) → core::bool}; i = i.{core::num::+}(1){(core::num) → core::int}) {
@@ -287,9 +302,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     _in::Sort::sort<core::int>(this, let final (core::int, core::int) →? core::int #t4 = compare in #t4 == null ?{(core::int, core::int) → core::int} #C6 : #t4{(core::int, core::int) → core::int});
   }
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ shuffle([math::Random? random = #C2]) → void {
-    random == null ?{math::Random} random = math::Random::•() : null;
-    if(random{math::Random} == null)
-      throw "!";
+    random == null ?{math::Random?} random = math::Random::•() : null;
     core::int length = this.{core::List::length}{core::int};
     while (length.{core::num::>}(1){(core::num) → core::bool}) {
       core::int pos = random{math::Random}.{math::Random::nextInt}(length){(core::int) → core::int};
@@ -309,11 +322,9 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     } =>#t5;
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ sublist(core::int start, [core::int? end = #C2]) → core::List<core::int> {
     core::int listLength = this.{core::List::length}{core::int};
-    end == null ?{core::int} end = listLength : null;
-    if(end{core::int} == null)
-      throw "!";
+    end == null ?{core::int?} end = listLength : null;
     core::RangeError::checkValidRange(start, end{core::int}, listLength);
-    return core::List::from<core::int>(this.{col::ListBase::getRange}(start, end{core::int}){(core::int, core::int) → core::Iterable<core::int>});
+    return core::List::of<core::int>(this.{col::ListBase::getRange}(start, end{core::int}){(core::int, core::int) → core::Iterable<core::int>});
   }
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ getRange(core::int start, core::int end) → core::Iterable<core::int> {
     core::RangeError::checkValidRange(start, end, this.{core::List::length}{core::int});
@@ -326,7 +337,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     }
   }
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ fillRange(core::int start, core::int end, [covariant-by-class core::int? fill = #C2]) → void {
-    core::int value = let core::int? #t6 = fill in #t6 == null ?{core::int} let core::int? #t7 = #t6 in #t7 == null ?{core::int} #t7 as{ForNonNullableByDefault} core::int : #t7{core::int} : #t6{core::int};
+    core::int value = let core::int? #t6 = fill in #t6 == null ?{core::int} let core::int? #t7 = #t6 in #t7 == null ?{core::int} #t7 as core::int : #t7{core::int} : #t6{core::int};
     core::RangeError::checkValidRange(start, end, this.{core::List::length}{core::int});
     for (core::int i = start; i.{core::num::<}(end){(core::num) → core::bool}; i = i.{core::num::+}(1){(core::num) → core::int}) {
       this.{core::List::[]=}(i, value){(core::int, core::int) → void};
@@ -340,7 +351,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     core::RangeError::checkNotNegative(skipCount, "skipCount");
     core::List<core::int> otherList;
     core::int otherStart;
-    if(iterable is{ForNonNullableByDefault} core::List<core::int>) {
+    if(iterable is core::List<core::int>) {
       otherList = iterable{core::List<core::int>};
       otherStart = skipCount;
     }
@@ -368,7 +379,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
       this.{col::ListBase::addAll}(newContents){(core::Iterable<core::int>) → void};
       return;
     }
-    if(!(newContents is{ForNonNullableByDefault} _in::EfficientLengthIterable<dynamic>)) {
+    if(!(newContents is _in::EfficientLengthIterable<dynamic>)) {
       newContents = newContents.{core::Iterable::toList}(){({growable: core::bool}) → core::List<core::int>};
     }
     core::int removeLength = end.{core::num::-}(start){(core::num) → core::int};
@@ -433,8 +444,6 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ lastIndexOf(covariant-by-class core::Object? element, [core::int? start = #C2]) → core::int {
     if(start == null || start{core::int}.{core::num::>=}(this.{core::List::length}{core::int}){(core::num) → core::bool})
       start = this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int};
-    if(start{core::int} == null)
-      throw "!";
     for (core::int i = start{core::int}; i.{core::num::>=}(0){(core::num) → core::bool}; i = i.{core::num::-}(1){(core::num) → core::int}) {
       if(this.{core::List::[]}(i){(core::int) → core::int} =={core::Object::==}{(core::Object) → core::bool} element)
         return i;
@@ -444,8 +453,6 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ lastIndexWhere((core::int) → core::bool test, [core::int? start = #C2]) → core::int {
     if(start == null || start{core::int}.{core::num::>=}(this.{core::List::length}{core::int}){(core::num) → core::bool})
       start = this.{core::List::length}{core::int}.{core::num::-}(1){(core::num) → core::int};
-    if(start{core::int} == null)
-      throw "!";
     for (core::int i = start{core::int}; i.{core::num::>=}(0){(core::num) → core::bool}; i = i.{core::num::-}(1){(core::num) → core::int}) {
       if(test(this.{core::List::[]}(i){(core::int) → core::int}){(core::int) → core::bool})
         return i;
@@ -473,7 +480,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
       this.{col::ListBase::addAll}(iterable){(core::Iterable<core::int>) → void};
       return;
     }
-    if(!(iterable is{ForNonNullableByDefault} _in::EfficientLengthIterable<dynamic>) || core::identical(iterable, this)) {
+    if(!(iterable is _in::EfficientLengthIterable<dynamic>) || core::identical(iterable, this)) {
       iterable = iterable.{core::Iterable::toList}(){({growable: core::bool}) → core::List<core::int>};
     }
     core::int insertionLength = iterable.{core::Iterable::length}{core::int};
@@ -495,7 +502,7 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     this.{col::ListBase::setAll}(index, iterable){(core::int, core::Iterable<core::int>) → void};
   }
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ setAll(core::int index, covariant-by-class core::Iterable<core::int> iterable) → void {
-    if(iterable is{ForNonNullableByDefault} core::List<dynamic>) {
+    if(iterable is core::List<dynamic>) {
       this.{col::ListBase::setRange}(index, index.{core::num::+}(iterable.{core::Iterable::length}{core::int}){(core::num) → core::int}, iterable){(core::int, core::int, core::Iterable<core::int>, [core::int]) → void};
     }
     else {
@@ -514,41 +521,25 @@ abstract class _A&Object&ListMixin extends core::Object implements col::ListBase
     return new _in::ReversedListIterable::•<core::int>(this);
   method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ toString() → core::String
     return col::ListBase::listToString(this);
-  static method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ _compareAny(dynamic a, dynamic b) → core::int {
-    return core::Comparable::compare(a as{ForNonNullableByDefault} core::Comparable<dynamic>, b as{ForNonNullableByDefault} core::Comparable<dynamic>);
-  }
-  static method /* from org-dartlang-sdk:///sdk/lib/collection/list.dart */ listToString(core::List<core::Object?> list) → core::String
-    return core::Iterable::iterableToFullString(list, "[", "]");
-}
-class A extends self::_A&Object&ListMixin {
-  field core::int count = 0;
-  synthetic constructor •() → self::A
-    : super self::_A&Object&ListMixin::•()
-    ;
-  operator [](core::int index) → core::int {
-    this.{self::A::count} = this.{self::A::count}{core::int}.{core::num::+}(1){(core::num) → core::int};
-    return 0;
-  }
-  operator []=(core::int index, covariant-by-class core::int value) → void {}
-  get length() → core::int
-    return 2;
-  set length(core::int value) → void {}
 }
 static method main() → dynamic {
   self::A a = new self::A::•();
   {
-    hoisted core::int x;
-    hoisted core::int y;
     final synthesized self::A #0#0 = a;
-    function ##0#4#initializer() → core::int
-      return #0#0.{self::A::[]}(0){(core::int) → core::int};
-    late final synthesized core::int #0#4 = ##0#4#initializer(){() → core::int};
-    function ##0#5#initializer() → core::int
-      return #0#0.{self::A::[]}(1){(core::int) → core::int};
-    late final synthesized core::int #0#5 = ##0#5#initializer(){() → core::int};
-    if(#0#0.{self::A::length}{core::int} =={core::num::==}{(core::Object) → core::bool} #C8 && (#0#4 is{ForNonNullableByDefault} core::int && (let final core::int #t10 = x = #0#4 in true)) && (#0#5 is{ForNonNullableByDefault} core::int && (let final core::int #t11 = y = #0#5 in true))) {
-      self::expectEquals(x, 0);
-      self::expectEquals(y, 0);
+    synthesized core::int #0#4;
+    synthesized core::bool #0#4#isSet = false;
+    synthesized core::int #0#5;
+    synthesized core::bool #0#5#isSet = false;
+    {
+      hoisted core::int x;
+      hoisted core::int y;
+      if(#0#0.{self::A::length}{core::int} =={core::num::==}{(core::Object) → core::bool} #C8 && ((#0#4#isSet ?{core::int} #0#4{core::int} : let final dynamic #t10 = #0#4#isSet = true in #0#4 = #0#0.{self::A::[]}(0){(core::int) → core::int}) is core::int && (let final dynamic #t11 = x = #0#4#isSet ?{core::int} #0#4{core::int} : let final dynamic #t12 = #0#4#isSet = true in #0#4 = #0#0.{self::A::[]}(0){(core::int) → core::int} in true)) && (#0#5#isSet ?{core::int} #0#5{core::int} : let final dynamic #t13 = #0#5#isSet = true in #0#5 = #0#0.{self::A::[]}(1){(core::int) → core::int}) is core::int) {
+        y = #0#5#isSet ?{core::int} #0#5{core::int} : let final dynamic #t14 = #0#5#isSet = true in #0#5 = #0#0.{self::A::[]}(1){(core::int) → core::int};
+        {
+          self::expectEquals(x, 0);
+          self::expectEquals(y, 0);
+        }
+      }
     }
   }
   self::expectEquals(a.{self::A::count}{core::int}, 2);
@@ -571,8 +562,8 @@ constants  {
 }
 
 Extra constant evaluation status:
-Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:456:12 -> IntConstant(-1)
-Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:464:12 -> IntConstant(-1)
-Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:476:12 -> IntConstant(-1)
-Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:488:12 -> IntConstant(-1)
-Extra constant evaluation: evaluated: 1100, effectively constant: 4
+Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:454:12 -> IntConstant(-1)
+Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:462:12 -> IntConstant(-1)
+Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:471:12 -> IntConstant(-1)
+Evaluated: InstanceInvocation @ org-dartlang-sdk:///sdk/lib/collection/list.dart:480:12 -> IntConstant(-1)
+Extra constant evaluation: evaluated: 1101, effectively constant: 4

@@ -17,38 +17,45 @@ const String dartSdkModule = 'dart_sdk';
 /// `JsGetName` enum.
 abstract class FixedNames {
   static const operatorIsPrefix = r'$is_';
-  static const operatorSignature = r'$signature';
+  static const operatorSignature = r'_functionRti';
   static const rtiName = r'$ti';
   static const rtiAsField = '_as';
   static const rtiIsField = '_is';
 }
 
-/// Unique instance for temporary variables. Will be renamed consistently
-/// across the entire file. Different instances will be named differently
-/// even if they have the same name, this makes it safe to use in code
-/// generation without needing global knowledge. See [TemporaryNamer].
-// TODO(jmesserly): move into js_ast? add a boolean to Identifier?
-class TemporaryId extends Identifier {
-  // TODO(jmesserly): by design, temporary identifier nodes are shared
-  // throughout the AST, so any source information we attach in one location
-  // be incorrect for another location (and overwrites previous data).
-  //
-  // If we want to track source information for temporary variables, we'll
-  // need to separate the identity of the variable from its Identifier.
-  //
-  // In practice that makes temporaries more difficult to use: they're no longer
-  // JS AST nodes, so `toIdentifier()` is required to put them in the JS AST.
-  // And anywhere we currently use type `Identifier` to hold Identifier or
-  // TemporaryId, those types would need to change to `Identifier Function()`.
-  //
-  // However we may need to fix this if we want hover to work well for things
-  // like library prefixes and field-initializing formals.
-  @override
-  dynamic get sourceInformation => null;
-  @override
-  set sourceInformation(Object? obj) {}
+/// Identifier tagged with a value shared by other instances representing the
+/// same variable.
+///
+/// When printed will be renamed consistently across the entire
+/// file. Instances with different IDs will be named differently even if they
+/// have the same name, this makes it safe to use in code generation without
+/// needing global knowledge. See [ScopedNamer].
+class ScopedId extends Identifier {
+  final int _id;
 
-  TemporaryId(String name) : super(name);
+  /// If true, this variable can be used across different async scopes and must
+  /// therefore be specially captured.
+  final bool needsCapture;
+
+  @override
+  ScopedId withSourceInformation(dynamic sourceInformation) =>
+      ScopedId.from(this)..sourceInformation = sourceInformation;
+
+  static int _idCounter = 0;
+
+  ScopedId(super.name, {this.needsCapture = false}) : _id = _idCounter++;
+  ScopedId.from(ScopedId other)
+    : _id = other._id,
+      needsCapture = other.needsCapture,
+      super(other.name);
+
+  @override
+  int get hashCode => _id;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ScopedId && other._id == _id;
+  }
 }
 
 /// Creates a qualified identifier, without determining for sure if it needs to
@@ -62,7 +69,7 @@ class MaybeQualifiedId extends Expression {
   final Expression name;
 
   MaybeQualifiedId(this.qualifier, this.name)
-      : _expr = PropertyAccess(qualifier, name);
+    : _expr = PropertyAccess(qualifier, name);
 
   /// Helper to create an [Identifier] from something that starts as a property.
   static Identifier identifier(LiteralString propertyName) =>
@@ -102,12 +109,12 @@ class NameListener {
 /// * rename temporary variables to avoid colliding with user-specified names,
 ///   or other temporaries
 ///
-/// Each instance of [TemporaryId] is treated as a unique variable, with its
+/// Each instance of [ScopedId] is treated as a unique variable, with its
 /// `name` field simply the suggestion of what name to use. By contrast
-/// [Identifiers] are never renamed unless they are an invalid identifier, like
+/// [Identifier]s are never renamed unless they are an invalid identifier, like
 /// `function` or `instanceof`, and their `name` field controls whether they
 /// refer to the same variable.
-class TemporaryNamer extends LocalNamer {
+class ScopedNamer extends LocalNamer {
   _FunctionScope? _scope;
 
   /// Listener to be notified when a name is selected (rename or not) for an
@@ -116,8 +123,8 @@ class TemporaryNamer extends LocalNamer {
   /// Can be `null` when there is no listener attached.
   final NameListener? _nameListener;
 
-  TemporaryNamer(Node node, [this._nameListener])
-      : _scope = _RenameVisitor.build(node).rootScope;
+  ScopedNamer(Node node, [this._nameListener])
+    : _scope = _RenameVisitor.build(node).rootScope;
 
   @override
   String getName(Identifier node) {
@@ -183,7 +190,7 @@ class _RenameVisitor extends VariableDeclarationVisitor {
     var notAlreadyDeclared = scope!.declared.add(id);
     // Normal identifiers can be declared multiple times, because we don't
     // implement block scope yet. However temps should only be declared once.
-    assert(notAlreadyDeclared || node is! TemporaryId);
+    assert(notAlreadyDeclared || node is! ScopedId);
     _markUsed(node, id, scope!);
   }
 
@@ -212,9 +219,11 @@ class _RenameVisitor extends VariableDeclarationVisitor {
     if (rename) {
       usedIn = pendingRenames.putIfAbsent(id, () => HashSet());
     }
-    for (var s = scope, end = declScope.parent;
-        s != end && s != null;
-        s = s.parent) {
+    for (
+      var s = scope, end = declScope.parent;
+      s != end && s != null;
+      s = s.parent
+    ) {
       if (usedIn != null) {
         usedIn.add(s);
       } else {
@@ -260,7 +269,7 @@ class _RenameVisitor extends VariableDeclarationVisitor {
   static String _findName(Object id, Set<_FunctionScope> scopes) {
     String name;
     bool valid;
-    if (id is TemporaryId) {
+    if (id is ScopedId) {
       name = id.name;
       valid = !invalidVariableName(name);
     } else {
@@ -278,9 +287,11 @@ class _RenameVisitor extends VariableDeclarationVisitor {
       // TODO(jmesserly): what's the most readable scheme here? Maybe 1-letter
       // names in some cases?
       candidate = name == 'function' ? 'func' : '$name\$';
-      for (var i = 0;
-          scopes.any((scope) => scope.used.contains(candidate));
-          i++) {
+      for (
+        var i = 0;
+        scopes.any((scope) => scope.used.contains(candidate));
+        i++
+      ) {
         candidate = '$name\$$i';
       }
     }
@@ -289,18 +300,21 @@ class _RenameVisitor extends VariableDeclarationVisitor {
 }
 
 bool needsRename(Identifier node) =>
-    node is TemporaryId || node.allowRename && invalidVariableName(node.name);
+    node is ScopedId || node.allowRename && invalidVariableName(node.name);
 
-Object /*String|TemporaryId*/ identifierKey(Identifier node) =>
-    node is TemporaryId ? node : node.name;
+Object /*String|ScopedId*/ identifierKey(Identifier node) =>
+    node is ScopedId ? node : node.name;
 
 /// Returns true for invalid JS variable names, such as keywords.
 /// Also handles invalid variable names in strict mode, like "arguments".
 bool invalidVariableName(String keyword, {bool strictMode = true}) {
   switch (keyword) {
-    // http://www.ecma-international.org/ecma-262/6.0/#sec-future-reserved-words
+    // https: //262.ecma-international.org/6.0/#sec-reserved-words
+    case 'true':
+    case 'false':
+    case 'null':
+    // https://262.ecma-international.org/6.0/#sec-keywords
     case 'await':
-
     case 'break':
     case 'case':
     case 'catch':
@@ -388,7 +402,7 @@ final objectProperties = <String>{
   '__lookupGetter__',
   '__defineSetter__',
   '__lookupSetter__',
-  '__proto__'
+  '__proto__',
 };
 
 /// Returns the JS member name for a public Dart instance member, before it
@@ -479,9 +493,11 @@ String pathToJSIdentifier(String path) {
   if (path.startsWith('/') || path.startsWith('\\')) {
     path = path.substring(1, path.length);
   }
-  return toJSIdentifier(path
-      .replaceAll('\\', '__')
-      .replaceAll('/', '__')
-      .replaceAll('..', '__')
-      .replaceAll('-', '_'));
+  return toJSIdentifier(
+    path
+        .replaceAll('\\', '__')
+        .replaceAll('/', '__')
+        .replaceAll('..', '__')
+        .replaceAll('-', '_'),
+  );
 }

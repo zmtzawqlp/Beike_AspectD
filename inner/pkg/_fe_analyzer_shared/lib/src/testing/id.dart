@@ -124,9 +124,13 @@ class IdValue {
   static const String stmtPrefix = "stmt: ";
   static const String errorPrefix = "error: ";
 
-  static IdValue decode(Uri sourceUri, Annotation annotation, String text,
-      {bool preserveWhitespaceInAnnotations = false,
-      bool preserveInfixWhitespace = false}) {
+  static IdValue decode(
+    Uri sourceUri,
+    Annotation annotation,
+    String text, {
+    bool preserveWhitespaceInAnnotations = false,
+    bool preserveInfixWhitespace = false,
+  }) {
     int offset = annotation.offset;
     Id id;
     String expected;
@@ -206,8 +210,11 @@ class MemberId implements Id {
   factory MemberId(String text, {bool isGlobal = false}) {
     int dotPos = text.indexOf('.');
     if (dotPos != -1) {
-      return new MemberId.internal(text.substring(dotPos + 1),
-          className: text.substring(0, dotPos), isGlobal: isGlobal);
+      return new MemberId.internal(
+        text.substring(dotPos + 1),
+        className: text.substring(0, dotPos),
+        isGlobal: isGlobal,
+      );
     } else {
       return new MemberId.internal(text, isGlobal: isGlobal);
     }
@@ -305,11 +312,7 @@ class NodeId implements Id {
   @override
   final IdKind kind;
 
-  const NodeId(this.value, this.kind)
-      :
-        // ignore: unnecessary_null_comparison
-        assert(value != null),
-        assert(value >= 0);
+  const NodeId(this.value, this.kind) : assert(value >= 0);
 
   @override
   bool get isGlobal => false;
@@ -354,7 +357,8 @@ class ActualData<T> {
   }
 
   @override
-  String toString() => 'ActualData(id=$id,value=$value,uri=$uri,'
+  String toString() =>
+      'ActualData(id=$id,value=$value,uri=$uri,'
       'offset=$offset,object=$objectText)';
 }
 
@@ -374,16 +378,18 @@ mixin DataRegistry<T> {
           actualMap[id] = mergedData;
         } else {
           report(
-              uri,
-              offset,
-              "Duplicate id ${id}, value=$value, object=$object "
-              "(${object.runtimeType})");
+            uri,
+            offset,
+            "Duplicate id ${id}, value=$value, object=$object "
+            "(${object.runtimeType})",
+          );
           report(
-              uri,
-              offset,
-              "Duplicate id ${id}, value=${existingData.value}, "
-              "object=${existingData.object} "
-              "(${existingData.object.runtimeType})");
+            uri,
+            offset,
+            "Duplicate id ${id}, value=${existingData.value}, "
+            "object=${existingData.object} "
+            "(${existingData.object.runtimeType})",
+          );
           fail("Duplicate id $id.");
         }
       } else {

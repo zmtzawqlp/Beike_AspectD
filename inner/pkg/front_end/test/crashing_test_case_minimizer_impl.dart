@@ -3,75 +3,51 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async' show Future, StreamSubscription;
-
 import 'dart:convert' show JsonEncoder, jsonDecode, utf8;
-
 import 'dart:io' show File, stdin, stdout;
-
 import 'dart:math' show max;
-
 import 'dart:typed_data' show BytesBuilder, Uint8List;
-
-import 'package:_fe_analyzer_shared/src/util/relativize.dart'
-    show relativizeUri, isWindows;
 
 import 'package:_fe_analyzer_shared/src/parser/parser.dart'
     show Listener, Parser;
-
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
     show ErrorToken, ScannerConfiguration, Token;
-
+import 'package:_fe_analyzer_shared/src/util/relativize.dart'
+    show relativizeUri, isWindows;
 import 'package:compiler/src/kernel/dart2js_target.dart' show Dart2jsTarget;
-
 import 'package:dev_compiler/src/kernel/target.dart' show DevCompilerTarget;
-
 import 'package:front_end/src/api_prototype/compiler_options.dart'
     show CompilerOptions, DiagnosticMessage;
-
 import 'package:front_end/src/api_prototype/experimental_flags.dart'
     show ExperimentalFlag;
-
 import 'package:front_end/src/api_prototype/file_system.dart'
     show FileSystem, FileSystemEntity, FileSystemException;
-
 import 'package:front_end/src/api_prototype/incremental_kernel_generator.dart'
     show IncrementalCompilerResult;
-
+import 'package:front_end/src/base/compiler_context.dart' show CompilerContext;
+import 'package:front_end/src/base/incremental_compiler.dart'
+    show IncrementalCompiler, IncrementalKernelTarget;
+import 'package:front_end/src/base/messages.dart' show Message;
 import 'package:front_end/src/base/processed_options.dart'
     show ProcessedOptions;
-import 'package:front_end/src/fasta/builder/library_builder.dart';
-
-import 'package:front_end/src/fasta/compiler_context.dart' show CompilerContext;
-
-import 'package:front_end/src/fasta/incremental_compiler.dart'
-    show IncrementalCompiler;
-
-import 'package:front_end/src/fasta/kernel/utils.dart' show ByteSink;
-import 'package:front_end/src/fasta/messages.dart' show Message;
-import 'package:front_end/src/fasta/source/diet_parser.dart'
+import 'package:front_end/src/builder/library_builder.dart';
+import 'package:front_end/src/kernel/utils.dart' show ByteSink;
+import 'package:front_end/src/source/diet_parser.dart'
     show useImplicitCreationExpressionInCfe;
-import 'package:front_end/src/fasta/util/parser_ast.dart';
-import 'package:front_end/src/fasta/util/parser_ast_helper.dart';
-
-import 'package:front_end/src/fasta/util/textual_outline.dart'
-    show textualOutline;
-
-import 'package:kernel/ast.dart' show Component, LibraryPart;
-
+import 'package:front_end/src/util/parser_ast.dart';
+import 'package:front_end/src/util/parser_ast_helper.dart';
+import 'package:front_end/src/util/textual_outline.dart' show textualOutline;
+import 'package:kernel/ast.dart'
+    show Component, LibraryPart, Version, defaultLanguageVersion;
 import 'package:kernel/binary/ast_to_binary.dart' show BinaryPrinter;
-
 import 'package:kernel/target/targets.dart' show Target, TargetFlags;
 import 'package:package_config/package_config.dart';
-
-import "package:vm/target/flutter.dart" show FlutterTarget;
-
-import "package:vm/target/vm.dart" show VmTarget;
+import "package:vm/modular/target/flutter.dart" show FlutterTarget;
+import "package:vm/modular/target/vm.dart" show VmTarget;
 
 import 'incremental_suite.dart' show getOptions;
-
-import 'parser_test_listener.dart' show ParserTestListener;
-
 import 'parser_suite.dart' as parser_suite;
+import 'parser_test_listener.dart' show ParserTestListener;
 
 class TestMinimizerSettings {
   final _FakeFileSystem _fsInitial = new _FakeFileSystem();
@@ -82,14 +58,18 @@ class TestMinimizerSettings {
   }
 
   bool _useInitialFs = true;
-  Uri? mainUri;
+  final List<Uri> entryUris = [];
   Uri? platformUri;
+  Uri? packagesFileUri;
   bool noPlatform = false;
+  bool initialOnlyOutline = false;
+  bool loadFromComponentBeforeInvalidate = false;
+  bool invalidateAllAtOnce = false;
   bool experimentalInvalidation = false;
   bool serialize = false;
   bool widgetTransformation = false;
   final List<Uri> invalidate = [];
-  String targetString = "VM";
+  String targetString = "vm";
   bool noTryToDeleteEmptyFilesUpFront = false;
   bool oldBlockDelete = false;
   bool lineDelete = false;
@@ -113,9 +93,13 @@ class TestMinimizerSettings {
         new List<Map<String, dynamic>>.from(this.fileSystems);
     fileSystems.add(_fsNotInitial.toJson());
     return {
-      'mainUri': mainUri.toString(),
+      'entryUris': entryUris.map((uri) => uri.toString()).toList(),
       'platformUri': platformUri.toString(),
+      'packagesFileUri': packagesFileUri.toString(),
       'noPlatform': noPlatform,
+      'loadFromComponentBeforeInvalidate': loadFromComponentBeforeInvalidate,
+      'invalidateAllAtOnce': invalidateAllAtOnce,
+      'initialOnlyOutline': initialOnlyOutline,
       'experimentalInvalidation': experimentalInvalidation,
       'serialize': serialize,
       'widgetTransformation': widgetTransformation,
@@ -136,9 +120,16 @@ class TestMinimizerSettings {
   }
 
   void initializeFromJson(Map<String, dynamic> json) {
-    mainUri = Uri.parse(json["mainUri"]);
+    entryUris.clear();
+    entryUris.addAll(
+        (json["entryUris"] as List).map((uriString) => Uri.parse(uriString)));
     platformUri = Uri.parse(json["platformUri"]);
+    packagesFileUri = Uri.parse(json["packagesFileUri"]);
     noPlatform = json["noPlatform"];
+    loadFromComponentBeforeInvalidate =
+        json["loadFromComponentBeforeInvalidate"];
+    invalidateAllAtOnce = json["invalidateAllAtOnce"];
+    initialOnlyOutline = json["initialOnlyOutline"];
     experimentalInvalidation = json["experimentalInvalidation"];
     serialize = json["serialize"];
     widgetTransformation = json["widgetTransformation"];
@@ -175,7 +166,7 @@ class TestMinimizerSettings {
 class TestMinimizer {
   final TestMinimizerSettings _settings;
   _FakeFileSystem get _fs => _settings._fs;
-  Uri get _mainUri => _settings.mainUri!;
+  List<Uri> get _entryUris => _settings.entryUris;
   String? _expectedCrashLine;
   bool _quit = false;
   bool _skip = false;
@@ -185,14 +176,31 @@ class TestMinimizer {
 
   Component? _latestComponent;
   IncrementalCompiler? _latestCrashingIncrementalCompiler;
+  Map<Uri, LibraryBuilder>? _latestCrashingKnownInitialBuilders;
+  IncrementalKernelTarget? _latestKernelTarget;
   StreamSubscription<List<int>>? _stdinSubscription;
 
   static const int _$LF = 10;
 
   TestMinimizer(this._settings);
 
+  bool? _oldEchoMode;
+  bool? _oldLineMode;
+
+  Future<void> _resetStdin() async {
+    try {
+      stdin.echoMode = _oldEchoMode!;
+    } catch (e) {}
+    try {
+      stdin.lineMode = _oldLineMode!;
+    } catch (e) {}
+    await _stdinSubscription!.cancel();
+  }
+
   void _setupStdin() {
     try {
+      _oldEchoMode = stdin.echoMode;
+      _oldLineMode = stdin.lineMode;
       stdin.echoMode = false;
       stdin.lineMode = false;
     } catch (e) {
@@ -237,46 +245,56 @@ class TestMinimizer {
 
   Future tryToMinimize() async {
     _setupStdin();
-    while (_currentFsNum < _settings.fileSystems.length) {
-      try {
-        if (_currentFsNum >= 0) {
-          print("Replacing filesystem!");
-          _settings.goToFileSystem(_currentFsNum);
-          _expectedCrashLine = null;
-          _latestComponent = null;
-          _latestCrashingIncrementalCompiler = null;
+    try {
+      while (_currentFsNum < _settings.fileSystems.length) {
+        try {
+          if (_currentFsNum >= 0) {
+            print("Replacing filesystem!");
+            _settings.goToFileSystem(_currentFsNum);
+            _expectedCrashLine = null;
+            _latestComponent = null;
+            _latestCrashingIncrementalCompiler = null;
+            _latestCrashingKnownInitialBuilders = null;
+          }
+          await _tryToMinimizeImpl();
+          if (_currentFsNum + 1 < _settings.fileSystems.length) {
+            // We have more to do --- but we just printed something the user
+            // might want to read. So wait a little before continuing.
+            print("Waiting for 5 seconds before continuing.");
+            await Future.delayed(new Duration(seconds: 5));
+          }
+        } catch (e) {
+          if (e is _DoesntCrashOnInput) {
+            print(
+                "Currently doesn't crash (or no longer crashes) the compiler.");
+          } else {
+            print(
+                "About to crash. Dumping settings including the filesystem so "
+                "we can (hopefully) continue later.");
+            _dumpToJson();
+            rethrow;
+          }
         }
-        await _tryToMinimizeImpl();
-        if (_currentFsNum + 1 < _settings.fileSystems.length) {
-          // We have more to do --- but we just printed something the user might
-          // want to read. So wait a little before continuing.
-          print("Waiting for 5 seconds before continuing.");
-          await Future.delayed(new Duration(seconds: 5));
-        }
-      } catch (e) {
-        if (e is _DoesntCrashOnInput) {
-          print("Currently doesn't crash (or no longer crashes) the compiler.");
-        } else {
-          print("About to crash. Dumping settings including the filesystem so "
-              "we can (hopefully) continue later.");
-          _dumpToJson();
-          rethrow;
-        }
+        _currentFsNum++;
       }
-      _currentFsNum++;
+    } finally {
+      await _resetStdin();
     }
-
-    await _stdinSubscription!.cancel();
   }
 
   Future _tryToMinimizeImpl() async {
     // Set main to be basically empty up front.
     _settings._useInitialFs = true;
-    _fs.data[_mainUri] = utf8.encode("main() {}") as Uint8List;
+    for (Uri entry in _entryUris) {
+      _fs.data[entry] = utf8.encode("main() {}");
+    }
     Component initialComponent = await _getInitialComponent();
     print("Compiled initially (without data)");
     // Remove fake cache.
-    _fs.data.remove(_mainUri);
+    for (Uri entry in _entryUris) {
+      _fs.data.remove(entry);
+    }
+
     _settings._useInitialFs = false;
 
     // First assure it actually crash on the input.
@@ -303,9 +321,8 @@ class TestMinimizer {
       } else {
         try {
           if (_knownByCompiler(uri!)) {
-            String parsedString =
-                _getFileAsStringContent(_fs.data[uri]!, _isUriNnbd(uri));
-            _fs.data[uri] = utf8.encode(parsedString) as Uint8List;
+            String parsedString = _getFileAsStringContent(_fs.data[uri]!);
+            _fs.data[uri] = utf8.encode(parsedString);
           }
         } catch (e) {
           // crash in scanner/parser --- keep original file. This crash might
@@ -473,6 +490,7 @@ class TestMinimizer {
 
       for (Uri uri in uris) {
         if (_fs.data[uri] == null || _fs.data[uri]!.isEmpty) continue;
+        if (uri.path.endsWith(".dill")) continue;
         print("Uri $uri has this content:");
 
         try {
@@ -514,7 +532,7 @@ class TestMinimizer {
   /// success.
   Future<bool> _attemptInline(Uri uri, Component initialComponent) async {
     // Don't attempt to inline the main uri --- that's our entry!
-    if (uri == _mainUri) return false;
+    if (_entryUris.contains(uri)) return false;
 
     Uint8List inlineData = _fs.data[uri]!;
     bool hasMultipleLines = false;
@@ -538,12 +556,11 @@ class TestMinimizer {
       if (!uri.toString().endsWith(".dart")) continue;
       if (inlinableUri == uri) continue;
       final Uint8List? originalBytes = _fs.data[uri];
-      if (originalBytes == null || originalBytes.isEmpty) continue;
-      CompilationUnitEnd ast = getAST(originalBytes,
-          includeBody: false,
-          includeComments: false,
-          enableExtensionMethods: true,
-          enableNonNullable: _isUriNnbd(uri!));
+      if (uri == null || originalBytes == null || originalBytes.isEmpty) {
+        continue;
+      }
+      CompilationUnitEnd ast =
+          getAST(originalBytes, includeBody: false, includeComments: false);
       // Find all imports/exports of this file (if any).
       // If finding any:
       // * remove all of them, then
@@ -580,11 +597,8 @@ class TestMinimizer {
       //   have a `library` declaration.
       // * The file we're inlining has a library declaration.
       int offsetOfLast = 0;
-      ast = getAST(withoutInlineable,
-          includeBody: false,
-          includeComments: false,
-          enableExtensionMethods: true,
-          enableNonNullable: _isUriNnbd(uri));
+      ast =
+          getAST(withoutInlineable, includeBody: false, includeComments: false);
       for (ImportEnd import in ast.getImports()) {
         offsetOfLast = max(offsetOfLast, import.semicolon!.offset + 1);
       }
@@ -601,16 +615,15 @@ class TestMinimizer {
         builder.writeCharCode(withoutInlineableString.codeUnitAt(i));
       }
       builder.write("\n");
-      builder.write(utf8.decode(_rewriteImportsExportsToUri(
-          inlineData, uri, inlinableUri, _isUriNnbd(inlinableUri))));
+      builder.write(utf8
+          .decode(_rewriteImportsExportsToUri(inlineData, uri, inlinableUri)));
       builder.write("\n");
       for (int i = offsetOfLast; i < withoutInlineableString.length; i++) {
         builder.writeCharCode(withoutInlineableString.codeUnitAt(i));
       }
-      final Uint8List inlinedWithoutChange =
-          utf8.encode(builder.toString()) as Uint8List;
+      final Uint8List inlinedWithoutChange = utf8.encode(builder.toString());
 
-      if (!_parsesWithoutError(inlinedWithoutChange, _isUriNnbd(uri))) {
+      if (!_parsesWithoutError(inlinedWithoutChange)) {
         print("WARNING: Parser error after stuff at ${StackTrace.current}");
       }
 
@@ -642,16 +655,15 @@ class TestMinimizer {
         }
         builder.write("\n");
         builder.write(utf8.decode(_rewriteImportsExportsToUri(
-            inlineData, uri, inlinableUri, _isUriNnbd(inlinableUri),
+            inlineData, uri, inlinableUri,
             convertExportToImport: true)));
         builder.write("\n");
         for (int i = offsetOfLast; i < withoutInlineableString.length; i++) {
           builder.writeCharCode(withoutInlineableString.codeUnitAt(i));
         }
-        Uint8List inlinedWithChange =
-            utf8.encode(builder.toString()) as Uint8List;
+        Uint8List inlinedWithChange = utf8.encode(builder.toString());
 
-        if (!_parsesWithoutError(inlinedWithChange, _isUriNnbd(uri))) {
+        if (!_parsesWithoutError(inlinedWithChange)) {
           print("WARNING: Parser error after stuff at ${StackTrace.current}");
         }
 
@@ -684,13 +696,10 @@ class TestMinimizer {
   }
 
   Uint8List _rewriteImportsExportsToUri(
-      Uint8List oldData, Uri newUri, Uri oldUri, bool nnbd,
+      Uint8List oldData, Uri newUri, Uri oldUri,
       {bool convertExportToImport = false}) {
-    CompilationUnitEnd ast = getAST(oldData,
-        includeBody: false,
-        includeComments: false,
-        enableExtensionMethods: true,
-        enableNonNullable: nnbd);
+    CompilationUnitEnd ast =
+        getAST(oldData, includeBody: false, includeComments: false);
     List<_Replacement> replacements = [];
     for (ImportEnd import in ast.getImports()) {
       _rewriteImportsExportsToUriInternal(
@@ -726,9 +735,9 @@ class TestMinimizer {
 
     // TODO(jensj): don't use full uris.
     print("""
-# Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+# Copyright (c) 2024, the Dart project authors. Please see the AUTHORS file
 # for details. All rights reserved. Use of this source code is governed by a
-# BSD-style license that can be found in the LICENSE.md file.
+# BSD-style license that can be found in the LICENSE file.
 
 # Reproduce a crash.
 
@@ -739,13 +748,18 @@ type: newworld""");
     }
     print("""
 worlds:
-  - entry: $_mainUri""");
+  - entry:""");
+    for (Uri entry in _settings.entryUris) {
+      print("      - $entry");
+    }
     if (_settings.experimentalInvalidation) {
       print("    experiments: alternative-invalidation-strategy");
     }
     print("    sources:");
     for (MapEntry<Uri?, Uint8List?> entry in _fs.data.entries) {
       if (entry.value == null) continue;
+      if (entry.key == null) continue;
+      if (entry.key!.path.endsWith(".dill")) continue;
       print("      ${entry.key}: |");
       String string = utf8.decode(entry.value!);
       List<String> lines = string.split("\n");
@@ -757,19 +771,42 @@ worlds:
         "# with parts this is not right");
     print("");
 
-    for (Uri uri in _settings.invalidate) {
-      print("  - entry: $_mainUri");
+    if (_settings.invalidateAllAtOnce) {
+      print("  - entry:");
+      for (Uri entry in _settings.entryUris) {
+        print("      - $entry");
+      }
       if (_settings.experimentalInvalidation) {
         print("    experiments: alternative-invalidation-strategy");
       }
       print("    worldType: updated");
       print("    expectInitializeFromDill: false # or true?");
       print("    invalidate:");
-      print("      - $uri");
+      for (Uri uri in _settings.invalidate) {
+        print("      - $uri");
+      }
       print("    expectedLibraryCount: $dartFiles "
           "# with parts this is not right");
-      print("    expectsRebuildBodiesOnly: true # or false?");
+      print("    advancedInvalidation: bodiesOnly # or something else?");
       print("");
+    } else {
+      for (Uri uri in _settings.invalidate) {
+        print("  - entry:");
+        for (Uri entry in _settings.entryUris) {
+          print("      - $entry");
+        }
+        if (_settings.experimentalInvalidation) {
+          print("    experiments: alternative-invalidation-strategy");
+        }
+        print("    worldType: updated");
+        print("    expectInitializeFromDill: false # or true?");
+        print("    invalidate:");
+        print("      - $uri");
+        print("    expectedLibraryCount: $dartFiles "
+            "# with parts this is not right");
+        print("    advancedInvalidation: bodiesOnly # or something else?");
+        print("");
+      }
     }
 
     print("------------------------------------------------------------------");
@@ -813,8 +850,7 @@ worlds:
   }
 
   Uri _getImportUri(Uri uri) {
-    return _latestCrashingIncrementalCompiler!.kernelTargetForTesting!
-        .getEntryPointUri(uri);
+    return _latestKernelTarget!.getEntryPointUri(uri);
   }
 
   Uint8List _sublist(Uint8List data, int start, int end) {
@@ -988,17 +1024,22 @@ worlds:
       // For dart files we can't truncate completely try to "outline" them
       // instead.
       if (uri.toString().endsWith(".dart")) {
-        String? textualOutlined =
-            textualOutline(data!, _getScannerConfiguration(uri))
-                ?.replaceAll(RegExp(r'\n+'), "\n");
+        Version languageVersion = _getLanguageVersion(uri, crashOnFail: false);
+        String? textualOutlined = textualOutline(
+                data!, _getScannerConfiguration(languageVersion),
+                enablePatterns:
+                    languageVersion >= ExperimentalFlag.patterns.enabledVersion,
+                enableEnhancedParts: languageVersion >=
+                    ExperimentalFlag.enhancedParts.enabledVersion)
+            ?.replaceAll(RegExp(r'\n+'), "\n");
 
         bool outlined = false;
         if (textualOutlined != null) {
-          Uint8List candidate = utf8.encode(textualOutlined) as Uint8List;
+          Uint8List candidate = utf8.encode(textualOutlined);
           // Because textual outline doesn't do the right thing for nnbd, only
           // replace if it's syntactically valid.
           if (candidate.length != _fs.data[uri]!.length &&
-              _parsesWithoutError(candidate, _isUriNnbd(uri))) {
+              _parsesWithoutError(candidate)) {
             if (await _shouldQuit()) return;
             _fs.data[uri] = candidate;
             if (!await _crashesOnCompile(initialComponent)) {
@@ -1020,8 +1061,7 @@ worlds:
               if (!string.trim().startsWith("//")) stringsLeft.add(string);
             }
 
-            Uint8List candidate =
-                utf8.encode(stringsLeft.join("\n")) as Uint8List;
+            Uint8List candidate = utf8.encode(stringsLeft.join("\n"));
             if (candidate.length != _fs.data[uri]!.length) {
               if (await _shouldQuit()) return;
               _fs.data[uri] = candidate;
@@ -1067,7 +1107,7 @@ worlds:
         }
       }
       string = lines.join("\n");
-      _fs.data[uri] = utf8.encode(string) as Uint8List;
+      _fs.data[uri] = utf8.encode(string);
       if (!await _crashesOnCompile(initialComponent)) {
         // For some reason that didn't work.
         _fs.data[uri] = data;
@@ -1080,16 +1120,8 @@ worlds:
 
     List<int> lineStarts = [];
 
-    Token firstToken = parser_suite.scanRawBytes(
-        data,
-        _isUriNnbd(uri) ? _scannerConfiguration : _scannerConfigurationNonNNBD,
-        lineStarts);
-
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      print("Got null token from scanner for $uri");
-      return;
-    }
+    Token firstToken =
+        parser_suite.scanRawBytes(data, _scannerConfiguration, lineStarts);
 
     int compileTry = 0;
     Token? token = firstToken;
@@ -1211,7 +1243,7 @@ worlds:
         }
       }
       string = lines.join("\n");
-      Uint8List candidate = utf8.encode(string) as Uint8List;
+      Uint8List candidate = utf8.encode(string);
       if (candidate.length != data.length) {
         _fs.data[uri] = candidate;
         if (!await _crashesOnCompile(initialComponent)) {
@@ -1233,7 +1265,7 @@ worlds:
         while (i < packagesModified.length) {
           var oldEntry = packagesModified.removeAt(i);
           String jsonString = jsonEncoder.convert(jsonModified);
-          candidate = utf8.encode(jsonString) as Uint8List;
+          candidate = utf8.encode(jsonString);
           Uint8List? previous = _fs.data[uri];
           _fs.data[uri] = candidate;
           if (!await _crashesOnCompile(initialComponent)) {
@@ -1254,11 +1286,8 @@ worlds:
     if (!uri.toString().endsWith(".dart")) return;
 
     Uint8List data = _fs.data[uri]!;
-    CompilationUnitEnd ast = getAST(data,
-        includeBody: true,
-        includeComments: false,
-        enableExtensionMethods: true,
-        enableNonNullable: _isUriNnbd(uri));
+    CompilationUnitEnd ast =
+        getAST(data, includeBody: true, includeComments: false);
 
     _CompilationHelperClass helper = new _CompilationHelperClass(data);
 
@@ -1275,7 +1304,7 @@ worlds:
       } else if (child.isMixinDeclaration()) {
         MixinDeclarationEnd decl = child.asMixinDeclaration();
         helper.replacements.add(new _Replacement(
-            decl.mixinKeyword.offset - 1, decl.endToken.offset + 1));
+            decl.beginToken.offset - 1, decl.endToken.offset + 1));
         shouldCompile = true;
         what = "mixin";
       } else if (child.isNamedMixinDeclaration()) {
@@ -1320,7 +1349,7 @@ worlds:
         if (metadata.isNotEmpty) {
           helper.replacements.add(new _Replacement(
               metadata.first.beginToken.offset - 1,
-              metadata.last.endToken.offset));
+              metadata.last.endToken.charEnd));
           shouldCompile = true;
         }
         what = "metadata";
@@ -1355,11 +1384,17 @@ worlds:
         shouldCompile = true;
         what = "part of";
       } else if (child.isScript()) {
-        var decl = child.asScript();
+        ScriptHandle decl = child.asScript();
         helper.replacements.add(new _Replacement(
             decl.token.offset - 1, decl.token.offset + decl.token.length));
         shouldCompile = true;
         what = "script";
+      } else if (child.isExtensionType()) {
+        ExtensionTypeDeclarationEnd decl = child.asExtensionType();
+        helper.replacements.add(new _Replacement(
+            decl.extensionKeyword.offset - 1, decl.endToken.charEnd));
+        shouldCompile = true;
+        what = "extension type";
       }
 
       if (shouldCompile) {
@@ -1383,80 +1418,7 @@ worlds:
 
             if (!success) {
               // Also try to remove members one at a time.
-              for (ParserAstNode child in body.children!) {
-                shouldCompile = false;
-                if (child is MemberEnd) {
-                  if (child.isClassConstructor()) {
-                    ClassConstructorEnd memberDecl =
-                        child.getClassConstructor();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "class constructor";
-                    shouldCompile = true;
-                  } else if (child.isClassFields()) {
-                    ClassFieldsEnd memberDecl = child.getClassFields();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "class fields";
-                    shouldCompile = true;
-                  } else if (child.isClassMethod()) {
-                    ClassMethodEnd memberDecl = child.getClassMethod();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "class method";
-                    shouldCompile = true;
-                  } else if (child.isClassFactoryMethod()) {
-                    ClassFactoryMethodEnd memberDecl =
-                        child.getClassFactoryMethod();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "class factory method";
-                    shouldCompile = true;
-                  } else {
-                    // throw "$child --- ${child.children}";
-                    continue;
-                  }
-                } else if (child.isMetadata()) {
-                  MetadataStarEnd decl = child.asMetadata();
-                  List<MetadataEnd> metadata = decl.getMetadataEntries();
-                  if (metadata.isNotEmpty) {
-                    helper.replacements.add(new _Replacement(
-                        metadata.first.beginToken.offset - 1,
-                        metadata.last.endToken.offset));
-                    shouldCompile = true;
-                  }
-                  what = "metadata";
-                }
-                if (shouldCompile) {
-                  success = await _tryReplaceAndCompile(
-                      helper, uri, initialComponent, what);
-                  if (helper.shouldQuit) return;
-                  if (!success) {
-                    BlockFunctionBodyEnd? decl;
-                    if (child is MemberEnd) {
-                      if (child.isClassMethod()) {
-                        decl = child.getClassMethod().getBlockFunctionBody();
-                      } else if (child.isClassConstructor()) {
-                        decl =
-                            child.getClassConstructor().getBlockFunctionBody();
-                      }
-                    }
-                    if (decl != null &&
-                        decl.beginToken.offset + 2 < decl.endToken.offset) {
-                      helper.replacements.add(new _Replacement(
-                          decl.beginToken.offset, decl.endToken.offset));
-                      what = "class member content";
-                      await _tryReplaceAndCompile(
-                          helper, uri, initialComponent, what);
-                      if (helper.shouldQuit) return;
-                    }
-                  }
-                }
-              }
+              await _deleteBlocksHelper(body, helper, uri, initialComponent);
             }
 
             // Try to remove "extends", "implements" etc.
@@ -1506,82 +1468,205 @@ worlds:
             }
 
             if (!success) {
-              // Also try to remove members one at a time.
-              for (ParserAstNode child in body.children!) {
-                shouldCompile = false;
-                if (child is MemberEnd) {
-                  if (child.isMixinConstructor()) {
-                    MixinConstructorEnd memberDecl =
-                        child.getMixinConstructor();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "mixin constructor";
-                    shouldCompile = true;
-                  } else if (child.isMixinFields()) {
-                    MixinFieldsEnd memberDecl = child.getMixinFields();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "mixin fields";
-                    shouldCompile = true;
-                  } else if (child.isMixinMethod()) {
-                    MixinMethodEnd memberDecl = child.getMixinMethod();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "mixin method";
-                    shouldCompile = true;
-                  } else if (child.isMixinFactoryMethod()) {
-                    MixinFactoryMethodEnd memberDecl =
-                        child.getMixinFactoryMethod();
-                    helper.replacements.add(new _Replacement(
-                        memberDecl.beginToken.offset - 1,
-                        memberDecl.endToken.offset + 1));
-                    what = "mixin factory method";
-                    shouldCompile = true;
-                  } else {
-                    // throw "$child --- ${child.children}";
-                    continue;
-                  }
-                } else if (child.isMetadata()) {
-                  MetadataStarEnd decl = child.asMetadata();
-                  List<MetadataEnd> metadata = decl.getMetadataEntries();
-                  if (metadata.isNotEmpty) {
-                    helper.replacements.add(new _Replacement(
-                        metadata.first.beginToken.offset - 1,
-                        metadata.last.endToken.offset));
-                    shouldCompile = true;
-                  }
-                  what = "metadata";
-                }
-                if (shouldCompile) {
-                  success = await _tryReplaceAndCompile(
-                      helper, uri, initialComponent, what);
-                  if (helper.shouldQuit) return;
-                  if (!success) {
-                    BlockFunctionBodyEnd? decl;
-                    if (child is MemberEnd) {
-                      if (child.isClassMethod()) {
-                        decl = child.getClassMethod().getBlockFunctionBody();
-                      } else if (child.isClassConstructor()) {
-                        decl =
-                            child.getClassConstructor().getBlockFunctionBody();
-                      }
-                    }
-                    if (decl != null &&
-                        decl.beginToken.offset + 2 < decl.endToken.offset) {
-                      helper.replacements.add(new _Replacement(
-                          decl.beginToken.offset, decl.endToken.offset));
-                      what = "class member content";
-                      await _tryReplaceAndCompile(
-                          helper, uri, initialComponent, what);
-                      if (helper.shouldQuit) return;
-                    }
-                  }
-                }
+              await _deleteBlocksHelper(body, helper, uri, initialComponent);
+            }
+          } else if (child.isExtensionType()) {
+            // Also try to remove all content of the extension type.
+            ExtensionTypeDeclarationEnd decl = child.asExtensionType();
+            ClassOrMixinOrExtensionBodyEnd body =
+                decl.getClassOrMixinOrExtensionBody();
+            if (body.beginToken.offset + 2 < body.endToken.offset) {
+              helper.replacements.add(new _Replacement(
+                  body.beginToken.offset, body.endToken.offset));
+              what = "extension type body";
+              success = await _tryReplaceAndCompile(
+                  helper, uri, initialComponent, what);
+              if (helper.shouldQuit) return;
+            }
+
+            if (!success) {
+              await _deleteBlocksHelper(body, helper, uri, initialComponent);
+            }
+          } else if (child.isTopLevelMethod()) {
+            // Try to remove parameters.
+            TopLevelMethodEnd decl = child.asTopLevelMethod();
+            FormalParametersEnd? formal =
+                decl.children?.whereType<FormalParametersEnd>().firstOrNull;
+            if (formal != null) {
+              if (formal.beginToken.offset + 2 < formal.endToken.offset) {
+                helper.replacements.add(new _Replacement(
+                    formal.beginToken.offset, formal.endToken.offset));
+                what = "top level formals";
+                success = await _tryReplaceAndCompile(
+                    helper, uri, initialComponent, what);
+                if (helper.shouldQuit) return;
               }
             }
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteBlocksHelper(
+      ClassOrMixinOrExtensionBodyEnd body,
+      _CompilationHelperClass helper,
+      final Uri uri,
+      Component initialComponent) async {
+    for (ParserAstNode child in body.children!) {
+      bool shouldCompile = false;
+      String what = "";
+      if (child is MemberEnd) {
+        if (child.isClassConstructor()) {
+          ClassConstructorEnd memberDecl = child.getClassConstructor();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "class constructor";
+          shouldCompile = true;
+        } else if (child.isClassFields()) {
+          ClassFieldsEnd memberDecl = child.getClassFields();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "class fields";
+          shouldCompile = true;
+        } else if (child.isClassMethod()) {
+          ClassMethodEnd memberDecl = child.getClassMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "class method";
+          shouldCompile = true;
+        } else if (child.isClassFactoryMethod()) {
+          ClassFactoryMethodEnd memberDecl = child.getClassFactoryMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "class factory method";
+          shouldCompile = true;
+        } else if (child.isMixinConstructor()) {
+          MixinConstructorEnd memberDecl = child.getMixinConstructor();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "mixin constructor";
+          shouldCompile = true;
+        } else if (child.isMixinFields()) {
+          MixinFieldsEnd memberDecl = child.getMixinFields();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "mixin fields";
+          shouldCompile = true;
+        } else if (child.isMixinMethod()) {
+          MixinMethodEnd memberDecl = child.getMixinMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "mixin method";
+          shouldCompile = true;
+        } else if (child.isMixinFactoryMethod()) {
+          MixinFactoryMethodEnd memberDecl = child.getMixinFactoryMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "mixin factory method";
+          shouldCompile = true;
+        } else if (child.isExtensionTypeConstructor()) {
+          var memberDecl = child.getExtensionTypeConstructor();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension type constructor";
+          shouldCompile = true;
+        } else if (child.isExtensionTypeFields()) {
+          ExtensionTypeFieldsEnd memberDecl = child.getExtensionTypeFields();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension type fields";
+          shouldCompile = true;
+        } else if (child.isExtensionTypeMethod()) {
+          ExtensionTypeMethodEnd memberDecl = child.getExtensionTypeMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension type method";
+          shouldCompile = true;
+        } else if (child.isExtensionTypeFactoryMethod()) {
+          ExtensionTypeFactoryMethodEnd memberDecl =
+              child.getExtensionTypeFactoryMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension type factory method";
+          shouldCompile = true;
+        } else if (child.isExtensionConstructor()) {
+          var memberDecl = child.getExtensionConstructor();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension constructor";
+          shouldCompile = true;
+        } else if (child.isExtensionFields()) {
+          ExtensionFieldsEnd memberDecl = child.getExtensionFields();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension fields";
+          shouldCompile = true;
+        } else if (child.isExtensionMethod()) {
+          ExtensionMethodEnd memberDecl = child.getExtensionMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension method";
+          shouldCompile = true;
+        } else if (child.isExtensionFactoryMethod()) {
+          ExtensionFactoryMethodEnd memberDecl =
+              child.getExtensionFactoryMethod();
+          helper.replacements.add(new _Replacement(
+              memberDecl.beginToken.offset - 1,
+              memberDecl.endToken.offset + 1));
+          what = "extension factory method";
+          shouldCompile = true;
+        } else {
+          // throw "$child --- ${child.children}";
+          continue;
+        }
+      } else if (child.isMetadata()) {
+        MetadataStarEnd decl = child.asMetadata();
+        List<MetadataEnd> metadata = decl.getMetadataEntries();
+        if (metadata.isNotEmpty) {
+          helper.replacements.add(new _Replacement(
+              metadata.first.beginToken.offset - 1,
+              metadata.last.endToken.charEnd));
+          shouldCompile = true;
+        }
+        what = "metadata";
+      }
+      if (shouldCompile) {
+        bool success =
+            await _tryReplaceAndCompile(helper, uri, initialComponent, what);
+        if (helper.shouldQuit) return;
+        if (!success) {
+          BlockFunctionBodyEnd? decl;
+          if (child is MemberEnd) {
+            if (child.isClassMethod()) {
+              decl = child.getClassMethod().getBlockFunctionBody();
+            } else if (child.isClassConstructor()) {
+              decl = child.getClassConstructor().getBlockFunctionBody();
+            }
+            // TODO(jensj): The other ones too maybe?
+          }
+          if (decl != null &&
+              decl.beginToken.offset + 2 < decl.endToken.offset) {
+            helper.replacements.add(
+                new _Replacement(decl.beginToken.offset, decl.endToken.offset));
+            what = "class member content";
+            await _tryReplaceAndCompile(helper, uri, initialComponent, what);
+            if (helper.shouldQuit) return;
           }
         }
       }
@@ -1601,10 +1686,11 @@ worlds:
     }
     Uint8List candidate = _replaceRange(data.replacements, data.originalData);
 
-    if (!_parsesWithoutError(candidate, _isUriNnbd(uri))) {
+    if (!_parsesWithoutError(candidate) &&
+        _parsesWithoutError(data.originalData)) {
       print("WARNING: Parser error after stuff at ${StackTrace.current}");
-      _parsesWithoutError(candidate, _isUriNnbd(uri));
-      _parsesWithoutError(data.originalData, _isUriNnbd(uri));
+      _parsesWithoutError(candidate);
+      _parsesWithoutError(data.originalData);
     }
 
     _fs.data[uri] = candidate;
@@ -1649,8 +1735,7 @@ worlds:
     Uint8List candidate = builder.takeBytes();
     if (candidate.length == data.length) return;
 
-    if (uri.path.endsWith(".dart") &&
-        !_parsesWithoutError(candidate, _isUriNnbd(uri))) {
+    if (uri.path.endsWith(".dart") && !_parsesWithoutError(candidate)) {
       print("WARNING: Parser error after stuff at ${StackTrace.current}");
     }
 
@@ -1756,9 +1841,8 @@ worlds:
   }
 
   bool _knownByCompiler(Uri uri) {
-    LibraryBuilder? libraryBuilder = _latestCrashingIncrementalCompiler!
-        .kernelTargetForTesting!.loader
-        .lookupLibraryBuilder(_getImportUri(uri));
+    LibraryBuilder? libraryBuilder = _latestKernelTarget!.loader
+        .lookupLoadedLibraryBuilder(_getImportUri(uri));
     if (libraryBuilder != null) {
       return true;
     }
@@ -1766,41 +1850,57 @@ worlds:
     return false;
   }
 
-  ScannerConfiguration _getScannerConfiguration(Uri uri) {
+  ScannerConfiguration _getScannerConfiguration(Version languageVersion) {
     return new ScannerConfiguration(
-        enableExtensionMethods: true,
-        enableNonNullable: _isUriNnbd(uri, crashOnFail: false),
-        enableTripleShift: false);
+        enableTripleShift:
+            languageVersion >= ExperimentalFlag.tripleShift.enabledVersion);
   }
 
-  bool _isUriNnbd(Uri uri, {bool crashOnFail = true}) {
-    Uri asImportUri = _getImportUri(uri);
-    LibraryBuilder? libraryBuilder = _latestCrashingIncrementalCompiler!
-        .kernelTargetForTesting!.loader
-        .lookupLibraryBuilder(asImportUri);
-    if (libraryBuilder != null) {
-      return libraryBuilder.isNonNullableByDefault;
+  Version _getLanguageVersion(Uri uri, {bool crashOnFail = true}) {
+    if (_latestCrashingKnownInitialBuilders == null) {
+      // It crashed on the first compile so we have no builders.
+      // We'll just return something.
+      return ExperimentalFlag.nonNullable.enabledVersion;
     }
-    print("Couldn't lookup $uri");
-    for (LibraryBuilder libraryBuilder in _latestCrashingIncrementalCompiler!
-        .kernelTargetForTesting!.loader.libraryBuilders) {
+    Uri asImportUri = _getImportUri(uri);
+    LibraryBuilder? libraryBuilder =
+        _latestCrashingKnownInitialBuilders![asImportUri];
+    if (libraryBuilder != null) {
+      return libraryBuilder.languageVersion;
+    }
+    print("Couldn't lookup $uri ($asImportUri)");
+    for (LibraryBuilder libraryBuilder
+        in _latestCrashingKnownInitialBuilders!.values) {
       if (libraryBuilder.importUri == uri) {
         print("Found $uri as ${libraryBuilder.importUri} (!= ${asImportUri})");
-        return libraryBuilder.isNonNullableByDefault;
+        return libraryBuilder.languageVersion;
+      }
+      if (libraryBuilder.fileUri == uri) {
+        print("Found $uri as file uri ${libraryBuilder.fileUri}");
+        return libraryBuilder.languageVersion;
       }
       // Check parts too.
       for (LibraryPart part in libraryBuilder.library.parts) {
         Uri thisPartUri = libraryBuilder.importUri.resolve(part.partUri);
         if (thisPartUri == uri || thisPartUri == asImportUri) {
           print("Found $uri as part of ${libraryBuilder.importUri}");
-          return libraryBuilder.isNonNullableByDefault;
+          return libraryBuilder.languageVersion;
+        }
+        thisPartUri = libraryBuilder.fileUri.resolve(part.partUri);
+        if (thisPartUri == uri || thisPartUri == asImportUri) {
+          print("Found $uri as part of ${libraryBuilder.importUri}");
+          return libraryBuilder.languageVersion;
         }
       }
     }
     if (crashOnFail) {
-      throw "Couldn't lookup $uri at all!";
+      throw "Couldn't lookup $uri ($asImportUri) at all!"
+          "\n\n"
+          "$_latestCrashingKnownInitialBuilders"
+          "\n\n"
+          "";
     } else {
-      return false;
+      return defaultLanguageVersion;
     }
   }
 
@@ -1808,16 +1908,23 @@ worlds:
     IncrementalCompiler incrementalCompiler;
     _gotWantedError = false;
     bool didNotGetWantedErrorAfterFirstCompile = true;
+    CompilerContext context = _setupCompilerContext();
     if (_settings.noPlatform) {
-      incrementalCompiler = new IncrementalCompiler(_setupCompilerContext());
+      incrementalCompiler = new IncrementalCompiler(context);
+    } else if (_settings.initialOnlyOutline) {
+      incrementalCompiler = new IncrementalCompiler(context, null, true);
     } else {
       incrementalCompiler = new IncrementalCompiler.fromComponent(
-          _setupCompilerContext(), initialComponent);
+          context, initialComponent, true);
     }
-    incrementalCompiler.invalidate(_mainUri);
+    for (Uri entry in _entryUris) {
+      incrementalCompiler.invalidate(entry);
+    }
+    Map<Uri, LibraryBuilder>? knownInitialBuilders;
     try {
       IncrementalCompilerResult incrementalCompilerResult =
           await incrementalCompiler.computeDelta();
+      _latestKernelTarget = incrementalCompiler.kernelTargetForTesting!;
       _latestComponent = incrementalCompilerResult.component;
       if (_settings.serialize) {
         // We're asked to serialize, probably because it crashes in
@@ -1827,12 +1934,27 @@ worlds:
         printer.writeComponentFile(_latestComponent!);
       }
 
+      knownInitialBuilders = <Uri, LibraryBuilder>{
+        for (LibraryBuilder v
+            in _latestKernelTarget!.loader.loadedLibraryBuilders)
+          v.importUri: v
+      };
+
       if (_gotWantedError) didNotGetWantedErrorAfterFirstCompile = false;
 
-      for (Uri uri in _settings.invalidate) {
-        incrementalCompiler.invalidate(uri);
+      if (_settings.loadFromComponentBeforeInvalidate) {
+        incrementalCompiler =
+            new IncrementalCompiler.fromComponent(context, _latestComponent!);
+      }
+
+      if (_settings.invalidateAllAtOnce && _settings.invalidate.isNotEmpty) {
+        for (Uri uri in _settings.invalidate) {
+          incrementalCompiler.invalidate(uri);
+        }
+
         IncrementalCompilerResult deltaResult =
             await incrementalCompiler.computeDelta();
+        _latestKernelTarget = incrementalCompiler.kernelTargetForTesting!;
         Component delta = deltaResult.component;
         if (_settings.serialize) {
           // We're asked to serialize, probably because it crashes in
@@ -1841,6 +1963,22 @@ worlds:
           BinaryPrinter printer = new BinaryPrinter(sink);
           printer.writeComponentFile(delta);
           sink.builder.takeBytes();
+        }
+      } else {
+        for (Uri uri in _settings.invalidate) {
+          incrementalCompiler.invalidate(uri);
+          IncrementalCompilerResult deltaResult =
+              await incrementalCompiler.computeDelta();
+          _latestKernelTarget = incrementalCompiler.kernelTargetForTesting!;
+          Component delta = deltaResult.component;
+          if (_settings.serialize) {
+            // We're asked to serialize, probably because it crashes in
+            // serialization.
+            ByteSink sink = new ByteSink();
+            BinaryPrinter printer = new BinaryPrinter(sink);
+            printer.writeComponentFile(delta);
+            sink.builder.takeBytes();
+          }
         }
       }
       if (_settings.lookForErrorErrorOnReload != null &&
@@ -1869,15 +2007,16 @@ worlds:
           }
         }
       }
-      // ignore: unnecessary_null_comparison
-      if (foundLine == null) throw "Unexpected crash without stacktrace: $e";
+
       if (_expectedCrashLine == null) {
         print("Got '$foundLine'");
         _expectedCrashLine = foundLine;
         _latestCrashingIncrementalCompiler = incrementalCompiler;
+        _latestCrashingKnownInitialBuilders = knownInitialBuilders;
         return true;
       } else if (foundLine == _expectedCrashLine) {
         _latestCrashingIncrementalCompiler = incrementalCompiler;
+        _latestCrashingKnownInitialBuilders = knownInitialBuilders;
         return true;
       } else {
         if (_settings.autoUncoverAllCrashes &&
@@ -1903,6 +2042,7 @@ worlds:
             if (answer == "yes" || answer == "y") {
               _expectedCrashLine = foundLine;
               _latestCrashingIncrementalCompiler = incrementalCompiler;
+              _latestCrashingKnownInitialBuilders = knownInitialBuilders;
               return true;
             } else if (answer == "no" || answer == "n") {
               break;
@@ -1935,7 +2075,6 @@ worlds:
     }
 
     TargetFlags targetFlags = new TargetFlags(
-        soundNullSafety: false,
         trackWidgetCreation: _settings.widgetTransformation);
     Target target;
     switch (_settings.targetString) {
@@ -1958,6 +2097,7 @@ worlds:
     options.fileSystem = _fs;
     options.sdkRoot = null;
     options.sdkSummary = _settings.platformUri;
+    options.packagesFileUri = _settings.packagesFileUri;
     options.omitPlatform = false;
     options.onDiagnostic = (DiagnosticMessage message) {
       // don't care.
@@ -1973,22 +2113,15 @@ worlds:
     }
 
     CompilerContext compilerContext = new CompilerContext(
-        new ProcessedOptions(options: options, inputs: [_mainUri]));
+        new ProcessedOptions(options: options, inputs: _entryUris));
     return compilerContext;
   }
 
-  String _getFileAsStringContent(Uint8List rawBytes, bool nnbd) {
+  String _getFileAsStringContent(Uint8List rawBytes) {
     List<int> lineStarts = [];
 
-    Token firstToken = parser_suite.scanRawBytes(
-        rawBytes,
-        nnbd ? _scannerConfiguration : _scannerConfigurationNonNNBD,
-        lineStarts);
-
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      throw "Got null token from scanner";
-    }
+    Token firstToken =
+        parser_suite.scanRawBytes(rawBytes, _scannerConfiguration, lineStarts);
 
     ParserTestListener parserTestListener = new ParserTestListener(false);
     Parser parser = new Parser(parserTestListener,
@@ -1999,14 +2132,9 @@ worlds:
     return parsedString;
   }
 
-  bool _parsesWithoutError(Uint8List rawBytes, bool nnbd) {
-    Token firstToken = parser_suite.scanRawBytes(rawBytes,
-        nnbd ? _scannerConfiguration : _scannerConfigurationNonNNBD, null);
-
-    // ignore: unnecessary_null_comparison
-    if (firstToken == null) {
-      return false;
-    }
+  bool _parsesWithoutError(Uint8List rawBytes) {
+    Token firstToken =
+        parser_suite.scanRawBytes(rawBytes, _scannerConfiguration, null);
 
     ParserErrorListener parserErrorListener = new ParserErrorListener();
     Parser parser = new Parser(parserErrorListener,
@@ -2015,15 +2143,8 @@ worlds:
     return !parserErrorListener.gotError;
   }
 
-  ScannerConfiguration _scannerConfiguration = new ScannerConfiguration(
-      enableTripleShift: true,
-      enableExtensionMethods: true,
-      enableNonNullable: true);
-
-  ScannerConfiguration _scannerConfigurationNonNNBD = new ScannerConfiguration(
-      enableTripleShift: true,
-      enableExtensionMethods: true,
-      enableNonNullable: false);
+  ScannerConfiguration _scannerConfiguration =
+      new ScannerConfiguration(enableTripleShift: true);
 
   List<int>? _dataCache;
   String? _dataCacheString;
@@ -2058,7 +2179,7 @@ worlds:
       builder.writeCharCode(_dataCacheString!.codeUnitAt(j));
     }
 
-    Uint8List candidate = utf8.encode(builder.toString()) as Uint8List;
+    Uint8List candidate = utf8.encode(builder.toString());
     return candidate;
   }
 }
@@ -2117,7 +2238,7 @@ class _FakeFileSystem extends FileSystem {
       if (tmp[i + 1] == null) {
         data[key] = null;
       } else if (tmp[i + 1] is String) {
-        data[key] = utf8.encode(tmp[i + 1]) as Uint8List;
+        data[key] = utf8.encode(tmp[i + 1]);
       } else {
         data[key] = Uint8List.fromList(new List<int>.from(tmp[i + 1]));
       }
@@ -2126,7 +2247,7 @@ class _FakeFileSystem extends FileSystem {
 
   Map<String, dynamic> toJson() {
     List tmp = [];
-    for (var entry in data.entries) {
+    for (MapEntry<Uri?, Uint8List?> entry in data.entries) {
       if (entry.value == null) continue;
       tmp.add(entry.key == null ? null : entry.key.toString());
       dynamic out = entry.value;
@@ -2179,7 +2300,7 @@ class _FakeFileSystemEntity extends FileSystemEntity {
   Future<bool> existsAsyncIfPossible() => exists();
 
   @override
-  Future<List<int>> readAsBytes() {
+  Future<Uint8List> readAsBytes() {
     _ensureCachedIfOk();
     Uint8List? data = fs.data[uri];
     if (data == null) throw new FileSystemException(uri, "File doesn't exist.");
@@ -2187,7 +2308,7 @@ class _FakeFileSystemEntity extends FileSystemEntity {
   }
 
   @override
-  Future<List<int>> readAsBytesAsyncIfPossible() => readAsBytes();
+  Future<Uint8List> readAsBytesAsyncIfPossible() => readAsBytes();
 
   @override
   Future<String> readAsString() {

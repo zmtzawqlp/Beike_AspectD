@@ -16,6 +16,7 @@
 library front_end.src.vm.reload;
 
 import 'dart:async';
+
 import 'package:json_rpc_2/json_rpc_2.dart' as json_rpc;
 import 'package:web_socket_channel/io.dart';
 
@@ -40,14 +41,24 @@ class RemoteVm {
   /// The incoming message stream from the VM.
   final Map<String, StreamController> _eventStreams = {};
 
-  Future<Stream> getEventStream(String streamId) async {
+  Stream getEventStream(String streamId) {
     final existing = _eventStreams[streamId];
     if (existing != null) return existing.stream;
 
-    final controller = _eventStreams[streamId] = StreamController.broadcast();
-    await rpc.sendRequest('streamListen', {'streamId': streamId});
+    late final StreamController controller;
+    controller = StreamController.broadcast(onListen: () {
+      rpc.sendRequest('streamListen', {'streamId': streamId}).catchError(
+          (error, stack) {
+        controller.addError(error, stack);
+      });
+    }, onCancel: () {
+      rpc.sendRequest('streamCancel', {'streamId': streamId}).catchError(
+          (error, stack) {
+        controller.addError(error, stack);
+      });
+    });
 
-    return controller.stream;
+    return (_eventStreams[streamId] = controller).stream;
   }
 
   RemoteVm([this.port = 8181]);
@@ -77,7 +88,7 @@ class RemoteVm {
   /// Retrieves the ID of the main isolate using the service protocol.
   Future<String> _computeMainId() async {
     final isolateStartEventFuture =
-        (await getEventStream('Isolate')).firstWhere((event) {
+        getEventStream('Isolate').firstWhere((event) {
       return event['kind'] == 'IsolateStart';
     });
 
@@ -117,15 +128,15 @@ class RemoteVm {
   }
 
   /// Close any connections used to communicate with the VM.
-  Future disconnect() async {
-    if (_rpc == null) return null;
+  Future disconnect() {
+    if (_rpc == null) return new Future.value();
     this._mainId = null;
     if (!_rpc!.isClosed) {
       var future = _rpc!.close();
       _rpc = null;
       return future;
     }
-    return null;
+    return new Future.value();
   }
 }
 

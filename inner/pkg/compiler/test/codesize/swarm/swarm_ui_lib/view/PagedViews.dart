@@ -9,9 +9,9 @@ class PageState {
   final ObservableValue<int> target;
   final ObservableValue<int> length;
   PageState()
-      : current = ObservableValue<int>(0),
-        target = ObservableValue<int>(0),
-        length = ObservableValue<int>(1);
+    : current = ObservableValue<int>(0),
+      target = ObservableValue<int>(0),
+      length = ObservableValue<int>(1);
 }
 
 /// Simplifies using a PageNumberView and PagedColumnView together. */
@@ -19,9 +19,7 @@ class PagedContentView extends CompositeView {
   final View content;
   final PageState pages;
 
-  PagedContentView(this.content)
-      : pages = PageState(),
-        super('paged-content') {
+  PagedContentView(this.content) : pages = PageState(), super('paged-content') {
     addChild(PagedColumnView(pages, content));
     addChild(PageNumberView(pages));
   }
@@ -112,10 +110,16 @@ class PagedColumnView extends View {
     // the scroller configured the default way.
 
     // TODO(jacobr): use named arguments when available.
-    scroller = Scroller(_container, false /* verticalScrollEnabled */,
-        true /* horizontalScrollEnabled */, true /* momentumEnabled */, () {
-      return Size(_getViewLength(_container), 1);
-    }, Scroller.FAST_SNAP_DECELERATION_FACTOR);
+    scroller = Scroller(
+      _container,
+      false /* verticalScrollEnabled */,
+      true /* horizontalScrollEnabled */,
+      true /* momentumEnabled */,
+      () {
+        return Size(_getViewLength(_container), 1);
+      },
+      Scroller.FAST_SNAP_DECELERATION_FACTOR,
+    );
 
     scroller.onDecelStart.listen(_snapToPage);
     scroller.onScrollerDragEnd.listen(_snapToPage);
@@ -190,8 +194,8 @@ class PagedColumnView extends View {
     int pageLength = 1;
     scheduleMicrotask(() {
       if (_container.scrollWidth > _container.offset.width) {
-        pageLength =
-            (_container.scrollWidth / _computePageSize(_container)).ceil();
+        pageLength = (_container.scrollWidth / _computePageSize(_container))
+            .ceil();
       }
       pageLength = Math.max(pageLength, 1);
 
@@ -266,7 +270,9 @@ class PagedColumnView extends View {
     // Figure out how many columns we're rendering.
     // The algorithm ensures we're bigger than the specified min size.
     int perPage = Math.max(
-        1, (_viewportSize + _columnGap) ~/ (_columnWidth + _columnGap));
+      1,
+      (_viewportSize + _columnGap) ~/ (_columnWidth + _columnGap),
+    );
 
     // Divide up the viewport between the columns.
     int columnSize = (_viewportSize - (perPage - 1) * _columnGap) ~/ perPage;

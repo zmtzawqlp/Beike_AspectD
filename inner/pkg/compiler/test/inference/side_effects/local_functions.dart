@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 var field;
 
 /*member: anonymousClosureUnused:SideEffects(reads nothing; writes nothing)*/
@@ -20,13 +18,14 @@ anonymousClosureCalled() {
 
 /*member: localFunctionUnused:SideEffects(reads nothing; writes nothing)*/
 localFunctionUnused() {
-  // ignore: UNUSED_ELEMENT
-  /*SideEffects(reads static; writes nothing)*/ localFunction() => field;
+  /*SideEffects(reads static; writes nothing)*/
+  localFunction() => field; // ignore: UNUSED_ELEMENT
 }
 
 /*member: localFunctionCalled:SideEffects(reads static; writes nothing)*/
 localFunctionCalled() {
-  /*SideEffects(reads static; writes nothing)*/ localFunction() => field;
+  /*SideEffects(reads static; writes nothing)*/
+  localFunction() => field;
   return localFunction();
 }
 

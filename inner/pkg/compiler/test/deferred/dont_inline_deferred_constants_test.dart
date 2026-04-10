@@ -5,7 +5,7 @@
 // Test that the additional runtime type support is output to the right
 // Files when using deferred loading.
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'constant_emission_test_helper.dart';
 
 void main() {
@@ -34,14 +34,11 @@ void main() {
       // Test that the non-deferred constant is inlined.
       'ConstructedConstant(C(p=IntConstant(5)))': {'main'},
     };
-    await run(
-        MEMORY_SOURCE_FILES,
-        const [
-          OutputUnitDescriptor('memory:lib1.dart', 'foo', 'lib1'),
-          OutputUnitDescriptor('memory:lib2.dart', 'foo', 'lib2'),
-          OutputUnitDescriptor('memory:main.dart', 'foo', 'lib12')
-        ],
-        expectedOutputUnits);
+    await run(MEMORY_SOURCE_FILES, const [
+      OutputUnitDescriptor('memory:lib1.dart', 'foo', 'lib1'),
+      OutputUnitDescriptor('memory:lib2.dart', 'foo', 'lib2'),
+      OutputUnitDescriptor('memory:main.dart', 'foo', 'lib12'),
+    ], expectedOutputUnits);
   }
 
   asyncTest(() async {
@@ -115,5 +112,5 @@ foo() {
   print("lib2");
   main.foo();
 }
-"""
+""",
 };

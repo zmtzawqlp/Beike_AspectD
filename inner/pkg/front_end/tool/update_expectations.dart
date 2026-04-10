@@ -2,12 +2,11 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'fasta.dart' as fasta;
+import 'cfe.dart' as cfe;
 
 const List<String> standardSuites = <String>[
-  'weak',
-  'outline',
   'strong',
+  'outline',
   'modular',
   'textual_outline',
 ];
@@ -20,48 +19,67 @@ const List<String> specialSuites = <String>[
 
 Future<void> runStandardSuites([List<String>? args]) async {
   // Assert that 'strong' is the first suite - we use the assumption below.
-  assert(standardSuites.first == 'weak', "Suite 'weak' most be the first.");
-  bool first = true;
+  assert(standardSuites.first == 'strong', "Suite 'strong' most be the first.");
+
+  List<String> testingArguments = [];
   for (String suite in standardSuites) {
     List<String> tests = args == null
         ? [suite]
         : args.map((String arg) => '${suite}/$arg').toList();
-    await fasta.main([
-      'testing',
-      ...tests,
-      // Only update comments in the first suite. Note that this only works
-      // if the first compilation is a full compilation, i.e. not outline,
-      // because comments are generated during body building and inference.
-      if (first) '-DupdateComments=true',
-      '-DupdateExpectations=true'
-    ]);
-    first = false;
+    testingArguments.addAll(tests);
   }
+  await cfe.main([
+    'testing',
+    ...testingArguments,
+    // Only update comments in the first suite. Note that this only works
+    // if the first compilation is a full compilation, i.e. not outline,
+    // because comments are generated during body building and inference.
+    '-DupdateComments=true',
+    '-DupdateExpectations=true',
+  ]);
+}
+
+Future<void> runAllSpecialSuites([List<String>? args]) async {
+  List<String> testingArguments = [];
+  for (String suite in specialSuites) {
+    List<String> tests = args == null
+        ? [suite]
+        : args.map((String arg) => '${suite}/$arg').toList();
+    testingArguments.addAll(tests);
+  }
+  await cfe.main([
+    'testing',
+    ...testingArguments,
+    '-DupdateExpectations=true',
+  ]);
 }
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     await runStandardSuites();
-    for (String suite in specialSuites) {
-      await fasta.main(['testing', suite, '-DupdateExpectations=true']);
-    }
+    await runAllSpecialSuites();
   } else {
     List<String> standardTests = <String>[];
+    List<String> wildcardSpecialTests = <String>[];
     for (String arg in args) {
       bool isSpecial = false;
       for (String suite in specialSuites) {
         if (arg.startsWith('$suite/')) {
-          await fasta.main(['testing', arg, '-DupdateExpectations=true']);
+          await cfe.main(['testing', arg, '-DupdateExpectations=true']);
           isSpecial = true;
           break;
         }
       }
       if (!isSpecial) {
+        wildcardSpecialTests.add(arg);
         standardTests.add(arg);
       }
     }
+    if (wildcardSpecialTests.isNotEmpty) {
+      await runAllSpecialSuites(wildcardSpecialTests);
+    }
     if (standardTests.isNotEmpty) {
-      await runStandardSuites(args);
+      await runStandardSuites(standardTests);
     }
   }
 }

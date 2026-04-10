@@ -2,10 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library js_backend;
+library;
 
 export 'backend.dart';
-export 'checked_mode_helpers.dart';
 export 'constant_emitter.dart';
 export 'custom_elements_analysis.dart';
 export 'namer.dart';

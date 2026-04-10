@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library js_backend.backend.impact_transformer;
+library;
 
 import '../common/elements.dart';
 import '../common/codegen.dart' show CodegenImpact;
@@ -18,7 +18,6 @@ import '../universe/feature.dart';
 import '../universe/selector.dart';
 import '../universe/use.dart';
 import '../universe/world_impact.dart' show TransformedWorldImpact, WorldImpact;
-import '../util/util.dart';
 import 'backend_impact.dart';
 import 'backend_usage.dart';
 import 'interceptor_data.dart';
@@ -36,27 +35,27 @@ class CodegenImpactTransformer {
   final RuntimeTypesNeed _rtiNeed;
   final NativeCodegenEnqueuer _nativeCodegenEnqueuer;
   final Namer _namer;
-  final OneShotInterceptorData _oneShotInterceptorData;
+  final OneShotInterceptorData oneShotInterceptorData;
   final RuntimeTypesChecksBuilder _rtiChecksBuilder;
   final NativeEmitter _nativeEmitter;
 
   CodegenImpactTransformer(
-      this._closedWorld,
-      this._elementEnvironment,
-      this._impacts,
-      this._nativeData,
-      this._backendUsage,
-      this._rtiNeed,
-      this._nativeCodegenEnqueuer,
-      this._namer,
-      this._oneShotInterceptorData,
-      this._rtiChecksBuilder,
-      this._nativeEmitter);
+    this._closedWorld,
+    this._elementEnvironment,
+    this._impacts,
+    this._nativeData,
+    this._backendUsage,
+    this._rtiNeed,
+    this._nativeCodegenEnqueuer,
+    this._namer,
+    this.oneShotInterceptorData,
+    this._rtiChecksBuilder,
+    this._nativeEmitter,
+  );
 
   DartTypes get _dartTypes => _closedWorld.dartTypes;
 
   void onIsCheckForCodegen(DartType type, TransformedWorldImpact transformed) {
-    assert((type as dynamic) != null);
     if (_dartTypes.isTopType(type)) return;
 
     _impacts.typeCheck.registerImpact(transformed, _elementEnvironment);
@@ -80,83 +79,114 @@ class CodegenImpactTransformer {
 
     for (TypeUse typeUse in impact.typeUses) {
       DartType type = typeUse.type;
-      if (typeUse.kind == TypeUseKind.IS_CHECK) {
+      if (typeUse.kind == TypeUseKind.isCheck) {
         onIsCheckForCodegen(type, transformed);
       }
     }
 
     for (ConstantUse constantUse in impact.constantUses) {
       switch (constantUse.value.kind) {
-        case ConstantValueKind.SET:
-        case ConstantValueKind.MAP:
-        case ConstantValueKind.CONSTRUCTED:
-        case ConstantValueKind.LIST:
-          transformed.registerStaticUse(StaticUse.staticInvoke(
-              _closedWorld.commonElements.findType, CallStructure.ONE_ARG));
+        case ConstantValueKind.map:
+        case ConstantValueKind.set:
+        case ConstantValueKind.constructed:
+        case ConstantValueKind.list:
+          transformed.registerStaticUse(
+            StaticUse.staticInvoke(
+              _closedWorld.commonElements.findType,
+              CallStructure.oneArg,
+            ),
+          );
           break;
-        case ConstantValueKind.INSTANTIATION:
-          transformed.registerStaticUse(StaticUse.staticInvoke(
-              _closedWorld.commonElements.findType, CallStructure.ONE_ARG));
+        case ConstantValueKind.instantiation:
+          transformed.registerStaticUse(
+            StaticUse.staticInvoke(
+              _closedWorld.commonElements.findType,
+              CallStructure.oneArg,
+            ),
+          );
           final instantiation = constantUse.value as InstantiationConstantValue;
-          _rtiChecksBuilder.registerGenericInstantiation(GenericInstantiation(
-              instantiation.function.type, instantiation.typeArguments));
+          _rtiChecksBuilder.registerGenericInstantiation(
+            GenericInstantiation(
+              instantiation.function.type,
+              instantiation.typeArguments,
+            ),
+          );
           break;
-        case ConstantValueKind.DEFERRED_GLOBAL:
+        case ConstantValueKind.deferredGlobal:
           _closedWorld.outputUnitData.registerConstantDeferredUse(
-              constantUse.value as DeferredGlobalConstantValue);
+            constantUse.value as DeferredGlobalConstantValue,
+          );
           break;
-        default:
+        case ConstantValueKind.bool:
+        case ConstantValueKind.double:
+        case ConstantValueKind.dummy:
+        case ConstantValueKind.function:
+        case ConstantValueKind.int:
+        case ConstantValueKind.interceptor:
+        case ConstantValueKind.javaScriptObject:
+        case ConstantValueKind.jsName:
+        case ConstantValueKind.lateSentinel:
+        case ConstantValueKind.null_:
+        case ConstantValueKind.record:
+        case ConstantValueKind.string:
+        case ConstantValueKind.type:
+        case ConstantValueKind.unreachable:
           break;
       }
     }
 
-    for (Pair<DartType, DartType> check
-        in impact.typeVariableBoundsSubtypeChecks) {
+    for ((DartType, DartType) check in impact.typeVariableBoundsSubtypeChecks) {
       _rtiChecksBuilder.registerTypeVariableBoundsSubtypeCheck(
-          check.a, check.b);
+        check.$1,
+        check.$2,
+      );
     }
 
     for (StaticUse staticUse in impact.staticUses) {
       switch (staticUse.kind) {
-        case StaticUseKind.CALL_METHOD:
+        case StaticUseKind.callMethod:
           final callMethod = staticUse.element as FunctionEntity;
           if (_rtiNeed.methodNeedsSignature(callMethod)) {
-            _impacts.computeSignature
-                .registerImpact(transformed, _elementEnvironment);
+            _impacts.computeSignature.registerImpact(
+              transformed,
+              _elementEnvironment,
+            );
           }
           break;
-        case StaticUseKind.STATIC_TEAR_OFF:
-        case StaticUseKind.INSTANCE_FIELD_GET:
-        case StaticUseKind.INSTANCE_FIELD_SET:
-        case StaticUseKind.SUPER_INVOKE:
-        case StaticUseKind.STATIC_INVOKE:
-        case StaticUseKind.SUPER_FIELD_SET:
-        case StaticUseKind.SUPER_SETTER_SET:
-        case StaticUseKind.STATIC_SET:
-        case StaticUseKind.SUPER_TEAR_OFF:
-        case StaticUseKind.SUPER_GET:
-        case StaticUseKind.STATIC_GET:
-        case StaticUseKind.FIELD_INIT:
-        case StaticUseKind.FIELD_CONSTANT_INIT:
-        case StaticUseKind.CONSTRUCTOR_INVOKE:
-        case StaticUseKind.CONST_CONSTRUCTOR_INVOKE:
-        case StaticUseKind.DIRECT_INVOKE:
-        case StaticUseKind.INLINING:
-        case StaticUseKind.CLOSURE:
-        case StaticUseKind.CLOSURE_CALL:
-        case StaticUseKind.WEAK_STATIC_TEAR_OFF:
+        case StaticUseKind.staticTearOff:
+        case StaticUseKind.instanceFieldGet:
+        case StaticUseKind.instanceFieldSet:
+        case StaticUseKind.superInvoke:
+        case StaticUseKind.staticInvoke:
+        case StaticUseKind.superFieldSet:
+        case StaticUseKind.superSetterSet:
+        case StaticUseKind.staticSet:
+        case StaticUseKind.superTearOff:
+        case StaticUseKind.superGet:
+        case StaticUseKind.staticGet:
+        case StaticUseKind.fieldInit:
+        case StaticUseKind.fieldConstantInit:
+        case StaticUseKind.constructorInvoke:
+        case StaticUseKind.constConstructorInvoke:
+        case StaticUseKind.directInvoke:
+        case StaticUseKind.inlining:
+        case StaticUseKind.closure:
+        case StaticUseKind.closureCall:
+        case StaticUseKind.weakStaticTearOff:
           break;
       }
     }
 
     for (Set<ClassEntity> classes in impact.specializedGetInterceptors) {
-      _oneShotInterceptorData.registerSpecializedGetInterceptor(classes);
+      oneShotInterceptorData.registerSpecializedGetInterceptor(classes);
     }
 
     if (impact.usesInterceptor) {
       if (_nativeCodegenEnqueuer.hasInstantiatedNativeClasses) {
-        _impacts.interceptorUse
-            .registerImpact(transformed, _elementEnvironment);
+        _impacts.interceptorUse.registerImpact(
+          transformed,
+          _elementEnvironment,
+        );
         // TODO(johnniwinther): Avoid these workarounds.
         _backendUsage.needToInitializeIsolateAffinityTag = true;
         _backendUsage.needToInitializeDispatchProperty = true;
@@ -165,16 +195,23 @@ class CodegenImpactTransformer {
 
     for (AsyncMarker asyncMarker in impact.asyncMarkers) {
       switch (asyncMarker) {
-        case AsyncMarker.ASYNC:
+        case AsyncMarker.async:
           _impacts.asyncBody.registerImpact(transformed, _elementEnvironment);
           break;
-        case AsyncMarker.SYNC_STAR:
-          _impacts.syncStarBody
-              .registerImpact(transformed, _elementEnvironment);
+        case AsyncMarker.syncStar:
+          _impacts.syncStarBody.registerImpact(
+            transformed,
+            _elementEnvironment,
+          );
           break;
-        case AsyncMarker.ASYNC_STAR:
-          _impacts.asyncStarBody
-              .registerImpact(transformed, _elementEnvironment);
+        case AsyncMarker.asyncStar:
+          _impacts.asyncStarBody.registerImpact(
+            transformed,
+            _elementEnvironment,
+          );
+          break;
+        case AsyncMarker.sync:
+          // No implicit impacts.
           break;
       }
     }
@@ -185,7 +222,10 @@ class CodegenImpactTransformer {
 
     for (NativeBehavior behavior in impact.nativeBehaviors) {
       _nativeCodegenEnqueuer.registerNativeBehavior(
-          transformed, behavior, impact);
+        transformed,
+        behavior,
+        impact,
+      );
     }
 
     for (FunctionEntity function in impact.nativeMethods) {
@@ -193,8 +233,11 @@ class CodegenImpactTransformer {
     }
 
     for (Selector selector in impact.oneShotInterceptors) {
-      _oneShotInterceptorData.registerOneShotInterceptor(
-          selector, _namer, _closedWorld);
+      oneShotInterceptorData.registerOneShotInterceptor(
+        selector,
+        _namer,
+        _closedWorld,
+      );
     }
 
     // TODO(johnniwinther): Remove eager registration.

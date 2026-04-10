@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-part of masks;
+part of 'masks.dart';
 
 /// A type mask that wraps another one, and delegates all its
 /// implementation methods to it.
@@ -12,28 +12,26 @@ abstract class ForwardingTypeMask extends TypeMask {
   const ForwardingTypeMask();
 
   @override
-  bool get isEmptyOrFlagged => forwardTo.isEmptyOrFlagged;
+  Bitset get powerset => forwardTo.powerset;
+  @override
+  bool get isEmptyOrSpecial => forwardTo.isEmptyOrSpecial;
   @override
   bool get isEmpty => forwardTo.isEmpty;
   @override
-  bool get isNullable => forwardTo.isNullable;
-  @override
   bool get isNull => forwardTo.isNull;
-  @override
-  bool get hasLateSentinel => forwardTo.hasLateSentinel;
   @override
   AbstractBool get isLateSentinel => forwardTo.isLateSentinel;
   @override
   bool get isExact => forwardTo.isExact;
 
   @override
-  bool isInMask(TypeMask other, JClosedWorld closedWorld) {
-    return forwardTo.isInMask(other, closedWorld);
+  bool isInMask(TypeMask other, CommonMasks domain) {
+    return forwardTo.isInMask(other, domain);
   }
 
   @override
-  bool containsMask(TypeMask other, JClosedWorld closedWorld) {
-    return forwardTo.containsMask(other, closedWorld);
+  bool containsMask(TypeMask other, CommonMasks domain) {
+    return forwardTo.containsMask(other, domain);
   }
 
   @override
@@ -86,53 +84,67 @@ abstract class ForwardingTypeMask extends TypeMask {
     if (this == other) {
       return this;
     }
-    bool isNullable = this.isNullable || other.isNullable;
-    bool hasLateSentinel = this.hasLateSentinel || other.hasLateSentinel;
-    if (isEmptyOrFlagged) {
-      return other.withFlags(
-          isNullable: isNullable, hasLateSentinel: hasLateSentinel);
+    final powerset = this.powerset.union(other.powerset);
+    if (isEmptyOrSpecial) {
+      return other.withPowerset(powerset, domain);
     }
-    if (other.isEmptyOrFlagged) {
-      return withFlags(
-          isNullable: isNullable, hasLateSentinel: hasLateSentinel);
+    if (other.isEmptyOrSpecial) {
+      return withPowerset(powerset, domain);
     }
-    return _unionSpecialCases(other, domain,
-            isNullable: isNullable, hasLateSentinel: hasLateSentinel) ??
+    return _unionSpecialCases(other, domain, powerset) ??
         forwardTo.union(other, domain);
   }
 
-  TypeMask? _unionSpecialCases(TypeMask other, CommonMasks domain,
-          {required bool isNullable, required bool hasLateSentinel}) =>
-      null;
+  TypeMask? _unionSpecialCases(
+    TypeMask other,
+    CommonMasks domain,
+    Bitset powerset,
+  ) => null;
 
   @override
-  bool isDisjoint(TypeMask other, JClosedWorld closedWorld) {
-    return forwardTo.isDisjoint(other, closedWorld);
+  bool _isNonTriviallyDisjoint(TypeMask other, JClosedWorld closedWorld) {
+    return forwardTo._isNonTriviallyDisjoint(other, closedWorld);
   }
 
   @override
-  TypeMask intersection(TypeMask other, CommonMasks domain) {
-    TypeMask forwardIntersection = forwardTo.intersection(other, domain);
-    if (forwardIntersection.isEmptyOrFlagged) return forwardIntersection;
-    return withFlags(
-        isNullable: forwardIntersection.isNullable,
-        hasLateSentinel: forwardIntersection.hasLateSentinel);
+  TypeMask _nonEmptyIntersection(TypeMask other, CommonMasks domain) {
+    TypeMask forwardIntersection = forwardTo._nonEmptyIntersection(
+      other,
+      domain,
+    );
+    if (forwardIntersection.isEmptyOrSpecial) return forwardIntersection;
+    return withPowerset(forwardIntersection.powerset, domain);
   }
 
   @override
   bool needsNoSuchMethodHandling(
-      Selector selector, covariant JClosedWorld closedWorld) {
+    Selector selector,
+    covariant JClosedWorld closedWorld,
+  ) {
     return forwardTo.needsNoSuchMethodHandling(selector, closedWorld);
   }
 
   @override
-  bool canHit(MemberEntity element, Name name, JClosedWorld closedWorld) {
-    return forwardTo.canHit(element, name, closedWorld);
+  bool canHit(MemberEntity element, Name name, CommonMasks domain) {
+    return forwardTo.canHit(element, name, domain);
   }
 
   @override
   MemberEntity? locateSingleMember(Selector selector, CommonMasks domain) {
     return forwardTo.locateSingleMember(selector, domain);
+  }
+
+  @override
+  Iterable<DynamicCallTarget> findRootsOfTargets(
+    Selector selector,
+    MemberHierarchyBuilder memberHierarchyBuilder,
+    JClosedWorld closedWorld,
+  ) {
+    return forwardTo.findRootsOfTargets(
+      selector,
+      memberHierarchyBuilder,
+      closedWorld,
+    );
   }
 
   @override
@@ -151,7 +163,7 @@ abstract class AllocationTypeMask extends ForwardingTypeMask {
 
   // The [ir.Node] where this type mask was created. This value is not used
   // after type inference and therefore does not need to be serialized by
-  // subclasses. It will always be null outside of the global inference phase.
+  // subclasses.  It will always be null outside of the global inference phase.
   ir.Node? get allocationNode;
 
   // The [Entity] where this type mask was created.

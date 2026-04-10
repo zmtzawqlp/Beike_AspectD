@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library js_ast.printer;
-
 import 'characters.dart' as char_codes;
 import 'nodes.dart';
 import 'precedence.dart';
@@ -49,7 +47,11 @@ abstract class JavaScriptPrintingContext {
   ///
   /// [enterNode] is called in post-traversal order.
   void exitNode(
-      Node node, int startPosition, int endPosition, int? closingPosition) {}
+    Node node,
+    int startPosition,
+    int endPosition,
+    int? closingPosition,
+  ) {}
 
   /// Should return `true` if the printing tolerates unfinalized deferred AST
   /// nodes.
@@ -92,6 +94,37 @@ class Printer implements NodeVisitor<void> {
   int _charCount = 0;
   bool inForInit = false;
   bool atStatementBegin = false;
+
+  // The JavaScript grammar has two sets of related productions for property
+  // accesses - for MemberExpression and CallExpression.  A subset of
+  // productions that illustrate the two sets:
+  //
+  //     MemberExpression :
+  //         PrimaryExpression
+  //         MemberExpression . IdentifierName
+  //         new MemberExpression Arguments
+  //         ...
+  //
+  //     CallExpression :
+  //         MemberExpression Arguments
+  //         CallExpression Arguments
+  //         CallExpression . IdentifierName
+  //         ...
+  //
+  // This means that a call can be in the 'function' part of another call, but
+  // not in the 'function' part of a `new` expression. When printing a `new`
+  // expression, a call in the 'function' part needs to be in parentheses to
+  // ensure that the arguments of the call are not mistaken for the arguments of
+  // the enclosing `new` expression.
+  //
+  // We handle the difference in required parenthesization by making the
+  // required precedence of the receiver of an access be context-dependent.
+  // Both "MemberExpression . IdentifierName" and "CallExpression
+  // . IdentifierName" are represented as a PropertyAccess AST node. The context
+  // is tracked by [inNewTarget], which is true only during the printing of
+  // the 'function' part of a NewExpression.
+  bool inNewTarget = false;
+
   bool pendingSemicolon = false;
   bool pendingSpace = false;
 
@@ -104,14 +137,18 @@ class Printer implements NodeVisitor<void> {
   static final expressionContinuationRegExp = RegExp(r'^[-+([]');
 
   Printer(this.options, this.context)
-      : isDebugContext = context.isDebugContext,
-        shouldCompressOutput = options.shouldCompressOutput,
-        danglingElseVisitor = DanglingElseVisitor(context),
-        localNamer = determineRenamer(
-            options.shouldCompressOutput, options.minifyLocalVariables);
+    : isDebugContext = context.isDebugContext,
+      shouldCompressOutput = options.shouldCompressOutput,
+      danglingElseVisitor = DanglingElseVisitor(context),
+      localNamer = determineRenamer(
+        options.shouldCompressOutput,
+        options.minifyLocalVariables,
+      );
 
   static LocalNamer determineRenamer(
-      bool shouldCompressOutput, bool allowVariableMinification) {
+    bool shouldCompressOutput,
+    bool allowVariableMinification,
+  ) {
     return (shouldCompressOutput && allowVariableMinification)
         ? MinifyRenamer()
         : IdentityNamer();
@@ -260,16 +297,24 @@ class Printer implements NodeVisitor<void> {
     endNode(node);
   }
 
-  void visitCommaSeparated(List<Expression> nodes, int hasRequiredType,
-      {required bool newInForInit, required bool newAtStatementBegin}) {
+  void visitCommaSeparated(
+    List<Expression> nodes,
+    Precedence hasRequiredType, {
+    required bool newInForInit,
+    required bool newAtStatementBegin,
+  }) {
     for (int i = 0; i < nodes.length; i++) {
       if (i != 0) {
         atStatementBegin = false;
         out(',');
         spaceOut();
       }
-      visitNestedExpression(nodes[i], hasRequiredType,
-          newInForInit: newInForInit, newAtStatementBegin: newAtStatementBegin);
+      visitNestedExpression(
+        nodes[i],
+        hasRequiredType,
+        newInForInit: newInForInit,
+        newAtStatementBegin: newAtStatementBegin,
+      );
     }
   }
 
@@ -290,22 +335,20 @@ class Printer implements NodeVisitor<void> {
     }
   }
 
-  Statement unwrapBlockIfSingleStatement(Statement body) {
-    Statement result = body;
-    while (result is Block) {
-      Block block = result;
-      if (block.statements.length != 1) break;
-      result = block.statements.single;
-    }
-    return result;
-  }
-
-  bool blockBody(Statement body,
-      {required bool needsSeparation, required bool needsNewline}) {
+  bool blockBody(
+    Statement body, {
+    required bool needsSeparation,
+    required bool needsNewline,
+    bool needsBraces = false,
+  }) {
     if (body is Block) {
       spaceOut();
       blockOut(body, shouldIndent: false, needsNewline: needsNewline);
       return true;
+    }
+    if (needsBraces) {
+      spaceOut();
+      out('{');
     }
     if (shouldCompressOutput && needsSeparation) {
       // If [shouldCompressOutput] is false, then the 'lineOut' will insert
@@ -317,6 +360,11 @@ class Printer implements NodeVisitor<void> {
     indentMore();
     visit(body);
     indentLess();
+    if (needsBraces) {
+      indent();
+      out('}');
+      return true;
+    }
     return false;
   }
 
@@ -336,8 +384,11 @@ class Printer implements NodeVisitor<void> {
     }
   }
 
-  int blockOut(Block node,
-      {required bool shouldIndent, required bool needsNewline}) {
+  int blockOut(
+    Block node, {
+    required bool shouldIndent,
+    required bool needsNewline,
+  }) {
     if (shouldIndent) indent();
     startNode(node);
     out('{');
@@ -361,8 +412,12 @@ class Printer implements NodeVisitor<void> {
   @override
   void visitExpressionStatement(ExpressionStatement node) {
     indent();
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: true);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: true,
+    );
     outSemicolonLn();
   }
 
@@ -372,28 +427,32 @@ class Printer implements NodeVisitor<void> {
   }
 
   void ifOut(If node, bool shouldIndent) {
-    Statement then = unwrapBlockIfSingleStatement(node.then);
+    Statement then = node.then;
     Statement elsePart = node.otherwise;
     bool hasElse = node.hasElse;
 
     // Handle dangling elses and a workaround for Android 4.0 stock browser.
     // Android 4.0 requires braces for a single do-while in the `then` branch.
     // See issue 10923.
-    if (hasElse) {
-      bool needsBraces = then.accept(danglingElseVisitor) || then is Do;
-      if (needsBraces) {
-        then = Block(<Statement>[then]);
-      }
-    }
+    bool needsBraces =
+        hasElse && (then is Do || then.accept(danglingElseVisitor));
     if (shouldIndent) indent();
     out('if');
     spaceOut();
     out('(');
-    visitNestedExpression(node.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
-    bool thenWasBlock =
-        blockBody(then, needsSeparation: false, needsNewline: !hasElse);
+    bool thenWasBlock = blockBody(
+      then,
+      needsSeparation: false,
+      needsNewline: !hasElse,
+      needsBraces: needsBraces,
+    );
     if (hasElse) {
       if (thenWasBlock) {
         spaceOut();
@@ -407,8 +466,7 @@ class Printer implements NodeVisitor<void> {
         ifOut(elsePart, false);
         endNode(elsePart);
       } else {
-        blockBody(unwrapBlockIfSingleStatement(elsePart),
-            needsSeparation: true, needsNewline: true);
+        blockBody(elsePart, needsSeparation: true, needsNewline: true);
       }
     }
   }
@@ -424,24 +482,35 @@ class Printer implements NodeVisitor<void> {
     spaceOut();
     out('(');
     if (loop.init != null) {
-      visitNestedExpression(loop.init!, EXPRESSION,
-          newInForInit: true, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.init!,
+        Precedence.expression,
+        newInForInit: true,
+        newAtStatementBegin: false,
+      );
     }
     out(';');
     if (loop.condition != null) {
       spaceOut();
-      visitNestedExpression(loop.condition!, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.condition!,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     out(';');
     if (loop.update != null) {
       spaceOut();
-      visitNestedExpression(loop.update!, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.update!,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     out(')');
-    blockBody(unwrapBlockIfSingleStatement(loop.body),
-        needsSeparation: false, needsNewline: true);
+    blockBody(loop.body, needsSeparation: false, needsNewline: true);
   }
 
   @override
@@ -449,15 +518,22 @@ class Printer implements NodeVisitor<void> {
     outIndent('for');
     spaceOut();
     out('(');
-    visitNestedExpression(loop.leftHandSide, EXPRESSION,
-        newInForInit: true, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.leftHandSide,
+      Precedence.expression,
+      newInForInit: true,
+      newAtStatementBegin: false,
+    );
     out(' in');
     pendingSpace = true;
-    visitNestedExpression(loop.object, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.object,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
-    blockBody(unwrapBlockIfSingleStatement(loop.body),
-        needsSeparation: false, needsNewline: true);
+    blockBody(loop.body, needsSeparation: false, needsNewline: true);
   }
 
   @override
@@ -465,18 +541,20 @@ class Printer implements NodeVisitor<void> {
     outIndent('while');
     spaceOut();
     out('(');
-    visitNestedExpression(loop.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
-    blockBody(unwrapBlockIfSingleStatement(loop.body),
-        needsSeparation: false, needsNewline: true);
+    blockBody(loop.body, needsSeparation: false, needsNewline: true);
   }
 
   @override
   void visitDo(Do loop) {
     outIndent('do');
-    if (blockBody(unwrapBlockIfSingleStatement(loop.body),
-        needsSeparation: true, needsNewline: false)) {
+    if (blockBody(loop.body, needsSeparation: true, needsNewline: false)) {
       spaceOut();
     } else {
       indent();
@@ -484,8 +562,12 @@ class Printer implements NodeVisitor<void> {
     out('while');
     spaceOut();
     out('(');
-    visitNestedExpression(loop.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
     outSemicolonLn();
   }
@@ -518,8 +600,12 @@ class Printer implements NodeVisitor<void> {
     } else {
       outIndent('return');
       pendingSpace = true;
-      visitNestedExpression(value, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        value,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     // Set the closing position to be before the optional semicolon.
     currentNode!.closingPosition = _charCount;
@@ -534,8 +620,12 @@ class Printer implements NodeVisitor<void> {
       outIndent('yield');
     }
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     outSemicolonLn();
   }
 
@@ -543,8 +633,12 @@ class Printer implements NodeVisitor<void> {
   void visitThrow(Throw node) {
     outIndent('throw');
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     outSemicolonLn();
   }
 
@@ -570,8 +664,12 @@ class Printer implements NodeVisitor<void> {
     out('catch');
     spaceOut();
     out('(');
-    visitNestedExpression(node.declaration, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.declaration,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
     blockBody(node.body, needsSeparation: false, needsNewline: false);
   }
@@ -581,8 +679,12 @@ class Printer implements NodeVisitor<void> {
     outIndent('switch');
     spaceOut();
     out('(');
-    visitNestedExpression(node.key, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.key,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
     spaceOut();
     outLn('{');
@@ -596,8 +698,12 @@ class Printer implements NodeVisitor<void> {
   void visitCase(Case node) {
     outIndent('case');
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     outLn(':');
     if (node.body.statements.isNotEmpty) {
       indentMore();
@@ -618,18 +724,8 @@ class Printer implements NodeVisitor<void> {
 
   @override
   void visitLabeledStatement(LabeledStatement node) {
-    Statement body = unwrapBlockIfSingleStatement(node.body);
-    // `label: break label;`
-    // Does not work on IE. The statement is a nop, so replace it by an empty
-    // statement.
-    // See:
-    // https://connect.microsoft.com/IE/feedback/details/891889/parser-bugs
-    if (body is Break && body.targetLabel == node.label) {
-      visit(EmptyStatement());
-      return;
-    }
     outIndent('${node.label}:');
-    blockBody(body, needsSeparation: false, needsNewline: true);
+    blockBody(node.body, needsSeparation: false, needsNewline: true);
   }
 
   int functionOut(Fun fun, Expression? name, VarCollector vars) {
@@ -637,13 +733,21 @@ class Printer implements NodeVisitor<void> {
     if (name != null) {
       out(' ');
       // Name must be a [Decl]. Therefore only test for primary expressions.
-      visitNestedExpression(name, PRIMARY,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        name,
+        Precedence.primary,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     localNamer.enterScope(vars);
     out('(');
-    visitCommaSeparated(fun.params, PRIMARY,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      fun.params,
+      Precedence.primary,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
     switch (fun.asyncModifier) {
       case AsyncModifier.sync:
@@ -662,8 +766,11 @@ class Printer implements NodeVisitor<void> {
         break;
     }
     spaceOut();
-    int closingPosition =
-        blockOut(fun.body, shouldIndent: false, needsNewline: false);
+    int closingPosition = blockOut(
+      fun.body,
+      shouldIndent: false,
+      needsNewline: false,
+    );
     localNamer.leaveScope();
     return closingPosition;
   }
@@ -674,31 +781,41 @@ class Printer implements NodeVisitor<void> {
     vars.visitFunctionDeclaration(declaration);
     indent();
     startNode(declaration.function);
-    currentNode!.closingPosition =
-        functionOut(declaration.function, declaration.name, vars);
+    currentNode!.closingPosition = functionOut(
+      declaration.function,
+      declaration.name,
+      vars,
+    );
     endNode(declaration.function);
     lineOut();
   }
 
-  void visitNestedExpression(Expression node, int requiredPrecedence,
-      {required bool newInForInit, required bool newAtStatementBegin}) {
-    int precedenceLevel =
-        (isDebugContext && !node.isFinalized) ? CALL : node.precedenceLevel;
+  void visitNestedExpression(
+    Expression node,
+    Precedence requiredPrecedence, {
+    required bool newInForInit,
+    required bool newAtStatementBegin,
+  }) {
+    Precedence precedenceLevel = (isDebugContext && !node.isFinalized)
+        ? Precedence.call
+        : node.precedenceLevel;
     bool needsParentheses =
         // a - (b + c).
-        (requiredPrecedence != EXPRESSION &&
-                precedenceLevel < requiredPrecedence) ||
-            // for (a = (x in o); ... ; ... ) { ... }
-            (newInForInit && node is Binary && node.op == 'in') ||
-            // (function() { ... })().
-            // ({a: 2, b: 3}.toString()).
-            (newAtStatementBegin &&
-                (node is NamedFunction ||
-                    node is FunctionExpression ||
-                    node is ObjectInitializer));
+        (requiredPrecedence != Precedence.expression &&
+            precedenceLevel.index < requiredPrecedence.index) ||
+        // for (a = (x in o); ... ; ... ) { ... }
+        (newInForInit && node is Binary && node.op == 'in') ||
+        // (function() { ... })().
+        // ({a: 2, b: 3}.toString()).
+        (newAtStatementBegin &&
+            (node is NamedFunction ||
+                node is FunctionExpression ||
+                node is ObjectInitializer));
+    final savedInForInit = inForInit;
     if (needsParentheses) {
       inForInit = false;
       atStatementBegin = false;
+      inNewTarget = false;
       out('(');
       visit(node);
       out(')');
@@ -707,6 +824,7 @@ class Printer implements NodeVisitor<void> {
       atStatementBegin = newAtStatementBegin;
       visit(node);
     }
+    inForInit = savedInForInit;
   }
 
   @override
@@ -714,8 +832,12 @@ class Printer implements NodeVisitor<void> {
     out('var ');
     final nodes = list.declarations;
     if (inForInit) {
-      visitCommaSeparated(nodes, ASSIGNMENT,
-          newInForInit: inForInit, newAtStatementBegin: false);
+      visitCommaSeparated(
+        nodes,
+        Precedence.assignment,
+        newInForInit: inForInit,
+        newAtStatementBegin: false,
+      );
     } else {
       // Print 'big' declarations on their own line, while keeping adjacent
       // small and uninitialized declarations on the same line.
@@ -737,8 +859,12 @@ class Printer implements NodeVisitor<void> {
             spaceOut();
           }
         }
-        visitNestedExpression(node, ASSIGNMENT,
-            newInForInit: inForInit, newAtStatementBegin: false);
+        visitNestedExpression(
+          node,
+          Precedence.assignment,
+          newInForInit: inForInit,
+          newAtStatementBegin: false,
+        );
         lastWasBig = thisIsBig;
       }
       if (useIndent) {
@@ -771,8 +897,12 @@ class Printer implements NodeVisitor<void> {
       out('--');
     }
     if (alias != null) startNode(alias);
-    visitNestedExpression(variable, UNARY,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      variable,
+      Precedence.unary,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
     if (alias != null) endNode(alias);
   }
 
@@ -816,78 +946,134 @@ class Printer implements NodeVisitor<void> {
           }
           // Output 'a = a + b' as 'a += b'.
           startNode(rightHandSide.left);
-          visitNestedExpression(assignment.leftHandSide, CALL,
-              newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+          visitNestedExpression(
+            assignment.leftHandSide,
+            Precedence.call,
+            newInForInit: inForInit,
+            newAtStatementBegin: atStatementBegin,
+          );
           endNode(rightHandSide.left);
           spaceOut();
           out(op);
           out('=');
           spaceOut();
-          visitNestedExpression(rRight, ASSIGNMENT,
-              newInForInit: inForInit, newAtStatementBegin: false);
+          visitNestedExpression(
+            rRight,
+            Precedence.assignment,
+            newInForInit: inForInit,
+            newAtStatementBegin: false,
+          );
           return;
         }
       }
     }
-    visitNestedExpression(assignment.leftHandSide, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      assignment.leftHandSide,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
 
     spaceOut();
     if (op != null) out(op);
     out('=');
     spaceOut();
-    visitNestedExpression(assignment.value, ASSIGNMENT,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      assignment.value,
+      Precedence.assignment,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
   void visitVariableInitialization(VariableInitialization initialization) {
-    visitNestedExpression(initialization.declaration, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      initialization.declaration,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     if (initialization.value != null) {
       spaceOut();
       out('=');
       spaceOut();
-      visitNestedExpression(initialization.value!, ASSIGNMENT,
-          newInForInit: inForInit, newAtStatementBegin: false);
+      visitNestedExpression(
+        initialization.value!,
+        Precedence.assignment,
+        newInForInit: inForInit,
+        newAtStatementBegin: false,
+      );
     }
   }
 
   @override
   void visitConditional(Conditional cond) {
-    visitNestedExpression(cond.condition, LOGICAL_OR,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      cond.condition,
+      Precedence.logicalOr,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     spaceOut();
     out('?');
     spaceOut();
     // The then part is allowed to have an 'in'.
-    visitNestedExpression(cond.then, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      cond.then,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     spaceOut();
     out(':');
     spaceOut();
-    visitNestedExpression(cond.otherwise, ASSIGNMENT,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      cond.otherwise,
+      Precedence.assignment,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
   void visitNew(New node) {
     out('new ');
-    visitNestedExpression(node.target, LEFT_HAND_SIDE,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    final savedInNewTarget = inNewTarget;
+    inNewTarget = true;
+    visitNestedExpression(
+      node.target,
+      Precedence.leftHandSide,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
     out('(');
-    visitCommaSeparated(node.arguments, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    inNewTarget = false;
+    visitCommaSeparated(
+      node.arguments,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
+    inNewTarget = savedInNewTarget;
   }
 
   @override
   void visitCall(Call call) {
-    visitNestedExpression(call.target, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      call.target,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     out('(');
-    visitCommaSeparated(call.arguments, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      call.arguments,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
   }
 
@@ -896,47 +1082,47 @@ class Printer implements NodeVisitor<void> {
     Expression left = binary.left;
     Expression right = binary.right;
     String op = binary.op;
-    int leftPrecedenceRequirement;
-    int rightPrecedenceRequirement;
+    Precedence leftPrecedenceRequirement;
+    Precedence rightPrecedenceRequirement;
     bool leftSpace = true; // left<HERE>op right
     switch (op) {
       case ',':
         //  x, (y, z) <=> (x, y), z.
-        leftPrecedenceRequirement = EXPRESSION;
-        rightPrecedenceRequirement = EXPRESSION;
+        leftPrecedenceRequirement = Precedence.expression;
+        rightPrecedenceRequirement = Precedence.expression;
         leftSpace = false;
         break;
       case '||':
-        leftPrecedenceRequirement = LOGICAL_OR;
+        leftPrecedenceRequirement = Precedence.logicalOr;
         // x || (y || z) <=> (x || y) || z.
-        rightPrecedenceRequirement = LOGICAL_OR;
+        rightPrecedenceRequirement = Precedence.logicalOr;
         break;
       case '&&':
-        leftPrecedenceRequirement = LOGICAL_AND;
+        leftPrecedenceRequirement = Precedence.logicalAnd;
         // x && (y && z) <=> (x && y) && z.
-        rightPrecedenceRequirement = LOGICAL_AND;
+        rightPrecedenceRequirement = Precedence.logicalAnd;
         break;
       case '|':
-        leftPrecedenceRequirement = BIT_OR;
+        leftPrecedenceRequirement = Precedence.bitOr;
         // x | (y | z) <=> (x | y) | z.
-        rightPrecedenceRequirement = BIT_OR;
+        rightPrecedenceRequirement = Precedence.bitOr;
         break;
       case '^':
-        leftPrecedenceRequirement = BIT_XOR;
+        leftPrecedenceRequirement = Precedence.bitXor;
         // x ^ (y ^ z) <=> (x ^ y) ^ z.
-        rightPrecedenceRequirement = BIT_XOR;
+        rightPrecedenceRequirement = Precedence.bitXor;
         break;
       case '&':
-        leftPrecedenceRequirement = BIT_AND;
+        leftPrecedenceRequirement = Precedence.bitAnd;
         // x & (y & z) <=> (x & y) & z.
-        rightPrecedenceRequirement = BIT_AND;
+        rightPrecedenceRequirement = Precedence.bitAnd;
         break;
       case '==':
       case '!=':
       case '===':
       case '!==':
-        leftPrecedenceRequirement = EQUALITY;
-        rightPrecedenceRequirement = RELATIONAL;
+        leftPrecedenceRequirement = Precedence.equality;
+        rightPrecedenceRequirement = Precedence.relational;
         break;
       case '<':
       case '>':
@@ -944,46 +1130,55 @@ class Printer implements NodeVisitor<void> {
       case '>=':
       case 'instanceof':
       case 'in':
-        leftPrecedenceRequirement = RELATIONAL;
-        rightPrecedenceRequirement = SHIFT;
+        leftPrecedenceRequirement = Precedence.relational;
+        rightPrecedenceRequirement = Precedence.shift;
         break;
       case '>>':
       case '<<':
       case '>>>':
-        leftPrecedenceRequirement = SHIFT;
-        rightPrecedenceRequirement = ADDITIVE;
+        leftPrecedenceRequirement = Precedence.shift;
+        rightPrecedenceRequirement = Precedence.additive;
         break;
       case '+':
       case '-':
-        leftPrecedenceRequirement = ADDITIVE;
+        leftPrecedenceRequirement = Precedence.additive;
         // We cannot remove parenthesis for "+" because
         //   x + (y + z) <!=> (x + y) + z:
         // Example:
         //   "a" + (1 + 2) => "a3";
         //   ("a" + 1) + 2 => "a12";
-        rightPrecedenceRequirement = MULTIPLICATIVE;
+        rightPrecedenceRequirement = Precedence.multiplicative;
         break;
       case '*':
       case '/':
       case '%':
-        leftPrecedenceRequirement = MULTIPLICATIVE;
+        leftPrecedenceRequirement = Precedence.multiplicative;
         // We cannot remove parenthesis for "*" because of precision issues.
-        rightPrecedenceRequirement = UNARY;
+        rightPrecedenceRequirement = Precedence.unary;
         break;
       case '**':
-        // 'a ** b ** c' parses as 'a ** (b ** c)', so the left must have higher
-        // precedence.
-        leftPrecedenceRequirement = UNARY;
-        rightPrecedenceRequirement = EXPONENTIATION;
+        // Exponentiation associates to the right, so `a ** b ** c` parses as `a
+        // ** (b ** c)`. To generate the appropriate output, the left has a
+        // higher precedence than the current node. The next precedence level
+        // ([UNARY]), is skipped as the left hand side of an exponentiation
+        // operator [must be an UPDATE
+        // expression](https://tc39.es/ecma262/#sec-exp-operator).  Skipping
+        // [UNARY] avoids printing `-1 ** 2`, which is a syntax error.
+        leftPrecedenceRequirement = Precedence.update;
+        rightPrecedenceRequirement = Precedence.exponentiation;
         break;
       default:
-        leftPrecedenceRequirement = EXPRESSION;
-        rightPrecedenceRequirement = EXPRESSION;
+        leftPrecedenceRequirement = Precedence.expression;
+        rightPrecedenceRequirement = Precedence.expression;
         context.error('Forgot operator: $op');
     }
 
-    visitNestedExpression(left, leftPrecedenceRequirement,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      left,
+      leftPrecedenceRequirement,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
 
     if (op == 'in' || op == 'instanceof') {
       // There are cases where the space is not required but without further
@@ -996,8 +1191,12 @@ class Printer implements NodeVisitor<void> {
       out(op);
       spaceOut();
     }
-    visitNestedExpression(right, rightPrecedenceRequirement,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      right,
+      rightPrecedenceRequirement,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
@@ -1025,14 +1224,22 @@ class Printer implements NodeVisitor<void> {
       default:
         out(op);
     }
-    visitNestedExpression(unary.argument, UNARY,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      unary.argument,
+      Precedence.unary,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
   void visitPostfix(Postfix postfix) {
-    visitNestedExpression(postfix.argument, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      postfix.argument,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     out(postfix.op);
   }
 
@@ -1084,14 +1291,22 @@ class Printer implements NodeVisitor<void> {
 
   @override
   void visitAccess(PropertyAccess access) {
-    visitNestedExpression(access.receiver, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    final precedence = inNewTarget ? Precedence.leftHandSide : Precedence.call;
+    visitNestedExpression(
+      access.receiver,
+      precedence,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
 
     Node selector = _undefer(access.selector);
     if (isDebugContext && !selector.isFinalized) {
       _dotString(
-          access.selector, access.receiver, selector.nonfinalizedDebugText(),
-          assumeValid: true);
+        access.selector,
+        access.receiver,
+        selector.nonfinalizedDebugText(),
+        assumeValid: true,
+      );
       return;
     }
     if (selector is LiteralString) {
@@ -1099,8 +1314,11 @@ class Printer implements NodeVisitor<void> {
       return;
     }
     if (selector is StringConcatenation) {
-      _dotString(access.selector, access.receiver,
-          _StringContentsCollector(isDebugContext).collect(selector));
+      _dotString(
+        access.selector,
+        access.receiver,
+        _StringContentsCollector(isDebugContext).collect(selector),
+      );
       return;
     }
     if (selector is Name) {
@@ -1109,13 +1327,22 @@ class Printer implements NodeVisitor<void> {
     }
 
     out('[');
-    visitNestedExpression(access.selector, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    inNewTarget = false;
+    visitNestedExpression(
+      access.selector,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(']');
   }
 
-  void _dotString(Node selector, Expression receiver, String selectorValue,
-      {bool assumeValid = false}) {
+  void _dotString(
+    Node selector,
+    Expression receiver,
+    String selectorValue, {
+    bool assumeValid = false,
+  }) {
     if (assumeValid || isValidJavaScriptId(selectorValue)) {
       if (_undefer(receiver) is LiteralNumber &&
           lastCharCode != char_codes.$CLOSE_PAREN) {
@@ -1137,8 +1364,11 @@ class Printer implements NodeVisitor<void> {
     VarCollector vars = VarCollector();
     vars.visitNamedFunction(namedFunction);
     startNode(namedFunction.function);
-    int closingPosition = currentNode!.closingPosition =
-        functionOut(namedFunction.function, namedFunction.name, vars);
+    int closingPosition = currentNode!.closingPosition = functionOut(
+      namedFunction.function,
+      namedFunction.name,
+      vars,
+    );
     endNode(namedFunction.function);
     // Use closing position of `namedFunction.function` as the closing position
     // of the named function itself.
@@ -1166,12 +1396,20 @@ class Printer implements NodeVisitor<void> {
     localNamer.enterScope(vars);
     final List<Parameter> params = fun.params;
     if (params.length == 1 && _isIdentifierParameter(params.first)) {
-      visitNestedExpression(params.single, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        params.single,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     } else {
       out('(');
-      visitCommaSeparated(fun.params, PRIMARY,
-          newInForInit: false, newAtStatementBegin: false);
+      visitCommaSeparated(
+        fun.params,
+        Precedence.primary,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
       out(')');
     }
     spaceOut();
@@ -1179,26 +1417,24 @@ class Printer implements NodeVisitor<void> {
     spaceOut();
     int closingPosition;
     Node body = fun.body;
-    // Simplify arrow functions that return a single expression.
-    // Note that this can result in some sourcemapped positions disappearing
-    // around the elided Return. See http://dartbug.com/47354
-    if (fun.implicitReturnAllowed && body is Block) {
-      final statement = unwrapBlockIfSingleStatement(body);
-      if (statement is Return) {
-        body = statement.value!;
-      }
-    }
     if (body is Block) {
-      closingPosition =
-          blockOut(body, shouldIndent: false, needsNewline: false);
+      closingPosition = blockOut(
+        body,
+        shouldIndent: false,
+        needsNewline: false,
+      );
     } else {
       // Object initializers require parentheses to disambiguate
       // AssignmentExpression from FunctionBody. See:
       // https://tc39.github.io/ecma262/#sec-arrow-function-definitions
       bool needsParens = body is ObjectInitializer;
       if (needsParens) out('(');
-      visitNestedExpression(body as Expression, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        body as Expression,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
       if (needsParens) out(')');
       closingPosition = _charCount;
     }
@@ -1286,8 +1522,12 @@ class Printer implements NodeVisitor<void> {
   @override
   void visitParentheses(Parentheses node) {
     out('(');
-    visitNestedExpression(node.enclosed, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.enclosed,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
   }
 
@@ -1318,8 +1558,12 @@ class Printer implements NodeVisitor<void> {
         continue;
       }
       if (i != 0) spaceOut();
-      visitNestedExpression(element, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        element,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
       // We can skip the trailing "," for the last element (since it's not
       // an array hole).
       if (i != elements.length - 1) out(',');
@@ -1372,8 +1616,12 @@ class Printer implements NodeVisitor<void> {
     propertyNameOut(node);
     out(':');
     spaceOut();
-    visitNestedExpression(node.value, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.value,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
@@ -1391,12 +1639,19 @@ class Printer implements NodeVisitor<void> {
     Fun fun = node.function;
     localNamer.enterScope(vars);
     out('(');
-    visitCommaSeparated(fun.params, PRIMARY,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      fun.params,
+      Precedence.primary,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')');
     spaceOut();
-    int closingPosition =
-        blockOut(fun.body, shouldIndent: false, needsNewline: false);
+    int closingPosition = blockOut(
+      fun.body,
+      shouldIndent: false,
+      needsNewline: false,
+    );
     localNamer.leaveScope();
     return closingPosition;
   }
@@ -1411,9 +1666,16 @@ class Printer implements NodeVisitor<void> {
     } else if (name is LiteralNumber) {
       out(name.value);
     } else {
-      // TODO(sra): Handle StringConcatenation.
-      // TODO(sra): Handle general expressions, .e.g. `{[x]: 1}`.
-      throw StateError('Unexpected Property name: $name');
+      // Handle general expressions, .e.g. `{[x]: 1}`.
+      // String concatenation could be better.
+      out('[');
+      visitNestedExpression(
+        node.name,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
+      out(']');
     }
     endNode(node.name);
   }
@@ -1549,9 +1811,7 @@ class OrderedSet<T> {
   final Set<T> set;
   final List<T> list;
 
-  OrderedSet()
-      : set = <T>{},
-        list = <T>[];
+  OrderedSet() : set = <T>{}, list = <T>[];
 
   void add(T x) {
     if (set.add(x)) {
@@ -1577,9 +1837,9 @@ class VarCollector extends BaseVisitorVoid {
   static final String enableVariableMinificationPattern = '::dorenaming::';
 
   VarCollector()
-      : nested = false,
-        vars = OrderedSet<String>(),
-        params = OrderedSet<String>();
+    : nested = false,
+      vars = OrderedSet<String>(),
+      params = OrderedSet<String>();
 
   void forEachVar(void Function(String) fn) => vars.forEach(fn);
   void forEachParam(void Function(String) fn) => params.forEach(fn);
@@ -1662,6 +1922,8 @@ class DanglingElseVisitor extends BaseVisitor<bool> {
 
   @override
   bool visitBlock(Block node) {
+    // TODO(sra): The following is no longer true. Revert to `=> false;`.
+
     // Singleton blocks are in many places printed as the contained statement so
     // that statement might capture the dangling else.
     if (node.statements.length != 1) return false;

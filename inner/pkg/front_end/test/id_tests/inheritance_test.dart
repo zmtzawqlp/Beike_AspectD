@@ -6,9 +6,8 @@ import 'dart:io' show Directory, Platform;
 
 import 'package:_fe_analyzer_shared/src/testing/id.dart';
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
-import 'package:front_end/src/api_prototype/experimental_flags.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/hierarchy_builder.dart';
-import 'package:front_end/src/fasta/kernel/hierarchy/hierarchy_node.dart';
+import 'package:front_end/src/kernel/hierarchy/hierarchy_builder.dart';
+import 'package:front_end/src/kernel/hierarchy/hierarchy_node.dart';
 import 'package:front_end/src/testing/id_extractor.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
@@ -27,29 +26,23 @@ Future<void> main(List<String> args) async {
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
       runTest: runTestFor(const InheritanceDataComputer(), [
-        new TestConfig(cfeMarker, 'cfe with nnbd',
-            explicitExperimentalFlags: const {
-              ExperimentalFlag.nonNullable: true
-            },
+        new CfeTestConfig(cfeMarker, 'cfe with nnbd',
             librariesSpecificationUri: createUriForFileName('libraries.json'),
             compileSdk: true),
-        new TestConfig(cfeFromBuilderMarker, 'cfe from builder',
-            explicitExperimentalFlags: const {
-              ExperimentalFlag.nonNullable: true
-            },
+        new CfeTestConfig(cfeFromBuilderMarker, 'cfe from builder',
             librariesSpecificationUri: createUriForFileName('libraries.json'),
             compileSdk: true)
       ]));
 }
 
-class InheritanceDataComputer extends DataComputer<String> {
+class InheritanceDataComputer extends CfeDataComputer<String> {
   const InheritanceDataComputer();
 
   /// Function that computes a data mapping for [library].
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeLibraryData(TestResultData testResultData, Library library,
+  void computeLibraryData(CfeTestResultData testResultData, Library library,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     new InheritanceDataExtractor(testResultData, actualMap)
@@ -57,7 +50,7 @@ class InheritanceDataComputer extends DataComputer<String> {
   }
 
   @override
-  void computeClassData(TestResultData testResultData, Class cls,
+  void computeClassData(CfeTestResultData testResultData, Class cls,
       Map<Id, ActualData<String>> actualMap,
       {bool? verbose}) {
     new InheritanceDataExtractor(testResultData, actualMap)
@@ -69,7 +62,7 @@ class InheritanceDataComputer extends DataComputer<String> {
 
   @override
   String computeErrorData(
-      TestResultData testResultData, Id id, List<FormattedMessage> errors) {
+      CfeTestResultData testResultData, Id id, List<FormattedMessage> errors) {
     return errorsToText(errors, useCodes: true);
   }
 
@@ -78,13 +71,13 @@ class InheritanceDataComputer extends DataComputer<String> {
 }
 
 class InheritanceDataExtractor extends CfeDataExtractor<String> {
-  final TestResultData _testResultData;
+  final CfeTestResultData _testResultData;
 
   InheritanceDataExtractor(
       this._testResultData, Map<Id, ActualData<String>> actualMap)
       : super(_testResultData.compilerResult, actualMap);
 
-  TestConfig get _config => _testResultData.config;
+  CfeTestConfig get _config => _testResultData.config;
 
   InternalCompilerResult get _compilerResult => _testResultData.compilerResult;
 
@@ -94,11 +87,6 @@ class InheritanceDataExtractor extends CfeDataExtractor<String> {
 
   ClassHierarchyBuilder get _classHierarchyBuilder =>
       _compilerResult.kernelTargetForTesting!.loader.hierarchyBuilder;
-
-  @override
-  String computeLibraryValue(Id id, Library node) {
-    return 'nnbd=${node.isNonNullableByDefault}';
-  }
 
   @override
   void computeForClass(Class node) {
@@ -123,11 +111,9 @@ class InheritanceDataExtractor extends CfeDataExtractor<String> {
       if (member.enclosingClass == _coreTypes.objectClass) {
         return;
       }
-      InterfaceType supertype = _hierarchy.getTypeAsInstanceOf(
+      InterfaceType supertype = _hierarchy.getInterfaceTypeAsInstanceOfClass(
           _coreTypes.thisInterfaceType(node, node.enclosingLibrary.nonNullable),
-          member.enclosingClass!,
-          isNonNullableByDefault:
-              node.enclosingLibrary.isNonNullableByDefault)!;
+          member.enclosingClass!)!;
       Substitution substitution = Substitution.fromInterfaceType(supertype);
       DartType? type;
       if (member is Procedure) {
@@ -137,15 +123,8 @@ class InheritanceDataExtractor extends CfeDataExtractor<String> {
           type = substitution
               .substituteType(member.function.positionalParameters.single.type);
         } else {
-          Nullability functionTypeNullability;
-          if (node.enclosingLibrary.isNonNullableByDefault) {
-            functionTypeNullability = member.enclosingLibrary.nonNullable;
-          } else {
-            // We don't create a member signature when the member is just
-            // a substitution. We should still take the nullability to be
-            // legacy, though.
-            functionTypeNullability = node.enclosingLibrary.nonNullable;
-          }
+          Nullability functionTypeNullability =
+              member.enclosingLibrary.nonNullable;
           type = substitution.substituteType(
               member.function.computeThisFunctionType(functionTypeNullability));
         }

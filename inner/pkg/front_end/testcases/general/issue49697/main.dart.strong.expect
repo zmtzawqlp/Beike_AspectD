@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 import "main_lib.dart" as mai;
@@ -6,28 +6,28 @@ import "main_lib.dart" as mai;
 import "org-dartlang-testcase:///main_lib.dart";
 
 class A extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::A> values = #C7;
   enum-element static const field self::A a = #C3;
   enum-element static const field self::A b = #C6;
-  const constructor •(core::int #index, core::String #name) → self::A
+  static const field core::List<self::A> values = #C7;
+  const synthetic constructor •(core::int #index, core::String #name) → self::A
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "A.${this.{core::_Enum::_name}{core::String}}";
 }
 class B extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::B> values = #C10;
-  static const field self::B c = #C8;
   enum-element static const field self::B a = #C8;
   enum-element static const field self::B b = #C9;
-  const constructor •(core::int #index, core::String #name) → self::B
+  static const field self::B c = #C8;
+  static const field core::List<self::B> values = #C10;
+  const synthetic constructor •(core::int #index, core::String #name) → self::B
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "B.${this.{core::_Enum::_name}{core::String}}";
 }
 static method a1(self::A? a) → core::int? {
-  switch(a) {
+  switch(a) /* self::A? */ {
     #L1:
     case #C3:
       {
@@ -36,7 +36,7 @@ static method a1(self::A? a) → core::int? {
   }
 }
 static method a2(self::A? a) → core::int? {
-  switch(a) {
+  switch(a) /* self::A? */ {
     #L2:
     case #C11:
       {
@@ -50,7 +50,7 @@ static method a2(self::A? a) → core::int? {
   }
 }
 static method b1(self::B b) → core::int {
-  switch(b) /*isExplicitlyExhaustive*/ {
+  switch(b) /* isExplicitlyExhaustive, self::B */ {
     #L4:
     case #C8:
       {
@@ -64,7 +64,7 @@ static method b1(self::B b) → core::int {
   }
 }
 static method b2(self::B? b) → core::int? {
-  switch(b) {
+  switch(b) /* self::B? */ {
     #L6:
     case #C11:
       {
@@ -78,7 +78,7 @@ static method b2(self::B? b) → core::int? {
   }
 }
 static method c1(mai::C? c) → core::int? {
-  switch(c) {
+  switch(c) /* mai::C? */ {
     #L8:
     case #C12:
       {
@@ -87,7 +87,7 @@ static method c1(mai::C? c) → core::int? {
   }
 }
 static method c2(mai::C? c) → core::int? {
-  switch(c) {
+  switch(c) /* mai::C? */ {
     #L9:
     case #C11:
       {
@@ -101,7 +101,7 @@ static method c2(mai::C? c) → core::int? {
   }
 }
 static method d1(mai::D d) → core::int {
-  switch(d) /*isExplicitlyExhaustive*/ {
+  switch(d) /* isExplicitlyExhaustive, mai::D */ {
     #L11:
     case #C13:
       {
@@ -115,7 +115,7 @@ static method d1(mai::D d) → core::int {
   }
 }
 static method d2(mai::D? d) → core::int? {
-  switch(d) {
+  switch(d) /* mai::D? */ {
     #L13:
     case #C11:
       {
@@ -139,29 +139,29 @@ static method main() → void {
   self::d2(#C14);
 }
 
-library /*isNonNullableByDefault*/;
+library;
 import self as mai;
 import "dart:core" as core;
 
 class C extends core::_Enum /*isEnum*/  {
-  static const field core::List<mai::C> values = #C16;
   enum-element static const field mai::C a = #C12;
   enum-element static const field mai::C b = #C15;
-  const constructor •(core::int #index, core::String #name) → mai::C
+  static const field core::List<mai::C> values = #C16;
+  const synthetic constructor •(core::int #index, core::String #name) → mai::C
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "C.${this.{core::_Enum::_name}{core::String}}";
 }
 class D extends core::_Enum /*isEnum*/  {
-  static const field core::List<mai::D> values = #C17;
-  static const field mai::D c = #C13;
   enum-element static const field mai::D a = #C13;
   enum-element static const field mai::D b = #C14;
-  const constructor •(core::int #index, core::String #name) → mai::D
+  static const field mai::D c = #C13;
+  static const field core::List<mai::D> values = #C17;
+  const synthetic constructor •(core::int #index, core::String #name) → mai::D
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "D.${this.{core::_Enum::_name}{core::String}}";
 }
 

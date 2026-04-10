@@ -6,7 +6,8 @@ import 'package:kernel/ast.dart' as ir;
 
 /// Visitor that ascribes an index to all [ir.TreeNode]s that potentially
 /// needed for serialization and deserialization.
-class TreeNodeIndexerVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
+class TreeNodeIndexerVisitor extends ir.VisitorDefault<void>
+    with ir.VisitorVoidMixin {
   int _currentIndex = 0;
   final Map<int, ir.TreeNode> _indexToNodeMap;
   final Map<ir.TreeNode, int> _nodeToIndexMap;
@@ -291,7 +292,9 @@ class ConstantNodeIndexerVisitor implements ir.ConstantVisitor<void> {
 
   ir.Constant getConstant(int index) {
     assert(
-        _indexToNodeMap.containsKey(index), "Index without constant: $index");
+      _indexToNodeMap.containsKey(index),
+      "Index without constant: $index",
+    );
     return _indexToNodeMap[index]!;
   }
 
@@ -317,7 +320,8 @@ class ConstantNodeIndexerVisitor implements ir.ConstantVisitor<void> {
 
   @override
   void visitRedirectingFactoryTearOffConstant(
-      ir.RedirectingFactoryTearOffConstant node) {
+    ir.RedirectingFactoryTearOffConstant node,
+  ) {
     _register(node);
   }
 
@@ -415,8 +419,9 @@ class ConstantNodeIndexerVisitor implements ir.ConstantVisitor<void> {
   }
 
   @override
-  void defaultConstant(ir.Constant node) {
-    throw UnimplementedError(
-        "Unexpected constant: $node (${node.runtimeType})");
+  void visitAuxiliaryConstant(ir.AuxiliaryConstant node) {
+    throw UnsupportedError(
+      "Unsupported auxiliary constant $node (${node.runtimeType}).",
+    );
   }
 }

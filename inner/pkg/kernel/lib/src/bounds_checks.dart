@@ -2,17 +2,11 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:kernel/src/replacement_visitor.dart';
-
 import '../ast.dart';
-
-import '../type_algebra.dart' show Substitution, substitute;
-
-import '../type_environment.dart' show SubtypeCheckMode, TypeEnvironment;
-
+import '../type_algebra.dart';
+import '../type_environment.dart' show TypeEnvironment;
 import '../util/graph.dart' show Graph, computeStrongComponents;
-
-import 'legacy_erasure.dart';
+import 'replacement_visitor.dart';
 
 class TypeVariableGraph extends Graph<int> {
   @override
@@ -66,10 +60,6 @@ class OccurrenceCollectorVisitor implements DartTypeVisitor<void> {
 
   void visit(DartType node) => node.accept(this);
 
-  void visitNamedType(NamedType node) {
-    node.type.accept(this);
-  }
-
   @override
   void visitInvalidType(InvalidType node) {}
 
@@ -81,13 +71,6 @@ class OccurrenceCollectorVisitor implements DartTypeVisitor<void> {
 
   @override
   void visitExtensionType(ExtensionType node) {
-    for (DartType argument in node.typeArguments) {
-      argument.accept(this);
-    }
-  }
-
-  @override
-  void visitInlineType(InlineType node) {
     for (DartType argument in node.typeArguments) {
       argument.accept(this);
     }
@@ -136,7 +119,7 @@ class OccurrenceCollectorVisitor implements DartTypeVisitor<void> {
 
   @override
   void visitFunctionType(FunctionType node) {
-    for (TypeParameter typeParameter in node.typeParameters) {
+    for (StructuralParameter typeParameter in node.typeParameters) {
       typeParameter.bound.accept(this);
       typeParameter.defaultType.accept(this);
     }
@@ -157,11 +140,19 @@ class OccurrenceCollectorVisitor implements DartTypeVisitor<void> {
   }
 
   @override
-  void defaultDartType(DartType node) {}
+  void visitAuxiliaryType(AuxiliaryType node) {
+    throw new UnsupportedError(
+        "Unsupported auxiliary type ${node} (${node.runtimeType}).");
+  }
+
+  @override
+  void visitStructuralParameterType(StructuralParameterType node) {
+    // TODO(cstefantsova): Should we have an occurrence visitor for
+    // [StructuralParameter] objects.
+  }
 }
 
-DartType instantiateToBounds(DartType type, Class objectClass,
-    {required bool isNonNullableByDefault}) {
+DartType instantiateToBounds(DartType type, Class objectClass) {
   if (type is InterfaceType) {
     if (type.typeArguments.isEmpty) return type;
     for (DartType typeArgument in type.typeArguments) {
@@ -172,11 +163,8 @@ DartType instantiateToBounds(DartType type, Class objectClass,
         return type;
       }
     }
-    return new InterfaceType.byReference(
-        type.className,
-        type.nullability,
-        calculateBounds(type.classNode.typeParameters, objectClass,
-            isNonNullableByDefault: isNonNullableByDefault));
+    return new InterfaceType.byReference(type.classReference, type.nullability,
+        calculateBounds(type.classNode.typeParameters, objectClass));
   }
   if (type is TypedefType) {
     if (type.typeArguments.isEmpty) return type;
@@ -185,11 +173,8 @@ DartType instantiateToBounds(DartType type, Class objectClass,
         return type;
       }
     }
-    return new TypedefType.byReference(
-        type.typedefReference,
-        type.nullability,
-        calculateBounds(type.typedefNode.typeParameters, objectClass,
-            isNonNullableByDefault: isNonNullableByDefault));
+    return new TypedefType.byReference(type.typedefReference, type.nullability,
+        calculateBounds(type.typedefNode.typeParameters, objectClass));
   }
   return type;
 }
@@ -201,32 +186,21 @@ DartType instantiateToBounds(DartType type, Class objectClass,
 /// (https://github.com/dart-lang/sdk/blob/master/docs/language/informal/instantiate-to-bound.md)
 /// of the algorithm for details.
 List<DartType> calculateBounds(
-    List<TypeParameter> typeParameters, Class objectClass,
-    {required bool isNonNullableByDefault}) {
-  return calculateBoundsInternal(typeParameters, objectClass,
-      isNonNullableByDefault: isNonNullableByDefault);
-}
-
-List<DartType> calculateBoundsInternal(
-    List<TypeParameter> typeParameters, Class objectClass,
-    {required bool isNonNullableByDefault}) {
-  // ignore: unnecessary_null_comparison
-  assert(isNonNullableByDefault != null);
-
+    List<TypeParameter> typeParameters, Class objectClass) {
   List<DartType> bounds =
       new List<DartType>.filled(typeParameters.length, dummyDartType);
   for (int i = 0; i < typeParameters.length; i++) {
     DartType bound = typeParameters[i].bound;
     bool isContravariant = typeParameters[i].variance == Variance.contravariant;
     if (identical(bound, TypeParameter.unsetBoundSentinel)) {
-      bound = isNonNullableByDefault && isContravariant
-          ? const NeverType.nonNullable()
-          : const DynamicType();
-    } else if (bound is InterfaceType && bound.classNode == objectClass) {
+      bound =
+          isContravariant ? const NeverType.nonNullable() : const DynamicType();
+    } else if (bound is InterfaceType &&
+        bound.classReference == objectClass.reference) {
       DartType defaultType = typeParameters[i].defaultType;
       if (!(defaultType is InterfaceType &&
           defaultType.classNode == objectClass)) {
-        bound = isNonNullableByDefault && isContravariant
+        bound = isContravariant
             ? const NeverType.nonNullable()
             : const DynamicType();
       }
@@ -237,19 +211,24 @@ List<DartType> calculateBoundsInternal(
   TypeVariableGraph graph = new TypeVariableGraph(typeParameters, bounds);
   List<List<int>> stronglyConnected = computeStrongComponents(graph);
   final DartType topType = const DynamicType();
-  final DartType bottomType = isNonNullableByDefault
-      ? const NeverType.nonNullable()
-      : const NeverType.legacy();
-  for (List<int> component in stronglyConnected) {
+  final DartType bottomType = const NeverType.nonNullable();
+  for (int scIndex = 0; scIndex < stronglyConnected.length; scIndex++) {
+    List<int> component = stronglyConnected[scIndex];
     Map<TypeParameter, DartType> upperBounds = <TypeParameter, DartType>{};
     Map<TypeParameter, DartType> lowerBounds = <TypeParameter, DartType>{};
-    for (int typeParameterIndex in component) {
+    for (int componentIndex = 0;
+        componentIndex < component.length;
+        componentIndex++) {
+      int typeParameterIndex = component[componentIndex];
       upperBounds[typeParameters[typeParameterIndex]] = topType;
       lowerBounds[typeParameters[typeParameterIndex]] = bottomType;
     }
     Substitution substitution =
         Substitution.fromUpperAndLowerBounds(upperBounds, lowerBounds);
-    for (int typeParameterIndex in component) {
+    for (int componentIndex = 0;
+        componentIndex < component.length;
+        componentIndex++) {
+      int typeParameterIndex = component[componentIndex];
       bounds[typeParameterIndex] = substitution.substituteType(
           bounds[typeParameterIndex],
           contravariant: typeParameters[typeParameterIndex].variance ==
@@ -336,70 +315,69 @@ class TypeArgumentIssue {
 // checks for super-boundedness for construction of the auxiliary type.  For
 // details see Dart Language Specification, Section 14.3.2 The Instantiation to
 // Bound Algorithm.
-List<TypeArgumentIssue> findTypeArgumentIssues(DartType type,
-    TypeEnvironment typeEnvironment, SubtypeCheckMode subtypeCheckMode,
+List<TypeArgumentIssue> findTypeArgumentIssues(
+    DartType type, TypeEnvironment typeEnvironment,
     {required bool allowSuperBounded,
-    required bool isNonNullableByDefault,
     required bool areGenericArgumentsAllowed}) {
-  // ignore: unnecessary_null_comparison
-  assert(isNonNullableByDefault != null);
-  // ignore: unnecessary_null_comparison
-  assert(areGenericArgumentsAllowed != null);
+  List<TypeParameter> variables;
+  List<DartType> arguments;
 
-  List<TypeParameter> variables = const <TypeParameter>[];
-  List<DartType> arguments = const <DartType>[];
-  List<TypeArgumentIssue> typedefRhsResult = const <TypeArgumentIssue>[];
-
-  if (type is InterfaceType) {
-    variables = type.classNode.typeParameters;
-    arguments = type.typeArguments;
-  } else if (type is TypedefType) {
-    variables = type.typedefNode.typeParameters;
-    arguments = type.typeArguments;
-  } else if (type is FunctionType) {
-    List<TypeArgumentIssue> result = <TypeArgumentIssue>[];
-
-    for (DartType formal in type.positionalParameters) {
-      result.addAll(findTypeArgumentIssues(
-          formal, typeEnvironment, subtypeCheckMode,
-          allowSuperBounded: true,
-          isNonNullableByDefault: isNonNullableByDefault,
-          areGenericArgumentsAllowed: areGenericArgumentsAllowed));
-    }
-
-    for (NamedType named in type.namedParameters) {
-      result.addAll(findTypeArgumentIssues(
-          named.type, typeEnvironment, subtypeCheckMode,
-          allowSuperBounded: true,
-          isNonNullableByDefault: isNonNullableByDefault,
-          areGenericArgumentsAllowed: areGenericArgumentsAllowed));
-    }
-
-    result.addAll(findTypeArgumentIssues(
-        type.returnType, typeEnvironment, subtypeCheckMode,
-        allowSuperBounded: true,
-        isNonNullableByDefault: isNonNullableByDefault,
-        areGenericArgumentsAllowed: areGenericArgumentsAllowed));
-
-    return result;
-  } else if (type is FutureOrType) {
-    variables = typeEnvironment.coreTypes.futureClass.typeParameters;
-    arguments = <DartType>[type.typeArgument];
-  } else {
-    return const <TypeArgumentIssue>[];
+  switch (type) {
+    case InterfaceType(:var classNode, :var typeArguments):
+      variables = classNode.typeParameters;
+      arguments = typeArguments;
+    case TypedefType(:var typedefNode, :var typeArguments):
+      variables = typedefNode.typeParameters;
+      arguments = typeArguments;
+    case ExtensionType(:var extensionTypeDeclaration, :var typeArguments):
+      variables = extensionTypeDeclaration.typeParameters;
+      arguments = typeArguments;
+      // Extension types are never allowed to be super-bounded.
+      allowSuperBounded = false;
+    case FunctionType(
+        :var positionalParameters,
+        :var namedParameters,
+        :var returnType
+      ):
+      return <TypeArgumentIssue>[
+        for (DartType formal in positionalParameters)
+          ...findTypeArgumentIssues(formal, typeEnvironment,
+              allowSuperBounded: true,
+              areGenericArgumentsAllowed: areGenericArgumentsAllowed),
+        for (NamedType named in namedParameters)
+          ...findTypeArgumentIssues(named.type, typeEnvironment,
+              allowSuperBounded: true,
+              areGenericArgumentsAllowed: areGenericArgumentsAllowed),
+        ...findTypeArgumentIssues(returnType, typeEnvironment,
+            allowSuperBounded: true,
+            areGenericArgumentsAllowed: areGenericArgumentsAllowed)
+      ];
+    case FutureOrType(:var typeArgument):
+      variables = typeEnvironment.coreTypes.futureClass.typeParameters;
+      arguments = <DartType>[typeArgument];
+    case DynamicType():
+    case VoidType():
+    case IntersectionType():
+    case TypeParameterType():
+    case StructuralParameterType():
+    case NeverType():
+    case NullType():
+    case RecordType():
+      return const <TypeArgumentIssue>[];
+    case AuxiliaryType():
+      throw new StateError("AuxiliaryType");
+    case InvalidType():
+      // Assuming the error is reported elsewhere.
+      throw const <TypeArgumentIssue>[];
   }
 
   if (variables.isEmpty) {
-    return typedefRhsResult.isNotEmpty
-        ? typedefRhsResult
-        : const <TypeArgumentIssue>[];
+    return const <TypeArgumentIssue>[];
   }
 
   List<TypeArgumentIssue> result = <TypeArgumentIssue>[];
-  List<TypeArgumentIssue> argumentsResult = <TypeArgumentIssue>[];
 
-  Map<TypeParameter, DartType> substitutionMap =
-      new Map<TypeParameter, DartType>.fromIterables(variables, arguments);
+  Substitution substitution = Substitution.fromPairs(variables, arguments);
   for (int i = 0; i < arguments.length; ++i) {
     DartType argument = arguments[i];
     if (!areGenericArgumentsAllowed && isGenericFunctionTypeOrAlias(argument)) {
@@ -407,11 +385,8 @@ List<TypeArgumentIssue> findTypeArgumentIssues(DartType type,
       result.add(new TypeArgumentIssue(i, argument, variables[i], type,
           isGenericTypeAsArgumentIssue: true));
     } else if (variables[i].bound is! InvalidType) {
-      DartType bound = substitute(variables[i].bound, substitutionMap);
-      if (!isNonNullableByDefault) {
-        bound = legacyErasure(bound);
-      }
-      if (!typeEnvironment.isSubtypeOf(argument, bound, subtypeCheckMode)) {
+      DartType bound = substitution.substituteType(variables[i].bound);
+      if (!typeEnvironment.isSubtypeOf(argument, bound)) {
         result.add(new TypeArgumentIssue(i, argument, variables[i], type));
       }
     } else {
@@ -419,17 +394,14 @@ List<TypeArgumentIssue> findTypeArgumentIssues(DartType type,
       // reported already at the time of the creation of InvalidType.
     }
   }
-  result.addAll(argumentsResult);
-  result.addAll(typedefRhsResult);
 
   // [type] is regular-bounded.
   if (result.isEmpty) return const <TypeArgumentIssue>[];
   if (!allowSuperBounded) return result;
 
   bool isCorrectSuperBounded = true;
-  DartType? invertedType = convertSuperBoundedToRegularBounded(
-      typeEnvironment, type,
-      isNonNullableByDefault: isNonNullableByDefault);
+  DartType? invertedType =
+      convertSuperBoundedToRegularBounded(typeEnvironment, type);
 
   // The auxiliary type is the same as [type].  At this point we know that
   // [type] is not regular-bounded, which means that the inverted type is also
@@ -447,8 +419,7 @@ List<TypeArgumentIssue> findTypeArgumentIssues(DartType type,
     variables = typeEnvironment.coreTypes.futureClass.typeParameters;
     arguments = <DartType>[invertedType.typeArgument];
   }
-  substitutionMap =
-      new Map<TypeParameter, DartType>.fromIterables(variables, arguments);
+  substitution = Substitution.fromPairs(variables, arguments);
   for (int i = 0; i < arguments.length; ++i) {
     DartType argument = arguments[i];
     // TODO(johnniwinther): Should we check this even when generic functions
@@ -456,18 +427,11 @@ List<TypeArgumentIssue> findTypeArgumentIssues(DartType type,
     if (isGenericFunctionTypeOrAlias(argument)) {
       // Generic function types aren't allowed as type arguments either.
       isCorrectSuperBounded = false;
-    } else if (!typeEnvironment.isSubtypeOf(argument,
-        substitute(variables[i].bound, substitutionMap), subtypeCheckMode)) {
+    } else if (!typeEnvironment.isSubtypeOf(
+        argument, substitution.substituteType(variables[i].bound))) {
       isCorrectSuperBounded = false;
     }
   }
-  if (argumentsResult.isNotEmpty) {
-    isCorrectSuperBounded = false;
-  }
-  if (typedefRhsResult.isNotEmpty) {
-    isCorrectSuperBounded = false;
-  }
-
   // The inverted type is regular-bounded, which means that [type] is
   // well-bounded.
   if (isCorrectSuperBounded) return const <TypeArgumentIssue>[];
@@ -493,23 +457,13 @@ List<TypeArgumentIssue> findTypeArgumentIssuesForInvocation(
     List<TypeParameter> parameters,
     List<DartType> arguments,
     TypeEnvironment typeEnvironment,
-    SubtypeCheckMode subtypeCheckMode,
     DartType bottomType,
-    {required bool isNonNullableByDefault,
-    required bool areGenericArgumentsAllowed}) {
-  // ignore: unnecessary_null_comparison
-  assert(isNonNullableByDefault != null);
-  // ignore: unnecessary_null_comparison
-  assert(areGenericArgumentsAllowed != null);
-
+    {required bool areGenericArgumentsAllowed}) {
   assert(arguments.length == parameters.length);
   assert(bottomType == const NeverType.nonNullable() || bottomType is NullType);
 
   List<TypeArgumentIssue> result = <TypeArgumentIssue>[];
-  Map<TypeParameter, DartType> substitutionMap = <TypeParameter, DartType>{};
-  for (int i = 0; i < arguments.length; ++i) {
-    substitutionMap[parameters[i]] = arguments[i];
-  }
+  Substitution substitution = Substitution.fromPairs(parameters, arguments);
   for (int i = 0; i < arguments.length; ++i) {
     DartType argument = arguments[i];
     if (argument is IntersectionType) {
@@ -522,11 +476,8 @@ List<TypeArgumentIssue> findTypeArgumentIssuesForInvocation(
       result.add(new TypeArgumentIssue(i, argument, parameters[i], null,
           isGenericTypeAsArgumentIssue: true));
     } else if (parameters[i].bound is! InvalidType) {
-      DartType bound = substitute(parameters[i].bound, substitutionMap);
-      if (!isNonNullableByDefault) {
-        bound = legacyErasure(bound);
-      }
-      if (!typeEnvironment.isSubtypeOf(argument, bound, subtypeCheckMode)) {
+      DartType bound = substitution.substituteType(parameters[i].bound);
+      if (!typeEnvironment.isSubtypeOf(argument, bound)) {
         result.add(new TypeArgumentIssue(i, argument, parameters[i], null));
       }
     }
@@ -548,73 +499,42 @@ String getGenericTypeName(DartType type) {
 /// with `Object`.  Returns null if the converted type is the same as [type].
 DartType? convertSuperBoundedToRegularBounded(
     TypeEnvironment typeEnvironment, DartType type,
-    {int variance = Variance.covariant, required bool isNonNullableByDefault}) {
-  // ignore: unnecessary_null_comparison
-  assert(isNonNullableByDefault != null);
-
-  return type.accept1(
-      new _SuperBoundedTypeInverter(typeEnvironment,
-          isNonNullableByDefault: isNonNullableByDefault),
-      variance);
+    {Variance variance = Variance.covariant}) {
+  return type.accept1(new _SuperBoundedTypeInverter(typeEnvironment), variance);
 }
 
 class _SuperBoundedTypeInverter extends ReplacementVisitor {
   final TypeEnvironment typeEnvironment;
-  final bool isNonNullableByDefault;
   bool isOutermost = true;
 
-  _SuperBoundedTypeInverter(this.typeEnvironment,
-      {required this.isNonNullableByDefault})
-      // ignore: unnecessary_null_comparison
-      : assert(typeEnvironment != null),
-        // ignore: unnecessary_null_comparison
-        assert(isNonNullableByDefault != null);
+  _SuperBoundedTypeInverter(this.typeEnvironment);
 
-  bool flipTop(int variance) {
-    return isNonNullableByDefault
-        ? variance != Variance.contravariant
-        : variance == Variance.covariant;
+  bool flipTop(Variance variance) {
+    return variance != Variance.contravariant;
   }
 
-  bool flipBottom(int variance) {
-    return isNonNullableByDefault
-        ? variance == Variance.contravariant
-        : variance != Variance.covariant;
+  bool flipBottom(Variance variance) {
+    return variance == Variance.contravariant;
   }
 
   DartType get topType {
-    return isNonNullableByDefault
-        ? typeEnvironment.coreTypes.objectNullableRawType
-        : const DynamicType();
+    return typeEnvironment.coreTypes.objectNullableRawType;
   }
 
   DartType get bottomType {
-    return isNonNullableByDefault
-        ? const NeverType.nonNullable()
-        : const NullType();
+    return const NeverType.nonNullable();
   }
 
   bool isTop(DartType node) {
-    if (isNonNullableByDefault) {
-      return typeEnvironment.coreTypes.isTop(node);
-    } else {
-      return node is DynamicType ||
-          node is VoidType ||
-          node is InterfaceType &&
-              node.classNode == typeEnvironment.coreTypes.objectClass;
-    }
+    return typeEnvironment.coreTypes.isTop(node);
   }
 
   bool isBottom(DartType node) {
-    if (isNonNullableByDefault) {
-      return typeEnvironment.coreTypes.isBottom(node);
-    } else {
-      return node is NullType;
-    }
+    return typeEnvironment.coreTypes.isBottom(node);
   }
 
   @override
-  DartType? visitDynamicType(DynamicType node, int variance) {
+  DartType? visitDynamicType(DynamicType node, Variance variance) {
     // dynamic is always a top type.
     assert(isTop(node));
     if (flipTop(variance)) {
@@ -625,7 +545,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitVoidType(VoidType node, int variance) {
+  DartType? visitVoidType(VoidType node, Variance variance) {
     // void is always a top type.
     assert(isTop(node));
     if (flipTop(variance)) {
@@ -636,7 +556,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitInterfaceType(InterfaceType node, int variance) {
+  DartType? visitInterfaceType(InterfaceType node, Variance variance) {
     isOutermost = false;
     // Check for Object-based top types.
     if (isTop(node) && flipTop(variance)) {
@@ -647,13 +567,13 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitRecordType(RecordType node, int variance) {
+  DartType? visitRecordType(RecordType node, Variance variance) {
     isOutermost = false;
     return super.visitRecordType(node, variance);
   }
 
   @override
-  DartType? visitFutureOrType(FutureOrType node, int variance) {
+  DartType? visitFutureOrType(FutureOrType node, Variance variance) {
     isOutermost = false;
     // Check FutureOr-based top types.
     if (isTop(node) && flipTop(variance)) {
@@ -664,7 +584,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitNullType(NullType node, int variance) {
+  DartType? visitNullType(NullType node, Variance variance) {
     // Null isn't a bottom type in NNBD.
     if (isBottom(node) && flipBottom(variance)) {
       return topType;
@@ -674,7 +594,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitNeverType(NeverType node, int variance) {
+  DartType? visitNeverType(NeverType node, Variance variance) {
     // Depending on the variance, Never may not be a bottom type.
     if (isBottom(node) && flipBottom(variance)) {
       return topType;
@@ -684,7 +604,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitTypeParameterType(TypeParameterType node, int variance) {
+  DartType? visitTypeParameterType(TypeParameterType node, Variance variance) {
     // Types such as X extends Never are bottom types.
     if (isBottom(node) && flipBottom(variance)) {
       return topType;
@@ -694,7 +614,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitIntersectionType(IntersectionType node, int variance) {
+  DartType? visitIntersectionType(IntersectionType node, Variance variance) {
     // Types such as X & Never are bottom types.
     if (isBottom(node) && flipBottom(variance)) {
       return topType;
@@ -706,10 +626,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   // TypedefTypes receive special treatment because the variance of their
   // arguments' positions depend on the opt-in status of the library.
   @override
-  DartType? visitTypedefType(TypedefType node, int variance) {
-    if (!isNonNullableByDefault && !isOutermost) {
-      return node.unalias.accept1(this, variance);
-    }
+  DartType? visitTypedefType(TypedefType node, Variance variance) {
     isOutermost = false;
     Nullability? newNullability = visitNullability(node);
     List<DartType>? newTypeArguments = null;
@@ -719,11 +636,7 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
       // here in passing the 'variance' parameter unchanged in for legacy
       // libraries.
       DartType? newTypeArgument = node.typeArguments[i].accept1(
-          this,
-          isNonNullableByDefault
-              ? Variance.combine(
-                  variance, node.typedefNode.typeParameters[i].variance)
-              : variance);
+          this, variance.combine(node.typedefNode.typeParameters[i].variance));
       if (newTypeArgument != null) {
         newTypeArguments ??= new List<DartType>.of(node.typeArguments);
         newTypeArguments[i] = newTypeArgument;
@@ -733,141 +646,180 @@ class _SuperBoundedTypeInverter extends ReplacementVisitor {
   }
 
   @override
-  DartType? visitFunctionType(FunctionType node, int variance) {
+  DartType? visitFunctionType(FunctionType node, Variance variance) {
     isOutermost = false;
     return super.visitFunctionType(node, variance);
   }
 }
 
-int computeVariance(TypeParameter typeParameter, DartType type,
-    {Map<TypeParameter, Map<DartType, int>>? computedVariances}) {
-  computedVariances ??= new Map<TypeParameter, Map<DartType, int>>.identity();
-  Map<DartType, int> variancesFromTypeParameter =
-      computedVariances[typeParameter] ??= new Map<DartType, int>.identity();
+Variance computeVariance(TypeParameter typeParameter, DartType type,
+    {Map<TypeParameter, Map<DartType, VarianceCalculationValue>>?
+        computedVariances}) {
+  computedVariances ??= new Map<TypeParameter,
+      Map<DartType, VarianceCalculationValue>>.identity();
+  Map<DartType, VarianceCalculationValue> variancesFromTypeParameter =
+      computedVariances[typeParameter] ??=
+          new Map<DartType, VarianceCalculationValue>.identity();
 
-  int? variance = variancesFromTypeParameter[type];
-  if (variance != null) return variance;
-  variancesFromTypeParameter[type] = VarianceCalculator._visitMarker;
+  VarianceCalculationValue? varianceCalculationValue =
+      variancesFromTypeParameter[type];
+  if (varianceCalculationValue != null &&
+      varianceCalculationValue.isCalculated) {
+    return varianceCalculationValue.variance!;
+  }
+  variancesFromTypeParameter[type] = VarianceCalculationValue.inProgress;
 
-  return variancesFromTypeParameter[type] =
+  variancesFromTypeParameter[type] =
       type.accept1(new VarianceCalculator(typeParameter), computedVariances);
+  return variancesFromTypeParameter[type]!.variance!;
+}
+
+enum VarianceCalculationValue {
+  pending(null),
+  inProgress(null),
+  calculatedUnrelated(Variance.unrelated),
+  calculatedCovariant(Variance.covariant),
+  calculatedContravariant(Variance.contravariant),
+  calculatedInvariant(Variance.invariant);
+
+  final Variance? variance;
+
+  const VarianceCalculationValue(this.variance);
+
+  factory VarianceCalculationValue.fromVariance(Variance variance) =>
+      switch (variance) {
+        Variance.unrelated => VarianceCalculationValue.calculatedUnrelated,
+        Variance.covariant => VarianceCalculationValue.calculatedCovariant,
+        Variance.contravariant =>
+          VarianceCalculationValue.calculatedContravariant,
+        Variance.invariant => VarianceCalculationValue.calculatedInvariant,
+      };
+
+  bool get isCalculated => variance != null;
 }
 
 class VarianceCalculator
-    implements DartTypeVisitor1<int, Map<TypeParameter, Map<DartType, int>>> {
+    implements
+        DartTypeVisitor1<VarianceCalculationValue,
+            Map<TypeParameter, Map<DartType, VarianceCalculationValue>>> {
   final TypeParameter typeParameter;
-
-  static const int _visitMarker = -2;
 
   VarianceCalculator(this.typeParameter);
 
   @override
-  int defaultDartType(
-      DartType node, Map<TypeParameter, Map<DartType, int>> computedVariances) {
+  VarianceCalculationValue visitAuxiliaryType(
+      AuxiliaryType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
     throw new StateError("Unhandled ${node.runtimeType} "
         "when computing variance of a type parameter.");
   }
 
   @override
-  int visitTypeParameterType(TypeParameterType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    if (node.parameter == typeParameter) return Variance.covariant;
-    return Variance.unrelated;
-  }
-
-  @override
-  int visitIntersectionType(IntersectionType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    if (node.left.parameter == typeParameter) return Variance.covariant;
-    return Variance.unrelated;
-  }
-
-  @override
-  int visitInterfaceType(InterfaceType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
-    for (int i = 0; i < node.typeArguments.length; ++i) {
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              node.classNode.typeParameters[i].variance,
-              computeVariance(typeParameter, node.typeArguments[i],
-                  computedVariances: computedVariances)));
+  VarianceCalculationValue visitTypeParameterType(
+      TypeParameterType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    if (node.parameter == typeParameter) {
+      return VarianceCalculationValue.calculatedCovariant;
+    } else {
+      return VarianceCalculationValue.calculatedUnrelated;
     }
-    return result;
   }
 
   @override
-  int visitExtensionType(ExtensionType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
-    for (int i = 0; i < node.typeArguments.length; ++i) {
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              node.extension.typeParameters[i].variance,
-              computeVariance(typeParameter, node.typeArguments[i],
-                  computedVariances: computedVariances)));
+  VarianceCalculationValue visitStructuralParameterType(
+      StructuralParameterType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    // TODO(cstefantsova): Implement this method.
+    return VarianceCalculationValue.calculatedUnrelated;
+  }
+
+  @override
+  VarianceCalculationValue visitIntersectionType(
+      IntersectionType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    if (node.left.parameter == typeParameter) {
+      return VarianceCalculationValue.calculatedCovariant;
+    } else {
+      return VarianceCalculationValue.calculatedUnrelated;
     }
-    return result;
   }
 
   @override
-  int visitInlineType(InlineType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
+  VarianceCalculationValue visitInterfaceType(
+      InterfaceType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    Variance result = Variance.unrelated;
     for (int i = 0; i < node.typeArguments.length; ++i) {
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              node.inlineClass.typeParameters[i].variance,
-              computeVariance(typeParameter, node.typeArguments[i],
-                  computedVariances: computedVariances)));
+      result = result.meet(node.classNode.typeParameters[i].variance.combine(
+          computeVariance(typeParameter, node.typeArguments[i],
+              computedVariances: computedVariances)));
     }
-    return result;
+    return new VarianceCalculationValue.fromVariance(result);
   }
 
   @override
-  int visitFutureOrType(FutureOrType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return computeVariance(typeParameter, node.typeArgument,
-        computedVariances: computedVariances);
+  VarianceCalculationValue visitExtensionType(
+      ExtensionType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    Variance result = Variance.unrelated;
+    for (int i = 0; i < node.typeArguments.length; ++i) {
+      result = result.meet(node
+          .extensionTypeDeclaration.typeParameters[i].variance
+          .combine(computeVariance(typeParameter, node.typeArguments[i],
+              computedVariances: computedVariances)));
+    }
+    return new VarianceCalculationValue.fromVariance(result);
   }
 
   @override
-  int visitTypedefType(TypedefType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
+  VarianceCalculationValue visitFutureOrType(
+      FutureOrType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return new VarianceCalculationValue.fromVariance(computeVariance(
+        typeParameter, node.typeArgument,
+        computedVariances: computedVariances));
+  }
+
+  @override
+  VarianceCalculationValue visitTypedefType(
+      TypedefType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    Variance result = Variance.unrelated;
     for (int i = 0; i < node.typeArguments.length; ++i) {
       Typedef typedefNode = node.typedefNode;
       TypeParameter typedefTypeParameter = typedefNode.typeParameters[i];
       if (computedVariances.containsKey(typedefTypeParameter) &&
           computedVariances[typedefTypeParameter]![typedefNode.type] ==
-              _visitMarker) {
+              VarianceCalculationValue.inProgress) {
         throw new StateError("The typedef '${node.typedefNode.name}' "
             "has a reference to itself.");
       }
 
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              computeVariance(typeParameter, node.typeArguments[i],
-                  computedVariances: computedVariances),
-              computeVariance(typedefTypeParameter, typedefNode.type!,
-                  computedVariances: computedVariances)));
+      result = result.meet(computeVariance(typeParameter, node.typeArguments[i],
+              computedVariances: computedVariances)
+          .combine(computeVariance(typedefTypeParameter, typedefNode.type!,
+              computedVariances: computedVariances)));
     }
-    return result;
+    return new VarianceCalculationValue.fromVariance(result);
   }
 
   @override
-  int visitFunctionType(FunctionType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
-    result = Variance.meet(
-        result,
-        computeVariance(typeParameter, node.returnType,
-            computedVariances: computedVariances));
-    for (TypeParameter functionTypeParameter in node.typeParameters) {
+  VarianceCalculationValue visitFunctionType(
+      FunctionType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    Variance result = Variance.unrelated;
+    result = result.meet(computeVariance(typeParameter, node.returnType,
+        computedVariances: computedVariances));
+    for (StructuralParameter functionTypeParameter in node.typeParameters) {
       // If [typeParameter] is referenced in the bound at all, it makes the
       // variance of [typeParameter] in the entire type invariant.  The
       // invocation of the visitor below is made to simply figure out if
@@ -879,71 +831,73 @@ class VarianceCalculator
       }
     }
     for (DartType positionalType in node.positionalParameters) {
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              Variance.contravariant,
-              computeVariance(typeParameter, positionalType,
-                  computedVariances: computedVariances)));
+      result = result.meet(Variance.contravariant.combine(computeVariance(
+          typeParameter, positionalType,
+          computedVariances: computedVariances)));
     }
     for (NamedType namedType in node.namedParameters) {
-      result = Variance.meet(
-          result,
-          Variance.combine(
-              Variance.contravariant,
-              computeVariance(typeParameter, namedType.type,
-                  computedVariances: computedVariances)));
+      result = result.meet(Variance.contravariant.combine(computeVariance(
+          typeParameter, namedType.type,
+          computedVariances: computedVariances)));
     }
-    return result;
+    return new VarianceCalculationValue.fromVariance(result);
   }
 
   @override
-  int visitRecordType(RecordType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    int result = Variance.unrelated;
+  VarianceCalculationValue visitRecordType(
+      RecordType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    Variance result = Variance.unrelated;
     for (DartType positionalType in node.positional) {
-      result = Variance.meet(
-          result,
-          computeVariance(typeParameter, positionalType,
-              computedVariances: computedVariances));
+      result = result.meet(computeVariance(typeParameter, positionalType,
+          computedVariances: computedVariances));
     }
     for (NamedType namedType in node.named) {
-      result = Variance.meet(
-          result,
-          computeVariance(typeParameter, namedType.type,
-              computedVariances: computedVariances));
+      result = result.meet(computeVariance(typeParameter, namedType.type,
+          computedVariances: computedVariances));
     }
-    return result;
+    return new VarianceCalculationValue.fromVariance(result);
   }
 
   @override
-  int visitNeverType(NeverType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return Variance.unrelated;
+  VarianceCalculationValue visitNeverType(
+      NeverType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return VarianceCalculationValue.calculatedUnrelated;
   }
 
   @override
-  int visitNullType(
-      NullType node, Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return Variance.unrelated;
+  VarianceCalculationValue visitNullType(
+      NullType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return VarianceCalculationValue.calculatedUnrelated;
   }
 
   @override
-  int visitVoidType(
-      VoidType node, Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return Variance.unrelated;
+  VarianceCalculationValue visitVoidType(
+      VoidType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return VarianceCalculationValue.calculatedUnrelated;
   }
 
   @override
-  int visitDynamicType(DynamicType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return Variance.unrelated;
+  VarianceCalculationValue visitDynamicType(
+      DynamicType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return VarianceCalculationValue.calculatedUnrelated;
   }
 
   @override
-  int visitInvalidType(InvalidType node,
-      Map<TypeParameter, Map<DartType, int>> computedVariances) {
-    return Variance.unrelated;
+  VarianceCalculationValue visitInvalidType(
+      InvalidType node,
+      Map<TypeParameter, Map<DartType, VarianceCalculationValue>>
+          computedVariances) {
+    return VarianceCalculationValue.calculatedUnrelated;
   }
 }
 
@@ -962,21 +916,27 @@ class _HasGenericFunctionTypeAsTypeArgumentVisitor
   const _HasGenericFunctionTypeAsTypeArgumentVisitor();
 
   @override
-  bool defaultDartType(DartType node, bool isTypeArgument) => false;
+  bool visitAuxiliaryType(AuxiliaryType node, bool isTypeArgument) {
+    throw new UnsupportedError(
+        "Unsupported auxiliary type ${node} (${node.runtimeType}).");
+  }
 
   @override
   bool visitFunctionType(FunctionType node, bool isTypeArgument) {
     if (isTypeArgument && node.typeParameters.isNotEmpty) {
       return true;
     }
-    // TODO(johnniwinther): Should deeply nested generic function types be
-    //  disallowed?
     if (node.returnType.accept1(this, false)) return true;
     for (DartType parameterType in node.positionalParameters) {
       if (parameterType.accept1(this, false)) return true;
     }
     for (NamedType namedParameterType in node.namedParameters) {
       if (namedParameterType.type.accept1(this, false)) return true;
+    }
+    for (StructuralParameter typeParameter in node.typeParameters) {
+      if (typeParameter.bound.accept1(this, false)) {
+        return true;
+      }
     }
     return false;
   }
@@ -996,4 +956,59 @@ class _HasGenericFunctionTypeAsTypeArgumentVisitor
     }
     return false;
   }
+
+  @override
+  bool visitExtensionType(ExtensionType node, bool isTypeArgument) {
+    for (DartType typeArgument in node.typeArguments) {
+      if (typeArgument.accept1(this, true)) return true;
+    }
+    return false;
+  }
+
+  @override
+  bool visitDynamicType(DynamicType node, bool isTypeArgument) => false;
+
+  @override
+  bool visitFutureOrType(FutureOrType node, bool isTypeArgument) {
+    return node.typeArgument.accept1(this, false);
+  }
+
+  @override
+  bool visitIntersectionType(IntersectionType node, bool isTypeArgument) {
+    return node.left.accept1(this, false) || node.right.accept1(this, false);
+  }
+
+  @override
+  bool visitInvalidType(InvalidType node, bool isTypeArgument) => false;
+
+  @override
+  bool visitNeverType(NeverType node, bool isTypeArgument) => false;
+
+  @override
+  bool visitNullType(NullType node, bool isTypeArgument) => false;
+
+  @override
+  bool visitRecordType(RecordType node, bool isTypeArgument) {
+    for (DartType parameterType in node.positional) {
+      if (parameterType.accept1(this, false)) return true;
+    }
+    for (NamedType namedParameterType in node.named) {
+      if (namedParameterType.type.accept1(this, false)) return true;
+    }
+    return false;
+  }
+
+  @override
+  bool visitTypeParameterType(TypeParameterType node, bool isTypeArgument) {
+    return false;
+  }
+
+  @override
+  bool visitStructuralParameterType(
+      StructuralParameterType node, bool isTypeArgument) {
+    return false;
+  }
+
+  @override
+  bool visitVoidType(VoidType node, bool isTypeArgument) => false;
 }

@@ -2,8 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/compiler.dart';
 import 'package:compiler/src/common/elements.dart';
 import 'package:compiler/src/elements/entities.dart';
@@ -17,14 +17,15 @@ main() {
 }
 
 runTest() async {
-  // Pretend this is a web_2/native test to allow use of 'native' keyword
+  // Pretend this is a web/native test to allow use of 'native' keyword
   // and import of private libraries.
-  String main = 'sdk/tests/web_2/native/main.dart';
+  String main = 'sdk/tests/web/native/main.dart';
   Uri entryPoint = Uri.parse('memory:$main');
 
-  CompilationResult result =
-      await runCompiler(entryPoint: entryPoint, memorySourceFiles: {
-    main: '''
+  CompilationResult result = await runCompiler(
+    entryPoint: entryPoint,
+    memorySourceFiles: {
+      main: '''
 class A {
   method1() {}
   method2() {}
@@ -73,7 +74,7 @@ class F extends B {
   set setter(_) {}
 }
 
-class G {
+mixin G {
   method1() {}
   method2() {}
   method4() {}
@@ -93,14 +94,14 @@ class I {
 
 class J extends I implements A {}
 
-class K {
+mixin K {
   method1() {}
   method2() {}
   get getter => 42;
   set setter(_) {}
 }
 
-class L = Object with K;
+mixin class L = Object with K;
 class L2 = Object with L;
 class M extends L {}
 class M2 extends L2 {}
@@ -134,7 +135,7 @@ class Class1b {
 }
 
 class Class2 {
-  Class1a c;
+  Class1a? c;
 }
 
 main() {
@@ -161,12 +162,12 @@ method1() {
   o.method1();
   o.getter;
   o.setter = 42;
-  R r;
-  r.method3();
+  R? r;
+  r!.method3();
   r = R(); // Create R after call.
   Class1a();
   Class1b();
-  Class2().c(0, 1, 2);
+  Class2().c!(0, 1, 2);
 }
 
 method2() {
@@ -175,18 +176,19 @@ method2() {
   a.method4();
   b.method5();
 }
-'''
-  });
+''',
+    },
+  );
   Expect.isTrue(result.isSuccess);
-  Compiler compiler = result.compiler;
+  Compiler compiler = result.compiler!;
 
   Map<String, List<String>> expectedLiveMembersMap = <String, List<String>>{
     'A': ['method1', 'getter', 'method4'],
     'B': ['method2', 'setter', 'method5'],
-    'C': ['method1', 'getter'],
-    'D': ['method2', 'setter'],
-    'G': ['method1', 'getter'],
-    'I': ['method1', 'getter'],
+    'C': ['method1', 'getter', 'method4'],
+    'D': ['method2', 'setter', 'method5'],
+    'G': ['method1', 'getter', 'method4'],
+    'I': ['method1', 'getter', 'method4'],
     'K': ['method1', 'getter'],
     'N': [],
     'P': ['method1', 'getter', 'setter'],
@@ -199,8 +201,9 @@ method2() {
   KClosedWorld closedWorld = compiler.frontendClosedWorldForTesting!;
   ElementEnvironment elementEnvironment = closedWorld.elementEnvironment;
 
-  elementEnvironment.forEachClass(elementEnvironment.mainLibrary!,
-      (ClassEntity cls) {
+  elementEnvironment.forEachClass(elementEnvironment.mainLibrary!, (
+    ClassEntity cls,
+  ) {
     List<String> expectedLiveMembers =
         expectedLiveMembersMap[cls.name] ?? const <String>[];
     List<String> actualLiveMembers = <String>[];
@@ -210,10 +213,11 @@ method2() {
       actualLiveMembers.add(member.name!);
     });
     Expect.setEquals(
-        expectedLiveMembers,
-        actualLiveMembers,
-        "Unexpected live members for $cls. \n"
-        "Expected members for ${cls.name}: $expectedLiveMembers\n"
-        "Actual members for ${cls.name}  : $actualLiveMembers");
+      expectedLiveMembers,
+      actualLiveMembers,
+      "Unexpected live members for $cls. \n"
+      "Expected members for ${cls.name}: $expectedLiveMembers\n"
+      "Actual members for ${cls.name}  : $actualLiveMembers",
+    );
   });
 }

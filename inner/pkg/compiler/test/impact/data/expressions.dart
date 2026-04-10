@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: main:static=[
   testAs(1),
   testAsGeneric(1),
@@ -180,20 +178,15 @@ testIsTypedefDeep() => null is List<GenericTypedef<int, GenericTypedef>>;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -211,7 +204,7 @@ testIsTypedefDeep() => null is List<GenericTypedef<int, GenericTypedef>>;
   findType(1),
   instanceType(1)],
  type=[
-  as:Class*,
+  as:Class,
   inst:Closure,
   inst:JSBool]
 */
@@ -225,20 +218,15 @@ testAs(dynamic o) => o as Class;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -257,7 +245,7 @@ testAs(dynamic o) => o as Class;
   findType(1),
   instanceType(1)],
  type=[
-  as:GenericClass<int*,String*>*,
+  as:GenericClass<int,String>,
   inst:Closure,
   inst:JSArray<dynamic>,
   inst:JSBool,
@@ -276,20 +264,15 @@ testAsGeneric(dynamic o) => o as GenericClass<int, String>;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -307,7 +290,7 @@ testAsGeneric(dynamic o) => o as GenericClass<int, String>;
   findType(1),
   instanceType(1)],
  type=[
-  as:GenericClass<dynamic,dynamic>*,
+  as:GenericClass<dynamic,dynamic>,
   inst:Closure,
   inst:JSBool]
 */
@@ -321,20 +304,15 @@ testAsGenericRaw(dynamic o) => o as GenericClass;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -352,7 +330,7 @@ testAsGenericRaw(dynamic o) => o as GenericClass;
   findType(1),
   instanceType(1)],
  type=[
-  as:GenericClass<dynamic,dynamic>*,
+  as:GenericClass<dynamic,dynamic>,
   inst:Closure,
   inst:JSBool]
 */
@@ -360,8 +338,11 @@ testAsGenericRaw(dynamic o) => o as GenericClass;
 testAsGenericDynamic(dynamic o) => o as GenericClass<dynamic, dynamic>;
 
 /*member: testThrow:
- static=[throwExpression(1),wrapException(1)],
- type=[inst:JSString]*/
+ static=[
+  throwExpression(2),
+  wrapException(1)],
+ type=[inst:JSString]
+*/
 testThrow() => throw '';
 
 /*member: testIfNotNull:
@@ -378,20 +359,15 @@ testIfNotNull(o) => o?.foo;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -412,9 +388,9 @@ testIfNotNull(o) => o?.foo;
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
-  param:Class*]
+  param:Class?]
 */
-testTypedIfNotNull(Class o) => o?.field;
+testTypedIfNotNull(Class? o) => o?.field;
 
 /*member: testIfNotNullSet:
  dynamic=[foo=],

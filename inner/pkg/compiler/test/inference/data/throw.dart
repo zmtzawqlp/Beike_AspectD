@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   unconditionalThrow();
   conditionalThrow();
@@ -16,19 +14,19 @@ main() {
 /// Method that throws unconditionally.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: unconditionalThrow:[empty]*/
+/*member: unconditionalThrow:[empty|powerset=empty]*/
 unconditionalThrow() => throw 'foo';
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Method that throws conditionally.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _conditionalThrow:[null]*/
-_conditionalThrow(/*[exact=JSBool]*/ o) {
+/*member: _conditionalThrow:[null|powerset={null}]*/
+_conditionalThrow(/*[exact=JSBool|powerset={I}{O}{N}]*/ o) {
   if (o) throw 'foo';
 }
 
-/*member: conditionalThrow:[null]*/
+/*member: conditionalThrow:[null|powerset={null}]*/
 conditionalThrow() {
   _conditionalThrow(true);
   _conditionalThrow(false);
@@ -38,13 +36,13 @@ conditionalThrow() {
 /// Method that throws conditionally and return 0.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _conditionalThrowReturn:[exact=JSUInt31]*/
-_conditionalThrowReturn(/*[exact=JSBool]*/ o) {
+/*member: _conditionalThrowReturn:[exact=JSUInt31|powerset={I}{O}{N}]*/
+_conditionalThrowReturn(/*[exact=JSBool|powerset={I}{O}{N}]*/ o) {
   if (o) throw 'foo';
   return 0;
 }
 
-/*member: conditionalThrowReturn:[null]*/
+/*member: conditionalThrowReturn:[null|powerset={null}]*/
 conditionalThrowReturn() {
   _conditionalThrowReturn(true);
   _conditionalThrowReturn(false);
@@ -54,7 +52,7 @@ conditionalThrowReturn() {
 /// Method that rethrows unconditionally.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: unconditionalRethrow:[empty]*/
+/*member: unconditionalRethrow:[empty|powerset=empty]*/
 unconditionalRethrow() {
   try {
     throw 'foo';

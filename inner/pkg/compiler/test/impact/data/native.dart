@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 // ignore: IMPORT_INTERNAL_LIBRARY
 import 'dart:_foreign_helper' as foreign show JS;
 // ignore: IMPORT_INTERNAL_LIBRARY
@@ -29,9 +27,10 @@ main() {
  type=[inst:JSNull,inst:JSString,native:bool,native:int]
 */
 testJSCall() => foreign.JS(
-    'int|bool|NativeUint8List|Rectangle|IdbFactory|TypedData|ContextAttributes',
-    '#',
-    null);
+  'int|bool|NativeUint8List|Rectangle|IdbFactory|TypedData|ContextAttributes',
+  '#',
+  null,
+);
 
 /*member: testNativeMethod:*/
 @JSName('foo')
@@ -65,20 +64,15 @@ class NativeClass {
     _arrayInstanceType(1),
     _asBool(1),
     _asBoolQ(1),
-    _asBoolS(1),
     _asDouble(1),
     _asDoubleQ(1),
-    _asDoubleS(1),
     _asInt(1),
     _asIntQ(1),
-    _asIntS(1),
     _asNum(1),
     _asNumQ(1),
-    _asNumS(1),
     _asObject(1),
     _asString(1),
     _asStringQ(1),
-    _asStringS(1),
     _asTop(1),
     _generalAsCheckImplementation(1),
     _generalIsTestImplementation(1),
@@ -105,10 +99,10 @@ class NativeClass {
     native:bool,
     native:double,
     native:int,
-    param:Object*]
+    param:Object?]
   */
   @annotation_Creates_SerializedScriptValue
-  final Object field;
+  final Object? field = null;
 
   factory NativeClass._() {
     throw UnsupportedError("Not supported");
@@ -123,20 +117,15 @@ class NativeClass {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -157,6 +146,7 @@ class NativeClass {
  type=[
   inst:Closure,
   inst:JSBool,
-  param:NativeClass*]
+  inst:JSNull,
+  param:NativeClass?]
 */
-testNativeField(NativeClass c) => c.field;
+testNativeField(NativeClass? c) => c?.field;

@@ -3,6 +3,8 @@
 // BSD-style license that can be found in the LICENSE file.
 
 /// Converters and codecs for converting between Protobuf and [Info] classes.
+library;
+
 import 'dart:convert';
 
 import 'package:fixnum/fixnum.dart';
@@ -32,11 +34,13 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
     var serializedId = ids[info];
     if (serializedId != null) return serializedId;
 
-    assert(info is LibraryInfo ||
-        info is ConstantInfo ||
-        info is OutputUnitInfo ||
-        info is ClassInfo ||
-        info.parent != null);
+    assert(
+      info is LibraryInfo ||
+          info is ConstantInfo ||
+          info is OutputUnitInfo ||
+          info is ClassInfo ||
+          info.parent != null,
+    );
 
     int id;
     if (info is ConstantInfo) {
@@ -78,16 +82,21 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
   LibraryInfoPB _convertToLibraryInfoPB(LibraryInfo info) {
     final proto = LibraryInfoPB()..uri = info.uri.toString();
 
-    proto.childrenIds
-        .addAll(info.topLevelFunctions.map((func) => idFor(func).serializedId));
     proto.childrenIds.addAll(
-        info.topLevelVariables.map((field) => idFor(field).serializedId));
-    proto.childrenIds
-        .addAll(info.classes.map((clazz) => idFor(clazz).serializedId));
+      info.topLevelFunctions.map((func) => idFor(func).serializedId),
+    );
     proto.childrenIds.addAll(
-        info.classTypes.map((classType) => idFor(classType).serializedId));
-    proto.childrenIds
-        .addAll(info.typedefs.map((def) => idFor(def).serializedId));
+      info.topLevelVariables.map((field) => idFor(field).serializedId),
+    );
+    proto.childrenIds.addAll(
+      info.classes.map((clazz) => idFor(clazz).serializedId),
+    );
+    proto.childrenIds.addAll(
+      info.classTypes.map((classType) => idFor(classType).serializedId),
+    );
+    proto.childrenIds.addAll(
+      info.typedefs.map((def) => idFor(def).serializedId),
+    );
 
     return proto;
   }
@@ -95,10 +104,12 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
   ClassInfoPB _convertToClassInfoPB(ClassInfo info) {
     final proto = ClassInfoPB()..isAbstract = info.isAbstract;
 
-    proto.childrenIds
-        .addAll(info.functions.map((func) => idFor(func).serializedId));
-    proto.childrenIds
-        .addAll(info.fields.map((field) => idFor(field).serializedId));
+    proto.childrenIds.addAll(
+      info.functions.map((func) => idFor(func).serializedId),
+    );
+    proto.childrenIds.addAll(
+      info.fields.map((field) => idFor(field).serializedId),
+    );
 
     return proto;
   }
@@ -108,7 +119,8 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
   }
 
   static FunctionModifiersPB _convertToFunctionModifiers(
-      FunctionModifiers modifiers) {
+    FunctionModifiers modifiers,
+  ) {
     return FunctionModifiersPB()
       ..isStatic = modifiers.isStatic
       ..isConst = modifiers.isConst
@@ -129,8 +141,9 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
 
     proto.sideEffects = info.sideEffects;
 
-    proto.childrenIds
-        .addAll(info.closures.map(((closure) => idFor(closure).serializedId)));
+    proto.childrenIds.addAll(
+      info.closures.map(((closure) => idFor(closure).serializedId)),
+    );
     proto.parameters.addAll(info.parameters.map(_convertToParameterInfoPB));
 
     return proto;
@@ -148,8 +161,9 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
       proto.initializerId = idFor(info.initializer!).serializedId;
     }
 
-    proto.childrenIds
-        .addAll(info.closures.map((closure) => idFor(closure).serializedId));
+    proto.childrenIds.addAll(
+      info.closures.map((closure) => idFor(closure).serializedId),
+    );
 
     return proto;
   }
@@ -244,7 +258,8 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
   }
 
   Iterable<MapEntry<String, InfoPB>> _convertToAllInfosEntries<T extends Info>(
-      Iterable<T> infos) sync* {
+    Iterable<T> infos,
+  ) sync* {
     for (final info in infos) {
       final infoProto = _convertToInfoPB(info);
       final entry = MapEntry<String, InfoPB>(infoProto.serializedId, infoProto);
@@ -253,7 +268,9 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
   }
 
   static LibraryDeferredImportsPB _convertToLibraryDeferredImportsPB(
-      String libraryUri, Map<String, dynamic> fields) {
+    String libraryUri,
+    Map<String, dynamic> fields,
+  ) {
     final proto = LibraryDeferredImportsPB()
       ..libraryUri = libraryUri
       ..libraryName = fields['name'] ?? '<unnamed>';
@@ -282,8 +299,9 @@ class AllInfoToProtoConverter extends Converter<AllInfo, AllInfoPB> {
     proto.allInfos.addEntries(_convertToAllInfosEntries(info.closures));
 
     info.deferredFiles?.forEach((libraryUri, fields) {
-      proto.deferredImports
-          .add(_convertToLibraryDeferredImportsPB(libraryUri, fields));
+      proto.deferredImports.add(
+        _convertToLibraryDeferredImportsPB(libraryUri, fields),
+      );
     });
 
     return proto;

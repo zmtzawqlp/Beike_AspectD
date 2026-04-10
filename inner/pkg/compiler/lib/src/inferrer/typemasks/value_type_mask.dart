@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-part of masks;
+part of 'masks.dart';
 
 class ValueTypeMask extends ForwardingTypeMask {
   /// Tag used for identifying serialized [ValueTypeMask] objects in a
@@ -17,7 +17,9 @@ class ValueTypeMask extends ForwardingTypeMask {
 
   /// Deserializes a [ValueTypeMask] object from [source].
   factory ValueTypeMask.readFromDataSource(
-      DataSourceReader source, CommonMasks domain) {
+    DataSourceReader source,
+    CommonMasks domain,
+  ) {
     source.begin(tag);
     TypeMask forwardTo = TypeMask.readFromDataSource(source, domain);
     final constant = source.readConstant() as PrimitiveConstantValue;
@@ -36,27 +38,22 @@ class ValueTypeMask extends ForwardingTypeMask {
   }
 
   @override
-  ValueTypeMask withFlags({bool? isNullable, bool? hasLateSentinel}) {
-    isNullable ??= this.isNullable;
-    hasLateSentinel ??= this.hasLateSentinel;
-    if (isNullable == this.isNullable &&
-        hasLateSentinel == this.hasLateSentinel) {
-      return this;
-    }
-    return ValueTypeMask(
-        forwardTo.withFlags(
-            isNullable: isNullable, hasLateSentinel: hasLateSentinel),
-        value);
+  ValueTypeMask withPowerset(Bitset powerset, CommonMasks domain) {
+    if (powerset == this.powerset) return this;
+    return ValueTypeMask(forwardTo.withPowerset(powerset, domain), value);
   }
 
   @override
-  TypeMask? _unionSpecialCases(TypeMask other, CommonMasks domain,
-      {required bool isNullable, required bool hasLateSentinel}) {
+  TypeMask? _unionSpecialCases(
+    TypeMask other,
+    CommonMasks domain,
+    Bitset powerset,
+  ) {
     if (other is ValueTypeMask &&
-        forwardTo.withoutFlags() == other.forwardTo.withoutFlags() &&
+        forwardTo.withoutSpecialValues(domain) ==
+            other.forwardTo.withoutSpecialValues(domain) &&
         value == other.value) {
-      return withFlags(
-          isNullable: isNullable, hasLateSentinel: hasLateSentinel);
+      return withPowerset(powerset, domain);
     }
     return null;
   }
@@ -73,6 +70,7 @@ class ValueTypeMask extends ForwardingTypeMask {
 
   @override
   String toString() {
-    return 'Value($forwardTo, value: ${value.toDartText(null)})';
+    return 'Value($forwardTo, value: ${value.toDartText(null)}, '
+        'powerset: ${TypeMask.powersetToString(powerset)})';
   }
 }

@@ -13,23 +13,17 @@ String constantToText(DartTypes dartTypes, ConstantValue constant) {
 }
 
 class DartTypeToTextVisitor extends DartTypeVisitor<void, StringBuffer> {
-  String visitList(Iterable<DartType> types, StringBuffer sb,
-      [String comma = '']) {
+  String visitList(
+    Iterable<DartType> types,
+    StringBuffer sb, [
+    String comma = '',
+  ]) {
     for (DartType type in types) {
       sb.write(comma);
       visit(type, sb);
       comma = ',';
     }
     return comma;
-  }
-
-  @override
-  void visitLegacyType(LegacyType type, StringBuffer sb) {
-    bool wrapFunction = type.baseType is FunctionType;
-    if (wrapFunction) sb.write('(');
-    visit(type.baseType, sb);
-    if (wrapFunction) sb.write(')');
-    sb.write('*');
   }
 
   @override
@@ -252,15 +246,15 @@ class ConstantToTextVisitor
   }
 
   void _unsupported(ConstantValue constant) => throw UnsupportedError(
-      'Unsupported constant value: ${constant.toStructuredText(_dartTypes)}');
+    'Unsupported constant value: ${constant.toStructuredText(_dartTypes)}',
+  );
 
   @override
   void visitInterceptor(InterceptorConstantValue constant, StringBuffer sb) =>
       _unsupported(constant);
 
   @override
-  void visitDummyInterceptor(
-          DummyInterceptorConstantValue constant, StringBuffer sb) =>
+  void visitDummy(DummyConstantValue constant, StringBuffer sb) =>
       _unsupported(constant);
 
   @override
@@ -277,21 +271,36 @@ class ConstantToTextVisitor
 
   @override
   void visitDeferredGlobal(
-          DeferredGlobalConstantValue constant, StringBuffer sb) =>
-      _unsupported(constant);
-
-  @override
-  void visitNonConstant(NonConstantValue constant, StringBuffer sb) {
-    sb.write('NonConstant()');
-  }
+    DeferredGlobalConstantValue constant,
+    StringBuffer sb,
+  ) => _unsupported(constant);
 
   @override
   void visitInstantiation(
-      InstantiationConstantValue constant, StringBuffer sb) {
+    InstantiationConstantValue constant,
+    StringBuffer sb,
+  ) {
     sb.write('Instantiation(');
     sb.write(constant.function.element.name);
     sb.write('<');
     typeToText.visitList(constant.typeArguments, sb);
     sb.write('>)');
+  }
+
+  @override
+  void visitJavaScriptObject(
+    JavaScriptObjectConstantValue constant,
+    StringBuffer sb,
+  ) {
+    sb.write('JavaScriptObject({');
+    for (int index = 0; index < constant.keys.length; index++) {
+      if (index > 0) {
+        sb.write(',');
+      }
+      visit(constant.keys[index], sb);
+      sb.write(':');
+      visit(constant.values[index], sb);
+    }
+    sb.write('})');
   }
 }

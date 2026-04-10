@@ -39,6 +39,9 @@ class BinaryDataSink implements DataSink {
     _length += bytes.length;
   }
 
+  /// In order to compactly represent ints we only support up to 30 bit values.
+  static const int maxIntValue = 1 << 30;
+
   @override
   void writeInt(int value) {
     assert(value >= 0 && value >> 30 == 0);
@@ -49,20 +52,29 @@ class BinaryDataSink implements DataSink {
       _bufferedSink!.addByte2((value >> 8) | 0x80, value & 0xFF);
       _length += 2;
     } else {
-      _bufferedSink!.addByte4((value >> 24) | 0xC0, (value >> 16) & 0xFF,
-          (value >> 8) & 0xFF, value & 0xFF);
+      _bufferedSink!.addByte4(
+        (value >> 24) | 0xC0,
+        (value >> 16) & 0xFF,
+        (value >> 8) & 0xFF,
+        value & 0xFF,
+      );
       _length += 4;
     }
   }
 
-  void _writeUInt32(int value) {
+  @override
+  void writeUint32(int value) {
     _length += 4;
-    _bufferedSink!.addByte4((value >> 24) & 0xFF, (value >> 16) & 0xFF,
-        (value >> 8) & 0xFF, value & 0xFF);
+    _bufferedSink!.addByte4(
+      (value >> 24) & 0xFF,
+      (value >> 16) & 0xFF,
+      (value >> 8) & 0xFF,
+      value & 0xFF,
+    );
   }
 
   @override
-  void writeDeferred(void writer()) {
+  void writeDeferred(void Function() writer) {
     final indexOffset = _length;
     writeInt(0); // Padding so the offset won't collide with a nested write.
     final dataStartOffset = _length;
@@ -70,9 +82,24 @@ class BinaryDataSink implements DataSink {
     _deferredOffsetToSize[indexOffset] = _length - dataStartOffset;
   }
 
+  final List<(int, int)> _deferredOffsets = [];
+
   @override
-  void writeEnum(dynamic value) {
-    // ignore: avoid_dynamic_calls
+  void startDeferred() {
+    final indexOffset = _length;
+    writeInt(0); // Padding so the offset won't collide with a nested write.
+    final dataStartOffset = _length;
+    _deferredOffsets.add((indexOffset, dataStartOffset));
+  }
+
+  @override
+  void endDeferred() {
+    final (indexOffset, dataStartOffset) = _deferredOffsets.removeLast();
+    _deferredOffsetToSize[indexOffset] = _length - dataStartOffset;
+  }
+
+  @override
+  void writeEnum<E extends Enum>(E value) {
     writeInt(value.index);
   }
 
@@ -84,7 +111,7 @@ class BinaryDataSink implements DataSink {
       writeInt(entry.key);
       writeInt(entry.value);
     }
-    _writeUInt32(deferredDataStart);
+    writeUint32(deferredDataStart);
     _bufferedSink!.flushAndDestroy();
     _bufferedSink = null;
     _deferredOffsetToSize.clear();

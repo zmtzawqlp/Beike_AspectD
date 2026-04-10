@@ -1,57 +1,64 @@
 #!/usr/bin/env python3
-# Copyright (c) 2019, the Dart project authors.  Please see the AUTHORS file
+# Copyright (c) 2024, the Dart project authors.  Please see the AUTHORS file
 # for details. All rights reserved. Use of this source code is governed by a
 # BSD-style license that can be found in the LICENSE file.
-"""Front-end specific presubmit script.
+"""CFE et al presubmit python script.
 
 See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details about the presubmit API built into gcl.
 """
 
-import imp
+import importlib.util
+import importlib.machinery
 import os.path
 import subprocess
 
 USE_PYTHON3 = True
 
 
+def load_source(modname, filename):
+    loader = importlib.machinery.SourceFileLoader(modname, filename)
+    spec = importlib.util.spec_from_file_location(modname,
+                                                  filename,
+                                                  loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    # The module is always executed and not cached in sys.modules.
+    # Uncomment the following line to cache the module.
+    # sys.modules[module.__name__] = module
+    loader.exec_module(module)
+    return module
+
+
 def runSmokeTest(input_api, output_api):
-    hasChangedFiles = False
-    for git_file in input_api.AffectedTextFiles():
-        filename = git_file.AbsoluteLocalPath()
-        if filename.endswith(".dart") or filename.endswith("messages.yaml"):
-            hasChangedFiles = True
-            break
+    local_root = input_api.change.RepositoryRoot()
+    utils = load_source('utils', os.path.join(local_root, 'tools', 'utils.py'))
+    dart = os.path.join(utils.CheckedInSdkPath(), 'bin', 'dart')
+    test_helper = os.path.join(local_root, 'pkg', 'front_end',
+                               'presubmit_helper.dart')
 
-    if hasChangedFiles:
-        local_root = input_api.change.RepositoryRoot()
-        utils = imp.load_source('utils',
-                        os.path.join(local_root, 'tools', 'utils.py'))
-        dart = os.path.join(utils.CheckedInSdkPath(), 'bin', 'dart')
-        smoke_test = os.path.join(local_root, 'pkg', 'front_end', 'tool',
-                                  'smoke_test_quick.dart')
+    windows = utils.GuessOS() == 'win32'
+    if windows:
+        dart += '.exe'
 
-        windows = utils.GuessOS() == 'win32'
-        if windows:
-            dart += '.exe'
+    if not os.path.isfile(dart):
+        print('WARNING: dart not found: %s' % dart)
+        return []
 
-        if not os.path.isfile(dart):
-            print('WARNING: dart not found: %s' % dart)
-            return []
+    if not os.path.isfile(test_helper):
+        print('WARNING: CFE et al presubmit_helper not found: %s' % test_helper)
+        return []
 
-        if not os.path.isfile(smoke_test):
-            print('WARNING: Front-end smoke test not found: %s' % smoke_test)
-            return []
+    args = [dart, test_helper, input_api.PresubmitLocalPath()]
+    process = subprocess.Popen(args,
+                               stdout=subprocess.PIPE,
+                               stdin=subprocess.PIPE)
+    outs, _ = process.communicate()
 
-        args = [dart, smoke_test]
-        process = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-        outs, _ = process.communicate()
-
-        if process.returncode != 0:
-            return [output_api.PresubmitError(
-                    'Front-end smoke test failure(s):',
-                    long_text=outs)]
+    if process.returncode != 0:
+        return [
+            output_api.PresubmitError('CFE et al presubmit script failure(s):',
+                                      long_text=outs)
+        ]
 
     return []
 

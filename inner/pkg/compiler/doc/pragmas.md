@@ -10,9 +10,9 @@
 | `dart2js:prefer-inline` | Alias for `dart2js:tryInline` |
 | `dart2js:disable-inlining` | [Disable inlining within a method](#disabling-inlining) |
 | `dart2js:noElision` | Disables an optimization whereby unused fields or unused parameters are removed |
-| `dart2js:load-priority:normal` | [Affects deferred library loading](#load-priority) |
-| `dart2js:load-priority:high` | [Affects deferred library loading](#load-priority) |
-| `dart2js:resource-identifer` | [Collects data references to resources](resource-identifers.md) |
+| `dart2js:load-priority` | [Affects deferred library loading](#load-priority) |
+| `dart2js:resource-identifier` | [Collects data references to resources](resource_identifiers.md) |
+| `dart2js:stack-starts-at-throw` | [Affects stack trace from `throw` expressions](#stack-statrs-at-throw) |
 | `weak-tearoff-reference` | [Declaring a static weak reference intrinsic method.](#declaring-a-static-weak-reference-intrinsic-method) |
 
 ## Unsafe pragmas for general use
@@ -35,6 +35,8 @@ understands potential repercussions.
 | `dart2js:parameter:trust` | TBD |
 | `dart2js:types:check` | TBD |
 | `dart2js:types:trust` | TBD |
+| `dart2js:allow-cse` | [Allow common subexpression elimination (CSE)](#allow-cse) |
+| `dart2js:allow-dce` | [Allow dead code elimination (DCE)](#allow-dce) |
 
 ## Pragmas for internal use
 
@@ -45,8 +47,8 @@ only allowed within the core SDK libraries.
 | --- | --- |
 | `dart2js:assumeDynamic` | TBD |
 | `dart2js:disableFinal` | TBD |
-| `dart2js:noSideEffects` | Requires `dart2js:noInline` to work properly |
-| `dart2js:noThrows` | Requires `dart2js:noInline` to work properly |
+| `dart2js:noSideEffects` | Requires `dart2js:never-inline` to work properly |
+| `dart2js:noThrows` | Requires `dart2js:never-inline` to work properly |
 
 ## Detailed descriptions
 
@@ -93,7 +95,7 @@ evolving capabilities of the compiler.
 ```
 
 ```dart
-@pragma('dart2js:prefer-inline) // Alias for the above annotation.
+@pragma('dart2js:prefer-inline') // Alias for the above annotation.
 ```
 
 This annotation may be placed on a function or method.
@@ -109,7 +111,7 @@ candidate.
 ```
 
 ```dart
-@pragma('dart2js:never-inline) // Alias for the above annotation.
+@pragma('dart2js:never-inline') // Alias for the above annotation.
 ```
 
 This annotation may be placed on a function or method to prevent the function
@@ -125,7 +127,7 @@ This annotation may be placed on a function or method.
 
 Function inlining is disabled at call sites within the annotated function.
 Inlining is disabled even when the call site has a viable inlining candidate
-that is annotated with `@pragma('dart2js:tryInline')`.
+that is annotated with `@pragma('dart2js:prefer-inline')`.
 
 
 ### Annotations related to run-time checks
@@ -157,13 +159,13 @@ casts in the body of the function are checked.
 One use of `dart2js:as:trust` is to construct an `unsafeCast` method.
 
 ```dart
-@pragma('dart2js:tryInline')
+@pragma('dart2js:prefer-inline')
 @pragma('dart2js:as:trust')
 T unsafeCast<T>(Object? o) => o as T;
 ```
 
-The `tryInline` pragma ensures that the function is inlined, removing the cost
-of the call and passing the type parameter `T`, and the `as:trust` pragma
+The `prefer-inline` pragma ensures that the function is inlined, removing the
+cost of the call and passing the type parameter `T`, and the `as:trust` pragma
 removes the code that does the check.
 
 #### Downcasts
@@ -184,7 +186,7 @@ The `unsafeCast` method described above could also be written by trusting
 implicit downcasts.
 
 ```dart
-@pragma('dart2js:tryInline')
+@pragma('dart2js:prefer-inline')
 @pragma('dart2js:downcast:trust')
 T unsafeCast<T>(dynamic o) => o; // implicit downcast `as T`.
 ```
@@ -215,6 +217,56 @@ In the future this annotation might be extended to apply to `late` local
 variables, static variables, and top-level variables.
 
 
+#### Stack starts at throw
+
+In order to generate smaller code, `throw` expressions are usually implemented
+by calling a helper method to capture the stack trace and perform the actual
+throw. This adds one (or occasionally two) frames to the stack trace showing the
+helper functions. It is possible for the stack trace to be captured directly in
+the method containing the `throw` expression. This takes a little extra code, so
+is opt-in via the following annotation.
+
+```dart
+@pragma('dart2js:stack-starts-at-throw')
+```
+
+This annotation can be placed on a method, class or library.
+
+### Annotations related to compiler optimizations
+
+#### Allow CSE
+
+**EXPERIMENTAL**: This annotation may be removed without notice.
+
+This annotation may be placed on a method or getter. If, after some
+optimization, there are two calls to the same annotated method or getter, and
+the calls have the same input values, and the first call will always have
+happened by the time control flow reaches the second call, the compiler may
+choose to remove the second call and use the value returned by the first call
+instead.
+
+```dart
+@pragma('dart2js:allow-cse')
+```
+
+This annotation is intended for an `external` getter or method that always
+refers to the same thing.
+
+#### Allow DCE
+
+**EXPERIMENTAL**: This annotated may be removed without notice.
+
+This annotation may be placed on a method or getter. If the result of the call
+to the method or getter is unused (or becomes unused due to other
+optimizations), the compiler may choose to remove the call.
+
+```dart
+@pragma('dart2js:allow-dce')
+```
+
+This annotation is intended for and `external` getter or method that makes no
+observable change.
+
 ### Annotations related to deferred library loading
 
 #### Load priority
@@ -223,15 +275,15 @@ variables, static variables, and top-level variables.
 
 
 ```dart
-@pragma('dart2js:load-priority:normal')
-@pragma('dart2js:load-priority:high)
+@pragma('dart2js:load-priority', option)
 ```
+Provides a string argument `option` forwarded to the `dartDeferredLibraryLoader`
+as the `loadPriority` argument.
 
-By default, a call to `prefix.loadLibrary()` loads the library with 'normal'
-priority.  These annotations may be placed on the import specification to change
+These annotations may be placed on the import specification to change
 the priority for all calls to `prefix.loadLibrary()`.
 
-The annotation my also be placed closer to the `loadLibrary()` call.  When
+The annotation may also be placed closer to the `loadLibrary()` call.  When
 placed on a method, the annotation affects all calls to
 `prefix.loadLibrary()` inside the method.
 
@@ -242,7 +294,7 @@ annotation on the variable called "`_`":
 
 ```dart
     await prefix1.loadLibrary();
-    @pragma('dart2js:load-priority:high')
+    @pragma('dart2js:load-priority', 'someArg')
     final _ = await prefix2.loadLibrary();
     await prefix3.loadLibrary();
 ```

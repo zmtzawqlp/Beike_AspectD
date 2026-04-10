@@ -3,29 +3,23 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, File, Platform, Process, ProcessResult;
-
 import 'dart:typed_data' show Uint8List;
 
-import 'package:front_end/src/fasta/kernel/utils.dart' show serializeComponent;
-
+import 'package:front_end/src/kernel/utils.dart' show serializeComponent;
 import 'package:kernel/ast.dart' show Component, Library;
-
 import 'package:kernel/binary/ast_from_binary.dart' show BinaryBuilder;
-
 import 'package:kernel/target/targets.dart' show TargetFlags;
-
-import "package:vm/target/vm.dart" show VmTarget;
+import "package:vm/modular/target/vm.dart" show VmTarget;
 
 import 'incremental_suite.dart' show getOptions, normalCompileToComponent;
-
 import 'utils/io_utils.dart' show computeRepoDir;
 
 Future<void> main() async {
-  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/bin/dart2js.dart");
+  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/lib/src/dart2js.dart");
   Stopwatch stopwatch = new Stopwatch()..start();
   Component component = await normalCompileToComponent(dart2jsUrl,
       options: getOptions()
-        ..target = new VmTarget(new TargetFlags(soundNullSafety: false))
+        ..target = new VmTarget(new TargetFlags())
         ..omitPlatform = false);
   print("Compiled dart2js in ${stopwatch.elapsedMilliseconds} ms");
 
@@ -37,8 +31,7 @@ Future<void> main() async {
     Component libComponent = new Component(nameRoot: component.root);
     libComponent.libraries.add(lib);
     libComponent.uriToSource.addAll(component.uriToSource);
-    libComponent.setMainMethodAndMode(
-        component.mainMethodName, true, component.mode);
+    libComponent.setMainMethodAndMode(component.mainMethodName, true);
     libComponents.add(serializeComponent(libComponent));
   }
   print("Serialized ${libComponents.length} separate library components "

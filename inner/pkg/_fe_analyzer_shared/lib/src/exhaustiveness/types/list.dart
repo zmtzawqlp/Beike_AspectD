@@ -56,7 +56,7 @@ part of '../types.dart';
 class ListTypeStaticType<Type extends Object>
     extends TypeBasedStaticType<Type> {
   ListTypeStaticType(super.typeOperations, super.fieldLookup, super.type)
-      : super(isImplicitlyNullable: false);
+    : super(isImplicitlyNullable: false);
 
   @override
   bool get isSealed => true;
@@ -87,16 +87,36 @@ class ListTypeStaticType<Type extends Object>
     }
     for (int size = 0; size < maxSize; size++) {
       ListTypeRestriction<Type> identity = new ListTypeRestriction(
-          elementType, typeArgumentText,
-          size: size, hasRest: false);
-      subtypes.add(new ListPatternStaticType<Type>(
-          _typeOperations, _fieldLookup, _type, identity, identity.toString()));
+        elementType,
+        typeArgumentText,
+        size: size,
+        hasRest: false,
+      );
+      subtypes.add(
+        new ListPatternStaticType<Type>(
+          _typeOperations,
+          _fieldLookup,
+          _type,
+          identity,
+          identity.toString(),
+        ),
+      );
     }
     ListTypeRestriction<Type> identity = new ListTypeRestriction(
-        elementType, typeArgumentText,
-        size: maxSize, hasRest: true);
-    subtypes.add(new ListPatternStaticType<Type>(
-        _typeOperations, _fieldLookup, _type, identity, identity.toString()));
+      elementType,
+      typeArgumentText,
+      size: maxSize,
+      hasRest: true,
+    );
+    subtypes.add(
+      new ListPatternStaticType<Type>(
+        _typeOperations,
+        _fieldLookup,
+        _type,
+        identity,
+        identity.toString(),
+      ),
+    );
     return subtypes;
   }
 }
@@ -105,12 +125,19 @@ class ListTypeStaticType<Type extends Object>
 /// uniqueness.
 class ListPatternStaticType<Type extends Object>
     extends RestrictedStaticType<Type, ListTypeRestriction<Type>> {
-  ListPatternStaticType(super.typeOperations, super.fieldLookup, super.type,
-      super.restriction, super.name);
+  ListPatternStaticType(
+    super.typeOperations,
+    super.fieldLookup,
+    super.type,
+    super.restriction,
+    super.name,
+  );
 
   @override
-  String spaceToText(Map<Key, Space> spaceProperties,
-      Map<Key, Space> additionalSpaceProperties) {
+  String spaceToText(
+    Map<Key, Space> spaceProperties,
+    Map<Key, Space> additionalSpaceProperties,
+  ) {
     StringBuffer buffer = new StringBuffer();
     buffer.write(restriction.typeArgumentText);
     buffer.write('[');
@@ -130,9 +157,12 @@ class ListPatternStaticType<Type extends Object>
   }
 
   @override
-  void witnessToText(StringBuffer buffer, PropertyWitness witness,
-      Map<Key, PropertyWitness> witnessFields,
-      {required bool forCorrection}) {
+  void witnessToDart(
+    DartTemplateBuffer buffer,
+    PropertyWitness witness,
+    Map<Key, PropertyWitness> witnessFields, {
+    required bool forCorrection,
+  }) {
     int maxHeadSize = 0;
     int maxTailSize = 0;
     PropertyWitness? restWitness;
@@ -158,7 +188,7 @@ class ListPatternStaticType<Type extends Object>
       Key key = new HeadKey(index);
       PropertyWitness? witness = witnessFields[key];
       if (witness != null) {
-        witness.witnessToText(buffer, forCorrection: forCorrection);
+        witness.witnessToDart(buffer, forCorrection: forCorrection);
       } else {
         buffer.write('_');
       }
@@ -168,7 +198,7 @@ class ListPatternStaticType<Type extends Object>
       buffer.write(comma);
       buffer.write('...');
       if (restWitness != null) {
-        restWitness.witnessToText(buffer, forCorrection: forCorrection);
+        restWitness.witnessToDart(buffer, forCorrection: forCorrection);
       }
       comma = ', ';
     }
@@ -177,7 +207,7 @@ class ListPatternStaticType<Type extends Object>
       Key key = new TailKey(index);
       PropertyWitness? witness = witnessFields[key];
       if (witness != null) {
-        witness.witnessToText(buffer, forCorrection: forCorrection);
+        witness.witnessToDart(buffer, forCorrection: forCorrection);
       } else {
         buffer.write('_');
       }
@@ -201,7 +231,7 @@ class ListPatternStaticType<Type extends Object>
         buffer.write(key.name);
         buffer.write(': ');
         PropertyWitness field = entry.value;
-        field.witnessToText(buffer, forCorrection: forCorrection);
+        field.witnessToDart(buffer, forCorrection: forCorrection);
       }
     }
     buffer.write(additionalEnd);
@@ -220,8 +250,12 @@ class ListTypeRestriction<Type extends Object> implements Restriction<Type> {
   final bool hasRest;
   final String typeArgumentText;
 
-  ListTypeRestriction(this.elementType, this.typeArgumentText,
-      {required this.size, required this.hasRest});
+  ListTypeRestriction(
+    this.elementType,
+    this.typeArgumentText, {
+    required this.size,
+    required this.hasRest,
+  });
 
   @override
   late final int hashCode = Object.hash(elementType, size, hasRest);

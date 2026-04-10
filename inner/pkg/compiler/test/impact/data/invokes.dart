@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: main:
  static=[
   testClosure(0),
@@ -124,20 +122,15 @@ testTopLevelInvoke() {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -157,7 +150,7 @@ testTopLevelInvoke() {
  type=[
   inst:Closure,
   inst:JSBool,
-  param:int*]
+  param:int]
 */
 void topLevelFunction1Typed(int a) {}
 
@@ -168,20 +161,15 @@ void topLevelFunction1Typed(int a) {}
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -202,11 +190,11 @@ void topLevelFunction1Typed(int a) {}
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
-  param:String*,
-  param:double*,
-  param:num*]
+  param:String,
+  param:double?,
+  param:num?]
 */
-int topLevelFunction2Typed(String a, [num b, double c]) => null;
+int? topLevelFunction2Typed(String a, [num? b, double? c]) => null;
 
 /*member: topLevelFunction3Typed:
  static=[
@@ -215,20 +203,15 @@ int topLevelFunction2Typed(String a, [num b, double c]) => null;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -255,11 +238,11 @@ int topLevelFunction2Typed(String a, [num b, double c]) => null;
   inst:JSMutableArray<dynamic>,
   inst:JSNull,
   inst:JSUnmodifiableArray<dynamic>,
-  param:List<int*>*,
-  param:Map<String*,bool*>*,
-  param:bool*]
+  param:List<int>?,
+  param:Map<String,bool>?,
+  param:bool?]
 */
-double topLevelFunction3Typed(bool a, {List<int> b, Map<String, bool> c}) {
+double? topLevelFunction3Typed(bool? a, {List<int>? b, Map<String, bool>? c}) {
   return null;
 }
 
@@ -284,8 +267,8 @@ double topLevelFunction3Typed(bool a, {List<int> b, Map<String, bool> c}) {
   inst:JSString,
   inst:JSUInt31,
   inst:JSUInt32,
-  inst:List<int*>,
-  inst:Map<String*,bool*>]
+  inst:List<int>,
+  inst:Map<String,bool>]
 */
 testTopLevelInvokeTyped() {
   topLevelFunction1Typed(0);
@@ -306,20 +289,15 @@ testTopLevelInvokeTyped() {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -345,9 +323,9 @@ testTopLevelInvokeTyped() {
   inst:JSFixedArray<dynamic>,
   inst:JSMutableArray<dynamic>,
   inst:JSUnmodifiableArray<dynamic>,
-  param:void Function(num*)*]
+  param:void Function(num)?]
 */
-topLevelFunctionTyped1(void a(num b)) {}
+topLevelFunctionTyped1(void a(num b)?) {}
 
 /*member: topLevelFunctionTyped2:
  static=[
@@ -356,20 +334,15 @@ topLevelFunctionTyped1(void a(num b)) {}
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -395,9 +368,9 @@ topLevelFunctionTyped1(void a(num b)) {}
   inst:JSFixedArray<dynamic>,
   inst:JSMutableArray<dynamic>,
   inst:JSUnmodifiableArray<dynamic>,
-  param:void Function(num*,[String*])*]
+  param:void Function(num,[String])?]
 */
-topLevelFunctionTyped2(void a(num b, [String c])) {}
+topLevelFunctionTyped2(void a(num b, [String c])?) {}
 
 /*member: topLevelFunctionTyped3:
  static=[
@@ -406,20 +379,15 @@ topLevelFunctionTyped2(void a(num b, [String c])) {}
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -445,9 +413,9 @@ topLevelFunctionTyped2(void a(num b, [String c])) {}
   inst:JSFixedArray<dynamic>,
   inst:JSMutableArray<dynamic>,
   inst:JSUnmodifiableArray<dynamic>,
-  param:void Function(num*,{String* c,int* d})*]
+  param:void Function(num,{String c,int d})?]
 */
-topLevelFunctionTyped3(void a(num b, {String c, int d})) {}
+topLevelFunctionTyped3(void a(num b, {String c, int d})?) {}
 
 /*member: topLevelFunctionTyped4:
  static=[
@@ -456,20 +424,15 @@ topLevelFunctionTyped3(void a(num b, {String c, int d})) {}
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -495,9 +458,9 @@ topLevelFunctionTyped3(void a(num b, {String c, int d})) {}
   inst:JSFixedArray<dynamic>,
   inst:JSMutableArray<dynamic>,
   inst:JSUnmodifiableArray<dynamic>,
-  param:void Function(num*,{int* c,String* d})*]
+  param:void Function(num,{int c,String d})?]
 */
-topLevelFunctionTyped4(void a(num b, {String d, int c})) {}
+topLevelFunctionTyped4(void a(num b, {String d, int c})?) {}
 
 /*member: testTopLevelFunctionTyped:
  static=[
@@ -524,7 +487,7 @@ get topLevelGetter => null;
 testTopLevelGetterGet() => topLevelGetter;
 
 /*member: topLevelGetterTyped:type=[inst:JSNull]*/
-int get topLevelGetterTyped => null;
+int? get topLevelGetterTyped => null;
 
 /*member: testTopLevelGetterGetTyped:static=[topLevelGetterTyped]*/
 testTopLevelGetterGetTyped() => topLevelGetterTyped;
@@ -542,20 +505,15 @@ testTopLevelSetterSet() => topLevelSetter = null;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -575,9 +533,9 @@ testTopLevelSetterSet() => topLevelSetter = null;
  type=[
   inst:Closure,
   inst:JSBool,
-  param:int*]
+  param:int?]
 */
-void set topLevelSetterTyped(int value) {}
+void set topLevelSetterTyped(int? value) {}
 
 /*member: testTopLevelSetterSetTyped:static=[set:topLevelSetterTyped],type=[inst:JSNull]*/
 testTopLevelSetterSetTyped() => topLevelSetterTyped = null;
@@ -590,7 +548,6 @@ testTopLevelField() => topLevelField;
 
 /*member: topLevelFieldLazy:
  static=[
-  throwCyclicInit(1),
   throwLateFieldADI(1),
   topLevelFunction1(1)],
  type=[inst:JSNull]
@@ -607,7 +564,6 @@ testTopLevelFieldConst() => topLevelFieldConst;
 
 /*member: topLevelFieldFinal:
  static=[
-  throwCyclicInit(1),
   throwLateFieldADI(1),
   topLevelFunction1(1)],
  type=[inst:JSNull]
@@ -624,20 +580,15 @@ testTopLevelFieldFinal() => topLevelFieldFinal;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -658,9 +609,9 @@ testTopLevelFieldFinal() => topLevelFieldFinal;
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
-  param:int*]
+  param:int?]
 */
-int topLevelFieldTyped;
+int? topLevelFieldTyped;
 
 /*member: testTopLevelFieldTyped:static=[topLevelFieldTyped]*/
 testTopLevelFieldTyped() => topLevelFieldTyped;
@@ -672,20 +623,15 @@ testTopLevelFieldTyped() => topLevelFieldTyped;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -706,9 +652,9 @@ testTopLevelFieldTyped() => topLevelFieldTyped;
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
-  param:GenericClass<dynamic,dynamic>*]
+  param:GenericClass<dynamic,dynamic>?]
 */
-GenericClass topLevelFieldGeneric1;
+GenericClass? topLevelFieldGeneric1;
 
 /*member: testTopLevelFieldGeneric1:static=[topLevelFieldGeneric1]*/
 testTopLevelFieldGeneric1() => topLevelFieldGeneric1;
@@ -720,20 +666,15 @@ testTopLevelFieldGeneric1() => topLevelFieldGeneric1;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -754,9 +695,9 @@ testTopLevelFieldGeneric1() => topLevelFieldGeneric1;
   inst:Closure,
   inst:JSBool,
   inst:JSNull,
-  param:GenericClass<dynamic,dynamic>*]
+  param:GenericClass<dynamic,dynamic>?]
 */
-GenericClass<dynamic, dynamic> topLevelFieldGeneric2;
+GenericClass<dynamic, dynamic>? topLevelFieldGeneric2;
 
 /*member: testTopLevelFieldGeneric2:static=[topLevelFieldGeneric2]*/
 testTopLevelFieldGeneric2() => topLevelFieldGeneric2;
@@ -768,20 +709,15 @@ testTopLevelFieldGeneric2() => topLevelFieldGeneric2;
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -808,9 +744,9 @@ testTopLevelFieldGeneric2() => topLevelFieldGeneric2;
   inst:JSMutableArray<dynamic>,
   inst:JSNull,
   inst:JSUnmodifiableArray<dynamic>,
-  param:GenericClass<int*,String*>*]
+  param:GenericClass<int,String>?]
 */
-GenericClass<int, String> topLevelFieldGeneric3;
+GenericClass<int, String>? topLevelFieldGeneric3;
 
 /*member: testTopLevelFieldGeneric3:static=[topLevelFieldGeneric3]*/
 testTopLevelFieldGeneric3() => topLevelFieldGeneric3;
@@ -934,20 +870,15 @@ testLocalFunction() {
   _arrayInstanceType(1),
   _asBool(1),
   _asBoolQ(1),
-  _asBoolS(1),
   _asDouble(1),
   _asDoubleQ(1),
-  _asDoubleS(1),
   _asInt(1),
   _asIntQ(1),
-  _asIntS(1),
   _asNum(1),
   _asNumQ(1),
-  _asNumS(1),
   _asObject(1),
   _asString(1),
   _asStringQ(1),
-  _asStringS(1),
   _asTop(1),
   _generalAsCheckImplementation(1),
   _generalIsTestImplementation(1),
@@ -976,11 +907,11 @@ testLocalFunction() {
   inst:JSMutableArray<dynamic>,
   inst:JSNull,
   inst:JSUnmodifiableArray<dynamic>,
-  param:String*]
+  param:String]
 */
 testLocalFunctionTyped() {
   // ignore: UNUSED_ELEMENT
-  int localFunction(String a) => null;
+  int? localFunction(String a) => null;
 }
 
 /*member: testLocalFunctionInvoke:

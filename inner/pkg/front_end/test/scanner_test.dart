@@ -106,7 +106,7 @@ abstract class ScannerTestBase {
     var greaterThan = identifier.next!;
     expect(greaterThan.next!.type, TokenType.EOF);
     // Analyzer's token streams don't consider "<" to be an opener
-    // but fasta does.
+    // but the scanner does.
     if (lessThan is BeginToken) {
       expect(lessThan.endToken, greaterThan);
     }
@@ -242,6 +242,14 @@ abstract class ScannerTestBase {
     _assertToken(TokenType.DOUBLE, "0.123e4");
   }
 
+  void test_double_both_e_separatorInExponent() {
+    _assertToken(TokenType.DOUBLE_WITH_SEPARATORS, "0.123e0_4");
+  }
+
+  void test_double_both_e_separatorInBase() {
+    _assertToken(TokenType.DOUBLE_WITH_SEPARATORS, "0.123_0e4");
+  }
+
   void test_double_fraction() {
     _assertToken(TokenType.DOUBLE, ".123");
   }
@@ -264,6 +272,14 @@ abstract class ScannerTestBase {
 
   void test_double_whole_e() {
     _assertToken(TokenType.DOUBLE, "12e4");
+  }
+
+  void test_double_whole_e_separatorInBase() {
+    _assertToken(TokenType.DOUBLE_WITH_SEPARATORS, "1_2e4");
+  }
+
+  void test_double_whole_e_separatorInExponent() {
+    _assertToken(TokenType.DOUBLE_WITH_SEPARATORS, "12e0_4");
   }
 
   void test_eq() {
@@ -302,6 +318,10 @@ abstract class ScannerTestBase {
     _assertToken(TokenType.HEXADECIMAL, "0x1A2B3C");
   }
 
+  void test_hexadecimal_separators() {
+    _assertToken(TokenType.HEXADECIMAL_WITH_SEPARATORS, "0x1A_2B_3C");
+  }
+
   void test_hexadecimal_missingDigit() {
     var token = _assertError(ScannerErrorCode.MISSING_HEX_DIGIT, 5, "a = 0x");
     expect(token.lexeme, 'a');
@@ -309,6 +329,19 @@ abstract class ScannerTestBase {
     expect(token.lexeme, '=');
     token = token.next!;
     expect(token.lexeme, '0x0');
+  }
+
+  void test_hexadecimal_unexpectedSeparator() {
+    var token = _assertError(
+        ScannerErrorCode.UNEXPECTED_SEPARATOR_IN_NUMBER,
+        // TODO(srawlins): Should be 5?
+        4,
+        "a = 0x5_");
+    expect(token.lexeme, 'a');
+    token = token.next!;
+    expect(token.lexeme, '=');
+    token = token.next!;
+    expect(token.lexeme, '0x5_');
   }
 
   void test_identifier() {
@@ -380,7 +413,7 @@ abstract class ScannerTestBase {
     var expectedErrors = [
       new TestError(9, ScannerErrorCode.UNTERMINATED_STRING_LITERAL, null),
     ];
-    // fasta inserts synthetic closers
+    // The scanner inserts synthetic closers
     expectedTokens.addAll([
       new SyntheticToken(TokenType.CLOSE_CURLY_BRACKET, 10),
       new SyntheticStringToken(TokenType.STRING, "\"", 10, 0),
@@ -404,6 +437,14 @@ abstract class ScannerTestBase {
 
   void test_int() {
     _assertToken(TokenType.INT, "123");
+  }
+
+  void test_int_separators() {
+    _assertToken(TokenType.INT_WITH_SEPARATORS, "123_456_789");
+  }
+
+  void test_int_separators_bad() {
+    _assertToken(TokenType.INT_WITH_SEPARATORS, "123_");
   }
 
   void test_int_initialZero() {
@@ -487,13 +528,7 @@ abstract class ScannerTestBase {
   }
 
   void test_keyword_extension() {
-    _assertKeywordToken("extension",
-        configuration: ScannerConfiguration(enableExtensionMethods: true));
-  }
-
-  void test_keyword_extension_old() {
-    _assertNotKeywordToken("extension",
-        configuration: ScannerConfiguration(enableExtensionMethods: false));
+    _assertKeywordToken("extension", configuration: ScannerConfiguration());
   }
 
   void test_keyword_factory() {
@@ -553,13 +588,7 @@ abstract class ScannerTestBase {
   }
 
   void test_keyword_late() {
-    _assertKeywordToken("late",
-        configuration: ScannerConfiguration(enableNonNullable: true));
-  }
-
-  void test_keyword_late_old() {
-    _assertNotKeywordToken("late",
-        configuration: ScannerConfiguration(enableNonNullable: false));
+    _assertKeywordToken("late", configuration: ScannerConfiguration());
   }
 
   void test_keyword_library() {
@@ -607,13 +636,7 @@ abstract class ScannerTestBase {
   }
 
   void test_keyword_required() {
-    _assertKeywordToken("required",
-        configuration: ScannerConfiguration(enableNonNullable: true));
-  }
-
-  void test_keyword_required_disabled() {
-    _assertNotKeywordToken("required",
-        configuration: ScannerConfiguration(enableNonNullable: false));
+    _assertKeywordToken("required", configuration: ScannerConfiguration());
   }
 
   void test_keyword_rethrow() {
@@ -762,9 +785,9 @@ abstract class ScannerTestBase {
 
   void test_mismatched_closer() {
     // Normally when openers and closers are mismatched
-    // fasta favors considering the opener to be mismatched,
+    // the scanner favors considering the opener to be mismatched,
     // and inserts synthetic closers as needed.
-    // In this particular case, fasta cannot find an opener for ']'
+    // In this particular case, the scanner cannot find an opener for ']'
     // and thus marks ']' as an error and moves on.
     ErrorListener listener = new ErrorListener();
     BeginToken openParen = scanWithListener('(])', listener) as BeginToken;
@@ -814,7 +837,7 @@ abstract class ScannerTestBase {
     BeginToken openParen = scanWithListener('([)', listener) as BeginToken;
     BeginToken openBracket = openParen.next as BeginToken;
     // When openers and closers are mismatched,
-    // fasta favors considering the opener to be mismatched
+    // the scanner favors considering the opener to be mismatched
     // and inserts synthetic closers as needed.
     // `([)` is scanned as `([])` where `]` is synthetic.
     var closeBracket = openBracket.next!;
@@ -1409,27 +1432,6 @@ abstract class ScannerTestBase {
   }
 
   /**
-   * Assert that when scanned the given [source] contains a single identifier
-   * token with the same lexeme as the original source.
-   */
-  void _assertNotKeywordToken(String source,
-      {ScannerConfiguration? configuration}) {
-    Token token = _scan(source, configuration: configuration);
-    expect(token, isNotNull);
-    expect(token.type.isKeyword, false);
-    expect(token.offset, 0);
-    expect(token.length, source.length);
-    expect(token.lexeme, source);
-    token = _scan(" $source ", configuration: configuration);
-    expect(token, isNotNull);
-    expect(token.type.isKeyword, false);
-    expect(token.offset, 1);
-    expect(token.length, source.length);
-    expect(token.lexeme, source);
-    expect(token.next!.type, TokenType.EOF);
-  }
-
-  /**
    * Assert that the token scanned from the given [source] has the
    * [expectedType].
    */
@@ -1455,7 +1457,9 @@ abstract class ScannerTestBase {
       expect(tokenWithSpaces.lexeme, source);
       return originalToken;
     } else if (expectedType == TokenType.INT ||
-        expectedType == TokenType.DOUBLE) {
+        expectedType == TokenType.INT_WITH_SEPARATORS ||
+        expectedType == TokenType.DOUBLE ||
+        expectedType == TokenType.DOUBLE_WITH_SEPARATORS) {
       Token tokenWithLowerD = _scan("${source}d", ignoreErrors: true);
       expect(tokenWithLowerD, isNotNull);
       expect(tokenWithLowerD.type, expectedType);
@@ -1537,14 +1541,14 @@ int finishHash(int hash) {
 
 class TestError {
   final int offset;
-  final ErrorCode errorCode;
+  final DiagnosticCode diagnosticCode;
   final List<Object>? arguments;
 
-  TestError(this.offset, this.errorCode, this.arguments);
+  TestError(this.offset, this.diagnosticCode, this.arguments);
 
   @override
   int get hashCode {
-    int h = combineHash(combineHash(0, offset), errorCode.hashCode);
+    int h = combineHash(combineHash(0, offset), diagnosticCode.hashCode);
     if (arguments != null) {
       for (Object argument in arguments!) {
         h = combineHash(h, argument.hashCode);
@@ -1557,7 +1561,7 @@ class TestError {
   bool operator ==(Object other) {
     if (other is TestError &&
         offset == other.offset &&
-        errorCode == other.errorCode) {
+        diagnosticCode == other.diagnosticCode) {
       if (arguments == null) return other.arguments == null;
       if (other.arguments == null) return false;
       if (arguments!.length != other.arguments!.length) return false;
@@ -1572,7 +1576,7 @@ class TestError {
   @override
   String toString() {
     var argString = arguments == null ? '' : '(${arguments!.join(', ')})';
-    return 'Error($offset, $errorCode$argString)';
+    return 'Error($offset, $diagnosticCode$argString)';
   }
 }
 

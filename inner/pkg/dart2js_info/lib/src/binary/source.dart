@@ -176,8 +176,9 @@ abstract class AbstractDataSource extends DataSourceMixin
 
   @override
   E readCached<E>(E Function() f) {
-    IndexedSource source =
-        _generalCaches[E] ??= IndexedSource<E>(_readIntInternal);
+    IndexedSource source = _generalCaches[E] ??= IndexedSource<E>(
+      _readIntInternal,
+    );
     return source.read(f);
   }
 
@@ -278,9 +279,10 @@ class BinarySource extends AbstractDataSource {
   E _readEnumInternal<E>(List<E> values) {
     int index = _readIntInternal();
     assert(
-        0 <= index && index < values.length,
-        "Invalid data kind index. "
-        "Expected one of $values, found index $index.");
+      0 <= index && index < values.length,
+      "Invalid data kind index. "
+      "Expected one of $values, found index $index.",
+    );
     return values[index];
   }
 }

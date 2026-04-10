@@ -8,8 +8,10 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
   const TypeTextVisitor();
 
   @override
-  void defaultDartType(ir.DartType node, StringBuffer sb) {
-    throw UnsupportedError("Unhandled type $node (${node.runtimeType}).");
+  void visitAuxiliaryType(ir.AuxiliaryType node, StringBuffer sb) {
+    throw UnsupportedError(
+      "Unsupported auxiliary type $node (${node.runtimeType}).",
+    );
   }
 
   void writeType(ir.DartType type, StringBuffer sb) {
@@ -26,7 +28,9 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
   }
 
   void _writeTypeArguments(
-      Iterable<ir.DartType> typeArguments, StringBuffer sb) {
+    Iterable<ir.DartType> typeArguments,
+    StringBuffer sb,
+  ) {
     if (typeArguments.isNotEmpty) {
       sb.write('<');
       _writeTypes(typeArguments, sb);
@@ -46,6 +50,14 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
   }
 
   @override
+  void visitStructuralParameterType(
+    ir.StructuralParameterType node,
+    StringBuffer sb,
+  ) {
+    sb.write(node.parameter.name);
+  }
+
+  @override
   void visitIntersectionType(ir.IntersectionType node, StringBuffer sb) {
     sb.write(node.left.parameter.name);
   }
@@ -57,7 +69,7 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
     if (node.typeParameters.isNotEmpty) {
       sb.write('<');
       String comma = '';
-      for (ir.TypeParameter typeParameter in node.typeParameters) {
+      for (ir.StructuralParameter typeParameter in node.typeParameters) {
         sb.write(comma);
         sb.write(typeParameter.name);
         if (typeParameter is! ir.DynamicType) {
@@ -70,13 +82,17 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
     }
     sb.write('(');
     _writeTypes(
-        node.positionalParameters.take(node.requiredParameterCount), sb);
+      node.positionalParameters.take(node.requiredParameterCount),
+      sb,
+    );
     if (node.requiredParameterCount < node.positionalParameters.length) {
       if (node.requiredParameterCount > 0) {
         sb.write(',');
       }
       _writeTypes(
-          node.positionalParameters.skip(node.requiredParameterCount), sb);
+        node.positionalParameters.skip(node.requiredParameterCount),
+        sb,
+      );
     }
     if (node.namedParameters.isNotEmpty) {
       if (node.positionalParameters.isNotEmpty) {
@@ -123,13 +139,7 @@ class TypeTextVisitor implements ir.DartTypeVisitor1<void, StringBuffer> {
 
   @override
   void visitExtensionType(ir.ExtensionType node, StringBuffer sb) {
-    sb.write(node.extension.name);
-    _writeTypeArguments(node.typeArguments, sb);
-  }
-
-  @override
-  void visitInlineType(ir.InlineType node, StringBuffer sb) {
-    writeType(node.instantiatedRepresentationType, sb);
+    writeType(node.extensionTypeErasure, sb);
   }
 
   @override

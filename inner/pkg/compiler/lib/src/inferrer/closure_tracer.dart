@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library compiler.src.inferrer.closure_tracer;
+library;
 
 import '../common/names.dart' show Identifiers, Names;
 import '../elements/entities.dart';
@@ -16,13 +16,16 @@ class ClosureTracerVisitor extends TracerVisitor {
   final List<CallSiteTypeInformation> _callsToAnalyze =
       <CallSiteTypeInformation>[];
 
-  ClosureTracerVisitor(this.tracedElements, ApplyableTypeInformation tracedType,
-      InferrerEngine inferrer)
-      : super(tracedType, inferrer) {
+  ClosureTracerVisitor(
+    this.tracedElements,
+    ApplyableTypeInformation tracedType,
+    InferrerEngine inferrer,
+  ) : super(tracedType, inferrer) {
     assert(
-        tracedElements.every((f) => !f.isAbstract),
-        "Tracing abstract methods: "
-        "${tracedElements.where((f) => f.isAbstract)}");
+      tracedElements.every((f) => !f.isAbstract),
+      "Tracing abstract methods: "
+      "${tracedElements.where((f) => f.isAbstract)}",
+    );
   }
 
   @override
@@ -35,8 +38,9 @@ class ClosureTracerVisitor extends TracerVisitor {
     _callsToAnalyze.forEach(_analyzeCall);
     for (FunctionEntity element in tracedElements) {
       inferrer.types.strategy.forEachParameter(element, (Local parameter) {
-        ElementTypeInformation info =
-            inferrer.types.getInferredTypeOfParameter(parameter);
+        ElementTypeInformation info = inferrer.types.getInferredTypeOfParameter(
+          parameter,
+        );
         info.disableInferenceForClosures = false;
       });
     }
@@ -44,7 +48,7 @@ class ClosureTracerVisitor extends TracerVisitor {
 
   void _tagAsFunctionApplyTarget([String? reason]) {
     tracedType.mightBePassedToFunctionApply = true;
-    if (debug.VERBOSE) {
+    if (debug.verbose) {
       print("Closure $tracedType might be passed to apply: $reason");
     }
   }
@@ -55,19 +59,27 @@ class ClosureTracerVisitor extends TracerVisitor {
 
   void _analyzeCall(CallSiteTypeInformation info) {
     final selector = info.selector!;
-    tracedElements.forEach((FunctionEntity functionElement) {
-      if (!selector.callStructure
-          .signatureApplies(functionElement.parameterStructure)) {
-        return;
+    for (var functionElement in tracedElements) {
+      if (!selector.callStructure.signatureApplies(
+        functionElement.parameterStructure,
+      )) {
+        continue;
       }
       inferrer.updateParameterInputs(
-          info, functionElement, info.arguments, selector,
-          remove: false, addToQueue: false);
-    });
+        info,
+        functionElement,
+        info.arguments,
+        selector,
+        remove: false,
+        addToQueue: false,
+      );
+    }
   }
 
   @override
-  visitClosureCallSiteTypeInformation(ClosureCallSiteTypeInformation info) {
+  void visitClosureCallSiteTypeInformation(
+    ClosureCallSiteTypeInformation info,
+  ) {
     super.visitClosureCallSiteTypeInformation(info);
     if (info.closure == currentUser) {
       _registerCallForLaterAnalysis(info);
@@ -77,14 +89,14 @@ class ClosureTracerVisitor extends TracerVisitor {
   }
 
   @override
-  visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
+  void visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
     super.visitStaticCallSiteTypeInformation(info);
     MemberEntity called = info.calledElement;
     if (inferrer.closedWorld.commonElements.isForeign(called)) {
       final name = called.name!;
-      if (name == Identifiers.JS || name == Identifiers.DART_CLOSURE_TO_JS) {
+      if (name == Identifiers.js || name == Identifiers.dartClosureToJS) {
         bailout('Used in JS ${info.debugName}');
-      } else if (name == Identifiers.RAW_DART_FUNCTION_REF) {
+      } else if (name == Identifiers.rawDartFunctionRef) {
         bailout('Escaped raw function reference');
       }
     }
@@ -112,23 +124,34 @@ class ClosureTracerVisitor extends TracerVisitor {
   }
 
   @override
-  visitDynamicCallSiteTypeInformation(DynamicCallSiteTypeInformation info) {
+  void visitDynamicCallSiteTypeInformation(
+    DynamicCallSiteTypeInformation info,
+  ) {
     super.visitDynamicCallSiteTypeInformation(info);
     final selector = info.selector!;
     final user = currentUser;
     if (selector.isCall) {
       if (info.arguments!.contains(user)) {
-        if (info.hasClosureCallTargets ||
-            info.concreteTargets.any((element) => !element.isFunction)) {
+        if (info.hasClosureCallTargets || dynamicCallTargetsNonFunction(info)) {
           bailout('Passed to a closure');
         }
-        if (info.concreteTargets.any(_checkIfFunctionApply)) {
+        if (info.targets.any(
+          (target) => inferrer.memberHierarchyBuilder.anyTargetMember(
+            target,
+            _checkIfFunctionApply,
+          ),
+        )) {
           _tagAsFunctionApplyTarget("dynamic call");
         }
       } else {
         if (user is MemberTypeInformation) {
           final currentUserMember = user.member;
-          if (info.concreteTargets.contains(currentUserMember)) {
+          if (info.targets.any(
+            (target) => inferrer.memberHierarchyBuilder.anyTargetMember(
+              target,
+              (element) => element == currentUserMember,
+            ),
+          )) {
             _registerCallForLaterAnalysis(info);
           }
         }
@@ -142,11 +165,13 @@ class ClosureTracerVisitor extends TracerVisitor {
 
 class StaticTearOffClosureTracerVisitor extends ClosureTracerVisitor {
   StaticTearOffClosureTracerVisitor(
-      FunctionEntity tracedElement, tracedType, inferrer)
-      : super([tracedElement], tracedType, inferrer);
+    FunctionEntity tracedElement,
+    ApplyableTypeInformation tracedType,
+    InferrerEngine inferrer,
+  ) : super([tracedElement], tracedType, inferrer);
 
   @override
-  visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
+  void visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
     super.visitStaticCallSiteTypeInformation(info);
 
     final selector = info.selector;

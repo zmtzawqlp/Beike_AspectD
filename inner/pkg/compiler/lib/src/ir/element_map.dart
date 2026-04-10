@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:js_shared/variance.dart';
 import 'package:kernel/ast.dart' as ir;
 import 'package:kernel/core_types.dart' as ir;
 
@@ -48,7 +49,9 @@ abstract class IrToElementMap {
   /// Return the [InterfaceType] corresponding to the [cls] with the given
   /// [typeArguments] and [nullability].
   InterfaceType createInterfaceType(
-      ir.Class cls, List<ir.DartType> typeArguments);
+    ir.Class cls,
+    List<ir.DartType> typeArguments,
+  );
 
   /// Returns the [CallStructure] corresponding to the [arguments].
   CallStructure getCallStructure(ir.Arguments arguments);

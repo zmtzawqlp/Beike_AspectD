@@ -3,8 +3,11 @@
 name: compiler
 # This package is not intended for consumption on pub.dev. DO NOT publish.
 publish_to: none
+
 environment:
-  sdk: '>=2.17.0 <3.0.0'
+  sdk: ^3.8.0
+
+resolution: workspace
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
 dependencies:
@@ -18,7 +21,9 @@ dependencies:
   js_runtime: any
   js_shared: any
   kernel: any
+  meta: any
   mmap: any
+  shell_arg_splitter: any
   vm_service: any
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
@@ -29,10 +34,8 @@ dev_dependencies:
   js: any
   path: any
   source_maps: any
-  async_helper: any
   dart2js_tools: any
   expect: any
   modular_test: any
   sourcemap_testing: any
   testing: any
-  vm: any

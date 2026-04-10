@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:_fe_analyzer_shared/src/exhaustiveness/witness.dart';
+
 import 'exhaustive.dart';
 import 'key.dart';
 import 'space.dart';
@@ -21,16 +23,19 @@ class Tags {
 /// Returns a textual representation for [space] used for testing.
 String spacesToText(Space space) {
   String text = space.toString();
-  if (text.startsWith('[') && text.endsWith(']')) {
+  if (text.startsWith('[') && (text.endsWith(']') || text.endsWith(']?'))) {
     // Avoid list-like syntax which collides with the [Features] encoding.
     return '<$text>';
   }
   return text;
 }
 
-/// Returns a textual representation for [properties] used for testing.
-String fieldsToText(StaticType type, ObjectPropertyLookup objectFieldLookup,
-    Set<Key> fieldsOfInterest) {
+/// Returns a textual representation for [fieldsOfInterest] used for testing.
+String fieldsToText(
+  StaticType type,
+  ObjectPropertyLookup objectFieldLookup,
+  Set<Key> fieldsOfInterest,
+) {
   List<Key> sortedNames = fieldsOfInterest.toList()..sort();
   StringBuffer sb = new StringBuffer();
   String comma = '';
@@ -62,7 +67,7 @@ String fieldsToText(StaticType type, ObjectPropertyLookup objectFieldLookup,
 /// Returns a textual representation for [type] used for testing.
 String staticTypeToText(StaticType type) => type.toString();
 
-/// Returns a textual representation of the subtypes of [type] used for testing.
+/// Returns a textual representation of [types] used for testing.
 String? typesToText(Iterable<StaticType> types) {
   if (types.isEmpty) return null;
   // TODO(johnniwinther): Sort types.
@@ -78,17 +83,20 @@ String? typesToText(Iterable<StaticType> types) {
   return sb.toString();
 }
 
-String errorToText(ExhaustivenessError error) {
-  if (error is NonExhaustiveError) {
-    String witnessText = error.witness.asWitness;
-    String correctionText = error.witness.asCorrection;
+String nonExhaustivenessToText(NonExhaustiveness nonExhaustiveness) {
+  StringBuffer sb = new StringBuffer();
+  sb.write('non-exhaustive:');
+  String delimiter = '';
+  for (Witness witness in nonExhaustiveness.witnesses) {
+    sb.write(delimiter);
+    String witnessText = witness.asWitness;
+    String correctionText = witness.asCorrection;
     if (witnessText != correctionText) {
-      return 'non-exhaustive:$witnessText/$correctionText';
+      sb.write('$witnessText/$correctionText');
     } else {
-      return 'non-exhaustive:$witnessText';
+      sb.write(witnessText);
     }
-  } else {
-    assert(error is UnreachableCaseError);
-    return 'unreachable';
+    delimiter = ';';
   }
+  return sb.toString();
 }

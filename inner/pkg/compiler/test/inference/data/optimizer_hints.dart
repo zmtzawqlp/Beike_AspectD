@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   assumeDynamic();
   notAssumeDynamic();
@@ -20,11 +18,12 @@ main() {
 // the 'dynamic' type.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _assumeDynamic:[null|subclass=Object]*/
+/*member: _assumeDynamic:[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]*/
 @pragma('dart2js:assumeDynamic')
-_assumeDynamic(/*[null|subclass=Object]*/ o) => o;
+_assumeDynamic(/*[null|subclass=Object|powerset={null}{IN}{GFUO}{IMN}]*/ o) =>
+    o;
 
-/*member: assumeDynamic:[null]*/
+/*member: assumeDynamic:[null|powerset={null}]*/
 assumeDynamic() {
   _assumeDynamic(0);
 }
@@ -33,10 +32,10 @@ assumeDynamic() {
 // As above but without the annotation.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _notAssumeDynamic:[exact=JSUInt31]*/
-_notAssumeDynamic(/*[exact=JSUInt31]*/ o) => o;
+/*member: _notAssumeDynamic:[exact=JSUInt31|powerset={I}{O}{N}]*/
+_notAssumeDynamic(/*[exact=JSUInt31|powerset={I}{O}{N}]*/ o) => o;
 
-/*member: notAssumeDynamic:[null]*/
+/*member: notAssumeDynamic:[null|powerset={null}]*/
 notAssumeDynamic() {
   _notAssumeDynamic(0);
 }
@@ -45,7 +44,7 @@ notAssumeDynamic() {
 // No annotation is needed to trust return type annotation.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: trustReturnTypeString:[null|exact=JSString]*/
+/*member: trustReturnTypeString:[exact=JSString|powerset={I}{O}{I}]*/
 String trustReturnTypeString() {
   return _assumeDynamic(0);
 }
@@ -54,10 +53,10 @@ String trustReturnTypeString() {
 // No annotation is needed to trust parameter type annotation.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _trustParameterTypeString:[null]*/
-_trustParameterTypeString(String /*[null|exact=JSString]*/ o) {}
+/*member: _trustParameterTypeString:[null|powerset={null}]*/
+_trustParameterTypeString(String /*[exact=JSString|powerset={I}{O}{I}]*/ o) {}
 
-/*member: trustParameterTypeString:[null]*/
+/*member: trustParameterTypeString:[null|powerset={null}]*/
 trustParameterTypeString() {
   _trustParameterTypeString(_assumeDynamic(0));
 }

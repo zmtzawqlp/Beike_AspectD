@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -10,7 +10,7 @@ library /*isNonNullableByDefault*/;
 //                 ^
 //
 import self as self;
-import "package:js/js.dart" as js;
+import "dart:_js_annotations" as _js;
 import "dart:core" as core;
 
 import "package:js/js.dart";
@@ -19,7 +19,7 @@ import "package:js/js.dart";
 @#C3
 class ParallaxOptions extends core::Object {
   external static factory •() → self::ParallaxOptions;
-  static method _#new#tearOff() → self::ParallaxOptions
+  static synthetic method _#new#tearOff() → self::ParallaxOptions
     return self::ParallaxOptions::•();
 }
 static method test() → dynamic
@@ -28,12 +28,12 @@ static method main() → dynamic {}
 
 constants  {
   #C1 = null
-  #C2 = js::JS {name:#C1}
-  #C3 = js::_Anonymous {}
+  #C2 = _js::JS {name:#C1}
+  #C3 = _js::_Anonymous {}
 }
 
 
 Constructor coverage from constants:
 org-dartlang-testcase:///issue46123.dart:
-- JS. (from org-dartlang-testcase-sdk:///pkg/js/lib/js.dart:23:9)
+- JS. (from org-dartlang-sdk:///lib/js/_js_annotations.dart)
 - Object. (from org-dartlang-sdk:///lib/core/object.dart)

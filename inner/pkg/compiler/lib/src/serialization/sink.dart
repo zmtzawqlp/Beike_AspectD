@@ -14,8 +14,12 @@ abstract class DataSink {
   /// Serialization of a non-negative integer value.
   void writeInt(int value);
 
+  /// Serialization of a non-negative 32 bit integer value. [value] might not be
+  /// compacted as with [writeInt].
+  void writeUint32(int value);
+
   /// Serialization of an enum value.
-  void writeEnum(dynamic value);
+  void writeEnum<E extends Enum>(E value);
 
   /// Serialization of a String value.
   void writeString(String value);
@@ -28,7 +32,19 @@ abstract class DataSink {
 
   /// Writes a deferred entity which can be skipped when reading and read later
   /// via an offset read.
-  void writeDeferred(void writer());
+  void writeDeferred(void Function() writer);
+
+  /// Begins a block of data that can later be read as a deferred block.
+  /// [endDeferred] must eventually be called to end the block. This creates a
+  /// block similar to [writeDeferred] but does not require the data to be
+  /// written in a single closure.
+  void startDeferred();
+
+  /// End a block of data that can later be read as a deferred block.
+  /// [startDeferred] must be called before this to start the block. This
+  /// creates a block similar to [writeDeferred] but does not require the data
+  /// to be written in a single closure.
+  void endDeferred();
 
   /// Closes any underlying data sinks.
   void close();
@@ -41,8 +57,6 @@ abstract class DataSink {
 class DataSinkWriter {
   final DataSink _sinkWriter;
 
-  final bool enableDeferredStrategy;
-
   /// If `true`, serialization of every data kind is preceded by a [DataKind]
   /// value.
   ///
@@ -50,7 +64,7 @@ class DataSinkWriter {
   /// and deserialization.
   final bool useDataKinds;
 
-  DataSourceIndices? importedIndices;
+  final SerializationIndices importedIndices;
 
   /// Visitor used for serializing [ir.DartType]s.
   late final DartTypeNodeWriter _dartTypeNodeWriter;
@@ -70,55 +84,28 @@ class DataSinkWriter {
 
   final Map<Type, IndexedSink> _generalCaches = {};
 
-  EntityWriter _entityWriter = const EntityWriter();
-  late final CodegenWriter _codegenWriter;
+  late AbstractValueDomain _abstractValueDomain;
+  js.DeferredExpressionRegistry? _deferredExpressionRegistry;
 
   final Map<String, int>? tagFrequencyMap;
 
   ir.Member? _currentMemberContext;
   MemberData? _currentMemberData;
 
-  IndexedSink<T> _createUnorderedSink<T>() {
-    final indices = importedIndices;
-    if (indices == null) return UnorderedIndexedSink<T>(this);
-    final sourceInfo = indices.caches[T];
-    if (sourceInfo == null) {
-      return UnorderedIndexedSink<T>(this,
-          startOffset: indices.previousSourceReader?.endOffset);
-    }
-    return UnorderedIndexedSink<T>(this,
-        cache: Map.from(sourceInfo.cache),
-        startOffset: indices.previousSourceReader?.endOffset);
-  }
-
-  IndexedSink<T> _createSink<T>() {
-    final indices = importedIndices;
-    if (indices == null || !indices.caches.containsKey(T)) {
-      return OrderedIndexedSink<T>(_sinkWriter);
-    } else {
-      return OrderedIndexedSink<T>(_sinkWriter,
-          cache: Map.from(indices.caches[T]!.cache));
-    }
-  }
-
-  DataSinkWriter(this._sinkWriter, CompilerOptions options,
-      {this.useDataKinds = false, this.tagFrequencyMap, this.importedIndices})
-      : enableDeferredStrategy =
-            options.features.deferredSerialization.isEnabled {
+  DataSinkWriter(
+    this._sinkWriter,
+    CompilerOptions options,
+    this.importedIndices, {
+    this.useDataKinds = false,
+    this.tagFrequencyMap,
+  }) {
     _dartTypeNodeWriter = DartTypeNodeWriter(this);
-    if (!enableDeferredStrategy) {
-      _stringIndex = _createSink<String>();
-      _uriIndex = _createSink<Uri>();
-      _memberNodeIndex = _createSink<ir.Member>();
-      _importIndex = _createSink<ImportEntity>();
-      _constantIndex = _createSink<ConstantValue>();
-      return;
-    }
-    _stringIndex = _createUnorderedSink<String>();
-    _uriIndex = _createUnorderedSink<Uri>();
-    _memberNodeIndex = _createUnorderedSink<ir.Member>();
-    _importIndex = _createUnorderedSink<ImportEntity>();
-    _constantIndex = _createUnorderedSink<ConstantValue>();
+    _stringIndex = importedIndices.getIndexedSink<String>();
+    _uriIndex = importedIndices.getIndexedSink<Uri>();
+    _memberNodeIndex = importedIndices
+        .getMappedIndexedSink<MemberData, ir.Member>((data) => data.node);
+    _importIndex = importedIndices.getIndexedSink<ImportEntity>();
+    _constantIndex = importedIndices.getIndexedSink<ConstantValue>();
   }
 
   /// The amount of data written to this data sink.
@@ -155,25 +142,41 @@ class DataSinkWriter {
       _sinkWriter.endTag(tag);
 
       String existingTag = _tags!.removeLast();
-      assert(existingTag == tag,
-          "Unexpected tag end. Expected $existingTag, found $tag.");
+      assert(
+        existingTag == tag,
+        "Unexpected tag end. Expected $existingTag, found $tag.",
+      );
     }
   }
 
-  void writeDeferrable(void f()) {
-    if (enableDeferredStrategy) {
-      _sinkWriter.writeDeferred(f);
-    } else {
-      f();
-    }
+  void writeDeferrable(void Function() f) {
+    _sinkWriter.writeDeferred(f);
+  }
+
+  void startDeferrable() {
+    _sinkWriter.startDeferred();
+  }
+
+  void endDeferrable() {
+    _sinkWriter.endDeferred();
   }
 
   /// Writes a reference to [value] to this data sink. If [value] has not yet
-  /// been serialized, [f] is called to serialize the value itself.
-  void writeCached<E>(E? value, void f(E value)) {
-    IndexedSink sink = _generalCaches[E] ??=
-        (enableDeferredStrategy ? _createUnorderedSink<E>() : _createSink<E>());
-    sink.write(value, (v) => f(v));
+  /// been serialized, [f] is called to serialize the value itself. If
+  /// [identity] is true then the cache is backed by a [Map] created using
+  /// [Map.identity]. (i.e. comparisons are done using [identical] rather than
+  /// `==`)
+  void writeIndexed<E extends Object>(
+    E? value,
+    void Function(E value) f, {
+    bool identity = false,
+  }) {
+    IndexedSink<E> sink =
+        (_generalCaches[E] ??= importedIndices.getIndexedSink<E>(
+              identity: identity,
+            ))
+            as IndexedSink<E>;
+    sink.write(this, value, f);
   }
 
   /// Writes the potentially `null` [value] to this data sink. If [value] is
@@ -181,7 +184,7 @@ class DataSinkWriter {
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readValueOrNull].
-  void writeValueOrNull<E>(E? value, void f(E value)) {
+  void writeValueOrNull<E>(E? value, void Function(E value) f) {
     writeBool(value != null);
     if (value != null) {
       f(value);
@@ -189,19 +192,47 @@ class DataSinkWriter {
   }
 
   /// Writes the [values] to this data sink calling [f] to write each value to
-  /// the data sink. If [allowNull] is `true`, [values] is allowed to be `null`.
+  /// the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readList].
-  void writeList<E>(Iterable<E>? values, void f(E value),
-      {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      values.forEach(f);
-    }
+  void writeList<E>(Iterable<E> values, void Function(E value) f) {
+    writeInt(values.length);
+    values.forEach(f);
+  }
+
+  /// Writes the [values] to this data sink calling [f] to write each value to
+  /// the data sink. Treats a null [values] as an empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readListOrNull].
+  void writeListOrNull<E>(Iterable<E>? values, void Function(E value) f) {
+    writeList<E>(values ?? const [], f);
+  }
+
+  /// Writes the [map] to this data sink calling [k] to write each key and [v]
+  /// to write each value to the data sink.
+  void writeMap<K, V>(
+    Map<K, V> map,
+    void Function(K key) k,
+    void Function(V value) v,
+  ) {
+    writeInt(map.length);
+    map.forEach((K key, V value) {
+      k(key);
+      v(value);
+    });
+  }
+
+  /// Writes the [map] to this data sink calling [k] to write each key and [v]
+  /// to write each value to the data sink. Treats a null [map] as an empty
+  /// map.
+  void writeMapOrNull<K, V>(
+    Map<K, V>? map,
+    void Function(K key) k,
+    void Function(V value) v,
+  ) {
+    writeMap<K, V>(map ?? const {}, k, v);
   }
 
   /// Writes the boolean [value] to this data sink.
@@ -219,6 +250,13 @@ class DataSinkWriter {
     assert(value >= 0 && value >> 30 == 0);
     _writeDataKind(DataKind.uint30);
     _sinkWriter.writeInt(value);
+  }
+
+  /// Writes the non-negative 32 bit integer [value] to this data sink. [value]
+  /// might not be compacted as with [writeInt].
+  void writeUint32(int value) {
+    _writeDataKind(DataKind.uint32);
+    _sinkWriter.writeUint32(value);
   }
 
   /// Writes the potentially `null` non-negative [value] to this data sink.
@@ -239,7 +277,7 @@ class DataSinkWriter {
   }
 
   void _writeString(String value) {
-    _stringIndex.write(value, _sinkWriter.writeString);
+    _stringIndex.write(this, value, _sinkWriter.writeString);
   }
 
   /// Writes the potentially `null` string [value] to this data sink.
@@ -254,68 +292,52 @@ class DataSinkWriter {
   }
 
   /// Writes the [map] from string to [V] values to this data sink, calling [f]
-  /// to write each value to the data sink. If [allowNull] is `true`, [map] is
-  /// allowed to be `null`.
+  /// to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readStringMap].
-  void writeStringMap<V>(Map<String, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((String key, V value) {
-        writeString(key);
-        f(value);
-      });
-    }
+  void writeStringMap<V>(Map<String, V> map, void Function(V value) f) {
+    writeMap(map, writeString, f);
+  }
+
+  /// Writes the [map] from string to [V] values to this data sink, calling [f]
+  /// to write each value to the data sink. Treats a null [map] as an empty
+  /// map.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readStringMapOrNull].
+  void writeStringMapOrNull<V>(Map<String, V>? map, void Function(V value) f) {
+    writeMapOrNull(map, writeString, f);
   }
 
   /// Writes the [map] from [Name] to [V] values to this data sink, calling [f]
-  /// to write each value to the data sink. If [allowNull] is `true`, [map] is
-  /// allowed to be `null`.
+  /// to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readNameMap].
-  void writeNameMap<V>(Map<Name, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((Name key, V value) {
-        writeMemberName(key);
-        f(value);
-      });
-    }
+  void writeNameMap<V>(Map<Name, V> map, void Function(V value) f) {
+    writeMap(map, writeMemberName, f);
   }
 
-  /// Writes the string [values] to this data sink. If [allowNull] is `true`,
-  /// [values] is allowed to be `null`.
+  /// Writes the string [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readStrings].
-  void writeStrings(Iterable<String>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (String value in values) {
-        writeString(value);
-      }
-    }
+  void writeStrings(Iterable<String> values) {
+    writeList(values, writeString);
+  }
+
+  /// Writes the string [values] to this data sink. Treats a null [values] as an
+  /// empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readStringsOrNull].
+  void writeStringsOrNull(Iterable<String>? values) {
+    writeListOrNull(values, writeString);
   }
 
   /// Writes the enum value [value] to this data sink.
-  // TODO(johnniwinther): Change the signature to
-  // `void writeEnum<E extends Enum<E>>(E value);` when an interface for enums
-  // is added to the language.
-
-  void writeEnum(dynamic value) {
+  void writeEnum<E extends Enum>(E value) {
     _writeDataKind(DataKind.enumValue);
     _sinkWriter.writeEnum(value);
   }
@@ -327,7 +349,7 @@ class DataSinkWriter {
   }
 
   void _writeUri(Uri value) {
-    _uriIndex.write(value, _doWriteUri);
+    _uriIndex.write(this, value, _doWriteUri);
   }
 
   void _doWriteUri(Uri value) {
@@ -355,14 +377,14 @@ class DataSinkWriter {
     _writeString(value.name);
   }
 
-  /// Writes a reference to the kernel inline class node [value] to this data
-  /// sink.
-  void writeInlineClassNode(ir.InlineClass value) {
-    _writeDataKind(DataKind.inlineClassNode);
-    _writeInlineClassNode(value);
+  /// Writes a reference to the kernel extension type declaration node [value]
+  /// to this data sink.
+  void writeExtensionTypeDeclarationNode(ir.ExtensionTypeDeclaration value) {
+    _writeDataKind(DataKind.extensionTypeDeclarationNode);
+    _writeExtensionTypeDeclarationNode(value);
   }
 
-  void _writeInlineClassNode(ir.InlineClass value) {
+  void _writeExtensionTypeDeclarationNode(ir.ExtensionTypeDeclaration value) {
     _writeLibraryNode(value.enclosingLibrary);
     _writeString(value.name);
   }
@@ -385,7 +407,7 @@ class DataSinkWriter {
   }
 
   void _writeMemberNode(ir.Member value) {
-    _memberNodeIndex.write(value, _writeMemberNodeInternal);
+    _memberNodeIndex.write(this, value, _writeMemberNodeInternal);
   }
 
   void _writeMemberNodeInternal(ir.Member value) {
@@ -402,46 +424,42 @@ class DataSinkWriter {
   }
 
   /// Writes references to the kernel member node [values] to this data sink.
-  /// If [allowNull] is `true`, [values] is allowed to be `null`.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readMemberNodes].
-  void writeMemberNodes(Iterable<ir.Member>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ir.Member value in values) {
-        writeMemberNode(value);
-      }
-    }
+  void writeMemberNodes(Iterable<ir.Member> values) {
+    writeList(values, writeMemberNode);
+  }
+
+  /// Writes references to the kernel member node [values] to this data sink.
+  /// Treats a null [values] as an empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readMemberNodesOrNull].
+  void writeMemberNodesOrNull(Iterable<ir.Member>? values) {
+    writeListOrNull(values, writeMemberNode);
   }
 
   /// Writes the [map] from references to kernel member nodes to [V] values to
-  /// this data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// this data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readMemberNodeMap].
-  void writeMemberNodeMap<V>(Map<ir.Member, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((ir.Member key, V value) {
-        writeMemberNode(key);
-        f(value);
-      });
-    }
+  void writeMemberNodeMap<V>(Map<ir.Member, V> map, void Function(V value) f) {
+    writeMap(map, writeMemberNode, f);
   }
 
-  /// Writes a kernel name node to this data sink.
-  void writeName(ir.Name value) {
-    writeString(value.text);
-    writeValueOrNull(value.library, writeLibraryNode);
+  /// Writes the [map] from references to kernel member nodes to [V] values to
+  /// this data sink, calling [f] to write each value to the data sink. `null`
+  /// is treated as an empty map.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readMemberNodeMapOrNull].
+  void writeMemberNodeMapOrNull<V>(
+    Map<ir.Member, V>? map,
+    void Function(V value) f,
+  ) {
+    writeMapOrNull(map, writeMemberNode, f);
   }
 
   /// Writes a [Name] to this data sink.
@@ -449,19 +467,6 @@ class DataSinkWriter {
     writeString(value.text);
     writeValueOrNull(value.uri, writeUri);
     writeBool(value.isSetter);
-  }
-
-  /// Writes a kernel library dependency node [value] to this data sink.
-  void writeLibraryDependencyNode(ir.LibraryDependency value) {
-    final library = value.parent as ir.Library;
-    writeLibraryNode(library);
-    writeInt(library.dependencies.indexOf(value));
-  }
-
-  /// Writes a potentially `null` kernel library dependency node [value] to
-  /// this data sink.
-  void writeLibraryDependencyNodeOrNull(ir.LibraryDependency? value) {
-    writeValueOrNull(value, writeLibraryDependencyNode);
   }
 
   /// Writes a reference to the kernel tree node [value] to this data sink.
@@ -491,8 +496,10 @@ class DataSinkWriter {
       _sinkWriter.writeEnum(_TreeNodeKind.constant);
       memberData ??= _getMemberData(value.expression);
       _writeTreeNode(value.expression, memberData);
-      int index =
-          memberData.getIndexByConstant(value.expression, value.constant);
+      int index = memberData.getIndexByConstant(
+        value.expression,
+        value.constant,
+      );
       _sinkWriter.writeInt(index);
     } else {
       _sinkWriter.writeEnum(_TreeNodeKind.node);
@@ -515,34 +522,29 @@ class DataSinkWriter {
   }
 
   /// Writes references to the kernel tree node [values] to this data sink.
-  /// If [allowNull] is `true`, [values] is allowed to be `null`.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readTreeNodes].
-  void writeTreeNodes(Iterable<ir.TreeNode>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ir.TreeNode value in values) {
-        writeTreeNode(value);
-      }
-    }
+  void writeTreeNodes(Iterable<ir.TreeNode> values) {
+    writeList(values, writeTreeNode);
+  }
+
+  /// Writes references to the kernel tree node [values] to this data sink.
+  /// Treats `null` [values] as an empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readTreeNodesOrNull].
+  void writeTreeNodesOrNull(Iterable<ir.TreeNode>? values) {
+    writeListOrNull(values, writeTreeNode);
   }
 
   /// Writes the [map] from references to kernel tree nodes to [V] values to
-  /// this data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// this data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readTreeNodeMap].
-  void writeTreeNodeMap<V>(Map<ir.TreeNode, V> map, void f(V value)) {
-    writeInt(map.length);
-    map.forEach((ir.TreeNode key, V value) {
-      writeTreeNode(key);
-      f(value);
-    });
+  void writeTreeNodeMap<V>(Map<ir.TreeNode, V> map, void Function(V value) f) {
+    writeMap(map, writeTreeNode, f);
   }
 
   /// Writes a reference to the kernel tree node [value] in the known [context]
@@ -552,7 +554,9 @@ class DataSinkWriter {
   }
 
   void writeTreeNodeInContextInternal(
-      ir.TreeNode value, MemberData memberData) {
+    ir.TreeNode value,
+    MemberData memberData,
+  ) {
     _writeDataKind(DataKind.treeNode);
     _writeTreeNode(value, memberData);
   }
@@ -569,43 +573,30 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes references to the kernel tree node [values] in the known [context]
-  /// to this data sink. If [allowNull] is `true`, [values] is allowed to be
-  /// `null`.
+  /// Writes the [map] from references to kernel tree nodes to [V] values in the
+  /// known [context] to this data sink, calling [f] to write each value to the
+  /// data sink.
   ///
   /// This is a convenience method to be used together with
-  /// [DataSourceReader.readTreeNodesInContext].
-  void writeTreeNodesInContext(Iterable<ir.TreeNode>? values,
-      {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ir.TreeNode value in values) {
-        writeTreeNodeInContextInternal(value, currentMemberData);
-      }
-    }
+  /// [DataSourceReader.readTreeNodeMapInContext].
+  void writeTreeNodeMapInContext<V>(
+    Map<ir.TreeNode, V> map,
+    void Function(V value) f,
+  ) {
+    writeMap(map, writeTreeNodeInContext, f);
   }
 
   /// Writes the [map] from references to kernel tree nodes to [V] values in the
   /// known [context] to this data sink, calling [f] to write each value to the
-  /// data sink. If [allowNull] is `true`, [map] is allowed to be `null`.
+  /// data sink. Treats a null [map] as an empty map.
   ///
   /// This is a convenience method to be used together with
-  /// [DataSourceReader.readTreeNodeMapInContext].
-  void writeTreeNodeMapInContext<V>(Map<ir.TreeNode, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((ir.TreeNode key, V value) {
-        writeTreeNodeInContextInternal(key, currentMemberData);
-        f(value);
-      });
-    }
+  /// [DataSourceReader.readTreeNodeMapInContextOrNull].
+  void writeTreeNodeMapInContextOrNull<V>(
+    Map<ir.TreeNode, V>? map,
+    void Function(V value) f,
+  ) {
+    writeMapOrNull(map, writeTreeNodeInContext, f);
   }
 
   /// Writes a reference to the kernel type parameter node [value] to this data
@@ -616,32 +607,34 @@ class DataSinkWriter {
   }
 
   void _writeTypeParameter(ir.TypeParameter value, MemberData? memberData) {
-    ir.TreeNode parent = value.parent!;
-    if (parent is ir.Class) {
+    ir.GenericDeclaration declaration = value.declaration!;
+    // TODO(fishythefish): Use exhaustive pattern switch.
+    if (declaration is ir.Class) {
       _sinkWriter.writeEnum(_TypeParameterKind.cls);
-      _writeClassNode(parent);
-      _sinkWriter.writeInt(parent.typeParameters.indexOf(value));
-    } else if (parent is ir.FunctionNode) {
+      _writeClassNode(declaration);
+      _sinkWriter.writeInt(declaration.typeParameters.indexOf(value));
+    } else if (declaration is ir.Procedure) {
       _sinkWriter.writeEnum(_TypeParameterKind.functionNode);
-      _writeFunctionNode(parent, memberData);
-      _sinkWriter.writeInt(parent.typeParameters.indexOf(value));
+      _writeFunctionNode(declaration.function, memberData);
+      _sinkWriter.writeInt(declaration.typeParameters.indexOf(value));
+    } else if (declaration is ir.LocalFunction) {
+      _sinkWriter.writeEnum(_TypeParameterKind.functionNode);
+      _writeFunctionNode(declaration.function, memberData);
+      _sinkWriter.writeInt(declaration.typeParameters.indexOf(value));
     } else {
       throw UnsupportedError(
-          "Unsupported TypeParameter parent ${parent.runtimeType}");
+        "Unsupported TypeParameter declaration ${declaration.runtimeType}",
+      );
     }
   }
 
   /// Writes references to the kernel type parameter node [values] to this data
   /// sink.
-  /// If [allowNull] is `true`, [values] is allowed to be `null`.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readTypeParameterNodes].
   void writeTypeParameterNodes(Iterable<ir.TypeParameter> values) {
-    writeInt(values.length);
-    for (ir.TypeParameter value in values) {
-      writeTypeParameterNode(value);
-    }
+    writeList(values, writeTypeParameterNode);
   }
 
   /// Writes the type [value] to this data sink.
@@ -678,10 +671,7 @@ class DataSinkWriter {
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readDartTypes].
   void writeDartTypes(Iterable<DartType> values) {
-    writeInt(values.length);
-    for (DartType value in values) {
-      writeDartType(value);
-    }
+    writeList(values, writeDartType);
   }
 
   /// Writes the kernel type node [value] to this data sink.
@@ -697,8 +687,10 @@ class DataSinkWriter {
   }
 
   void _writeDartTypeNode(
-      ir.DartType? value, List<ir.TypeParameter> functionTypeVariables,
-      {bool allowNull = false}) {
+    ir.DartType? value,
+    List<ir.StructuralParameter> functionTypeVariables, {
+    bool allowNull = false,
+  }) {
     if (value == null) {
       if (!allowNull) {
         throw UnsupportedError("Missing ir.DartType node is not allowed.");
@@ -709,22 +701,12 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes the kernel type node [values] to this data sink. If [allowNull] is
-  /// `true`, [values] is allowed to be `null`.
+  /// Writes the kernel type node [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readDartTypeNodes].
-  void writeDartTypeNodes(Iterable<ir.DartType>? values,
-      {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ir.DartType value in values) {
-        writeDartTypeNode(value);
-      }
-    }
+  void writeDartTypeNodes(Iterable<ir.DartType> values) {
+    writeList(values, writeDartTypeNode);
   }
 
   /// Writes the source span [value] to this data sink.
@@ -737,8 +719,8 @@ class DataSinkWriter {
 
   /// Writes a reference to the library entity [value] to this data sink.
   void writeLibrary(LibraryEntity value) {
-    if (value is IndexedLibrary) {
-      _entityWriter.writeLibraryToDataSink(this, value);
+    if (value is JLibrary) {
+      writeIndexed<LibraryEntity>(value, (_) => value.writeToDataSink(this));
     } else {
       failedAt(value, 'Unexpected library entity type ${value.runtimeType}');
     }
@@ -757,29 +739,18 @@ class DataSinkWriter {
   }
 
   /// Writes the [map] from references to library entities to [V] values to
-  /// this data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// this data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readLibraryMap].
-  void writeLibraryMap<V>(Map<LibraryEntity, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((LibraryEntity library, V value) {
-        writeLibrary(library);
-        f(value);
-      });
-    }
+  void writeLibraryMap<V>(Map<LibraryEntity, V> map, void Function(V value) f) {
+    writeMap(map, writeLibrary, f);
   }
 
   /// Writes a reference to the class entity [value] to this data sink.
   void writeClass(ClassEntity value) {
-    if (value is IndexedClass) {
-      _entityWriter.writeClassToDataSink(this, value);
+    if (value is JClass) {
+      writeIndexed<ClassEntity>(value, (_) => value.writeToDataSink(this));
     } else {
       failedAt(value, 'Unexpected class entity type ${value.runtimeType}');
     }
@@ -797,47 +768,36 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes references to the class entity [values] to this data sink. If
-  /// [allowNull] is `true`, [values] is allowed to be `null`.
+  /// Writes references to the class entity [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readClasses].
-  void writeClasses(Iterable<ClassEntity>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ClassEntity value in values) {
-        writeClass(value);
-      }
-    }
+  void writeClasses(Iterable<ClassEntity> values) {
+    writeList(values, writeClass);
+  }
+
+  /// Writes references to the class entity [values] to this data sink. Treats a
+  /// null [values] as an empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readClassesOrNull].
+  void writeClassesOrNull(Iterable<ClassEntity>? values) {
+    writeListOrNull(values, writeClass);
   }
 
   /// Writes the [map] from references to class entities to [V] values to this
-  /// data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readClassMap].
-  void writeClassMap<V>(Map<ClassEntity, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((ClassEntity cls, V value) {
-        writeClass(cls);
-        f(value);
-      });
-    }
+  void writeClassMap<V>(Map<ClassEntity, V> map, void Function(V value) f) {
+    writeMap(map, writeClass, f);
   }
 
   /// Writes a reference to the member entity [value] to this data sink.
   void writeMember(MemberEntity value) {
-    if (value is IndexedMember) {
-      _entityWriter.writeMemberToDataSink(this, value);
+    if (value is JMember) {
+      writeIndexed<MemberEntity>(value, (_) => value.writeToDataSink(this));
     } else {
       failedAt(value, 'Unexpected member entity type ${value.runtimeType}');
     }
@@ -855,75 +815,71 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes references to the member entities [values] to this data sink. If
-  /// [allowNull] is `true`, [values] is allowed to be `null`.
+  /// Writes references to the member entities [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readMembers].
-  void writeMembers(Iterable<MemberEntity>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (MemberEntity value in values) {
-        writeMember(value);
-      }
-    }
+  void writeMembers(Iterable<MemberEntity> values) {
+    writeList(values, writeMember);
+  }
+
+  /// Writes references to the member entities [values] to this data sink.
+  /// Treats a null [values] as an empty list.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readMembersOrNull].
+  void writeMembersOrNull(Iterable<MemberEntity>? values) {
+    writeListOrNull(values, writeMember);
   }
 
   /// Writes the [map] from references to member entities to [V] values to this
-  /// data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readMemberMap].
   void writeMemberMap<V>(
-      Map<MemberEntity, V>? map, void f(MemberEntity member, V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((MemberEntity member, V value) {
-        writeMember(member);
-        f(member, value);
-      });
-    }
+    Map<MemberEntity, V> map,
+    void Function(MemberEntity member, V value) f,
+  ) {
+    writeInt(map.length);
+    map.forEach((MemberEntity member, V value) {
+      writeMember(member);
+      f(member, value);
+    });
   }
 
   /// Writes a reference to the type variable entity [value] to this data sink.
   void writeTypeVariable(TypeVariableEntity value) {
-    if (value is IndexedTypeVariable) {
-      _entityWriter.writeTypeVariableToDataSink(this, value);
+    if (value is JTypeVariable) {
+      writeIndexed<TypeVariableEntity>(
+        value,
+        (_) => value.writeToDataSink(this),
+      );
     } else {
       failedAt(
-          value, 'Unexpected type variable entity type ${value.runtimeType}');
+        value,
+        'Unexpected type variable entity type ${value.runtimeType}',
+      );
     }
   }
 
   /// Writes the [map] from references to type variable entities to [V] values
-  /// to this data sink, calling [f] to write each value to the data sink. If
-  /// [allowNull] is `true`, [map] is allowed to be `null`.
+  /// to this data sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readTypeVariableMap].
   void writeTypeVariableMap<V>(
-      Map<TypeVariableEntity, V> map, void f(V value)) {
-    writeInt(map.length);
-    map.forEach((TypeVariableEntity key, V value) {
-      writeTypeVariable(key);
-      f(value);
-    });
+    Map<TypeVariableEntity, V> map,
+    void Function(V value) f,
+  ) {
+    writeMap(map, writeTypeVariable, f);
   }
 
-  /// Writes a reference to the local [value] to this data sink.
+  /// Writes a reference to the local [local] to this data sink.
   void writeLocal(Local local) {
     if (local is JLocal) {
       writeEnum(LocalKind.jLocal);
-      writeMember(local.memberContext);
-      writeInt(local.localIndex);
+      writeIndexed<Local>(local, (_) => local.writeToDataSink(this));
     } else if (local is ThisLocal) {
       writeEnum(LocalKind.thisLocal);
       writeClass(local.enclosingClass);
@@ -954,17 +910,23 @@ class DataSinkWriter {
   }
 
   /// Writes the [map] from references to locals to [V] values to this data
-  /// sink, calling [f] to write each value to the data sink. If [allowNull] is
-  /// `true`, [map] is allowed to be `null`.
+  /// sink, calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readLocalMap].
-  void writeLocalMap<V>(Map<Local, V> map, void f(V value)) {
-    writeInt(map.length);
-    map.forEach((Local key, V value) {
-      writeLocal(key);
-      f(value);
-    });
+  void writeLocalMap<V>(Map<Local, V> map, void Function(V value) f) {
+    writeMap(map, writeLocal, f);
+  }
+
+  /// Writes the [map] from selectors to [V] values to this data sink, calling
+  /// [f] to write each value to the data sink.
+  ///
+  /// This is a convenience method to be used together with
+  /// [DataSourceReader.readSelectorMap].
+  void writeSelectorMap<V>(Map<Selector, V> map, void Function(V value) f) {
+    writeMap(map, (Selector selector) {
+      selector.writeToDataSink(this);
+    }, f);
   }
 
   /// Writes the constant [value] to this data sink.
@@ -974,91 +936,98 @@ class DataSinkWriter {
   }
 
   void _writeConstant(ConstantValue value) {
-    _constantIndex.write(value, _writeConstantInternal);
+    _constantIndex.write(this, value, _writeConstantInternal);
   }
 
   void _writeConstantInternal(ConstantValue value) {
     _sinkWriter.writeEnum(value.kind);
     switch (value.kind) {
-      case ConstantValueKind.BOOL:
+      case ConstantValueKind.bool:
         final constant = value as BoolConstantValue;
         writeBool(constant.boolValue);
         break;
-      case ConstantValueKind.INT:
+      case ConstantValueKind.int:
         final constant = value as IntConstantValue;
         _writeBigInt(constant.intValue);
         break;
-      case ConstantValueKind.DOUBLE:
+      case ConstantValueKind.double:
         final constant = value as DoubleConstantValue;
         _writeDoubleValue(constant.doubleValue);
         break;
-      case ConstantValueKind.STRING:
+      case ConstantValueKind.string:
         final constant = value as StringConstantValue;
         writeString(constant.stringValue);
         break;
-      case ConstantValueKind.NULL:
+      case ConstantValueKind.null_:
         break;
-      case ConstantValueKind.FUNCTION:
+      case ConstantValueKind.function:
         final constant = value as FunctionConstantValue;
         writeMember(constant.element);
         writeDartType(constant.type);
         break;
-      case ConstantValueKind.LIST:
+      case ConstantValueKind.list:
         final constant = value as ListConstantValue;
         writeDartType(constant.type);
         writeConstants(constant.entries);
         break;
-      case ConstantValueKind.SET:
+      case ConstantValueKind.set:
         final constant = value as constant_system.JavaScriptSetConstant;
         writeDartType(constant.type);
-        writeConstant(constant.entries);
+        writeConstants(constant.values);
+        writeConstantOrNull(constant.indexObject);
         break;
-      case ConstantValueKind.MAP:
+      case ConstantValueKind.map:
         final constant = value as constant_system.JavaScriptMapConstant;
         writeDartType(constant.type);
         writeConstant(constant.keyList);
-        writeConstants(constant.values);
+        writeConstant(constant.valueList);
         writeBool(constant.onlyStringKeys);
+        if (constant.onlyStringKeys) writeConstant(constant.indexObject!);
         break;
-      case ConstantValueKind.CONSTRUCTED:
+      case ConstantValueKind.constructed:
         final constant = value as ConstructedConstantValue;
         writeDartType(constant.type);
-        writeMemberMap(constant.fields,
-            (MemberEntity member, ConstantValue value) => writeConstant(value));
+        writeMemberMap(
+          constant.fields,
+          (MemberEntity member, ConstantValue value) => writeConstant(value),
+        );
         break;
-      case ConstantValueKind.RECORD:
+      case ConstantValueKind.record:
         final constant = value as RecordConstantValue;
         constant.shape.writeToDataSink(this);
         writeConstants(constant.values);
         break;
-      case ConstantValueKind.TYPE:
+      case ConstantValueKind.type:
         final constant = value as TypeConstantValue;
         writeDartType(constant.representedType);
         writeDartType(constant.type);
         break;
-      case ConstantValueKind.INSTANTIATION:
+      case ConstantValueKind.instantiation:
         final constant = value as InstantiationConstantValue;
         writeDartTypes(constant.typeArguments);
         writeConstant(constant.function);
         break;
-      case ConstantValueKind.NON_CONSTANT:
-        break;
-      case ConstantValueKind.INTERCEPTOR:
+      case ConstantValueKind.interceptor:
         final constant = value as InterceptorConstantValue;
         writeClass(constant.cls);
         break;
-      case ConstantValueKind.DEFERRED_GLOBAL:
+      case ConstantValueKind.javaScriptObject:
+        final constant = value as JavaScriptObjectConstantValue;
+        writeConstants(constant.keys);
+        writeConstants(constant.values);
+        break;
+      case ConstantValueKind.deferredGlobal:
         final constant = value as DeferredGlobalConstantValue;
         writeConstant(constant.referenced);
         writeOutputUnitReference(constant.unit);
         break;
-      case ConstantValueKind.DUMMY_INTERCEPTOR:
+      case ConstantValueKind.dummy:
         break;
-      case ConstantValueKind.LATE_SENTINEL:
+      case ConstantValueKind.lateSentinel:
         break;
-      case ConstantValueKind.UNREACHABLE:
+      case ConstantValueKind.unreachable:
         break;
-      case ConstantValueKind.JS_NAME:
+      case ConstantValueKind.jsName:
         final constant = value as JsNameConstantValue;
         writeJsNode(constant.name);
         break;
@@ -1073,42 +1042,24 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes constant [values] to this data sink. If [allowNull] is `true`,
-  /// [values] is allowed to be `null`.
+  /// Writes constant [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readConstants].
-  void writeConstants(Iterable<ConstantValue>? values,
-      {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ConstantValue value in values) {
-        writeConstant(value);
-      }
-    }
+  void writeConstants(Iterable<ConstantValue> values) {
+    writeList(values, writeConstant);
   }
 
   /// Writes the [map] from constant values to [V] values to this data sink,
-  /// calling [f] to write each value to the data sink. If [allowNull] is
-  /// `true`, [map] is allowed to be `null`.
+  /// calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readConstantMap].
-  void writeConstantMap<V>(Map<ConstantValue, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((ConstantValue key, V value) {
-        writeConstant(key);
-        f(value);
-      });
-    }
+  void writeConstantMap<V>(
+    Map<ConstantValue, V> map,
+    void Function(V value) f,
+  ) {
+    writeMap(map, writeConstant, f);
   }
 
   /// Writes a double value to this data sink.
@@ -1146,7 +1097,7 @@ class DataSinkWriter {
   }
 
   void _writeImport(ImportEntity value) {
-    _importIndex.write(value, _writeImportInternal);
+    _importIndex.write(this, value, _writeImportInternal);
   }
 
   void _writeImportInternal(ImportEntity value) {
@@ -1165,67 +1116,51 @@ class DataSinkWriter {
     }
   }
 
-  /// Writes import [values] to this data sink. If [allowNull] is `true`,
-  /// [values] is allowed to be `null`.
+  /// Writes import [values] to this data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readImports].
-  void writeImports(Iterable<ImportEntity>? values, {bool allowNull = false}) {
-    if (values == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(values.length);
-      for (ImportEntity value in values) {
-        writeImport(value);
-      }
-    }
+  void writeImports(Iterable<ImportEntity> values) {
+    writeList(values, writeImport);
   }
 
   /// Writes the [map] from imports to [V] values to this data sink,
-  /// calling [f] to write each value to the data sink. If [allowNull] is
-  /// `true`, [map] is allowed to be `null`.
+  /// calling [f] to write each value to the data sink.
   ///
   /// This is a convenience method to be used together with
   /// [DataSourceReader.readImportMap].
-  void writeImportMap<V>(Map<ImportEntity, V>? map, void f(V value),
-      {bool allowNull = false}) {
-    if (map == null) {
-      assert(allowNull);
-      writeInt(0);
-    } else {
-      writeInt(map.length);
-      map.forEach((ImportEntity key, V value) {
-        writeImport(key);
-        f(value);
-      });
-    }
+  void writeImportMap<V>(Map<ImportEntity, V> map, void Function(V value) f) {
+    writeMap(map, writeImport, f);
   }
 
   /// Writes an abstract [value] to this data sink.
   ///
-  /// This feature is only available a [CodegenWriter] has been registered.
+  /// This feature is only available a [AbstractValueDomain] has been
+  /// registered.
   void writeAbstractValue(AbstractValue value) {
-    _codegenWriter.writeAbstractValue(this, value);
+    _abstractValueDomain.writeAbstractValueToDataSink(this, value);
   }
 
   /// Writes a reference to the output unit [value] to this data sink.
-  ///
-  /// This feature is only available a [CodegenWriter] has been registered.
   void writeOutputUnitReference(OutputUnit value) {
-    _codegenWriter.writeOutputUnitReference(this, value);
+    writeIndexed<OutputUnit>(value, (v) => v.writeToDataSink(this));
+  }
+
+  void withDeferredExpressionRegistry(
+    js.DeferredExpressionRegistry registry,
+    void Function() f,
+  ) {
+    _deferredExpressionRegistry = registry;
+    f();
+    _deferredExpressionRegistry = null;
   }
 
   /// Writes a js node [value] to this data sink.
-  ///
-  /// This feature is only available a [CodegenWriter] has been registered.
   void writeJsNode(js.Node value) {
-    _codegenWriter.writeJsNode(this, value);
+    JsNodeSerializer.writeToDataSink(this, value, _deferredExpressionRegistry);
   }
 
   /// Writes a potentially `null` js node [value] to this data sink.
-  ///
-  /// This feature is only available a [CodegenWriter] has been registered.
   void writeJsNodeOrNull(js.Node? value) {
     writeBool(value != null);
     if (value != null) {
@@ -1234,28 +1169,20 @@ class DataSinkWriter {
   }
 
   /// Writes TypeRecipe [value] to this data sink.
-  ///
-  /// This feature is only available a [CodegenWriter] has been registered.
   void writeTypeRecipe(TypeRecipe value) {
-    _codegenWriter.writeTypeRecipe(this, value);
+    value.writeToDataSink(this);
   }
 
-  /// Register an [EntityWriter] with this data sink for non-default encoding
-  /// of entity references.
-  void registerEntityWriter(EntityWriter writer) {
-    _entityWriter = writer;
-  }
-
-  /// Register a [CodegenWriter] with this data sink to support serialization
-  /// of codegen only data.
-  void registerCodegenWriter(CodegenWriter writer) {
-    _codegenWriter = writer;
+  /// Register a [AbstractValueDomain] with this data sink to support
+  /// serialization of abstract values.
+  void registerAbstractValueDomain(AbstractValueDomain domain) {
+    _abstractValueDomain = domain;
   }
 
   /// Invoke [f] in the context of [member]. This sets up support for
   /// serialization of `ir.TreeNode`s using the `writeTreeNode*InContext`
   /// methods.
-  void inMemberContext(ir.Member? context, void f()) {
+  void inMemberContext(ir.Member? context, void Function() f) {
     ir.Member? oldMemberContext = _currentMemberContext;
     MemberData? oldMemberData = _currentMemberData;
     _currentMemberContext = context;
@@ -1267,16 +1194,18 @@ class DataSinkWriter {
 
   MemberData get currentMemberData {
     final currentMemberContext = _currentMemberContext!;
-    return _currentMemberData ??=
-        _memberData[currentMemberContext] ??= MemberData(currentMemberContext);
+    return _currentMemberData ??= _memberData[currentMemberContext] ??=
+        MemberData(currentMemberContext);
   }
 
   MemberData _getMemberData(ir.TreeNode node) {
     ir.TreeNode? member = node;
     while (member is! ir.Member) {
       if (member == null) {
-        throw UnsupportedError("No enclosing member of TreeNode "
-            "$node (${node.runtimeType})");
+        throw UnsupportedError(
+          "No enclosing member of TreeNode "
+          "$node (${node.runtimeType})",
+        );
       }
       member = member.parent;
     }
@@ -1300,7 +1229,8 @@ class DataSinkWriter {
       _writeTreeNode(parent, memberData);
     } else {
       throw UnsupportedError(
-          "Unsupported FunctionNode parent ${parent.runtimeType}");
+        "Unsupported FunctionNode parent ${parent.runtimeType}",
+      );
     }
   }
 

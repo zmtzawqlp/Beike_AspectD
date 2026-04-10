@@ -2,22 +2,19 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:js_shared/variance.dart';
+
 import '../common/elements.dart';
 import '../elements/entities.dart';
 import '../elements/types.dart';
-import '../options.dart';
 import '../ordered_typeset.dart';
 import 'element_map.dart';
 
 /// Support for subtype checks of kernel based [DartType]s.
 class KernelDartTypes extends DartTypes {
   final IrToElementMap elementMap;
-  final CompilerOptions _options;
 
-  KernelDartTypes(this.elementMap, this._options);
-
-  @override
-  bool get useLegacySubtyping => _options.useLegacySubtyping;
+  KernelDartTypes(this.elementMap);
 
   @override
   InterfaceType getThisType(ClassEntity cls) {
@@ -54,17 +51,26 @@ class KernelDartTypes extends DartTypes {
 
   @override
   void checkTypeVariableBounds<T>(
+    T context,
+    List<DartType> typeArguments,
+    List<DartType> typeVariables,
+    void Function(
       T context,
-      List<DartType> typeArguments,
-      List<DartType> typeVariables,
-      void checkTypeVariableBound(T context, DartType typeArgument,
-          TypeVariableType typeVariable, DartType bound)) {
+      DartType typeArgument,
+      TypeVariableType typeVariable,
+      DartType bound,
+    )
+    checkTypeVariableBound,
+  ) {
     assert(typeVariables.length == typeArguments.length);
     for (int index = 0; index < typeArguments.length; index++) {
       DartType typeArgument = typeArguments[index];
       final typeVariable = typeVariables[index] as TypeVariableType;
-      DartType bound = subst(typeArguments, typeVariables,
-          elementMap.getTypeVariableBound(typeVariable.element));
+      DartType bound = subst(
+        typeArguments,
+        typeVariables,
+        elementMap.getTypeVariableBound(typeVariable.element),
+      );
       checkTypeVariableBound(context, typeArgument, typeVariable, bound);
     }
   }

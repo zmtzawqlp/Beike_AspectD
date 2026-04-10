@@ -6,24 +6,20 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
     show LanguageVersionToken, Scanner, ScannerConfiguration, scan;
-
 import 'package:kernel/ast.dart' show Version;
-export 'package:kernel/ast.dart' show Version;
-
 import 'package:package_config/package_config.dart'
     show InvalidLanguageVersion, Package;
 
+import '../base/compiler_context.dart' show CompilerContext;
 import '../base/processed_options.dart' show ProcessedOptions;
-
-import '../fasta/compiler_context.dart' show CompilerContext;
-
-import '../fasta/uri_translator.dart' show UriTranslator;
-
+import '../base/uri_translator.dart' show UriTranslator;
 import 'compiler_options.dart' show CompilerOptions;
-
 import 'experimental_flags.dart' show ExperimentalFlag;
 import 'file_system.dart' show FileSystem, FileSystemException;
 
+export 'package:kernel/ast.dart' show Version;
+
+// Coverage-ignore(suite): Not run.
 /// Gets the language version for a specific URI.
 ///
 /// Note that this returning some language version, doesn't mean there aren't
@@ -40,14 +36,11 @@ Future<VersionAndPackageUri> languageVersionForUri(
     bool good = false;
     late final int currentSdkVersionMajor;
     late final int currentSdkVersionMinor;
-    // ignore: unnecessary_null_comparison
-    if (currentSdkVersion != null) {
-      List<String> dotSeparatedParts = currentSdkVersion.split(".");
-      if (dotSeparatedParts.length >= 2) {
-        currentSdkVersionMajor = int.parse(dotSeparatedParts[0]);
-        currentSdkVersionMinor = int.parse(dotSeparatedParts[1]);
-        good = true;
-      }
+    List<String> dotSeparatedParts = currentSdkVersion.split(".");
+    if (dotSeparatedParts.length >= 2) {
+      currentSdkVersionMajor = int.parse(dotSeparatedParts[0]);
+      currentSdkVersionMinor = int.parse(dotSeparatedParts[1]);
+      good = true;
     }
     if (!good) {
       throw new StateError("Unparsable sdk version given: $currentSdkVersion");
@@ -67,9 +60,7 @@ Future<VersionAndPackageUri> languageVersionForUri(
     Uri packageUri = uri;
     if (!packageUri.isScheme('dart') &&
         !packageUri.isScheme('package') &&
-        package != null &&
-        // ignore: unnecessary_null_comparison
-        package.name != null) {
+        package != null) {
       packageUri = new Uri(scheme: 'package', path: package.name);
     }
 
@@ -77,7 +68,7 @@ Future<VersionAndPackageUri> languageVersionForUri(
     int? major;
     int? minor;
     if (fileUri != null) {
-      List<int>? rawBytes;
+      Uint8List? rawBytes;
       try {
         FileSystem fileSystem = context.options.fileSystem;
         rawBytes = await fileSystem.entityForUri(fileUri).readAsBytes();
@@ -85,10 +76,7 @@ Future<VersionAndPackageUri> languageVersionForUri(
         rawBytes = null;
       }
       if (rawBytes != null) {
-        Uint8List zeroTerminatedBytes = new Uint8List(rawBytes.length + 1);
-        zeroTerminatedBytes.setRange(0, rawBytes.length, rawBytes);
-
-        scan(zeroTerminatedBytes,
+        scan(rawBytes,
             includeComments: false,
             configuration: new ScannerConfiguration(), languageVersionChanged:
                 (Scanner scanner, LanguageVersionToken version) {
@@ -138,6 +126,7 @@ Future<VersionAndPackageUri> languageVersionForUri(
   });
 }
 
+// Coverage-ignore(suite): Not run.
 /// Returns `true` if the language version of [uri] does not support null
 /// safety.
 Future<bool> uriUsesLegacyLanguageVersion(
@@ -152,6 +141,7 @@ Future<bool> uriUsesLegacyLanguageVersion(
       versionAndLibraryUri.version);
 }
 
+// Coverage-ignore(suite): Not run.
 class VersionAndPackageUri {
   final Version version;
   final Uri packageUri;

@@ -2,25 +2,26 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   typeLiteral();
   typeLiteralToString();
   typeLiteralSubstring();
 }
 
-/*member: typeLiteral:[exact=_Type]*/
+/*member: typeLiteral:[exact=_Type|powerset={N}{O}{N}]*/
 typeLiteral() => Object;
 
-/*member: typeLiteralToString:[null|exact=JSString]*/
-typeLiteralToString() => (Object). /*invoke: [exact=_Type]*/ toString();
+/*member: typeLiteralToString:[exact=JSString|powerset={I}{O}{I}]*/
+typeLiteralToString() =>
+    (Object). /*invoke: [exact=_Type|powerset={N}{O}{N}]*/ toString();
 
-/*member: typeLiteralSubstring:[exact=JSString]*/
+/*member: typeLiteralSubstring:[exact=JSString|powerset={I}{O}{I}]*/
 typeLiteralSubstring() {
-  String name = (List). /*invoke: [exact=_Type]*/ toString();
-  name = name. /*invoke: [null|exact=JSString]*/ substring(
-      0, name. /*invoke: [null|exact=JSString]*/ indexOf('<'));
+  String name = (List). /*invoke: [exact=_Type|powerset={N}{O}{N}]*/ toString();
+  name = name. /*invoke: [exact=JSString|powerset={I}{O}{I}]*/ substring(
+    0,
+    name. /*invoke: [exact=JSString|powerset={I}{O}{I}]*/ indexOf('<'),
+  );
   return name;
 }

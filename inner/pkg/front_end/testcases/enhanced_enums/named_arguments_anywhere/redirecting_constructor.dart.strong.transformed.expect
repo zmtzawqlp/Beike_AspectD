@@ -1,16 +1,16 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
 class C extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::C> values = #C20;
-  final field core::String log;
   enum-element static const field self::C a = #C4;
   enum-element static const field self::C b = #C7;
   enum-element static const field self::C c = #C10;
   enum-element static const field self::C d = #C13;
   enum-element static const field self::C e = #C16;
   enum-element static const field self::C f = #C19;
+  final field core::String log;
+  static const field core::List<self::C> values = #C20;
   const constructor •(core::int #index, core::String #name, core::int x, core::int y, {core::int z = #C21}) → self::C
     : self::C::log = "x=${x}, y=${y}, z=${z}", super core::_Enum::•(#index, #name)
     ;
@@ -23,7 +23,7 @@ class C extends core::_Enum /*isEnum*/  {
   const constructor named3(core::int #index, core::String #name, core::int x, core::int y, core::int z) → self::C
     : final core::int #t5 = #index, final core::String #t6 = #name, final core::int #t7 = z, this self::C::•(#t5, #t6, x, y, z: #t7)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "C.${this.{core::_Enum::_name}{core::String}}";
 }
 static method main() → dynamic {

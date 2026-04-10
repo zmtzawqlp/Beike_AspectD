@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   closurizedCallToString();
 }
@@ -14,20 +12,20 @@ main() {
 // method in the closed world.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class.:[exact=Class]*/
+/*member: Class.:[exact=Class|powerset={N}{O}{N}]*/
 class Class {
-  /*member: Class.call:Value([exact=JSBool], value: true)*/
+  /*member: Class.call:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   call() => true;
 }
 
-/*member: closurizedCallToString:[exact=JSString]*/
+/*member: closurizedCallToString:[exact=JSString|powerset={I}{O}{I}]*/
 closurizedCallToString() {
   var c = Class();
-  c. /*invoke: [null|exact=Class]*/ call(); // Make `Class.call` live.
-  var local = /*[exact=JSUInt31]*/ () => 42;
-  local. /*invoke: [subclass=Closure]*/ toString();
+  c. /*invoke: [exact=Class|powerset={N}{O}{N}]*/ call(); // Make `Class.call` live.
+  var local = /*[exact=JSUInt31|powerset={I}{O}{N}]*/ () => 42;
+  local. /*invoke: [subclass=Closure|powerset={N}{O}{N}]*/ toString();
   local();
-  local. /*invoke: [subclass=Closure]*/ toString();
+  local. /*invoke: [subclass=Closure|powerset={N}{O}{N}]*/ toString();
   local.call();
-  return local. /*invoke: [subclass=Closure]*/ toString();
+  return local. /*invoke: [subclass=Closure|powerset={N}{O}{N}]*/ toString();
 }

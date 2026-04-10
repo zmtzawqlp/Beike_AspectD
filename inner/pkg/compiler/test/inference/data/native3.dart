@@ -2,16 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 import 'dart:html';
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   createRectangle();
 }
 
-/*member: createRectangle:[null|subclass=DomRectReadOnly]*/
+/*member: createRectangle:[subclass=DomRectReadOnly|powerset={I}{O}{N}]*/
 Rectangle createRectangle()
-    // ignore: NATIVE_FUNCTION_BODY_IN_NON_SDK_CODE
-    native;
+// ignore: NATIVE_FUNCTION_BODY_IN_NON_SDK_CODE
+native;

@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -60,7 +60,7 @@ library /*isNonNullableByDefault*/;
 //   nullableClass1.method(0);
 //                  ^^^^^^
 //
-// pkg/front_end/testcases/none/method_invocation.dart:102:21: Error: The method 'unresolved' isn't defined for the class 'Class1'.
+// pkg/front_end/testcases/none/method_invocation.dart:102:21: Error: The method 'unresolved' isn't defined for the type 'Class1'.
 //  - 'Class1' is from 'pkg/front_end/testcases/none/method_invocation.dart'.
 // Try correcting the name to the name of an existing method, or defining a method named 'unresolved'.
 //   nonNullableClass1.unresolved();
@@ -189,19 +189,19 @@ Try calling using ?. instead.
   const int call_dyn = dyn.toString(0);
                            ^^^^^^^^");
   core::print("InstanceInvocation (Object)");
-  dyn.{core::Object::toString}(){() → core::String};
-  nullableClass1.{core::Object::toString}(){() → core::String};
-  nullableClass2.{core::Object::toString}(){() → core::String};
-  nullableFunction.{core::Object::toString}(){() → core::String};
-  nullableFunctionType.{core::Object::toString}(){() → core::String};
-  nullableTypeVariable1.{core::Object::toString}(){() → core::String};
-  nullableTypeVariable2.{core::Object::toString}(){() → core::String};
-  undeterminedTypeVariable.{core::Object::toString}(){() → core::String};
+  dyn.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableClass1.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableClass2.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableFunction.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableFunctionType.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableTypeVariable1.{core::Object::toString}{<object>}.(){() → core::String};
+  nullableTypeVariable2.{core::Object::toString}{<object>}.(){() → core::String};
+  undeterminedTypeVariable.{core::Object::toString}{<object>}.(){() → core::String};
   core::print("DynamicInvocation (Never)");
   never{Never}.method(0);
   never{Never}.toString();
   core::print("DynamicInvocation (Unresolved)");
-  invalid-expression "pkg/front_end/testcases/none/method_invocation.dart:102:21: Error: The method 'unresolved' isn't defined for the class 'Class1'.
+  invalid-expression "pkg/front_end/testcases/none/method_invocation.dart:102:21: Error: The method 'unresolved' isn't defined for the type 'Class1'.
  - 'Class1' is from 'pkg/front_end/testcases/none/method_invocation.dart'.
 Try correcting the name to the name of an existing method, or defining a method named 'unresolved'.
   nonNullableClass1.unresolved();

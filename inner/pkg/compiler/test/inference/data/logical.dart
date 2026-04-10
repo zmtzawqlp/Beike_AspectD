@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   returnTrue();
   returnFalse();
@@ -45,24 +43,24 @@ main() {
 /// Return `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnTrue:Value([exact=JSBool], value: true)*/
+/*member: returnTrue:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnTrue() => true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return `false`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnFalse:Value([exact=JSBool], value: false)*/
+/*member: returnFalse:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 returnFalse() => false;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return negation of a boolean value.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _returnNot:[exact=JSBool]*/
-_returnNot(/*[exact=JSBool]*/ o) => !o;
+/*member: _returnNot:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnNot(/*[exact=JSBool|powerset={I}{O}{N}]*/ o) => !o;
 
-/*member: returnNot:[null]*/
+/*member: returnNot:[null|powerset={null}]*/
 returnNot() {
   _returnNot(true);
   _returnNot(false);
@@ -72,30 +70,30 @@ returnNot() {
 /// Return negation of `false`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnNotFalse:Value([exact=JSBool], value: true)*/
+/*member: returnNotFalse:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnNotFalse() => !false;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return negation of `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnNotTrue:Value([exact=JSBool], value: false)*/
+/*member: returnNotTrue:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 returnNotTrue() => !true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return negation of `null`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnNotOfNull:[exact=JSBool]*/
-returnNotOfNull() => !null;
+/*member: returnNotOfNull:[exact=JSBool|powerset={I}{O}{N}]*/
+returnNotOfNull() => !(null as dynamic);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of an is test.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _returnIs:[exact=JSBool]*/
-_returnIs(/*[null|exact=JSUInt31]*/ o) => o is int;
+/*member: _returnIs:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnIs(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) => o is int;
 
-/*member: returnIs:[null]*/
+/*member: returnIs:[null|powerset={null}]*/
 returnIs() {
   _returnIs(null);
   _returnIs(1);
@@ -104,22 +102,22 @@ returnIs() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of an is `int` test known to be true.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: returnIsOneInt:Value([exact=JSBool], value: true)*/
+/*member: returnIsOneInt:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnIsOneInt() => 1 is int;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of an is `int` test known to be false.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: returnIsNullInt:Value([exact=JSBool], value: false)*/
+/*member: returnIsNullInt:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 returnIsNullInt() => null is int;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of a negated is test.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: _returnNotIs:[exact=JSBool]*/
-_returnNotIs(/*[null|exact=JSUInt31]*/ o) => o is! int;
+/*member: _returnNotIs:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnNotIs(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) => o is! int;
 
-/*member: returnNotIs:[null]*/
+/*member: returnNotIs:[null|powerset={null}]*/
 returnNotIs() {
   _returnNotIs(null);
   _returnNotIs(1);
@@ -128,23 +126,26 @@ returnNotIs() {
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of a negated is `int` test known to be false.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: returnNotIsOneInt:Value([exact=JSBool], value: false)*/
+/*member: returnNotIsOneInt:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 returnNotIsOneInt() => 1 is! int;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return value of a negated is `int` test known to be true.
 ////////////////////////////////////////////////////////////////////////////////
-/*member: returnNotIsNullInt:Value([exact=JSBool], value: true)*/
+/*member: returnNotIsNullInt:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnNotIsNullInt() => null is! int;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical and of booleans values.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _returnLogicalAnd:[exact=JSBool]*/
-_returnLogicalAnd(/*[exact=JSBool]*/ a, /*[exact=JSBool]*/ b) => a && b;
+/*member: _returnLogicalAnd:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalAnd(
+  /*[exact=JSBool|powerset={I}{O}{N}]*/ a,
+  /*[exact=JSBool|powerset={I}{O}{N}]*/ b,
+) => a && b;
 
-/*member: returnLogicalAnd:[null]*/
+/*member: returnLogicalAnd:[null|powerset={null}]*/
 returnLogicalAnd() {
   _returnLogicalAnd(true, true);
   _returnLogicalAnd(false, false);
@@ -154,14 +155,14 @@ returnLogicalAnd() {
 /// Return logical and of `true` && `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalAndTrueTrue:Value([exact=JSBool], value: true)*/
+/*member: returnLogicalAndTrueTrue:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnLogicalAndTrueTrue() => true && true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical and of `false` && `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalAndFalseTrue:Value([exact=JSBool], value: false)*/
+/*member: returnLogicalAndFalseTrue:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 /// ignore: dead_code
 returnLogicalAndFalseTrue() => false && true;
 
@@ -169,25 +170,25 @@ returnLogicalAndFalseTrue() => false && true;
 /// Return logical and of `null` && `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalAndNullTrue:[exact=JSBool]*/
-returnLogicalAndNullTrue() => null && true;
+/*member: returnLogicalAndNullTrue:[exact=JSBool|powerset={I}{O}{N}]*/
+returnLogicalAndNullTrue() => (null as dynamic) && true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical and of is test and use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class1.:[exact=Class1]*/
+/*member: Class1.:[exact=Class1|powerset={N}{O}{N}]*/
 class Class1 {
-  /*member: Class1.field:Value([exact=JSBool], value: true)*/
+  /*member: Class1.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalAndIs:[exact=JSBool]*/
-_returnLogicalAndIs(/*[null|exact=Class1]*/ o) {
-  return o is Class1 && o. /*[exact=Class1]*/ field;
+/*member: _returnLogicalAndIs:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalAndIs(/*[null|exact=Class1|powerset={null}{N}{O}{N}]*/ o) {
+  return o is Class1 && o. /*[exact=Class1|powerset={N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalAndIs:[null]*/
+/*member: returnLogicalAndIs:[null|powerset={null}]*/
 returnLogicalAndIs() {
   _returnLogicalAndIs(new Class1());
   _returnLogicalAndIs(null);
@@ -197,20 +198,21 @@ returnLogicalAndIs() {
 /// Return logical and of is-not test and use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class2.:[exact=Class2]*/
+/*member: Class2.:[exact=Class2|powerset={N}{O}{N}]*/
 class Class2 {
-  /*member: Class2.field:Value([exact=JSBool], value: true)*/
+  /*member: Class2.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalAndIsNot:[exact=JSBool]*/
-_returnLogicalAndIsNot(/*[null|exact=Class2]*/ o) {
+/*member: _returnLogicalAndIsNot:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalAndIsNot(/*[null|exact=Class2|powerset={null}{N}{O}{N}]*/ o) {
   // TODO(johnniwinther): Use negative type knowledge to show that the receiver
   // is [null].
-  return o is! Class2 && o. /*[null|exact=Class2]*/ field;
+  return o is! Class2 &&
+      o. /*[null|exact=Class2|powerset={null}{N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalAndIsNot:[null]*/
+/*member: returnLogicalAndIsNot:[null|powerset={null}]*/
 returnLogicalAndIsNot() {
   _returnLogicalAndIsNot(new Class2());
   _returnLogicalAndIsNot(null);
@@ -220,18 +222,18 @@ returnLogicalAndIsNot() {
 /// Return logical and of null test and use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class3.:[exact=Class3]*/
+/*member: Class3.:[exact=Class3|powerset={N}{O}{N}]*/
 class Class3 {
-  /*member: Class3.field:Value([exact=JSBool], value: true)*/
+  /*member: Class3.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalAndNull:[exact=JSBool]*/
-_returnLogicalAndNull(/*[null|exact=Class3]*/ o) {
-  return o == null && o. /*[null]*/ field;
+/*member: _returnLogicalAndNull:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalAndNull(/*[null|exact=Class3|powerset={null}{N}{O}{N}]*/ o) {
+  return o == null && o. /*[null|powerset={null}]*/ field;
 }
 
-/*member: returnLogicalAndNull:[null]*/
+/*member: returnLogicalAndNull:[null|powerset={null}]*/
 returnLogicalAndNull() {
   _returnLogicalAndNull(new Class3());
   _returnLogicalAndNull(null);
@@ -241,18 +243,18 @@ returnLogicalAndNull() {
 /// Return logical and of not null test and use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class4.:[exact=Class4]*/
+/*member: Class4.:[exact=Class4|powerset={N}{O}{N}]*/
 class Class4 {
-  /*member: Class4.field:Value([exact=JSBool], value: true)*/
+  /*member: Class4.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalAndNotNull:[exact=JSBool]*/
-_returnLogicalAndNotNull(/*[null|exact=Class4]*/ o) {
-  return o != null && o. /*[exact=Class4]*/ field;
+/*member: _returnLogicalAndNotNull:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalAndNotNull(/*[null|exact=Class4|powerset={null}{N}{O}{N}]*/ o) {
+  return o != null && o. /*[exact=Class4|powerset={N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalAndNotNull:[null]*/
+/*member: returnLogicalAndNotNull:[null|powerset={null}]*/
 returnLogicalAndNotNull() {
   _returnLogicalAndNotNull(new Class4());
   _returnLogicalAndNotNull(null);
@@ -262,10 +264,13 @@ returnLogicalAndNotNull() {
 /// Return logical or of booleans values.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _returnLogicalOr:[exact=JSBool]*/
-_returnLogicalOr(/*[exact=JSBool]*/ a, /*[exact=JSBool]*/ b) => a || b;
+/*member: _returnLogicalOr:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalOr(
+  /*[exact=JSBool|powerset={I}{O}{N}]*/ a,
+  /*[exact=JSBool|powerset={I}{O}{N}]*/ b,
+) => a || b;
 
-/*member: returnLogicalOr:[null]*/
+/*member: returnLogicalOr:[null|powerset={null}]*/
 returnLogicalOr() {
   _returnLogicalOr(true, true);
   _returnLogicalOr(false, false);
@@ -275,41 +280,42 @@ returnLogicalOr() {
 /// Return logical or of `false` || `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalOrFalseTrue:Value([exact=JSBool], value: true)*/
+/*member: returnLogicalOrFalseTrue:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
 returnLogicalOrFalseTrue() => false || true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical or of `false` || `false`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalOrFalseFalse:Value([exact=JSBool], value: false)*/
+/*member: returnLogicalOrFalseFalse:Value([exact=JSBool|powerset={I}{O}{N}], value: false, powerset: {I}{O}{N})*/
 returnLogicalOrFalseFalse() => false || false;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical or of `null` || `true`.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: returnLogicalOrNullTrue:[exact=JSBool]*/
-returnLogicalOrNullTrue() => null || true;
+/*member: returnLogicalOrNullTrue:[exact=JSBool|powerset={I}{O}{N}]*/
+returnLogicalOrNullTrue() => (null as dynamic) || true;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Return logical or of is test or use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class5.:[exact=Class5]*/
+/*member: Class5.:[exact=Class5|powerset={N}{O}{N}]*/
 class Class5 {
-  /*member: Class5.field:Value([exact=JSBool], value: true)*/
+  /*member: Class5.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalOrIs:[exact=JSBool]*/
-_returnLogicalOrIs(/*[null|exact=Class5]*/ o) {
+/*member: _returnLogicalOrIs:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalOrIs(/*[null|exact=Class5|powerset={null}{N}{O}{N}]*/ o) {
   // TODO(johnniwinther): Use negative type knowledge to show that the receiver
   // is [null].
-  return o is Class5 || o. /*[null|exact=Class5]*/ field;
+  return o is Class5 ||
+      o. /*[null|exact=Class5|powerset={null}{N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalOrIs:[null]*/
+/*member: returnLogicalOrIs:[null|powerset={null}]*/
 returnLogicalOrIs() {
   _returnLogicalOrIs(new Class5());
   _returnLogicalOrIs(null);
@@ -319,18 +325,18 @@ returnLogicalOrIs() {
 /// Return logical or of is-not test or use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class6.:[exact=Class6]*/
+/*member: Class6.:[exact=Class6|powerset={N}{O}{N}]*/
 class Class6 {
-  /*member: Class6.field:Value([exact=JSBool], value: true)*/
+  /*member: Class6.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalOrIsNot:[exact=JSBool]*/
-_returnLogicalOrIsNot(/*[null|exact=Class6]*/ o) {
-  return o is! Class6 || o. /*[exact=Class6]*/ field;
+/*member: _returnLogicalOrIsNot:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalOrIsNot(/*[null|exact=Class6|powerset={null}{N}{O}{N}]*/ o) {
+  return o is! Class6 || o. /*[exact=Class6|powerset={N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalOrIsNot:[null]*/
+/*member: returnLogicalOrIsNot:[null|powerset={null}]*/
 returnLogicalOrIsNot() {
   _returnLogicalOrIsNot(new Class6());
   _returnLogicalOrIsNot(null);
@@ -340,18 +346,18 @@ returnLogicalOrIsNot() {
 /// Return logical or of null test or use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class7.:[exact=Class7]*/
+/*member: Class7.:[exact=Class7|powerset={N}{O}{N}]*/
 class Class7 {
-  /*member: Class7.field:Value([exact=JSBool], value: true)*/
+  /*member: Class7.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalOrNull:[exact=JSBool]*/
-_returnLogicalOrNull(/*[null|exact=Class7]*/ o) {
-  return o == null || o. /*[exact=Class7]*/ field;
+/*member: _returnLogicalOrNull:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalOrNull(/*[null|exact=Class7|powerset={null}{N}{O}{N}]*/ o) {
+  return o == null || o. /*[exact=Class7|powerset={N}{O}{N}]*/ field;
 }
 
-/*member: returnLogicalOrNull:[null]*/
+/*member: returnLogicalOrNull:[null|powerset={null}]*/
 returnLogicalOrNull() {
   _returnLogicalOrNull(new Class7());
   _returnLogicalOrNull(null);
@@ -361,18 +367,18 @@ returnLogicalOrNull() {
 /// Return logical or of not null test or use.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: Class8.:[exact=Class8]*/
+/*member: Class8.:[exact=Class8|powerset={N}{O}{N}]*/
 class Class8 {
-  /*member: Class8.field:Value([exact=JSBool], value: true)*/
+  /*member: Class8.field:Value([exact=JSBool|powerset={I}{O}{N}], value: true, powerset: {I}{O}{N})*/
   final bool field = true;
 }
 
-/*member: _returnLogicalOrNotNull:[exact=JSBool]*/
-_returnLogicalOrNotNull(/*[null|exact=Class8]*/ o) {
-  return o != null || o. /*[null]*/ field;
+/*member: _returnLogicalOrNotNull:[exact=JSBool|powerset={I}{O}{N}]*/
+_returnLogicalOrNotNull(/*[null|exact=Class8|powerset={null}{N}{O}{N}]*/ o) {
+  return o != null || o. /*[null|powerset={null}]*/ field;
 }
 
-/*member: returnLogicalOrNotNull:[null]*/
+/*member: returnLogicalOrNotNull:[null|powerset={null}]*/
 returnLogicalOrNotNull() {
   _returnLogicalOrNotNull(new Class8());
   _returnLogicalOrNotNull(null);

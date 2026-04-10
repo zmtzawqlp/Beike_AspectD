@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -44,11 +44,11 @@ static method main() → dynamic {
   try {
     self::B b = new self::B::•();
   }
-  on core::Object catch(final core::Object _) {
+  on core::Object catch(final wildcard core::Object _#wc0#formal) {
   }
   try {
     self::C c = new self::C::•();
   }
-  on core::Object catch(final core::Object _) {
+  on core::Object catch(final wildcard core::Object _#wc1#formal) {
   }
 }

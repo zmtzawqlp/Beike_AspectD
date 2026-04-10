@@ -4,6 +4,12 @@
 
 import 'dart:test';
 
+test() {
+  new Class._private(); // Error
+  new Class._privateInjected(); // Error
+  new Class3(); // Error
+}
+
 main() {
   new Class.generative();
   const Class.constGenerative();

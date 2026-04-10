@@ -45,10 +45,10 @@ class NodeCreator {
   /// [VariableDeclaration] is added to a enclosing [Block].
   List<Library> _neededLibraries = [];
   List<Class> _neededClasses = [];
-  List<Extension> _neededExtensions = [];
-  List<InlineClass> _neededInlineClasses = [];
+  List<ExtensionTypeDeclaration> _neededExtensionTypeDeclarations = [];
   List<Typedef> _neededTypedefs = [];
   List<TypeParameter> _neededTypeParameters = [];
+  List<StructuralParameter> _neededStructuralParameters = [];
   List<Constructor> _neededConstructors = [];
   List<Procedure> _neededRedirectingFactories = [];
   List<Procedure> _neededProcedures = [];
@@ -290,8 +290,6 @@ class NodeCreator {
         cls.addField(member);
       } else if (member is Constructor) {
         cls.addConstructor(member);
-      } else if (member is RedirectingFactory) {
-        cls.addRedirectingFactory(member);
       } else {
         throw new UnsupportedError(
             'Unexpected member $member (${member.runtimeType})');
@@ -310,6 +308,7 @@ class NodeCreator {
         case NodeKind.NamedType:
         case NodeKind.SwitchCase:
         case NodeKind.TypeParameter:
+        case NodeKind.StructuralParameter:
         case NodeKind.MapPatternEntry:
         case NodeKind.MapPatternRestEntry:
         case NodeKind.PatternGuard:
@@ -346,8 +345,9 @@ class NodeCreator {
         case NodeKind.Typedef:
           _needLibrary().addTypedef(node as Typedef);
           break;
-        case NodeKind.InlineClass:
-          _needLibrary().addInlineClass(node as InlineClass);
+        case NodeKind.ExtensionTypeDeclaration:
+          _needLibrary()
+              .addExtensionTypeDeclaration(node as ExtensionTypeDeclaration);
           break;
       }
     }
@@ -402,38 +402,25 @@ class NodeCreator {
     return cls;
   }
 
-  /// Returns an [Extension] node that fits the requirements.
+  /// Returns an [ExtensionTypeDeclaration] node that fits the requirements.
   ///
-  /// If no such [Extension] exists in [_neededExtensions], a new [Extension] is
-  /// created and added to [_neededExtensions].
+  /// If no such [ExtensionTypeDeclaration] exists in
+  /// [_neededExtensionTypeDeclarations], a new [ExtensionTypeDeclaration] is
+  /// created and added to [_neededExtensionTypeDeclarations].
   // TODO(johnniwinther): Add requirements when/where needed.
-  Extension _needExtension() {
-    for (Extension extension in _neededExtensions) {
-      return extension;
+  ExtensionTypeDeclaration _needExtensionTypeDeclaration() {
+    for (ExtensionTypeDeclaration extensionTypeDeclaration
+        in _neededExtensionTypeDeclarations) {
+      return extensionTypeDeclaration;
     }
-    Extension extension =
-        Extension(name: 'foo', fileUri: _uri, onType: const DynamicType());
-    _neededExtensions.add(extension);
-    _needLibrary().addExtension(extension);
-    return extension;
-  }
-
-  /// Returns an [InlineClass] node that fits the requirements.
-  ///
-  /// If no such [InlineClass] exists in [_neededInlineClasses], a new
-  /// [InlineClass] is created and added to [_neededInlineClasses].
-  // TODO(johnniwinther): Add requirements when/where needed.
-  InlineClass _needInlineClass() {
-    for (InlineClass inlineClass in _neededInlineClasses) {
-      return inlineClass;
-    }
-    InlineClass inlineClass = InlineClass(
-        name: 'foo',
-        fileUri: _uri,
-        declaredRepresentationType: const DynamicType());
-    _neededInlineClasses.add(inlineClass);
-    _needLibrary().addInlineClass(inlineClass);
-    return inlineClass;
+    ExtensionTypeDeclaration extensionTypeDeclaration =
+        ExtensionTypeDeclaration(
+            name: 'foo',
+            fileUri: _uri,
+            declaredRepresentationType: const DynamicType());
+    _neededExtensionTypeDeclarations.add(extensionTypeDeclaration);
+    _needLibrary().addExtensionTypeDeclaration(extensionTypeDeclaration);
+    return extensionTypeDeclaration;
   }
 
   /// Returns a [Typedef] node that fits the requirements.
@@ -466,6 +453,24 @@ class NodeCreator {
     // TODO(johnniwinther): Add the type parameter to a context; class, method
     // or function type.
     return typeParameter;
+  }
+
+  /// Returns a [StructuralParameter] node that fits the requirements.
+  ///
+  /// If no such [StructuralParameter] exists in
+  /// [_neededStructuralParameters], a new [StructuralParameter] is
+  /// created and added to [_neededStructuralParameters].
+  // TODO(johnniwinther): Add requirements when/where needed.
+  StructuralParameter _needStructuralParameter() {
+    for (StructuralParameter typeParameter in _neededStructuralParameters) {
+      return typeParameter;
+    }
+    StructuralParameter functionTypeTypeParameter =
+        StructuralParameter('foo', DynamicType(), DynamicType());
+    _neededStructuralParameters.add(functionTypeTypeParameter);
+    // TODO(johnniwinther): Add the type parameter to a context, that is,
+    // function type.
+    return functionTypeTypeParameter;
   }
 
   /// Returns a [Procedure] node that fits the requirements.
@@ -523,9 +528,12 @@ class NodeCreator {
       return redirectingFactory;
     }
     Procedure redirectingFactory = Procedure(
-        Name('foo'), ProcedureKind.Method, FunctionNode(null),
-        fileUri: _uri)
-      ..isRedirectingFactory = true;
+        Name('foo'),
+        ProcedureKind.Method,
+        FunctionNode(null)
+          ..redirectingFactoryTarget =
+              new RedirectingFactoryTarget(_needConstructor(), []),
+        fileUri: _uri);
     _needClass().addProcedure(redirectingFactory);
     return redirectingFactory;
   }
@@ -1367,8 +1375,6 @@ class NodeCreator {
     switch (kind) {
       case DartTypeKind.DynamicType:
         return DynamicType();
-      case DartTypeKind.ExtensionType:
-        return ExtensionType(_needExtension(), Nullability.nonNullable);
       case DartTypeKind.FunctionType:
         return _createOneOf(_pendingDartTypes, kind, index, [
           // TODO(johnniwinther): Create non-trivial cases.
@@ -1397,6 +1403,11 @@ class NodeCreator {
           () =>
               TypeParameterType(_needTypeParameter(), Nullability.nonNullable),
         ]);
+      case DartTypeKind.StructuralParameterType:
+        return _createOneOf(_pendingDartTypes, kind, index, [
+          () => StructuralParameterType(
+              _needStructuralParameter(), Nullability.nonNullable),
+        ]);
       case DartTypeKind.IntersectionType:
         return _createOneOf(_pendingDartTypes, kind, index, [
           () => IntersectionType(
@@ -1408,8 +1419,9 @@ class NodeCreator {
           // TODO(johnniwinther): Create non-trivial cases.
           () => TypedefType(_needTypedef(), Nullability.nonNullable, []),
         ]);
-      case DartTypeKind.InlineType:
-        return InlineType(_needInlineClass(), Nullability.nonNullable);
+      case DartTypeKind.ExtensionType:
+        return ExtensionType(
+            _needExtensionTypeDeclaration(), Nullability.nonNullable);
       case DartTypeKind.VoidType:
         return VoidType();
     }
@@ -1636,10 +1648,6 @@ class NodeCreator {
               fileUri: _uri)
             ..fileOffset = _needFileOffset(),
         ]);
-      case MemberKind.RedirectingFactory:
-        return RedirectingFactory(null,
-            name: _createName(), function: _createFunctionNode(), fileUri: _uri)
-          ..fileOffset = _needFileOffset();
     }
   }
 
@@ -1764,12 +1772,14 @@ class NodeCreator {
       case NodeKind.TypeParameter:
         return TypeParameter('foo', _createDartType(), _createDartType())
           ..fileOffset = _needFileOffset();
+      case NodeKind.StructuralParameter:
+        return StructuralParameter('foo', _createDartType(), _createDartType());
       case NodeKind.Typedef:
         return Typedef('foo', _createDartType(), fileUri: _uri)
           ..fileOffset = _needFileOffset();
-      case NodeKind.InlineClass:
+      case NodeKind.ExtensionTypeDeclaration:
         // TODO(johnniwinther): Add non-trivial cases.
-        return InlineClass(name: 'foo', fileUri: _uri)
+        return ExtensionTypeDeclaration(name: 'foo', fileUri: _uri)
           ..fileOffset = _needFileOffset()
           ..declaredRepresentationType = _createDartType();
       case NodeKind.MapPatternEntry:

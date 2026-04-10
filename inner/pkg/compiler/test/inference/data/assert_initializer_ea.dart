@@ -2,20 +2,24 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.10
-
 class X {
-  /*member: X.a:[exact=JSString]*/
+  /*member: X.a:[exact=JSString|powerset={I}{O}{I}]*/
   final dynamic a;
 
-  /*member: X.:[exact=X]*/
-  X(Object /*Union([exact=JSExtendableArray], [exact=JSString])*/ value)
-      : assert(value is String),
-        a = value;
+  /*member: X.:[exact=X|powerset={N}{O}{N}]*/
+  X(
+    Object /*Union([exact=JSExtendableArray|powerset={I}{G}{M}], [exact=JSString|powerset={I}{O}{I}], powerset: {I}{GO}{IM})*/
+    value,
+  ) : assert(value is String),
+      a = value;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
-  X('a'). /*[exact=X]*/ a. /*[exact=JSString]*/ length;
-  X([1]). /*[exact=X]*/ a. /*[exact=JSString]*/ length;
+  X('a')
+      . /*[exact=X|powerset={N}{O}{N}]*/ a
+      . /*[exact=JSString|powerset={I}{O}{I}]*/ length;
+  X([1])
+      . /*[exact=X|powerset={N}{O}{N}]*/ a
+      . /*[exact=JSString|powerset={I}{O}{I}]*/ length;
 }

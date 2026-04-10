@@ -2,11 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.compiler_base;
+library;
 
 import 'dart:async' show Future;
 import 'dart:convert' show jsonEncode;
+import 'dart:typed_data';
 
+import 'package:compiler/src/universe/use.dart' show StaticUse;
+// ignore: implementation_imports
 import 'package:front_end/src/api_unstable/dart2js.dart' as fe;
 import 'package:kernel/ast.dart' as ir;
 
@@ -16,58 +19,57 @@ import 'common/codegen.dart';
 import 'common/elements.dart' show ElementEnvironment;
 import 'common/metrics.dart' show Metric;
 import 'common/names.dart' show Selectors;
-import 'common/tasks.dart' show CompilerTask, GenericTask, Measurer;
+import 'common/tasks.dart'
+    show CompilerTask, GenericTask, GenericTaskWithMetrics, Measurer;
 import 'common/work.dart' show WorkItem;
 import 'deferred_load/deferred_load.dart' show DeferredLoadTask;
 import 'deferred_load/output_unit.dart' show OutputUnitData;
-import 'deferred_load/program_split_constraints/nodes.dart' as psc
+import 'deferred_load/program_split_constraints/nodes.dart'
+    as psc
     show ConstraintData;
 import 'deferred_load/program_split_constraints/parser.dart' as psc show Parser;
+import 'diagnostics/diagnostic_listener.dart';
 import 'diagnostics/messages.dart' show Message;
-import 'dump_info.dart' show DumpInfoStateData, DumpInfoTask;
+import 'dump_info.dart'
+    show
+        DumpInfoJsAstRegistry,
+        DumpInfoProgramData,
+        DumpInfoStateData,
+        DumpInfoTask;
 import 'elements/entities.dart';
 import 'enqueue.dart' show Enqueuer;
 import 'environment.dart';
+import 'inferrer/abstract_value_domain.dart';
 import 'inferrer/abstract_value_strategy.dart';
 import 'inferrer/computable.dart' show ComputableAbstractValueStrategy;
-import 'inferrer/powersets/powersets.dart' show PowersetStrategy;
 import 'inferrer/trivial.dart' show TrivialAbstractValueStrategy;
 import 'inferrer/typemasks/masks.dart' show TypeMaskStrategy;
 import 'inferrer/types.dart'
     show GlobalTypeInferenceResults, GlobalTypeInferenceTask;
-import 'inferrer_experimental/trivial.dart' as experimentalInferrer
-    show TrivialAbstractValueStrategy;
-import 'inferrer_experimental/types.dart' as experimentalInferrer
-    show GlobalTypeInferenceResults, GlobalTypeInferenceTask;
-import 'inferrer_experimental/typemasks/masks.dart' as experimentalInferrer
-    show TypeMaskStrategy;
-import 'inferrer/wrapped.dart' show WrappedAbstractValueStrategy;
 import 'io/source_information.dart';
-import 'ir/annotations.dart';
-import 'ir/modular.dart' hide reportLocatedMessage;
 import 'js_backend/codegen_inputs.dart' show CodegenInputs;
 import 'js_backend/enqueuer.dart';
 import 'js_backend/inferred_data.dart';
 import 'js_model/js_strategy.dart';
 import 'js_model/js_world.dart';
 import 'js_model/locals.dart';
-import 'kernel/dart2js_target.dart';
-import 'kernel/element_map.dart';
 import 'kernel/front_end_adapter.dart' show CompilerFileSystem;
 import 'kernel/kernel_strategy.dart';
 import 'kernel/kernel_world.dart';
 import 'null_compiler_output.dart' show NullCompilerOutput;
-import 'options.dart' show CompilerOptions;
+import 'options.dart' show CompilerOptions, CompilerStage;
 import 'phase/load_kernel.dart' as load_kernel;
-import 'phase/modular_analysis.dart' as modular_analysis;
 import 'resolution/enqueuer.dart';
 import 'serialization/serialization.dart';
 import 'serialization/task.dart';
 import 'serialization/strategies.dart';
+import 'source_file_provider.dart';
 import 'universe/selector.dart' show Selector;
 import 'universe/codegen_world_builder.dart';
 import 'universe/resolution_world_builder.dart';
 import 'universe/world_impact.dart' show WorldImpact, WorldImpactBuilderImpl;
+
+enum _ResolutionStatus { resolving, doneResolving, compiling }
 
 /// Implementation of the compiler using a [api.CompilerInput] for supplying
 /// the sources.
@@ -98,7 +100,6 @@ class Compiler {
 
   late ir.Component componentForTesting;
   late JClosedWorld? backendClosedWorldForTesting;
-  late DataSourceIndices? closedWorldIndicesForTesting;
   late ResolutionEnqueuer resolutionEnqueuerForTesting;
   late CodegenEnqueuer codegenEnqueuerForTesting;
   late DumpInfoStateData dumpInfoStateForTesting;
@@ -109,14 +110,13 @@ class Compiler {
   Map<Entity, WorldImpact> get impactCache => _impactCache;
 
   late final Environment environment;
+  final DataReadMetrics dataReadMetrics = DataReadMetrics();
 
   late final List<CompilerTask> tasks;
   late final GenericTask loadKernelTask;
   fe.InitializedCompilerState? initializedCompilerState;
   bool forceSerializationForTesting = false;
   late final GlobalTypeInferenceTask globalInference;
-  late final experimentalInferrer.GlobalTypeInferenceTask
-      experimentalGlobalInference;
   late final CodegenWorldBuilder _codegenWorldBuilder;
 
   late AbstractValueStrategy abstractValueStrategy;
@@ -126,15 +126,14 @@ class Compiler {
   late final GenericTask enqueueTask;
   late final DeferredLoadTask deferredLoadTask;
   late final DumpInfoTask dumpInfoTask;
+  final DumpInfoJsAstRegistry dumpInfoRegistry;
   late final SerializationTask serializationTask;
 
   Progress progress = const Progress();
 
-  static const int PHASE_SCANNING = 0;
-  static const int PHASE_RESOLVING = 1;
-  static const int PHASE_DONE_RESOLVING = 2;
-  static const int PHASE_COMPILING = 3;
-  int? phase;
+  _ResolutionStatus? _resolutionStatus;
+
+  CompilerStage get stage => options.stage;
 
   bool compilationFailed = false;
 
@@ -146,40 +145,39 @@ class Compiler {
   // Callback function used for testing codegen enqueuing.
   void Function()? onCodegenQueueEmptyForTesting;
 
-  Compiler(this.provider, api.CompilerOutput outputProvider, this.handler,
-      this.options)
-      // NOTE: allocating measurer is done upfront to ensure the wallclock is
-      // started before other computations.
-      : measurer = Measurer(enableTaskMeasurements: options.verbose) {
+  Compiler(
+    this.provider,
+    api.CompilerOutput outputProvider,
+    this.handler,
+    this.options,
+  )
+    // NOTE: allocating measurer is done upfront to ensure the wallclock is
+    // started before other computations.
+    : measurer = Measurer(enableTaskMeasurements: options.verbose),
+      dumpInfoRegistry = DumpInfoJsAstRegistry(options) {
     options.deriveOptions();
     options.validate();
     environment = Environment(options.environment);
 
-    abstractValueStrategy = options.experimentalInferrer
-        ? (options.useTrivialAbstractValueDomain
-            ? const experimentalInferrer.TrivialAbstractValueStrategy()
-            : const experimentalInferrer.TypeMaskStrategy())
-        : (options.useTrivialAbstractValueDomain
-            ? const TrivialAbstractValueStrategy()
-            : const TypeMaskStrategy());
-    if (options.experimentalWrapped || options.testMode) {
-      abstractValueStrategy =
-          WrappedAbstractValueStrategy(abstractValueStrategy);
-    } else if (options.experimentalPowersets) {
-      abstractValueStrategy = PowersetStrategy(abstractValueStrategy);
-    }
+    abstractValueStrategy = options.useTrivialAbstractValueDomain
+        ? const TrivialAbstractValueStrategy()
+        : const TypeMaskStrategy();
     if (options.debugGlobalInference) {
-      abstractValueStrategy =
-          ComputableAbstractValueStrategy(abstractValueStrategy);
+      abstractValueStrategy = ComputableAbstractValueStrategy(
+        abstractValueStrategy,
+      );
     }
 
     CompilerTask kernelFrontEndTask;
-    selfTask = GenericTask('self', measurer);
+    selfTask = GenericTaskWithMetrics('self', measurer, dataReadMetrics);
     _outputProvider = _CompilerOutput(this, outputProvider);
     _reporter = DiagnosticReporter(this);
     kernelFrontEndTask = GenericTask('Front end', measurer);
     frontendStrategy = KernelFrontendStrategy(
-        kernelFrontEndTask, options, reporter, environment);
+      kernelFrontEndTask,
+      options,
+      reporter,
+    );
     backendStrategy = createBackendStrategy();
     _impactCache = <Entity, WorldImpact>{};
 
@@ -194,16 +192,19 @@ class Compiler {
       loadKernelTask = GenericTask('kernel loader', measurer),
       kernelFrontEndTask,
       globalInference = GlobalTypeInferenceTask(this),
-      experimentalGlobalInference =
-          experimentalInferrer.GlobalTypeInferenceTask(this),
       deferredLoadTask = frontendStrategy.createDeferredLoadTask(this),
-      dumpInfoTask = DumpInfoTask(this),
+      dumpInfoTask = DumpInfoTask(options, measurer, _outputProvider, reporter),
       selfTask,
       serializationTask = SerializationTask(
-          options, reporter, provider, outputProvider, measurer),
+        options,
+        reporter,
+        provider,
+        outputProvider,
+        measurer,
+      ),
       ...backendStrategy.tasks,
       userHandlerTask = GenericTask('Diagnostic handler', measurer),
-      userProviderTask = GenericTask('Input provider', measurer)
+      userProviderTask = GenericTask('Input provider', measurer),
     ];
 
     initializedCompilerState = options.kernelInitializedCompilerState;
@@ -233,27 +234,28 @@ class Compiler {
   // The resulting future will complete with true if the compilation
   // succeeded.
   Future<bool> run() => selfTask.measureSubtask("run", () async {
-        measurer.startWallClock();
-        var setupDuration = measurer.elapsedWallClock;
-        try {
-          await runInternal();
-        } catch (error, stackTrace) {
-          await _reporter.onError(options.compilationTarget, error, stackTrace);
-        } finally {
-          measurer.stopWallClock();
-        }
-        if (options.verbose) {
-          var timings = StringBuffer();
-          computeTimings(setupDuration, timings);
-          logVerbose('$timings');
-        }
-        if (options.reportPrimaryMetrics || options.reportSecondaryMetrics) {
-          var metrics = StringBuffer();
-          collectMetrics(metrics);
-          logInfo('$metrics');
-        }
-        return !compilationFailed;
-      });
+    measurer.startWallClock();
+    var setupDuration = measurer.elapsedWallClock;
+    try {
+      await runInternal();
+    } catch (error, stackTrace) {
+      await _reporter.onError(options.compilationTarget, error, stackTrace);
+    } finally {
+      measurer.stopWallClock();
+    }
+    dataReadMetrics.addDataRead(provider);
+    if (options.verbose) {
+      var timings = StringBuffer();
+      computeTimings(setupDuration, timings);
+      logVerbose('$timings');
+    }
+    if (options.reportPrimaryMetrics || options.reportSecondaryMetrics) {
+      var metrics = StringBuffer();
+      collectMetrics(metrics);
+      logInfo('$metrics');
+    }
+    return !compilationFailed;
+  });
 
   /// Dumps a list of unused [ir.Library]'s in the [KernelResult]. This *must*
   /// be called before [setMainAndTrimComponent], because that method will
@@ -264,24 +266,33 @@ class Compiler {
       return '${library.importUri}(${library.fileUri})';
     }
 
-    var unusedLibraries =
-        component.libraries.where(isUnused).map(libraryString).toList();
+    var unusedLibraries = component.libraries
+        .where(isUnused)
+        .map(libraryString)
+        .toList();
     unusedLibraries.sort();
     var jsonLibraries = jsonEncode(unusedLibraries);
-    outputProvider.createOutputSink(options.outputUri!.pathSegments.last,
-        'unused.json', api.OutputType.dumpUnusedLibraries)
+    outputProvider.createOutputSink(
+        options.outputUri!.pathSegments.last,
+        'unused.json',
+        api.OutputType.dumpUnusedLibraries,
+      )
       ..add(jsonLibraries)
       ..close();
     reporter.reportInfo(
-        reporter.createMessage(NO_LOCATION_SPANNABLE, MessageKind.GENERIC, {
-      'text': "${unusedLibraries.length} unused libraries out of "
-          "${component.libraries.length}. Dumping to JSON."
-    }));
+      reporter.createMessage(noLocationSpannable, MessageKind.generic, {
+        'text':
+            "${unusedLibraries.length} unused libraries out of "
+            "${component.libraries.length}. Dumping to JSON.",
+      }),
+    );
   }
 
   /// Trims a component down to only the provided library uris.
   ir.Component trimComponent(
-      ir.Component component, Set<Uri> librariesToInclude) {
+    ir.Component component,
+    Set<Uri> librariesToInclude,
+  ) {
     var irLibraryMap = <Uri, ir.Library>{};
     var irLibraries = <ir.Library>[];
     for (var library in component.libraries) {
@@ -291,27 +302,26 @@ class Compiler {
       irLibraries.add(irLibraryMap[library]!);
     }
     var mainMethod = component.mainMethodName;
-    var componentMode = component.mode;
     final trimmedComponent = ir.Component(
-        libraries: irLibraries,
-        uriToSource: component.uriToSource,
-        nameRoot: component.root);
-    trimmedComponent.setMainMethodAndMode(mainMethod, true, componentMode);
+      libraries: irLibraries,
+      uriToSource: component.uriToSource,
+      nameRoot: component.root,
+    );
+    trimmedComponent.setMainMethodAndMode(mainMethod, true);
     return trimmedComponent;
   }
 
-  Future runInternal() async {
+  Future<void> runInternal() async {
     clearState();
     var compilationTarget = options.compilationTarget;
-    assert(compilationTarget != null);
     reporter.log('Compiling $compilationTarget (${options.buildId})');
 
     if (options.readProgramSplit != null) {
       var constraintUri = options.readProgramSplit;
       var constraintParser = psc.Parser();
-      var programSplitJson = await CompilerFileSystem(provider)
-          .entityForUri(constraintUri!)
-          .readAsString();
+      var programSplitJson = await CompilerFileSystem(
+        provider,
+      ).entityForUri(constraintUri!).readAsString();
       programSplitConstraintsData = constraintParser.read(programSplitJson);
     }
 
@@ -327,22 +337,25 @@ class Compiler {
   // suitably maintained static reference to the current compiler.
   void clearState() {
     Selector.canonicalizedValues.clear();
+    StaticUse.clearCache();
 
     // The selector objects held in static fields must remain canonical.
-    for (Selector selector in Selectors.ALL) {
+    for (Selector selector in Selectors.all) {
       Selector.canonicalizedValues
           .putIfAbsent(selector.hashCode, () => <Selector>[])
           .add(selector);
     }
   }
 
-  JClosedWorld? computeClosedWorld(ir.Component component,
-      ModuleData? moduleData, Uri rootLibraryUri, List<Uri> libraries) {
+  JClosedWorld? computeClosedWorld(
+    ir.Component component,
+    Uri rootLibraryUri,
+    List<Uri> libraries,
+  ) {
     frontendStrategy.registerLoadedLibraries(component, libraries);
-    frontendStrategy.registerModuleData(moduleData);
-    ResolutionEnqueuer resolutionEnqueuer = frontendStrategy
-        .createResolutionEnqueuer(enqueueTask, this)
-      ..onEmptyForTesting = onResolutionQueueEmptyForTesting;
+    ResolutionEnqueuer resolutionEnqueuer =
+        frontendStrategy.createResolutionEnqueuer(enqueueTask, this)
+          ..onEmptyForTesting = onResolutionQueueEmptyForTesting;
     if (retainDataForTesting) {
       resolutionEnqueuerForTesting = resolutionEnqueuer;
       resolutionWorldBuilderForTesting = resolutionEnqueuer.worldBuilder;
@@ -350,8 +363,9 @@ class Compiler {
     frontendStrategy.onResolutionStart();
     for (LibraryEntity library
         in frontendStrategy.elementEnvironment.libraries) {
-      frontendStrategy.elementEnvironment.forEachClass(library,
-          (ClassEntity cls) {
+      frontendStrategy.elementEnvironment.forEachClass(library, (
+        ClassEntity cls,
+      ) {
         // Register all classes eagerly to optimize closed world computation in
         // `ClassWorldBuilder.isInheritedInSubtypeOf`.
         resolutionEnqueuer.worldBuilder.registerClass(cls);
@@ -366,13 +380,16 @@ class Compiler {
     // this until after the resolution queue is processed.
     deferredLoadTask.beforeResolution(rootLibraryUri, libraries);
 
-    phase = PHASE_RESOLVING;
+    _resolutionStatus = _ResolutionStatus.resolving;
     resolutionEnqueuer.applyImpact(mainImpact);
     if (options.showInternalProgress) reporter.log('Computing closed world');
 
     processQueue(
-        frontendStrategy.elementEnvironment, resolutionEnqueuer, mainFunction,
-        onProgress: showResolutionProgress);
+      frontendStrategy.elementEnvironment,
+      resolutionEnqueuer,
+      mainFunction,
+      onProgress: showResolutionProgress,
+    );
     resolutionEnqueuer.logSummary(reporter.log);
 
     _reporter.reportSuppressedMessagesSummary();
@@ -383,41 +400,47 @@ class Compiler {
 
     checkQueue(resolutionEnqueuer);
 
-    JClosedWorld closedWorld =
-        closeResolution(mainFunction!, resolutionEnqueuer.worldBuilder);
+    JClosedWorld? closedWorld = closeResolution(
+      mainFunction!,
+      resolutionEnqueuer.worldBuilder,
+    );
     return closedWorld;
   }
 
   Future<load_kernel.Output?> loadKernel() async {
-    final input = load_kernel.Input(options, provider, reporter,
-        initializedCompilerState, forceSerializationForTesting);
-    load_kernel.Output? output =
-        await loadKernelTask.measure(() async => load_kernel.run(input));
+    final input = load_kernel.Input(
+      options,
+      provider,
+      reporter,
+      initializedCompilerState,
+      forceSerializationForTesting,
+    );
+    load_kernel.Output? output = await loadKernelTask.measure(
+      () async => load_kernel.run(input),
+    );
     reporter.log("Kernel load complete");
     return output;
   }
 
   Future<load_kernel.Output?> produceKernel() async {
-    if (shouldComputeClosedWorld) {
+    if (!stage.shouldReadClosedWorld) {
       load_kernel.Output? output = await loadKernel();
-      if (output == null || compilationFailed) return null;
+      if (output == null) return null;
+      if (compilationFailed) {
+        // Some tests still use the component, even if the CFE failed.
+        frontendStrategy.registerComponent(output.component);
+        return null;
+      }
       ir.Component component = output.component;
       if (retainDataForTesting) {
         componentForTesting = component;
       }
-      if (options.features.newDumpInfo.isEnabled && options.dumpInfo) {
+      if (options.features.newDumpInfo.isEnabled && stage.emitsDumpInfo) {
         untrimmedComponentForDumpInfo = component;
       }
-      if (options.cfeOnly) {
-        // [ModuleData] must be deserialized with the full component, i.e.
-        // before trimming.
-        ModuleData? moduleData;
-        if (options.modularAnalysisInputs != null) {
-          moduleData = await serializationTask.deserializeModuleData(component);
-        }
-
+      if (stage.shouldOnlyComputeDill) {
         Set<Uri> includedLibraries = output.libraries!.toSet();
-        if (options.fromDill) {
+        if (options.shouldLoadFromDill) {
           if (options.dumpUnusedLibraries) {
             dumpUnusedLibraries(component, includedLibraries);
           }
@@ -425,128 +448,59 @@ class Compiler {
             component = trimComponent(component, includedLibraries);
           }
         }
-        if (moduleData == null) {
-          serializationTask.serializeComponent(component);
-        } else {
-          // Trim [moduleData] down to only the included libraries.
-          moduleData.impactData
-              .removeWhere((uri, _) => !includedLibraries.contains(uri));
-          serializationTask.serializeModuleData(
-              moduleData, component, includedLibraries);
-        }
+        serializationTask.serializeComponent(
+          component,
+          includeSourceBytes: false,
+        );
       }
       return output.withNewComponent(component);
     } else {
-      ir.Component component =
-          await serializationTask.deserializeComponentAndUpdateOptions();
+      ir.Component component = await serializationTask
+          .deserializeComponentAndUpdateOptions();
       if (retainDataForTesting) {
         componentForTesting = component;
       }
-      return load_kernel.Output(component, null, null, null, null);
+      return load_kernel.Output(component, null, null, null);
     }
   }
 
   bool shouldStopAfterLoadKernel(load_kernel.Output? output) =>
-      output == null || compilationFailed || options.cfeOnly;
-
-  void simplifyConstConditionals(ir.Component component) {
-    void reportMessage(
-        fe.LocatedMessage message, List<fe.LocatedMessage>? context) {
-      reportLocatedMessage(reporter, message, context);
-    }
-
-    bool shouldNotInline(ir.TreeNode node) {
-      if (node is! ir.Annotatable) {
-        return false;
-      }
-      return computePragmaAnnotationDataFromIr(node).any((pragma) =>
-          pragma == const PragmaAnnotationData('noInline') ||
-          pragma == const PragmaAnnotationData('never-inline'));
-    }
-
-    fe.ConstConditionalSimplifier(
-            const Dart2jsDartLibrarySupport(),
-            const Dart2jsConstantsBackend(supportsUnevaluatedConstants: false),
-            component,
-            reportMessage,
-            environmentDefines: environment.definitions,
-            evaluationMode: options.useLegacySubtyping
-                ? fe.EvaluationMode.weak
-                : fe.EvaluationMode.strong,
-            shouldNotInline: shouldNotInline)
-        .run();
-  }
-
-  bool get usingModularAnalysis =>
-      options.modularMode || options.hasModularAnalysisInputs;
-
-  Future<ModuleData> runModularAnalysis(
-      load_kernel.Output output, Set<Uri> moduleLibraries) async {
-    ir.Component component = output.component;
-    List<Uri> libraries = output.libraries!;
-    final input = modular_analysis.Input(
-        options, reporter, environment, component, libraries, moduleLibraries);
-    return await selfTask.measureSubtask(
-        'runModularAnalysis', () async => modular_analysis.run(input));
-  }
-
-  Future<ModuleData> produceModuleData(load_kernel.Output output) async {
-    ir.Component component = output.component;
-    if (options.modularMode) {
-      Set<Uri> moduleLibraries = output.moduleLibraries!.toSet();
-      ModuleData moduleData = await runModularAnalysis(output, moduleLibraries);
-      if (options.writeModularAnalysisUri != null && !compilationFailed) {
-        serializationTask.testModuleSerialization(moduleData, component);
-        serializationTask.serializeModuleData(
-            moduleData, component, moduleLibraries);
-      }
-      return moduleData;
-    } else {
-      return await serializationTask.deserializeModuleData(component);
-    }
-  }
-
-  bool get shouldStopAfterModularAnalysis =>
-      compilationFailed || options.writeModularAnalysisUri != null;
-
-  experimentalInferrer.GlobalTypeInferenceResults
-      performExperimentalGlobalTypeInference(JClosedWorld closedWorld) {
-    final mainFunction = closedWorld.elementEnvironment.mainFunction!;
-    reporter.log('Performing experimental global type inference');
-    GlobalLocalsMap globalLocalsMap =
-        GlobalLocalsMap(closedWorld.closureDataLookup.getEnclosingMember);
-    InferredDataBuilder inferredDataBuilder =
-        InferredDataBuilderImpl(closedWorld.annotationsData);
-    return experimentalGlobalInference.runGlobalTypeInference(
-        mainFunction, closedWorld, globalLocalsMap, inferredDataBuilder);
-  }
+      output == null || compilationFailed || stage.shouldOnlyComputeDill;
 
   GlobalTypeInferenceResults performGlobalTypeInference(
-      JClosedWorld closedWorld) {
+    JClosedWorld closedWorld,
+  ) {
     FunctionEntity mainFunction = closedWorld.elementEnvironment.mainFunction!;
     reporter.log('Performing global type inference');
-    GlobalLocalsMap globalLocalsMap =
-        GlobalLocalsMap(closedWorld.closureDataLookup.getEnclosingMember);
-    InferredDataBuilder inferredDataBuilder =
-        InferredDataBuilderImpl(closedWorld.annotationsData);
+    GlobalLocalsMap globalLocalsMap = GlobalLocalsMap(
+      closedWorld.closureDataLookup.getEnclosingMember,
+    );
+    InferredDataBuilder inferredDataBuilder = InferredDataBuilderImpl(
+      closedWorld.annotationsData,
+    );
     return globalInference.runGlobalTypeInference(
-        mainFunction, closedWorld, globalLocalsMap, inferredDataBuilder);
+      mainFunction,
+      closedWorld,
+      globalLocalsMap,
+      inferredDataBuilder,
+    );
   }
 
   int runCodegenEnqueuer(
-      CodegenResults codegenResults, SourceLookup sourceLookup) {
-    GlobalTypeInferenceResults globalInferenceResults =
-        codegenResults.globalTypeInferenceResults;
-    JClosedWorld closedWorld = globalInferenceResults.closedWorld;
+    CodegenResults codegenResults,
+    InferredData inferredData,
+    SourceLookup sourceLookup,
+    JClosedWorld closedWorld,
+  ) {
     CodegenInputs codegenInputs = codegenResults.codegenInputs;
     CodegenEnqueuer codegenEnqueuer = backendStrategy.createCodegenEnqueuer(
-        enqueueTask,
-        closedWorld,
-        globalInferenceResults,
-        codegenInputs,
-        codegenResults,
-        sourceLookup)
-      ..onEmptyForTesting = onCodegenQueueEmptyForTesting;
+      enqueueTask,
+      closedWorld,
+      inferredData,
+      codegenInputs,
+      codegenResults,
+      sourceLookup,
+    )..onEmptyForTesting = onCodegenQueueEmptyForTesting;
     if (retainDataForTesting) {
       codegenEnqueuerForTesting = codegenEnqueuer;
     }
@@ -554,16 +508,24 @@ class Compiler {
 
     reporter.log('Compiling methods');
     FunctionEntity mainFunction = closedWorld.elementEnvironment.mainFunction!;
-    processQueue(closedWorld.elementEnvironment, codegenEnqueuer, mainFunction,
-        onProgress: showCodegenProgress);
+    processQueue(
+      closedWorld.elementEnvironment,
+      codegenEnqueuer,
+      mainFunction,
+      onProgress: showCodegenProgress,
+    );
     codegenEnqueuer.logSummary(reporter.log);
     CodegenWorld codegenWorld = codegenWorldBuilder.close();
     if (retainDataForTesting) {
       codegenWorldForTesting = codegenWorld;
     }
     reporter.log('Emitting JavaScript');
-    int programSize = backendStrategy.assembleProgram(closedWorld,
-        globalInferenceResults.inferredData, codegenInputs, codegenWorld);
+    int programSize = backendStrategy.assembleProgram(
+      closedWorld,
+      inferredData,
+      codegenInputs,
+      codegenWorld,
+    );
 
     backendStrategy.onCodegenEnd(codegenInputs);
 
@@ -571,228 +533,302 @@ class Compiler {
     return programSize;
   }
 
-  DataAndIndices<GlobalTypeInferenceResults> globalTypeInferenceResultsTestMode(
-      DataAndIndices<GlobalTypeInferenceResults> results) {
-    final strategy =
-        const BytesInMemorySerializationStrategy(useDataKinds: true);
-    final resultData = results.data!;
-    List<int> irData = strategy.unpackAndSerializeComponent(resultData);
-    List<int> closedWorldData =
-        strategy.serializeClosedWorld(resultData.closedWorld, options);
-    var component = strategy.deserializeComponent(irData);
-    var closedWorldAndIndices = strategy.deserializeClosedWorld(
-        options,
-        reporter,
-        environment,
-        abstractValueStrategy,
-        component,
-        closedWorldData);
-    List<int> globalTypeInferenceResultsData =
-        strategy.serializeGlobalTypeInferenceResults(
-            closedWorldAndIndices.indices!, resultData, options);
-    return strategy.deserializeGlobalTypeInferenceResults(
-        options,
-        reporter,
-        environment,
-        abstractValueStrategy,
-        component,
-        closedWorldAndIndices.data!,
-        closedWorldAndIndices.indices!,
-        globalTypeInferenceResultsData);
+  JClosedWorld closedWorldTestMode(JClosedWorld closedWorld) {
+    SerializationIndices indices = SerializationIndices(testMode: true);
+    final strategy = const BytesInMemorySerializationStrategy(
+      useDataKinds: true,
+    );
+    // TODO(natebiggs): Add when kernel offsets are consistent across
+    //   serialization layer.
+    // List<int> irData = strategy
+    //     .serializeComponent(closedWorld.elementMap.programEnv.mainComponent);
+    // final component = strategy.deserializeComponent(irData);
+    List<int> closedWorldData = strategy.serializeClosedWorld(
+      closedWorld,
+      options,
+      indices,
+    );
+    final component = closedWorld.elementMap.programEnv.mainComponent;
+    return strategy.deserializeClosedWorld(
+      options,
+      reporter,
+      abstractValueStrategy,
+      component,
+      closedWorldData,
+      indices,
+    );
   }
 
-  bool get shouldComputeClosedWorld => options.readClosedWorldUri == null;
+  GlobalTypeInferenceResults globalTypeInferenceResultsTestMode(
+    GlobalTypeInferenceResults results,
+  ) {
+    SerializationIndices indices = SerializationIndices(testMode: true);
+    final strategy = const BytesInMemorySerializationStrategy(
+      useDataKinds: true,
+    );
+    final closedWorld = results.closedWorld;
+    final component = closedWorld.elementMap.programEnv.mainComponent;
+    List<int> globalTypeInferenceResultsData = strategy
+        .serializeGlobalTypeInferenceResults(results, options, indices);
+    return strategy.deserializeGlobalTypeInferenceResults(
+      options,
+      reporter,
+      environment,
+      abstractValueStrategy,
+      component,
+      closedWorld,
+      globalTypeInferenceResultsData,
+      indices,
+    );
+  }
 
-  Future<DataAndIndices<JClosedWorld>?> produceClosedWorld(
-      load_kernel.Output output, ModuleData? moduleData) async {
+  Future<JClosedWorld?> produceClosedWorld(
+    load_kernel.Output output,
+    SerializationIndices indices,
+  ) async {
     ir.Component component = output.component;
-    DataAndIndices<JClosedWorld> closedWorldAndIndices;
-    if (shouldComputeClosedWorld) {
-      if (!usingModularAnalysis) {
-        // If we're deserializing the closed world, the input .dill already
-        // contains the modified AST, so the transformer only needs to run if
-        // the closed world is being computed from scratch.
-        //
-        // However, the transformer is not currently compatible with modular
-        // analysis. When modular analysis is enabled in Blaze, some aspects run
-        // before this phase of the compiler. This can cause dart2js to crash if
-        // the kernel AST is mutated, since we will attempt to serialize and
-        // deserialize against different ASTs.
-        //
-        // TODO(fishythefish): Make this compatible with modular analysis.
-        simplifyConstConditionals(component);
-      }
-
+    JClosedWorld? closedWorld;
+    if (!stage.shouldReadClosedWorld) {
       Uri rootLibraryUri = output.rootLibraryUri!;
       List<Uri> libraries = output.libraries!;
-      final closedWorld =
-          computeClosedWorld(component, moduleData, rootLibraryUri, libraries);
-      closedWorldAndIndices = DataAndIndices<JClosedWorld>(closedWorld, null);
-      if (options.writeClosedWorldUri != null) {
-        serializationTask.serializeComponent(
-            closedWorld!.elementMap.programEnv.mainComponent);
-        serializationTask.serializeClosedWorld(closedWorld);
+      closedWorld = computeClosedWorld(component, rootLibraryUri, libraries);
+      if (stage.shouldWriteClosedWorld && closedWorld != null) {
+        serializationTask.serializeClosedWorld(closedWorld, indices);
+        if (options.producesModifiedDill) {
+          serializationTask.serializeComponent(
+            component,
+            includeSourceBytes: false,
+          );
+        }
+      } else if (options.testMode && closedWorld != null) {
+        closedWorld = closedWorldTestMode(closedWorld);
+        backendStrategy.registerJClosedWorld(closedWorld);
       }
     } else {
-      closedWorldAndIndices = await serializationTask.deserializeClosedWorld(
-          environment,
-          abstractValueStrategy,
-          component,
-          useDeferredSourceReads);
+      closedWorld = await serializationTask.deserializeClosedWorld(
+        abstractValueStrategy,
+        component,
+        useDeferredSourceReads,
+        indices,
+      );
     }
     if (retainDataForTesting) {
-      backendClosedWorldForTesting = closedWorldAndIndices.data;
-      closedWorldIndicesForTesting = closedWorldAndIndices.indices;
+      backendClosedWorldForTesting = closedWorld;
     }
-    return closedWorldAndIndices;
+    return closedWorld;
   }
 
-  bool get shouldStopAfterClosedWorldFromFlags =>
-      stopAfterClosedWorldForTesting ||
-      options.stopAfterProgramSplit ||
-      options.writeClosedWorldUri != null;
+  bool shouldStopAfterClosedWorld(JClosedWorld? closedWorld) =>
+      closedWorld == null ||
+      stage.shouldWriteClosedWorld ||
+      stage.emitsDeferredLoadIds ||
+      stopAfterClosedWorldForTesting;
 
-  bool shouldStopAfterClosedWorld(
-          DataAndIndices<JClosedWorld>? closedWorldAndIndices) =>
-      closedWorldAndIndices == null ||
-      closedWorldAndIndices.data == null ||
-      shouldStopAfterClosedWorldFromFlags;
-
-  Future<DataAndIndices<GlobalTypeInferenceResults>>
-      produceGlobalTypeInferenceResults(
-          DataAndIndices<JClosedWorld> closedWorldAndIndices) async {
-    JClosedWorld closedWorld = closedWorldAndIndices.data!;
-    DataAndIndices<GlobalTypeInferenceResults> globalTypeInferenceResults;
-    if (options.readDataUri == null) {
-      if (options.experimentalInferrer) {
-        globalTypeInferenceResults = DataAndIndices(
-            performExperimentalGlobalTypeInference(closedWorld), null);
-      } else {
-        globalTypeInferenceResults =
-            DataAndIndices(performGlobalTypeInference(closedWorld), null);
-      }
-      if (options.writeDataUri != null) {
+  Future<GlobalTypeInferenceResults> produceGlobalTypeInferenceResults(
+    JClosedWorld closedWorld,
+    ir.Component component,
+    SerializationIndices indices,
+  ) async {
+    GlobalTypeInferenceResults globalTypeInferenceResults;
+    if (!stage.shouldReadGlobalInference) {
+      globalTypeInferenceResults = performGlobalTypeInference(closedWorld);
+      if (stage.shouldWriteGlobalInference) {
         serializationTask.serializeGlobalTypeInference(
-            globalTypeInferenceResults.data!, closedWorldAndIndices.indices!);
+          globalTypeInferenceResults,
+          indices,
+        );
       } else if (options.testMode) {
-        globalTypeInferenceResults =
-            globalTypeInferenceResultsTestMode(globalTypeInferenceResults);
+        globalTypeInferenceResults = globalTypeInferenceResultsTestMode(
+          globalTypeInferenceResults,
+        );
       }
     } else {
-      globalTypeInferenceResults =
-          await serializationTask.deserializeGlobalTypeInferenceResults(
-              environment,
-              abstractValueStrategy,
-              closedWorld.elementMap.programEnv.mainComponent,
-              closedWorldAndIndices,
-              useDeferredSourceReads);
+      globalTypeInferenceResults = await serializationTask
+          .deserializeGlobalTypeInferenceResults(
+            environment,
+            abstractValueStrategy,
+            closedWorld.elementMap.programEnv.mainComponent,
+            closedWorld,
+            useDeferredSourceReads,
+            indices,
+          );
     }
     return globalTypeInferenceResults;
   }
 
   bool get shouldStopAfterGlobalTypeInference =>
-      options.writeDataUri != null || stopAfterGlobalTypeInferenceForTesting;
+      stage.shouldWriteGlobalInference ||
+      stopAfterGlobalTypeInferenceForTesting;
 
   CodegenInputs initializeCodegen(
-      GlobalTypeInferenceResults globalTypeInferenceResults) {
-    backendStrategy
-        .registerJClosedWorld(globalTypeInferenceResults.closedWorld);
-    phase = PHASE_COMPILING;
+    GlobalTypeInferenceResults globalTypeInferenceResults,
+  ) {
+    backendStrategy.registerJClosedWorld(
+      globalTypeInferenceResults.closedWorld,
+    );
+    _resolutionStatus = _ResolutionStatus.compiling;
     return backendStrategy.onCodegenStart(globalTypeInferenceResults);
   }
 
   Future<CodegenResults> produceCodegenResults(
-      DataAndIndices<GlobalTypeInferenceResults> globalTypeInferenceResults,
-      SourceLookup sourceLookup) async {
-    final globalTypeInferenceData = globalTypeInferenceResults.data!;
-    CodegenInputs codegenInputs = initializeCodegen(globalTypeInferenceData);
+    GlobalTypeInferenceResults globalTypeInferenceResults,
+    SourceLookup sourceLookup,
+    SerializationIndices indices,
+  ) async {
+    CodegenInputs codegenInputs = initializeCodegen(globalTypeInferenceResults);
     CodegenResults codegenResults;
-    if (options.readCodegenUri == null) {
-      codegenResults = OnDemandCodegenResults(globalTypeInferenceData,
-          codegenInputs, backendStrategy.functionCompiler);
-      if (options.writeCodegenUri != null) {
-        serializationTask.serializeCodegen(backendStrategy, codegenResults,
-            globalTypeInferenceResults.indices!);
-      }
-    } else {
+    if (stage.shouldReadCodegenShards && options.codegenShards != null) {
       codegenResults = await serializationTask.deserializeCodegen(
+        backendStrategy,
+        globalTypeInferenceResults.closedWorld,
+        codegenInputs,
+        useDeferredSourceReads,
+        sourceLookup,
+        indices,
+      );
+    } else {
+      codegenResults = OnDemandCodegenResults(
+        codegenInputs,
+        backendStrategy.functionCompiler,
+      );
+      if (stage.shouldWriteCodegen) {
+        serializationTask.serializeCodegen(
           backendStrategy,
-          globalTypeInferenceData,
-          codegenInputs,
-          globalTypeInferenceResults.indices!,
-          useDeferredSourceReads,
-          sourceLookup);
+          globalTypeInferenceResults.closedWorld.abstractValueDomain,
+          codegenResults,
+          indices,
+        );
+      }
     }
     return codegenResults;
   }
 
-  bool get shouldStopAfterCodegen => options.writeCodegenUri != null;
+  bool get shouldStopAfterCodegen => stage.shouldWriteCodegen;
 
-  // Only use deferred reads for linker phase where we are not creating an info
-  // dump. Creating an info dump ends up hitting all the deferred entities
-  // anyway.
-  bool get useDeferredSourceReads =>
-      !shouldStopAfterClosedWorldFromFlags &&
-      !shouldStopAfterGlobalTypeInference &&
-      !shouldStopAfterCodegen &&
-      !shouldStopAfterModularAnalysis &&
-      !options.dumpInfo;
+  bool get useDeferredSourceReads => stage.shouldUseDeferredSourceReads;
 
   Future<void> runSequentialPhases() async {
     // Load kernel.
     final output = await produceKernel();
     if (shouldStopAfterLoadKernel(output)) return;
 
-    // Run modular analysis. This may be null if modular analysis was not
-    // requested for this pipeline.
-    ModuleData? moduleData;
-    if (usingModularAnalysis) {
-      moduleData = await produceModuleData(output!);
-    }
-    if (shouldStopAfterModularAnalysis) return;
+    final indices = SerializationIndices();
 
     // Compute closed world.
-    DataAndIndices<JClosedWorld>? closedWorldAndIndices =
-        await produceClosedWorld(output!, moduleData);
-    if (shouldStopAfterClosedWorld(closedWorldAndIndices)) return;
+    JClosedWorld? closedWorld = await produceClosedWorld(output!, indices);
+    if (shouldStopAfterClosedWorld(closedWorld)) return;
 
     // Run global analysis.
-    DataAndIndices<GlobalTypeInferenceResults> globalTypeInferenceResults =
-        await produceGlobalTypeInferenceResults(closedWorldAndIndices!);
+    GlobalTypeInferenceResults globalTypeInferenceResults =
+        await produceGlobalTypeInferenceResults(
+          closedWorld!,
+          output.component,
+          indices,
+        );
     if (shouldStopAfterGlobalTypeInference) return;
+    closedWorld = globalTypeInferenceResults.closedWorld;
+
+    // Allow the original references to these to be GCed and only hold
+    // references to them if we are actually running the dump info task later.
+    SerializationIndices? indicesForDumpInfo;
+    GlobalTypeInferenceResults? globalTypeInferenceResultsForDumpInfo;
+    AbstractValueDomain? abstractValueDomainForDumpInfo;
+    OutputUnitData? outputUnitDataForDumpInfo;
+    DataSinkWriter? sinkForDumpInfo;
+    if (stage.emitsDumpInfo) {
+      globalTypeInferenceResultsForDumpInfo = globalTypeInferenceResults;
+      abstractValueDomainForDumpInfo = closedWorld.abstractValueDomain;
+      outputUnitDataForDumpInfo = closedWorld.outputUnitData;
+      indicesForDumpInfo = indices;
+    } else if (stage.shouldWriteDumpInfoData) {
+      sinkForDumpInfo = serializationTask.dataSinkWriterForDumpInfo(
+        closedWorld.abstractValueDomain,
+        indices,
+      );
+      dumpInfoRegistry.registerDataSinkWriter(sinkForDumpInfo);
+    }
 
     // Run codegen.
     final sourceLookup = SourceLookup(output.component);
-    CodegenResults codegenResults =
-        await produceCodegenResults(globalTypeInferenceResults, sourceLookup);
+    CodegenResults codegenResults = await produceCodegenResults(
+      globalTypeInferenceResults,
+      sourceLookup,
+      indices,
+    );
     if (shouldStopAfterCodegen) return;
+    final inferredData = globalTypeInferenceResults.inferredData;
 
-    // Link.
-    int programSize = runCodegenEnqueuer(codegenResults, sourceLookup);
-
-    // Dump Info.
-    if (options.dumpInfo) {
-      await runDumpInfo(codegenResults, programSize);
+    if (stage.shouldReadDumpInfoData) {
+      final dumpInfoData = await serializationTask
+          .deserializeDumpInfoProgramData(
+            backendStrategy,
+            abstractValueDomainForDumpInfo!,
+            outputUnitDataForDumpInfo!,
+            indicesForDumpInfo!,
+          );
+      await runDumpInfo(
+        codegenResults,
+        globalTypeInferenceResultsForDumpInfo!,
+        dumpInfoData,
+      );
+    } else {
+      // Link.
+      final programSize = runCodegenEnqueuer(
+        codegenResults,
+        inferredData,
+        sourceLookup,
+        closedWorld,
+      );
+      if (stage.emitsDumpInfo || stage.shouldWriteDumpInfoData) {
+        final dumpInfoData = DumpInfoProgramData.fromEmitterResults(
+          backendStrategy.emitterTask,
+          dumpInfoRegistry,
+          programSize,
+        );
+        dumpInfoRegistry.close();
+        if (stage.shouldWriteDumpInfoData) {
+          serializationTask.serializeDumpInfoProgramData(
+            sinkForDumpInfo!,
+            backendStrategy,
+            dumpInfoData,
+            dumpInfoRegistry,
+          );
+        } else {
+          await runDumpInfo(
+            codegenResults,
+            globalTypeInferenceResultsForDumpInfo!,
+            dumpInfoData,
+          );
+        }
+      }
     }
   }
 
   Future<void> runDumpInfo(
-      CodegenResults codegenResults, int programSize) async {
-    GlobalTypeInferenceResults globalTypeInferenceResults =
-        codegenResults.globalTypeInferenceResults;
+    CodegenResults codegenResults,
+    GlobalTypeInferenceResults globalTypeInferenceResults,
+    DumpInfoProgramData dumpInfoProgramData,
+  ) async {
     JClosedWorld closedWorld = globalTypeInferenceResults.closedWorld;
 
     DumpInfoStateData dumpInfoState;
-    dumpInfoTask.reportSize(programSize);
+    dumpInfoTask.registerDumpInfoProgramData(dumpInfoProgramData);
     if (options.features.newDumpInfo.isEnabled) {
       untrimmedComponentForDumpInfo ??= (await produceKernel())!.component;
       dumpInfoState = await dumpInfoTask.dumpInfoNew(
-          untrimmedComponentForDumpInfo!,
-          closedWorld,
-          globalTypeInferenceResults);
+        untrimmedComponentForDumpInfo!,
+        closedWorld,
+        globalTypeInferenceResults,
+        codegenResults,
+        backendStrategy,
+      );
     } else {
-      dumpInfoState =
-          await dumpInfoTask.dumpInfo(closedWorld, globalTypeInferenceResults);
+      dumpInfoState = await dumpInfoTask.dumpInfo(
+        closedWorld,
+        globalTypeInferenceResults,
+        codegenResults,
+        backendStrategy,
+      );
     }
     if (retainDataForTesting) {
       dumpInfoStateForTesting = dumpInfoState;
@@ -800,96 +836,145 @@ class Compiler {
   }
 
   /// Perform the steps needed to fully end the resolution phase.
-  JClosedWorld closeResolution(FunctionEntity mainFunction,
-      ResolutionWorldBuilder resolutionWorldBuilder) {
-    phase = PHASE_DONE_RESOLVING;
+  JClosedWorld? closeResolution(
+    FunctionEntity mainFunction,
+    ResolutionWorldBuilder resolutionWorldBuilder,
+  ) {
+    _resolutionStatus = _ResolutionStatus.doneResolving;
 
     KClosedWorld kClosedWorld = resolutionWorldBuilder.closeWorld(reporter);
     OutputUnitData result = deferredLoadTask.run(mainFunction, kClosedWorld);
+    if (stage.emitsDeferredLoadIds) return null;
 
     // Impact data is no longer needed.
     if (!retainDataForTesting) {
       _impactCache.clear();
     }
-    JClosedWorld jClosedWorld =
-        backendStrategy.createJClosedWorld(kClosedWorld, result);
+    JClosedWorld jClosedWorld = backendStrategy.createJClosedWorld(
+      kClosedWorld,
+      result,
+    );
     return jClosedWorld;
   }
 
   /// Empty the [enqueuer] queue.
-  void emptyQueue(Enqueuer enqueuer, {void onProgress(Enqueuer enqueuer)?}) {
+  void emptyQueue(
+    Enqueuer enqueuer, {
+    void Function(Enqueuer enqueuer)? onProgress,
+  }) {
     selfTask.measureSubtask("emptyQueue", () {
       enqueuer.forEach((WorkItem work) {
         if (onProgress != null) {
           onProgress(enqueuer);
         }
         reporter.withCurrentElement(
-            work.element,
-            () => selfTask.measureSubtask("applyImpact", () {
-                  enqueuer.applyImpact(
-                      selfTask.measureSubtask("work.run", () => work.run()));
-                }));
+          work.element,
+          () => selfTask.measureSubtask("applyImpact", () {
+            enqueuer.applyImpact(
+              selfTask.measureSubtask("work.run", () => work.run()),
+            );
+          }),
+        );
       });
     });
   }
 
-  void processQueue(ElementEnvironment elementEnvironment, Enqueuer enqueuer,
-      FunctionEntity? mainMethod,
-      {void onProgress(Enqueuer enqueuer)?}) {
+  void processQueue(
+    ElementEnvironment elementEnvironment,
+    Enqueuer enqueuer,
+    FunctionEntity? mainMethod, {
+    void Function(Enqueuer enqueuer)? onProgress,
+  }) {
     selfTask.measureSubtask("processQueue", () {
       enqueuer.open(
-          mainMethod,
-          elementEnvironment.libraries
-              .map((LibraryEntity library) => library.canonicalUri));
+        mainMethod,
+        elementEnvironment.libraries.map(
+          (LibraryEntity library) => library.canonicalUri,
+        ),
+      );
       progress.startPhase();
       emptyQueue(enqueuer, onProgress: onProgress);
       enqueuer.queueIsClosed = true;
       enqueuer.close();
-      assert(compilationFailed ||
-          enqueuer.checkNoEnqueuedInvokedInstanceMethods(elementEnvironment));
+      assert(
+        compilationFailed ||
+            enqueuer.checkNoEnqueuedInvokedInstanceMethods(elementEnvironment),
+      );
     });
   }
 
   /// Perform various checks of the queue. This includes checking that the
   /// queues are empty (nothing was added after we stopped processing the
   /// queues).
-  checkQueue(Enqueuer enqueuer) {
+  void checkQueue(Enqueuer enqueuer) {
     enqueuer.checkQueueIsEmpty();
   }
 
   void showResolutionProgress(Enqueuer enqueuer) {
-    assert(phase == PHASE_RESOLVING, 'Unexpected phase: $phase');
+    assert(
+      _resolutionStatus == _ResolutionStatus.resolving,
+      'Unexpected phase: $_resolutionStatus',
+    );
     progress.showProgress(
-        'Resolved ', enqueuer.processedEntities.length, ' elements.');
+      'Resolved ',
+      enqueuer.processedEntities.length,
+      ' elements.',
+    );
   }
 
   void showCodegenProgress(Enqueuer enqueuer) {
     progress.showProgress(
-        'Compiled ', enqueuer.processedEntities.length, ' methods.');
+      'Compiled ',
+      enqueuer.processedEntities.length,
+      ' methods.',
+    );
   }
 
-  void reportDiagnostic(DiagnosticMessage message,
-      List<DiagnosticMessage> infos, api.Diagnostic kind) {
+  void reportDiagnostic(
+    DiagnosticMessage message,
+    List<DiagnosticMessage> infos,
+    api.Diagnostic kind,
+  ) {
     _reportDiagnosticMessage(message, kind);
     for (DiagnosticMessage info in infos) {
-      _reportDiagnosticMessage(info, api.Diagnostic.INFO);
+      _reportDiagnosticMessage(info, api.Diagnostic.context);
     }
   }
 
   void _reportDiagnosticMessage(
-      DiagnosticMessage diagnosticMessage, api.Diagnostic kind) {
+    DiagnosticMessage diagnosticMessage,
+    api.Diagnostic kind,
+  ) {
     var span = diagnosticMessage.sourceSpan;
     var message = diagnosticMessage.message;
+    // If the message came from the CFE use the message code as the text
+    // so that tests can determine the cause of the message.
+    final messageText =
+        diagnosticMessage is DiagnosticCfeMessage && options.testMode
+        ? diagnosticMessage.messageCode
+        : '$message';
     if (span.isUnknown) {
-      callUserHandler(message, null, null, null, '$message', kind);
+      callUserHandler(message, null, null, null, messageText, kind);
     } else {
       callUserHandler(
-          message, span.uri, span.begin, span.end, '$message', kind);
+        message,
+        span.uri,
+        span.begin,
+        span.end,
+        messageText,
+        kind,
+      );
     }
   }
 
-  void callUserHandler(Message? message, Uri? uri, int? begin, int? end,
-      String text, api.Diagnostic kind) {
+  void callUserHandler(
+    Message? message,
+    Uri? uri,
+    int? begin,
+    int? end,
+    String text,
+    api.Diagnostic kind,
+  ) {
     try {
       userHandlerTask.measure(() {
         handler.report(message, uri, begin, end, text, kind);
@@ -900,25 +985,33 @@ class Compiler {
     }
   }
 
-  Future<api.Input> callUserProvider(Uri uri, api.InputKind inputKind) {
+  Future<api.Input<Uint8List>> callUserProvider(
+    Uri uri,
+    api.InputKind inputKind,
+  ) {
     try {
-      return userProviderTask
-          .measureIo(() => provider.readFromUri(uri, inputKind: inputKind));
+      return userProviderTask.measureIo(
+        () => provider.readFromUri(uri, inputKind: inputKind),
+      );
     } catch (ex, s) {
       reportCrashInUserCode('Uncaught exception in input provider', ex, s);
       rethrow;
     }
   }
 
-  void reportCrashInUserCode(String message, exception, stackTrace) {
+  void reportCrashInUserCode(
+    String message,
+    Object exception,
+    StackTrace stackTrace,
+  ) {
     reporter.onCrashInUserCode(message, exception, stackTrace);
   }
 
   /// Messages for which compile-time errors are reported but compilation
   /// continues regardless.
-  static const List<MessageKind> BENIGN_ERRORS = <MessageKind>[
-    MessageKind.INVALID_METADATA,
-    MessageKind.INVALID_METADATA_GENERIC,
+  static const List<MessageKind> benignErrors = <MessageKind>[
+    MessageKind.invalidMetadata,
+    MessageKind.invalidMetadataGeneric,
   ];
 
   bool markCompilationAsFailed(DiagnosticMessage message, api.Diagnostic kind) {
@@ -929,11 +1022,14 @@ class Compiler {
     if (reporter.options.fatalWarnings) {
       return true;
     }
-    return !BENIGN_ERRORS.contains(message.message.kind);
+    return !benignErrors.contains(message.message.kind);
   }
 
-  void fatalDiagnosticReported(DiagnosticMessage message,
-      List<DiagnosticMessage> infos, api.Diagnostic kind) {
+  void fatalDiagnosticReported(
+    DiagnosticMessage message,
+    List<DiagnosticMessage> infos,
+    api.Diagnostic kind,
+  ) {
     if (markCompilationAsFailed(message, kind)) {
       compilationFailed = true;
     }
@@ -943,7 +1039,7 @@ class Compiler {
   /// context.
   SourceSpan spanFromSpannable(Spannable spannable, Entity? currentElement) {
     SourceSpan span;
-    if (phase == Compiler.PHASE_COMPILING) {
+    if (_resolutionStatus == _ResolutionStatus.compiling) {
       span = backendStrategy.spanFromSpannable(spannable, currentElement);
     } else {
       span = frontendStrategy.spanFromSpannable(spannable, currentElement);
@@ -986,16 +1082,22 @@ class Compiler {
   }
 
   void logInfo(String message) {
-    callUserHandler(null, null, null, null, message, api.Diagnostic.INFO);
+    callUserHandler(null, null, null, null, message, api.Diagnostic.info);
   }
 
   void logVerbose(String message) {
     callUserHandler(
-        null, null, null, null, message, api.Diagnostic.VERBOSE_INFO);
+      null,
+      null,
+      null,
+      null,
+      message,
+      api.Diagnostic.verboseInfo,
+    );
   }
 
   String _formatMs(int ms) {
-    return (ms / 1000).toStringAsFixed(3) + 's';
+    return '${(ms / 1000).toStringAsFixed(3)}s';
   }
 
   void computeTimings(Duration setupDuration, StringBuffer timings) {
@@ -1010,13 +1112,23 @@ class Compiler {
       if (duration != Duration.zero) {
         cumulatedDuration += duration;
         var milliseconds = duration.inMilliseconds;
-        timingData.add(_TimingData('   $running${task.name}:', milliseconds,
-            milliseconds * 100 / totalDuration.inMilliseconds));
+        timingData.add(
+          _TimingData(
+            '   $running${task.name}:',
+            milliseconds,
+            milliseconds * 100 / totalDuration.inMilliseconds,
+          ),
+        );
         for (String subtask in task.subtasks) {
           var subtime = task.getSubtaskTime(subtask);
           var running = task.getSubtaskIsRunning(subtask) ? "*" : " ";
-          timingData.add(_TimingData('   $running${task.name} > $subtask:',
-              subtime, subtime * 100 / totalDuration.inMilliseconds));
+          timingData.add(
+            _TimingData(
+              '   $running${task.name} > $subtask:',
+              subtime,
+              subtime * 100 / totalDuration.inMilliseconds,
+            ),
+          );
         }
       }
     }
@@ -1028,19 +1140,22 @@ class Compiler {
       var padding =
           " " * (longestDescription + 10 - data.description.length - ms.length);
       var percentPadding = data.percent < 10 ? " " : "";
-      timings.writeln('${data.description}$padding $ms '
-          '$percentPadding(${data.percent.toStringAsFixed(1)}%)');
+      timings.writeln(
+        '${data.description}$padding $ms '
+        '$percentPadding(${data.percent.toStringAsFixed(1)}%)',
+      );
     }
     var unaccountedDuration =
         totalDuration - cumulatedDuration - setupDuration - asyncDuration;
     var percent =
         unaccountedDuration.inMilliseconds * 100 / totalDuration.inMilliseconds;
     timings.write(
-        '    Total compile-time ${_formatMs(totalDuration.inMilliseconds)};'
-        ' setup ${_formatMs(setupDuration.inMilliseconds)};'
-        ' async ${_formatMs(asyncDuration.inMilliseconds)};'
-        ' unaccounted ${_formatMs(unaccountedDuration.inMilliseconds)}'
-        ' (${percent.toStringAsFixed(2)}%)');
+      '    Total compile-time ${_formatMs(totalDuration.inMilliseconds)};'
+      ' setup ${_formatMs(setupDuration.inMilliseconds)};'
+      ' async ${_formatMs(asyncDuration.inMilliseconds)};'
+      ' unaccounted ${_formatMs(unaccountedDuration.inMilliseconds)}'
+      ' (${percent.toStringAsFixed(2)}%)',
+    );
   }
 
   void collectMetrics(StringBuffer buffer) {
@@ -1049,12 +1164,13 @@ class Compiler {
       var metrics = task.metrics;
       var namespace = metrics.namespace;
       if (namespace == '') {
-        namespace =
-            task.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+        namespace = task.name.toLowerCase().replaceAll(
+          RegExp(r'[^a-z0-9]+'),
+          '_',
+        );
       }
       void report(Metric metric) {
-        buffer
-            .writeln('  ${namespace}.${metric.name}: ${metric.formatValue()}');
+        buffer.writeln('  $namespace.${metric.name}: ${metric.formatValue()}');
       }
 
       for (final metric in metrics.primary) {
@@ -1074,11 +1190,14 @@ class _CompilerOutput implements api.CompilerOutput {
   final api.CompilerOutput _userOutput;
 
   _CompilerOutput(this._compiler, api.CompilerOutput? output)
-      : this._userOutput = output ?? const NullCompilerOutput();
+    : _userOutput = output ?? const NullCompilerOutput();
 
   @override
   api.OutputSink createOutputSink(
-      String name, String extension, api.OutputType type) {
+    String name,
+    String extension,
+    api.OutputType type,
+  ) {
     if (_compiler.compilationFailed) {
       // Ensure that we don't emit output when the compilation has failed.
       return const NullCompilerOutput().createOutputSink(name, extension, type);
@@ -1153,14 +1272,15 @@ class InteractiveProgress implements Progress {
     if (_stopwatchInterval.elapsedMilliseconds > 500) {
       var time = _stopwatchPhase.elapsedMilliseconds / 1000;
       var rate = count / _stopwatchPhase.elapsedMilliseconds;
-      var s = StringBuffer('\x1b[1A\x1b[K') // go up and clear the line.
-        ..write('\x1b[48;5;40m\x1b[30m==>\x1b[0m $prefix')
-        ..write(count)
-        ..write('$suffix Elapsed time: ')
-        ..write(time.toStringAsFixed(2))
-        ..write(' s. Rate: ')
-        ..write(rate.toStringAsFixed(2))
-        ..write(' units/ms');
+      var s =
+          StringBuffer('\x1b[1A\x1b[K') // go up and clear the line.
+            ..write('\x1b[48;5;40m\x1b[30m==>\x1b[0m $prefix')
+            ..write(count)
+            ..write('$suffix Elapsed time: ')
+            ..write(time.toStringAsFixed(2))
+            ..write(' s. Rate: ')
+            ..write(rate.toStringAsFixed(2))
+            ..write(' units/ms');
       print('$s');
       _stopwatchInterval.reset();
     }

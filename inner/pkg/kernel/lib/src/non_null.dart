@@ -1,12 +1,22 @@
 // Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 import '../ast.dart';
 import '../type_algebra.dart';
 
 /// Returns the type defined as `NonNull(type)` in the nnbd specification.
 DartType computeNonNull(DartType type) {
+  if (type.nullability == Nullability.nonNullable) {
+    // The visitor below always returns null when the input type is already
+    // nullable, subsequently returning the input type.
+    // When compiling "compile.dart" this is exactly what happens ~42% of the
+    // time. Here we short-circuit the visit.
+    // Note that some use [declaredNullability] instead of [nullability], but
+    // that [nullability] is only nonNullable if [declaredNullability] is too.
+    assert(type.accept(const _NonNullVisitor()) == null);
+    return type;
+  }
   return type.accept(const _NonNullVisitor()) ?? type;
 }
 
@@ -18,9 +28,9 @@ class _NonNullVisitor implements DartTypeVisitor<DartType?> {
   const _NonNullVisitor();
 
   @override
-  DartType? defaultDartType(DartType node) {
+  DartType? visitAuxiliaryType(AuxiliaryType node) {
     throw new UnsupportedError(
-        "Unexpected DartType ${node} (${node.runtimeType})");
+        "Unsupported auxiliary type ${node} (${node.runtimeType}).");
   }
 
   @override
@@ -106,20 +116,6 @@ class _NonNullVisitor implements DartTypeVisitor<DartType?> {
 
   @override
   DartType? visitExtensionType(ExtensionType node) {
-    // NonNull(C<T1, ... , Tn>) = C<T1, ... , Tn> for class C other
-    // than Null (including Object).
-    //
-    // NonNull(T?) = NonNull(T)
-    //
-    // NonNull(T*) = NonNull(T)
-    if (node.declaredNullability == Nullability.nonNullable) {
-      return null;
-    }
-    return node.withDeclaredNullability(Nullability.nonNullable);
-  }
-
-  @override
-  DartType? visitInlineType(InlineType node) {
     // NonNull(T?) = NonNull(T)
     //
     // NonNull(T*) = NonNull(T)
@@ -179,10 +175,13 @@ class _NonNullVisitor implements DartTypeVisitor<DartType?> {
       // The nullability is fully determined by the bound so we pass the
       // default nullability for the declared nullability.
       return new IntersectionType(
-          new TypeParameterType(node.parameter,
-              TypeParameterType.computeNullabilityFromBound(node.parameter)),
-          bound);
+          new TypeParameterType.withDefaultNullability(node.parameter), bound);
     }
+  }
+
+  @override
+  DartType? visitStructuralParameterType(StructuralParameterType node) {
+    return null;
   }
 
   @override
@@ -210,8 +209,7 @@ class _NonNullVisitor implements DartTypeVisitor<DartType?> {
       // The bound could be made non-nullable so we use it as the promoted
       // bound.
       return new IntersectionType(
-          computeTypeWithoutNullabilityMarker(node.left,
-              isNonNullableByDefault: true) as TypeParameterType,
+          computeTypeWithoutNullabilityMarker(node.left) as TypeParameterType,
           right);
     } else {
       // The bound could not be made non-nullable so we use it as the promoted

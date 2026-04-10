@@ -6,13 +6,13 @@ import 'dart:async';
 import 'dart:convert' show jsonEncode;
 import 'dart:io';
 
-import 'package:dev_compiler/src/kernel/command.dart'
+import 'package:dev_compiler/src/command/command.dart'
     show addGeneratedVariables, getSdkPath;
+import 'package:dev_compiler/src/command/options.dart';
 import 'package:dev_compiler/src/kernel/js_typerep.dart';
 import 'package:dev_compiler/src/kernel/nullable_inference.dart';
 import 'package:dev_compiler/src/kernel/target.dart';
 import 'package:front_end/src/api_unstable/ddc.dart' as fe;
-import 'package:front_end/src/compute_platform_binaries_location.dart';
 import 'package:kernel/class_hierarchy.dart';
 import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart';
@@ -23,67 +23,104 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 const AstTextStrategy astTextStrategy = AstTextStrategy(
-    includeLibraryNamesInTypes: true,
-    includeLibraryNamesInMembers: true,
-    useMultiline: false);
+  includeLibraryNamesInTypes: true,
+  includeLibraryNamesInMembers: true,
+  useMultiline: false,
+);
 
 void main() {
   test('empty main', () async {
-    await expectNotNull('main() {}', '');
+    await expectNotNull('main() {}', const []);
   });
 
   group('literal', () {
     test('null', () async {
-      await expectNotNull('main() { print(null); }', '');
+      await expectNotNull('main() { print(null); }', const []);
     });
     test('bool', () async {
-      await expectNotNull('main() { print(false); }', 'false');
+      await expectNotNull('main() { print(false); }', ['false']);
     });
     test('int', () async {
-      await expectNotNull('main() { print(42); }', '42');
+      await expectNotNull('main() { print(42); }', ['42']);
     });
     test('double', () async {
-      await expectNotNull('main() { print(123.0); }', '123.0');
+      await expectNotNull('main() { print(123.0); }', ['123.0']);
     });
     test('String', () async {
-      await expectNotNull('main() { print("hi"); }', '"hi"');
+      await expectNotNull('main() { print("hi"); }', ['"hi"']);
     });
     test('List', () async {
+      await expectNotNull('main() { print([42, null]); }', [
+        '<dart.core::int?>[42, null]',
+        '42',
+      ]);
+    });
+    test('const List', () async {
       await expectNotNull(
-          'main() { print([42, null]); }', '<dart.core::int*>[42, null], 42');
+        '''library a;
+          const constList = [42, 99];
+          main() { print(constList.first); }''',
+        [
+          'a::constList.{dart.core::Iterable.first}',
+          'a::constList',
+          'const <dart.core::int>[42.0, 99.0]',
+        ],
+      );
     });
     test('Map', () async {
-      await expectNotNull('main() { print({"x": null}); }',
-          '<dart.core::String*, Null>{"x": null}, "x"');
+      await expectNotNull('main() { print({"x": null}); }', [
+        '<dart.core::String, Null>{"x": null}',
+        '"x"',
+      ]);
+    });
+    test('const Map', () async {
+      await expectNotNull(
+        '''library a;
+          const constMap = {"x": null};
+          main() { print(constMap); }''',
+        ['a::constMap', 'const <dart.core::String, Null>{"x": null}'],
+      );
     });
 
     test('Symbol', () async {
-      await expectNotNull('main() { print(#hi); }', '#hi');
+      await expectNotNull('main() { print(#hi); }', ['#hi']);
     });
 
     test('Type', () async {
-      await expectNotNull('main() { print(Object); }', 'dart.core::Object*');
+      await expectNotNull('main() { print(Object); }', ['dart.core::Object']);
     });
   });
 
   test('this', () async {
-    await expectNotNull(
-        'library a; class C { m() { return this; } }', 'this, new a::C()');
+    await expectNotNull('library a; class C { m() { return this; } }', [
+      'this',
+      'new a::C()',
+    ]);
   });
 
   test('is', () async {
-    await expectNotNull('main() { 42 is int; null is int; }',
-        '42 is dart.core::int*, 42, null is dart.core::int*');
+    await expectNotNull('main() { 42 is int; null is int; }', [
+      '42 is dart.core::int',
+      '42',
+      'null is dart.core::int',
+    ]);
   });
 
   test('as', () async {
-    await expectNotNull(
-        'main() { 42 as int; null as int; }', '42 as dart.core::int*, 42');
+    // TODO(nshahan): How should we classify `null as int` in sound mode?
+    // Seems non-nullable since it will throw if LHS is null.
+    await expectNotNull('main() { 42 as int; null as int; }', [
+      '42 as dart.core::int',
+      '42',
+      'null as dart.core::int',
+    ]);
   });
 
   test('constructor', () async {
-    await expectNotNull(
-        'library a; class C {} main() { new C(); }', 'new a::C(), new a::C()');
+    await expectNotNull('library a; class C {} main() { new C(); }', [
+      'new a::C()',
+      'new a::C()',
+    ]);
   });
 
   group('operator', () {
@@ -116,81 +153,93 @@ void main() {
   group('int', () {
     test('arithmetic', () async {
       await expectAllNotNull(
-          'main() { -0; 1 + 2; 3 - 4; 5 * 6; 7 / 8; 9 % 10; 11 ~/ 12; }');
+        'main() { -0; 1 + 2; 3 - 4; 5 * 6; 7 / 8; 9 % 10; 11 ~/ 12; }',
+      );
     });
     test('bitwise', () async {
       await expectAllNotNull(
-          'main() { 1 & 2; 3 | 4; 5 ^ 6; ~7; 8 << 9; 10 >> 11; }');
+        'main() { 1 & 2; 3 | 4; 5 ^ 6; ~7; 8 << 9; 10 >> 11; }',
+      );
     });
     test('comparison', () async {
       await expectAllNotNull('main() { 1 < 2; 3 > 4; 5 <= 6; 7 >= 8; }');
     });
     test('getters', () async {
       await expectAllNotNull(
-          'main() { 1.isOdd; 1.isEven; 1.isNegative; 1.isNaN; 1.isInfinite; '
-          '1.isFinite; 1.sign; 1.bitLength; 1.hashCode; }');
+        'main() { 1.isOdd; 1.isEven; 1.isNegative; 1.isNaN; 1.isInfinite; '
+        '1.isFinite; 1.sign; 1.bitLength; 1.hashCode; }',
+      );
     });
     test('methods', () async {
       await expectAllNotNull(
-          'main() { 1.compareTo(2); 1.remainder(2); 1.abs(); 1.toInt(); '
-          '1.ceil(); 1.floor(); 1.truncate(); 1.round(); 1.ceilToDouble(); '
-          '1.floorToDouble(); 1.truncateToDouble(); 1.roundToDouble(); '
-          '1.toDouble(); 1.clamp(2, 2); 1.toStringAsFixed(2); '
-          '1.toStringAsExponential(); 1.toStringAsPrecision(2); 1.toString(); '
-          '1.toRadixString(2); 1.toUnsigned(2); 1.toSigned(2); 1.modPow(2, 2); '
-          '1.modInverse(2); 1.gcd(2); }');
+        'main() { 1.compareTo(2); 1.remainder(2); 1.abs(); 1.toInt(); '
+        '1.ceil(); 1.floor(); 1.truncate(); 1.round(); 1.ceilToDouble(); '
+        '1.floorToDouble(); 1.truncateToDouble(); 1.roundToDouble(); '
+        '1.toDouble(); 1.clamp(2, 2); 1.toStringAsFixed(2); '
+        '1.toStringAsExponential(); 1.toStringAsPrecision(2); 1.toString(); '
+        '1.toRadixString(2); 1.toUnsigned(2); 1.toSigned(2); 1.modPow(2, 2); '
+        '1.modInverse(2); 1.gcd(2); }',
+      );
     });
   });
 
   group('double', () {
     test('arithmetic', () async {
       await expectAllNotNull(
-          'main() { -0.0; 1.0 + 2.0; 3.0 - 4.0; 5.0 * 6.0; 7.0 / 8.0; '
-          '9.0 % 10.0; 11.0 ~/ 12.0; }');
+        'main() { -0.0; 1.0 + 2.0; 3.0 - 4.0; 5.0 * 6.0; 7.0 / 8.0; '
+        '9.0 % 10.0; 11.0 ~/ 12.0; }',
+      );
     });
     test('comparison', () async {
       await expectAllNotNull(
-          'main() { 1.0 < 2.0; 3.0 > 4.0; 5.0 <= 6.0; 7.0 >= 8.0; }');
+        'main() { 1.0 < 2.0; 3.0 > 4.0; 5.0 <= 6.0; 7.0 >= 8.0; }',
+      );
     });
     test('getters', () async {
       await expectAllNotNull(
-          'main() { (1.0).isNegative; (1.0).isNaN; (1.0).isInfinite; '
-          '(1.0).isFinite; (1.0).sign; (1.0).hashCode; }');
+        'main() { (1.0).isNegative; (1.0).isNaN; (1.0).isInfinite; '
+        '(1.0).isFinite; (1.0).sign; (1.0).hashCode; }',
+      );
     });
     test('methods', () async {
       await expectAllNotNull(
-          'main() { (1.0).compareTo(2.0); (1.0).remainder(2.0); (1.0).abs(); '
-          '(1.0).toInt(); (1.0).ceil(); (1.0).floor(); (1.0).truncate(); '
-          '(1.0).round(); (1.0).ceilToDouble(); (1.0).floorToDouble(); '
-          '(1.0).truncateToDouble(); (1.0).roundToDouble(); (1.0).toDouble(); '
-          '(1.0).clamp(2.0, 2.0); (1.0).toStringAsFixed(2); (1.0).toString(); '
-          '(1.0).toStringAsExponential(); (1.0).toStringAsPrecision(2); }');
+        'main() { (1.0).compareTo(2.0); (1.0).remainder(2.0); (1.0).abs(); '
+        '(1.0).toInt(); (1.0).ceil(); (1.0).floor(); (1.0).truncate(); '
+        '(1.0).round(); (1.0).ceilToDouble(); (1.0).floorToDouble(); '
+        '(1.0).truncateToDouble(); (1.0).roundToDouble(); (1.0).toDouble(); '
+        '(1.0).clamp(2.0, 2.0); (1.0).toStringAsFixed(2); (1.0).toString(); '
+        '(1.0).toStringAsExponential(); (1.0).toStringAsPrecision(2); }',
+      );
     });
   });
 
   group('num', () {
     test('arithmetic', () async {
       await expectAllNotNull(
-          'main() { num n = 1; -n; n + n; n - n; n * n; n / n; n % n; n % n; '
-          'n ~/ n; }');
+        'main() { num n = 1; -n; n + n; n - n; n * n; n / n; n % n; n % n; '
+        'n ~/ n; }',
+      );
     });
     test('comparison', () async {
       await expectAllNotNull(
-          'main() { num n = 1; n < n; n > n; n <= n; n >= n; }');
+        'main() { num n = 1; n < n; n > n; n <= n; n >= n; }',
+      );
     });
     test('getters', () async {
       await expectAllNotNull(
-          'main() { num n = 1; n.isNegative; n.isNaN; n.isInfinite; '
-          'n.isFinite; n.sign; n.hashCode; }');
+        'main() { num n = 1; n.isNegative; n.isNaN; n.isInfinite; '
+        'n.isFinite; n.sign; n.hashCode; }',
+      );
     });
     test('methods', () async {
       await expectAllNotNull(
-          'main() { num n = 1; n.compareTo(n); n.remainder(n); n.abs(); '
-          'n.toInt(); n.ceil(); n.floor(); n.truncate(); '
-          'n.round(); n.ceilToDouble(); n.floorToDouble(); '
-          'n.truncateToDouble(); n.roundToDouble(); n.toDouble(); '
-          'n.clamp(n, n); n.toStringAsFixed(n); n.toString(); '
-          'n.toStringAsExponential(); n.toStringAsPrecision(n); }');
+        'main() { num n = 1; n.compareTo(n); n.remainder(n); n.abs(); '
+        'n.toInt(); n.ceil(); n.floor(); n.truncate(); '
+        'n.round(); n.ceilToDouble(); n.floorToDouble(); '
+        'n.truncateToDouble(); n.roundToDouble(); n.toDouble(); '
+        'n.clamp(n, n); n.toStringAsFixed(1); n.toString(); '
+        'n.toStringAsExponential(); n.toStringAsPrecision(1); }',
+      );
     });
   });
 
@@ -203,8 +252,9 @@ void main() {
     });
     test('getters', () async {
       await expectAllNotNull(
-          'main() { "".codeUnits; "".hashCode; "".isEmpty; "".isNotEmpty; '
-          '"".length; "".runes; }');
+        'main() { "".codeUnits; "".hashCode; "".isEmpty; "".isNotEmpty; '
+        '"".length; "".runes; }',
+      );
     });
     test('operators', () async {
       await expectAllNotNull('main() { "" + ""; "" * 2; "" == ""; "x"[0]; }');
@@ -247,91 +297,170 @@ void main() {
   });
 
   test('identical', () async {
-    await expectNotNull('main() { identical(null, null); }',
-        'dart.core::identical(null, null)');
+    await expectNotNull('main() { identical(null, null); }', [
+      'dart.core::identical(null, null)',
+    ]);
   });
 
   test('throw', () async {
-    await expectNotNull('main() { print(throw null); }', 'throw null');
+    // It is a compile time error to throw nullable values in >=2.12.0
+    await expectNotNull('main() { print(throw "foo"); }', [
+      'throw "foo"',
+      '"foo"',
+    ]);
   });
 
   test('rethrow', () async {
-    await expectNotNull('main() { try {} catch (e) { rethrow; } }', 'rethrow');
+    await expectNotNull('main() { try {} catch (e) { rethrow; } }', [
+      'rethrow',
+    ]);
   });
 
   test('function expression', () async {
-    await expectNotNull(
-        'main() { () => null; f() {}; f; }', 'Null () => null, f');
+    await expectNotNull('main() { () => null; f() {}; f; }', [
+      'Null () => null',
+      'f',
+    ]);
   });
 
   test('cascades (kernel BlockExpression)', () async {
     // `null..toString()` evaluates to `null` so it is nullable.
-    await expectNotNull('main() { null..toString(); }', '');
+    await expectNotNull('main() { null..toString(); }', [
+      '#0.{dart.core::Object.toString}()',
+    ]);
     await expectAllNotNull('main() { 1..toString(); }');
   });
 
   group('variable', () {
     test('declaration not-null', () async {
-      await expectNotNull('main() { var x = 42; print(x); }', '42, x');
+      await expectNotNull('main() { var x = 42; print(x); }', ['42', 'x']);
     });
     test('declaration null', () async {
-      await expectNotNull('main() { var x = null; print(x); }', '');
+      await expectNotNull('main() { var x = null; print(x); }', const []);
     });
     test('declaration without initializer', () async {
-      await expectNotNull('main() { var x; x = 1; print(x); }', 'x = 1, 1');
+      await expectNotNull('main() { var x; x = 1; print(x); }', ['x = 1', '1']);
     });
     test('assignment non-null', () async {
-      await expectNotNull(
-          'main() { var x = 42; x = 1; print(x); }', '42, x = 1, 1, x');
+      await expectNotNull('main() { var x = 42; x = 1; print(x); }', [
+        '42',
+        'x = 1',
+        '1',
+        'x',
+      ]);
     });
     test('assignment null', () async {
-      await expectNotNull('main() { var x = 42; x = null; print(x); }', '42');
+      await expectNotNull(
+        'main() { var x = 42; x = null as dynamic; print(x); }',
+        [
+          '42',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+          'x',
+        ],
+      );
     });
     test('flow insensitive', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
         if (true) {
           print(x);
         } else {
-          x = null;
+          x = null as dynamic;
           print(x);
         }
-      }''', '1, true');
+      }''',
+        [
+          '1',
+          'true',
+          'x',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+          'x',
+        ],
+      );
     });
 
     test('declaration from variable', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
         var y = x;
         print(y);
-        x = null;
-      }''', '1');
+        x = null as dynamic;
+      }''',
+        [
+          '1',
+          'x',
+          'y',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+        ],
+      );
     });
     test('declaration from variable nested', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
-        var y = (x = null) == null;
+        var y = (x = null as dynamic) == null;
         print(x);
         print(y);
-      }''', '1, (x = null) == null, y');
+      }''',
+        [
+          '1',
+          '(x = (null as dynamic) as dart.core::int) == null',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+          'x',
+          'y',
+        ],
+      );
     });
     test('declaration from variable transitive', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
         var y = x;
         var z = y;
         print(z);
-        x = null;
-      }''', '1');
+        x = null as dynamic;
+      }''',
+        [
+          '1',
+          'x',
+          'y',
+          'z',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+        ],
+      );
     });
     test('declaration between variable transitive nested', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
         var y = 1;
         var z = y = x;
         print(z);
-        x = null;
-      }''', '1, 1');
+        x = null as dynamic;
+      }''',
+        [
+          '1',
+          '1',
+          'y = x',
+          'x',
+          'z',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+        ],
+      );
     });
 
     test('for not-null', () async {
@@ -343,26 +472,43 @@ void main() {
     });
     test('for nullable', () async {
       await expectNotNull(
-          '''main() {
+        '''main() {
         for (var i = 0; i < 10; i++) {
-          if (i >= 10) i = null;
+          if (i >= 10) i = null as dynamic;
         }
       }''',
-          // arithmetic operation results on `i` are themselves not null, even
-          // though `i` is nullable.
-          '0, i.{dart.core::num.<}(10), 10, i = i.{dart.core::num.+}(1), '
-              'i.{dart.core::num.+}(1), 1, i.{dart.core::num.>=}(10), 10');
+        // arithmetic operation results on `i` are themselves not null.
+        [
+          '0',
+          'i.{dart.core::num.<}(10)',
+          'i',
+          '10',
+          'i = i.{dart.core::num.+}(1)',
+          'i.{dart.core::num.+}(1)',
+          'i',
+          '1',
+          'i.{dart.core::num.>=}(10)',
+          'i',
+          '10',
+          'i = (null as dynamic) as dart.core::int',
+          '(null as dynamic) as dart.core::int',
+        ],
+      );
     });
     test('for-in', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         for (var i in []) {
           print(i);
         }
-      }''', '<dynamic>[]');
+      }''',
+        ['<dynamic>[]'],
+      );
     });
 
     test('inner functions', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var y = 0;
         f(x) {
           var g = () => print('g');
@@ -374,10 +520,23 @@ void main() {
         }
         f;
         f(42);
-      }''', '0, void () => dart.core::print("g"), "g", g, y, 1, z, f, 42');
+      }''',
+        [
+          '0',
+          'void () => dart.core::print("g")',
+          '"g"',
+          'g',
+          'y',
+          '1',
+          'z',
+          'f',
+          '42',
+        ],
+      );
     });
     test('assignment to closure variable', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var y = 0;
         f(x) {
           y = x;
@@ -385,7 +544,9 @@ void main() {
         f;
         f(42);
         print(y);
-      }''', '0, f, 42');
+      }''',
+        ['0', 'y = x as dart.core::int', 'x as dart.core::int', 'f', '42', 'y'],
+      );
     });
 
     test('declaration visits initializer', () async {
@@ -401,25 +562,50 @@ void main() {
       }''');
     });
     test('assignment visits value with closure variable set', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = () => 42;
-        var y = (() => x = null);
-      }''', 'dart.core::int* () => 42, 42, Null () => x = null');
+        var y = (() => x = null as dynamic);
+      }''',
+        [
+          'dart.core::int () => 42',
+          '42',
+          'dynamic () => x = (null as dynamic) as dart.core::int Function()',
+          'x = (null as dynamic) as dart.core::int Function()',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int Function()',
+        ],
+      );
     });
     test('do not depend on unrelated variables', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x;
         var y = identical(x, null);
         y; // this is still non-null even though `x` is nullable
-      }''', 'dart.core::identical(x, null), y');
+      }''',
+        ['dart.core::identical(x, null)', 'y'],
+      );
     });
     test('do not depend on unrelated variables updated later', () async {
-      await expectNotNull('''main() {
+      await expectNotNull(
+        '''main() {
         var x = 1;
         var y = identical(x, 1);
-        x = null;
+        x = null as dynamic;
         y; // this is still non-null even though `x` is nullable
-      }''', '1, dart.core::identical(x, 1), 1, y');
+      }''',
+        [
+          '1',
+          'dart.core::identical(x, 1)',
+          'x',
+          '1',
+          'x = (null as dynamic) as dart.core::int',
+          // TODO(nshahan): How should we classify `null as int` in sound mode?
+          '(null as dynamic) as dart.core::int',
+          'y',
+        ],
+      );
     });
   });
   group('functions parameters in SDK', () {
@@ -433,14 +619,20 @@ void main() {
       useAnnotations = false;
     });
     test('optional with default value', () async {
-      await expectNotNull('''
+      await expectNotNull(
+        '''
         f(x, [y = 1]) { x; y; }
-      ''', '1');
+      ''',
+        ['1'],
+      );
     });
     test('named with default value', () async {
-      await expectNotNull('''
+      await expectNotNull(
+        '''
         f(x, {y = 1}) { x; y; }
-      ''', '1');
+      ''',
+        ['1'],
+      );
     });
   });
 
@@ -454,46 +646,59 @@ void main() {
     var imports = "import 'package:meta/meta.dart';";
     group('(previously known kernel annotation bug)', () {
       test('variable without initializer', () async {
-        await expectNotNull(
-            '$imports main() { @notNull var x; print(x); }', 'x');
+        await expectNotNull('$imports main() { @notNull var x; print(x); }', [
+          'x',
+        ]);
       });
       test('variable with initializer', () async {
-        // TODO(jmesserly): this does not work in the Analyzer backend.
         await expectNotNull(
-            '$imports main() { @notNull var x = null; print(x); }', 'x');
+          '$imports main() { @notNull var x = null; print(x); }',
+          ['x'],
+        );
       });
       test('parameters', () async {
         await expectNotNull(
-            '$imports f(@notNull x, [@notNull y, @notNull z = 42]) '
-                '{ x; y; z; }',
-            '42, x, y, z');
+          '$imports f(@notNull x, [@notNull y, @notNull z = 42]) '
+          '{ x; y; z; }',
+          ['42', 'x', 'y', 'z'],
+        );
       });
       test('named parameters', () async {
         await expectNotNull(
-            '$imports f({@notNull x, @notNull y: 42}) { x; y; }', '42, x, y');
+          '$imports f({@notNull x, @notNull y = 42}) { x; y; }',
+          ['42', 'x', 'y'],
+        );
       });
     });
 
     test('top-level field', () async {
       await expectNotNull(
-          'library a; $imports @notNull int x; main() { x; }', 'a::x');
+        // @notNull overrides the explicit nullable.
+        'library a; $imports @notNull int? x; main() { x; }',
+        ['a::x'],
+      );
     });
 
     test('getter', () async {
       await expectNotNull(
-          'library b; $imports @notNull get x => null; main() { x; }', 'b::x');
+        'library b; $imports @notNull get x => null; main() { x; }',
+        ['b::x'],
+      );
     });
 
     test('function', () async {
       await expectNotNull(
-          'library a; $imports @notNull f() {} main() { f(); }', 'a::f()');
+        'library a; $imports @notNull f() {} main() { f(); }',
+        ['a::f()'],
+      );
     });
 
     test('method', () async {
       await expectNotNull(
-          'library b; $imports class C { @notNull m() {} } '
-              'main() { var c = new C(); c.m(); }',
-          'new b::C(), new b::C(), c.{b::C.m}(), c');
+        'library b; $imports class C { @notNull m() {} } '
+        'main() { var c = new C(); c.m(); }',
+        ['new b::C()', 'new b::C()', 'c.{b::C.m}()', 'c'],
+      );
     });
   });
 }
@@ -501,8 +706,7 @@ void main() {
 /// Given the Dart [code], expects the [expectedNotNull] kernel expression list
 /// to be produced in the set of expressions that cannot be null by DDC's null
 /// inference.
-Future expectNotNull(String code, String expectedNotNull) async {
-  code = '// @dart = 2.9\n$code';
+Future expectNotNull(String code, List<String> expectedNotNull) async {
   var result = await kernelCompile(code);
   var collector = NotNullCollector(result.librariesFromDill);
   result.component.accept(collector);
@@ -524,14 +728,12 @@ Future expectNotNull(String code, String expectedNotNull) async {
       })
       // Filter out our own NotNull annotations.  The library prefix changes
       // per test, so just filter on the suffix.
-      .where((s) => !s.endsWith('_NotNull{}'))
-      .join(', ');
-  expect(actualNotNull, equals(expectedNotNull));
+      .where((s) => !s.endsWith('_NotNull{}'));
+  expect(actualNotNull, orderedEquals(expectedNotNull));
 }
 
 /// Given the Dart [code], expects all the expressions inferred to be not-null.
 Future expectAllNotNull(String code) async {
-  code = '// @dart = 2.9\n$code';
   var result = await kernelCompile(code);
   result.component.accept(ExpectAllNotNull(result.librariesFromDill));
 }
@@ -544,6 +746,7 @@ class _TestRecursiveVisitor extends RecursiveVisitor {
   int _functionNesting = 0;
   late TypeEnvironment _typeEnvironment;
   late StatefulStaticTypeContext _staticTypeContext;
+  late Options _options;
 
   _TestRecursiveVisitor(this.librariesFromDill);
 
@@ -557,7 +760,12 @@ class _TestRecursiveVisitor extends RecursiveVisitor {
     );
     _typeEnvironment = jsTypeRep.types;
     _staticTypeContext = StatefulStaticTypeContext.stacked(_typeEnvironment);
-    inference ??= NullableInference(jsTypeRep, _staticTypeContext);
+    _options = Options(moduleName: 'module_for_test');
+    inference ??= NullableInference(
+      jsTypeRep,
+      _staticTypeContext,
+      options: _options,
+    );
 
     if (useAnnotations) {
       inference!.allowNotNullDeclarations = useAnnotations;
@@ -614,7 +822,7 @@ class _TestRecursiveVisitor extends RecursiveVisitor {
 class NotNullCollector extends _TestRecursiveVisitor {
   final notNullExpressions = <Expression>[];
 
-  NotNullCollector(Set<Library> librariesFromDill) : super(librariesFromDill);
+  NotNullCollector(super.librariesFromDill);
 
   @override
   void defaultExpression(Expression node) {
@@ -626,12 +834,15 @@ class NotNullCollector extends _TestRecursiveVisitor {
 }
 
 class ExpectAllNotNull extends _TestRecursiveVisitor {
-  ExpectAllNotNull(Set<Library> librariesFromDill) : super(librariesFromDill);
+  ExpectAllNotNull(super.librariesFromDill);
 
   @override
   void defaultExpression(Expression node) {
-    expect(inference!.isNullable(node), false,
-        reason: 'expression `$node` should be inferred as not-null');
+    expect(
+      inference!.isNullable(node),
+      false,
+      reason: 'expression `$node` should be inferred as not-null',
+    );
     super.defaultExpression(node);
   }
 }
@@ -656,12 +867,11 @@ Future<CompileResult> kernelCompile(String code) async {
   }
 
   var root = Uri.file('/memory');
-  var sdkUri = Uri.file('/memory/ddc_outline_unsound.dill');
+  var sdkUri = Uri.file('/memory/ddc_outline.dill');
   var sdkFile = _fileSystem.entityForUri(sdkUri);
   if (!await sdkFile.exists()) {
-    var buildRoot = computePlatformBinariesLocation(forceBuildDir: true);
-    var outlineDill =
-        buildRoot.resolve('ddc_outline_unsound.dill').toFilePath();
+    var buildRoot = fe.computePlatformBinariesLocation(forceBuildDir: true);
+    var outlineDill = buildRoot.resolve('ddc_outline.dill').toFilePath();
     sdkFile.writeAsBytesSync(File(outlineDill).readAsBytesSync());
   }
   var librariesUri = Uri.file('/memory/libraries.json');
@@ -673,15 +883,14 @@ Future<CompileResult> kernelCompile(String code) async {
   var packagesUri = Uri.file('/memory/.dart_tool/package_config.json');
   var packagesFile = _fileSystem.entityForUri(packagesUri);
   if (!await packagesFile.exists()) {
-    packagesFile.writeAsStringSync(jsonEncode({
-      'configVersion': 2,
-      'packages': [
-        {
-          'name': 'meta',
-          'rootUri': '/memory/meta/lib',
-        },
-      ],
-    }));
+    packagesFile.writeAsStringSync(
+      jsonEncode({
+        'configVersion': 2,
+        'packages': [
+          {'name': 'meta', 'rootUri': '/memory/meta/lib'},
+        ],
+      }),
+    );
     _fileSystem
         .entityForUri(Uri.file('/memory/meta/lib/meta.dart'))
         .writeAsStringSync('''
@@ -696,23 +905,24 @@ const nullCheck = const _NullCheck();
   _fileSystem.entityForUri(mainUri).writeAsStringSync(code);
   var oldCompilerState = _compilerState;
   _compilerState = fe.initializeCompiler(
-      oldCompilerState,
-      false,
-      root,
-      sdkUri,
-      packagesUri,
-      librariesUri,
-      [],
-      DevCompilerTarget(TargetFlags(soundNullSafety: false)),
-      fileSystem: _fileSystem,
-      explicitExperimentalFlags: const {},
-      environmentDefines: addGeneratedVariables({}, enableAsserts: true),
-      nnbdMode: fe.NnbdMode.Weak);
+    oldCompilerState,
+    false,
+    root,
+    sdkUri,
+    packagesUri,
+    librariesUri,
+    [],
+    DevCompilerTarget(TargetFlags()),
+    fileSystem: _fileSystem,
+    explicitExperimentalFlags: const {},
+    environmentDefines: addGeneratedVariables({}, enableAsserts: true),
+  );
   if (!identical(oldCompilerState, _compilerState)) inference = null;
-  var result =
-      await (fe.compile(_compilerState!, [mainUri], diagnosticMessageHandler));
+  var result = await (fe.compile(_compilerState!, [
+    mainUri,
+  ], diagnosticMessageHandler));
   expect(succeeded, true);
 
-  var librariesFromDill = result!.computeLibrariesFromDill();
+  var librariesFromDill = result!.librariesFromDill;
   return CompileResult(result.component, librariesFromDill);
 }

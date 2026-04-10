@@ -8,10 +8,11 @@ import 'package:compiler/src/ir/util.dart';
 import 'package:compiler/src/js_model/locals.dart';
 import 'package:expect/expect.dart';
 import 'package:kernel/ast.dart' as ir;
-import 'package:front_end/src/testing/id_extractor.dart';
+import 'package:front_end/src/api_prototype/testing.dart';
 
 export 'package:_fe_analyzer_shared/src/testing/id.dart';
-export 'package:front_end/src/testing/id_extractor.dart';
+export 'package:front_end/src/api_prototype/testing.dart'
+    show computeMemberId, computeTreeNodeWithOffset;
 
 SourceSpan computeSourceSpanFromUriOffset(Uri uri, int offset) {
   return offset != -1
@@ -19,7 +20,7 @@ SourceSpan computeSourceSpanFromUriOffset(Uri uri, int offset) {
       : SourceSpan(uri, 0, 0);
 }
 
-abstract class IrDataRegistryMixin<T> implements DataRegistry<T> {
+mixin IrDataRegistryMixin<T> implements DataRegistry<T> {
   DiagnosticReporter get reporter;
 
   @override
@@ -39,7 +40,7 @@ abstract class IrDataExtractor<T> extends DataExtractor<T>
   final DiagnosticReporter reporter;
 
   IrDataExtractor(this.reporter, Map<Id, ActualData<T>> actualMap)
-      : super(actualMap);
+    : super(actualMap);
 
   SourceSpan computeSourceSpan(ir.TreeNode node) {
     return computeSourceSpanFromTreeNode(node);
@@ -57,7 +58,11 @@ abstract class IrDataExtractor<T> extends DataExtractor<T>
 
 /// Print a message with a source location.
 void reportHere(
-    DiagnosticReporter reporter, Spannable node, String debugMessage) {
-  reporter.reportInfoMessage(
-      node, MessageKind.GENERIC, {'text': 'HERE: $debugMessage'});
+  DiagnosticReporter reporter,
+  Spannable node,
+  String debugMessage,
+) {
+  reporter.reportInfoMessage(node, MessageKind.generic, {
+    'text': 'HERE: $debugMessage',
+  });
 }

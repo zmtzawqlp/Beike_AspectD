@@ -5,14 +5,15 @@
 class C<T extends num?> {
   void promotes(T t) {
     if (t is int) {
-      /*T & int*/ t;
+      /*T & int*/
+      t;
     }
   }
 
   void promoteNullable(T? t) {
     T? s;
     if (t is int) {
-      s = /*cfe.T? & int*/ /*analyzer.T & int*/ t;
+      s = /*T & int*/ t;
     }
   }
 
@@ -24,7 +25,8 @@ class C<T extends num?> {
 
   void nonNull(T t) {
     if (t != null) {
-      /*T & num*/ t;
+      /*T & num*/
+      t;
     }
   }
 }
@@ -42,7 +44,8 @@ class D<T extends dynamic> {
 class E<T> {
   void nonNull(T t) {
     if (t != null) {
-      /*T & Object*/ t;
+      /*T & Object*/
+      t;
     }
   }
 }
@@ -50,7 +53,8 @@ class E<T> {
 class F<S, T extends S> {
   void nonNull(T t) {
     if (t != null) {
-      /*T & S & Object*/ t;
+      /*T & S & Object*/
+      t;
     }
   }
 }

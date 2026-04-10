@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -10,14 +10,18 @@ library /*isNonNullableByDefault*/;
 //   int values = 42; // Error in E2.
 //       ^^^^^^
 //
-// pkg/front_end/testcases/enhanced_enums/declared_values.dart:21:7: Error: 'values' is already declared in this scope.
-//   int values = 42; // Duplicate.
-//       ^^^^^^
-// pkg/front_end/testcases/enhanced_enums/declared_values.dart:20:25: Context: Previous declaration of 'values'.
+// pkg/front_end/testcases/enhanced_enums/declared_values.dart:20:25: Error: An enum can't declare a member named 'values'.
 //   static const List<E3> values = [E3.element]; // Error in E3.
 //                         ^^^^^^
 //
-// pkg/front_end/testcases/enhanced_enums/declared_values.dart:20:25: Error: An enum can't declare a member named 'values'.
+// pkg/front_end/testcases/enhanced_enums/declared_values.dart:21:7: Error: An enum can't declare a member named 'values'.
+//   int values = 42; // Error: Duplicate.
+//       ^^^^^^
+//
+// pkg/front_end/testcases/enhanced_enums/declared_values.dart:21:7: Error: 'values' is already declared in this scope.
+//   int values = 42; // Error: Duplicate.
+//       ^^^^^^
+// pkg/front_end/testcases/enhanced_enums/declared_values.dart:20:25: Context: Previous declaration of 'values'.
 //   static const List<E3> values = [E3.element]; // Error in E3.
 //                         ^^^^^^
 //
@@ -25,82 +29,73 @@ library /*isNonNullableByDefault*/;
 //   void values() {} // Error in E7.
 //        ^^^^^^
 //
-// pkg/front_end/testcases/enhanced_enums/declared_values.dart:36:6: Error: The type 'List<E6>' of the getter 'E6.values' is not a subtype of the type 'Never' of the setter 'E6.values'.
-//  - 'List' is from 'dart:core'.
-//  - 'E6' is from 'pkg/front_end/testcases/enhanced_enums/declared_values.dart'.
-// enum E6 {
-//      ^^^^^...
-// pkg/front_end/testcases/enhanced_enums/declared_values.dart:39:19: Context: This is the declaration of the setter 'E6.values'.
-//   static void set values(Never x) {} // Error in E6.
-//                   ^^^^^^
-//
 import self as self;
 import "dart:core" as core;
 
 class E1 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E1> values = #C4;
   enum-element static const field self::E1 element = #C3;
-  const constructor •(core::int #index, core::String #name) → self::E1
+  static const field core::List<self::E1> values = #C4;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E1
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E1.${this.{core::_Enum::_name}{core::String}}";
 }
 class E2 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E2> values = #C6;
   enum-element static const field self::E2 element = #C5;
-  const constructor •(core::int #index, core::String #name) → self::E2
+  static const field core::List<self::E2> values = #C6;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E2
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E2.${this.{core::_Enum::_name}{core::String}}";
 }
 class E3 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E3> values = #C8;
   enum-element static const field self::E3 element = #C7;
-  const constructor •(core::int #index, core::String #name) → self::E3
+  static const field core::List<self::E3> values = #C8;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E3
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E3.${this.{core::_Enum::_name}{core::String}}";
 }
 class E4 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E4> values = #C10;
   enum-element static const field self::E4 element = #C9;
-  const constructor •(core::int #index, core::String #name) → self::E4
+  static const field core::List<self::E4> values = #C10;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E4
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E4.${this.{core::_Enum::_name}{core::String}}";
   static set values(core::List<self::E4> x) → void {}
 }
 class E5 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E5> values = #C12;
   enum-element static const field self::E5 element = #C11;
-  const constructor •(core::int #index, core::String #name) → self::E5
+  static const field core::List<self::E5> values = #C12;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E5
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E5.${this.{core::_Enum::_name}{core::String}}";
   static set values(dynamic x) → void {}
 }
 class E6 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E6> values = #C14;
   enum-element static const field self::E6 element = #C13;
-  const constructor •(core::int #index, core::String #name) → self::E6
+  static const field core::List<self::E6> values = #C14;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E6
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E6.${this.{core::_Enum::_name}{core::String}}";
   static set values(Never x) → void {}
 }
 class E7 extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E7> values = #C16;
   enum-element static const field self::E7 element = #C15;
-  const constructor •(core::int #index, core::String #name) → self::E7
+  static const field core::List<self::E7> values = #C16;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E7
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E7.${this.{core::_Enum::_name}{core::String}}";
 }
 static method main() → dynamic {}

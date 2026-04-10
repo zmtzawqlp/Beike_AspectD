@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   positionalWithoutDefaultOnLocal();
   positionalWithNullDefaultOnLocal();
@@ -14,35 +12,42 @@ main() {
   positionalWithOneDefaultOnStatic();
 }
 
-/*member: positionalWithoutDefaultOnLocal:[null]*/
+/*member: positionalWithoutDefaultOnLocal:[null|powerset={null}]*/
 positionalWithoutDefaultOnLocal() {
-  /*[null]*/ local([/*[null]*/ parameter]) => parameter;
+  /*[null|powerset={null}]*/
+  local([/*[null|powerset={null}]*/ parameter]) => parameter;
   return local();
 }
 
-/*member: positionalWithNullDefaultOnLocal:[null]*/
+/*member: positionalWithNullDefaultOnLocal:[null|powerset={null}]*/
 positionalWithNullDefaultOnLocal() {
-  /*[null]*/ local([/*[null]*/ parameter = null]) => parameter;
+  /*[null|powerset={null}]*/
+  local([/*[null|powerset={null}]*/ parameter = null]) => parameter;
   return local();
 }
 
-/*member: positionalWithOneDefaultOnLocal:[exact=JSUInt31]*/
+/*member: positionalWithOneDefaultOnLocal:[exact=JSUInt31|powerset={I}{O}{N}]*/
 positionalWithOneDefaultOnLocal() {
-  /*[exact=JSUInt31]*/ local([/*[exact=JSUInt31]*/ parameter = 1]) => parameter;
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/
+  local([/*[exact=JSUInt31|powerset={I}{O}{N}]*/ parameter = 1]) => parameter;
   return local();
 }
 
-/*member: positionalWithoutDefaultOnStatic:[null]*/
-positionalWithoutDefaultOnStatic([/*[null]*/ parameter]) {
+/*member: positionalWithoutDefaultOnStatic:[null|powerset={null}]*/
+positionalWithoutDefaultOnStatic([/*[null|powerset={null}]*/ parameter]) {
   return parameter;
 }
 
-/*member: positionalWithNullDefaultOnStatic:[null]*/
-positionalWithNullDefaultOnStatic([/*[null]*/ parameter = null]) {
+/*member: positionalWithNullDefaultOnStatic:[null|powerset={null}]*/
+positionalWithNullDefaultOnStatic([
+  /*[null|powerset={null}]*/ parameter = null,
+]) {
   return parameter;
 }
 
-/*member: positionalWithOneDefaultOnStatic:[exact=JSUInt31]*/
-positionalWithOneDefaultOnStatic([/*[exact=JSUInt31]*/ parameter = 1]) {
+/*member: positionalWithOneDefaultOnStatic:[exact=JSUInt31|powerset={I}{O}{N}]*/
+positionalWithOneDefaultOnStatic([
+  /*[exact=JSUInt31|powerset={I}{O}{N}]*/ parameter = 1,
+]) {
   return parameter;
 }

@@ -1,6 +1,77 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:105:3: Error: Extensions can't declare constructors.
+// Try removing the constructor declaration.
+//   Extension(T t);
+//   ^^^^^^^^^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:107:3: Error: Extensions can't declare constructors.
+// Try removing the constructor declaration.
+//   factory Extension.fact(T t) => null;
+//   ^^^^^^^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:113:5: Error: Extensions can't declare instance fields
+// Try removing the field declaration or making it a static field
+//   T field1;
+//     ^^^^^^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:130:3: Error: Mixins can't declare constructors.
+//   Mixin(T t);
+//   ^^^^^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:3: Error: Mixins can't declare constructors.
+//   factory Mixin.fact(T t) => null;
+//   ^^^^^^^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:19:10: Error: Type variables can't be used in static members.
+//   @Class<T>()
+//          ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:28:16: Error: Type variables can't be used in static members.
+//   @Class<Class<T>>()
+//                ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:37:6: Error: Type variables can't be used in static members.
+//   @A<T>()
+//      ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:46:8: Error: Type variables can't be used in static members.
+//   @A<A<T>>()
+//        ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:55:6: Error: Type variables can't be used in static members.
+//   @B<T>()
+//      ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:64:8: Error: Type variables can't be used in static members.
+//   @A<B<T>>()
+//        ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:80:10: Error: Type variables can't be used in static members.
+//   static T field0;
+//          ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:82:10: Error: Type variables can't be used in static members.
+//   @Class<T>()
+//          ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:83:16: Error: Type variables can't be used in static members.
+//   static Class<T>? field1;
+//                ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:85:16: Error: Type variables can't be used in static members.
+//   @Class<Class<T>>()
+//                ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:88:6: Error: Type variables can't be used in static members.
+//   @A<T>()
+//      ^
+//
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:91:6: Error: Type variables can't be used in static members.
+//   @B<T>()
+//      ^
 //
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:13:10: Error: Type variables can't be used in static members.
 //   static T? method0<S extends T>(T arg) {
@@ -14,10 +85,6 @@ library /*isNonNullableByDefault*/;
 //   static T? method0<S extends T>(T arg) {
 //                                  ^
 //
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:19:10: Error: Type variables can't be used in static members.
-//   @Class<T>()
-//          ^
-//
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:20:16: Error: Type variables can't be used in static members.
 //   static Class<T>? method1<S extends Class<T>>(Class<T> arg) {
 //                ^
@@ -29,10 +96,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:20:54: Error: Type variables can't be used in static members.
 //   static Class<T>? method1<S extends Class<T>>(Class<T> arg) {
 //                                                      ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:28:16: Error: Type variables can't be used in static members.
-//   @Class<Class<T>>()
-//                ^
 //
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:29:22: Error: Type variables can't be used in static members.
 //   static Class<Class<T>>? method2<S extends Class<Class<T>>>(Class<Class<T>> arg) {
@@ -46,10 +109,6 @@ library /*isNonNullableByDefault*/;
 //   static Class<Class<T>>? method2<S extends Class<Class<T>>>(Class<Class<T>> arg) {
 //                                                                          ^
 //
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:37:6: Error: Type variables can't be used in static members.
-//   @A<T>()
-//      ^
-//
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:38:12: Error: Type variables can't be used in static members.
 //   static A<T>? method3<S extends A<T>>(A<T> arg) {
 //            ^
@@ -61,10 +120,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:38:42: Error: Type variables can't be used in static members.
 //   static A<T>? method3<S extends A<T>>(A<T> arg) {
 //                                          ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:46:8: Error: Type variables can't be used in static members.
-//   @A<A<T>>()
-//        ^
 //
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:47:14: Error: Type variables can't be used in static members.
 //   static A<A<T>>? method4<S extends A<A<T>>>(A<A<T>> arg) {
@@ -78,10 +133,6 @@ library /*isNonNullableByDefault*/;
 //   static A<A<T>>? method4<S extends A<A<T>>>(A<A<T>> arg) {
 //                                                  ^
 //
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:55:6: Error: Type variables can't be used in static members.
-//   @B<T>()
-//      ^
-//
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:56:12: Error: Type variables can't be used in static members.
 //   static B<T>? method5<S extends B<T>>(B<T> arg) {
 //            ^
@@ -93,10 +144,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:56:42: Error: Type variables can't be used in static members.
 //   static B<T>? method5<S extends B<T>>(B<T> arg) {
 //                                          ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:64:8: Error: Type variables can't be used in static members.
-//   @A<B<T>>()
-//        ^
 //
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:65:14: Error: Type variables can't be used in static members.
 //   static A<B<T>>? method6<S extends A<B<T>>>(A<B<T>> arg) {
@@ -126,45 +173,6 @@ library /*isNonNullableByDefault*/;
 //   static void Function<S extends T>()? method7<U extends void Function<S extends T>()>(void Function<S extends T>() arg) {
 //                                                                                                                ^
 //
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:80:10: Error: Type variables can't be used in static members.
-//   static T field0;
-//          ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:82:10: Error: Type variables can't be used in static members.
-//   @Class<T>()
-//          ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:83:16: Error: Type variables can't be used in static members.
-//   static Class<T>? field1;
-//                ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:85:16: Error: Type variables can't be used in static members.
-//   @Class<Class<T>>()
-//                ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:88:6: Error: Type variables can't be used in static members.
-//   @A<T>()
-//      ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:91:6: Error: Type variables can't be used in static members.
-//   @B<T>()
-//      ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:105:3: Error: Extensions can't declare constructors.
-// Try removing the constructor declaration.
-//   Extension(T t);
-//   ^^^^^^^^^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:107:3: Error: Extensions can't declare constructors.
-// Try removing the constructor declaration.
-//   factory Extension.fact(T t) => null;
-//   ^^^^^^^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:113:5: Error: Extensions can't declare instance fields
-// Try removing the field declaration or making it a static field
-//   T field1;
-//     ^^^^^^
-//
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:110:10: Error: Type variables can't be used in static members.
 //   static T field0;
 //          ^
@@ -180,14 +188,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:116:39: Error: Type variables can't be used in static members.
 //   static T? staticMethod<S extends T>(T arg) {
 //                                       ^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:130:3: Error: Mixins can't declare constructors.
-//   Mixin(T t);
-//   ^^^^^
-//
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:3: Error: Mixins can't declare constructors.
-//   factory Mixin.fact(T t) => null;
-//   ^^^^^^^
 //
 // pkg/front_end/testcases/general/type_variable_in_static_context.dart:135:10: Error: Type variables can't be used in static members.
 //   static T field0;
@@ -421,7 +421,7 @@ library /*isNonNullableByDefault*/;
 //     void fun<U extends T>() {}
 //                        ^
 //
-// pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:30: Error: The value 'null' can't be returned from a function with return type 'Mixin<T>' because 'Mixin<T>' is not nullable.
+// pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:30: Error: A value of type 'Null' can't be returned from a function with return type 'Mixin<T>'.
 //  - 'Mixin' is from 'pkg/front_end/testcases/general/type_variable_in_static_context.dart'.
 //   factory Mixin.fact(T t) => null;
 //                              ^
@@ -550,10 +550,10 @@ abstract class Mixin<T extends core::Object? = dynamic> extends core::Object /*i
     : super core::Object::•()
     ;
   static factory fact<T extends core::Object? = dynamic>(self::Mixin::fact::T% t) → self::Mixin<self::Mixin::fact::T%>
-    return invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:30: Error: The value 'null' can't be returned from a function with return type 'Mixin<T>' because 'Mixin<T>' is not nullable.
+    return invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:132:30: Error: A value of type 'Null' can't be returned from a function with return type 'Mixin<T>'.
  - 'Mixin' is from 'pkg/front_end/testcases/general/type_variable_in_static_context.dart'.
   factory Mixin.fact(T t) => null;
-                             ^" in let Null #t1 = null in #t1 == null ?{Never} #t1 as{TypeError,ForNonNullableByDefault} Never : #t1{Never};
+                             ^" in let Null #t1 = null in #t1 == null ?{Never} #t1 as{TypeError} Never : #t1{Never};
   @invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:137:4: Error: Couldn't find constructor 'T'.
   @T()
    ^"
@@ -575,7 +575,7 @@ extension Extension<T extends core::Object? = dynamic> on T% {
   field field1 = self::Extension|field1;
   static method staticMethod = self::Extension|staticMethod;
   method instanceMethod = self::Extension|instanceMethod;
-  tearoff instanceMethod = self::Extension|get#instanceMethod;
+  method tearoff instanceMethod = self::Extension|get#instanceMethod;
 }
 @invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:109:4: Error: Couldn't find constructor 'T'.
   @T()
@@ -588,7 +588,7 @@ static field invalid-type Extension|field1;
 @invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:115:4: Error: Couldn't find constructor 'T'.
   @T()
    ^"
-static method Extension|staticMethod<S extends invalid-type>(invalid-type arg) → invalid-type {
+static extension-member method Extension|staticMethod<S extends invalid-type>(invalid-type arg) → invalid-type {
   invalid-type local;
   #C4;
   function fun<U extends invalid-type>() → void {}
@@ -596,14 +596,14 @@ static method Extension|staticMethod<S extends invalid-type>(invalid-type arg) �
 @invalid-expression "pkg/front_end/testcases/general/type_variable_in_static_context.dart:122:4: Error: Couldn't find constructor 'T'.
   @T()
    ^"
-static method Extension|instanceMethod<T extends core::Object? = dynamic, S extends self::Extension|instanceMethod::T% = dynamic>(lowered final self::Extension|instanceMethod::T% #this, self::Extension|instanceMethod::T% t) → self::Extension|instanceMethod::T% {
+static extension-member method Extension|instanceMethod<T extends core::Object? = dynamic, S extends self::Extension|instanceMethod::T% = dynamic>(lowered final self::Extension|instanceMethod::T% #this, self::Extension|instanceMethod::T% t) → self::Extension|instanceMethod::T% {
   self::Extension|instanceMethod::T%;
   return t;
 }
-static method Extension|get#instanceMethod<T extends core::Object? = dynamic>(lowered final self::Extension|get#instanceMethod::T% #this) → <S extends self::Extension|get#instanceMethod::T% = dynamic>(self::Extension|get#instanceMethod::T%) → self::Extension|get#instanceMethod::T%
+static extension-member method Extension|get#instanceMethod<T extends core::Object? = dynamic>(lowered final self::Extension|get#instanceMethod::T% #this) → <S extends self::Extension|get#instanceMethod::T% = dynamic>(self::Extension|get#instanceMethod::T%) → self::Extension|get#instanceMethod::T%
   return <S extends self::Extension|get#instanceMethod::T% = dynamic>(self::Extension|get#instanceMethod::T% t) → self::Extension|get#instanceMethod::T% => self::Extension|instanceMethod<self::Extension|get#instanceMethod::T%, S%>(#this, t);
 static method main() → dynamic {}
-static method _#B#new#tearOff<T extends core::num>() → self::Class<self::_#B#new#tearOff::T>
+static synthetic method _#B#new#tearOff<T extends core::num>() → self::Class<self::_#B#new#tearOff::T>
   return new self::Class::•<self::_#B#new#tearOff::T>();
 
 constants  {

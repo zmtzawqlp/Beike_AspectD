@@ -1,16 +1,16 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
-// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:37:5: Error: Switch case may fall through to the next case.
+// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:41:5: Error: Switch case may fall through to the next case.
 //     case 2:  result = 2; /// static warning - case fall-through, see "Switch"
 //     ^
 //
-// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:38:5: Error: Switch case may fall through to the next case.
+// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:42:5: Error: Switch case may fall through to the next case.
 //     case 3:  result = 3; /// static warning - case fall-through, see "Switch"
 //     ^
 //
-// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:48:5: Error: Switch case may fall through to the next case.
+// pkg/front_end/testcases/rasta/switch_execution_case_t02.dart:52:5: Error: Switch case may fall through to the next case.
 //     case 1:
 //     ^
 //
@@ -20,7 +20,7 @@ import "dart:core" as core;
 static method test(dynamic value) → dynamic {
   dynamic result;
   #L1:
-  switch(value) {
+  switch(value) /* dynamic */ {
     #L2:
     case #C1:
       {
@@ -48,7 +48,7 @@ static method test(dynamic value) → dynamic {
 static method testEmptyCases(dynamic value) → dynamic {
   dynamic result;
   #L6:
-  switch(value) {
+  switch(value) /* dynamic */ {
     #L7:
     case #C1:
     case #C2:

@@ -2,9 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.test.memory_source_file_helper;
+library;
 
 import 'dart:async' show Future;
+import 'dart:typed_data';
 export 'dart:io' show Platform;
 
 import 'package:compiler/compiler_api.dart' as api;
@@ -23,11 +24,13 @@ class MemorySourceFileProvider extends CompilerSourceFileProvider {
 
   /// MemorySourceFiles can contain maps of file names to string contents or
   /// file names to binary contents.
-  MemorySourceFileProvider(Map<String, dynamic> this.memorySourceFiles);
+  MemorySourceFileProvider(this.memorySourceFiles);
 
   @override
-  Future<api.Input<List<int>>> readBytesFromUri(
-      Uri resourceUri, api.InputKind inputKind) {
+  Future<api.Input<Uint8List>> readBytesFromUri(
+    Uri resourceUri,
+    api.InputKind inputKind,
+  ) {
     if (!resourceUri.isScheme('memory')) {
       return super.readBytesFromUri(resourceUri, inputKind);
     }
@@ -36,17 +39,20 @@ class MemorySourceFileProvider extends CompilerSourceFileProvider {
 
     var source = memorySourceFiles[resourceUri.path];
     if (source == null) {
-      return Future.error(Exception(
-          'No such memory file $resourceUri in ${memorySourceFiles.keys}'));
+      return Future.error(
+        Exception(
+          'No such memory file $resourceUri in ${memorySourceFiles.keys}',
+        ),
+      );
     }
-    api.Input<List<int>> input;
+    api.Input<Uint8List> input;
     StringSourceFile? stringFile;
     registerUri(resourceUri);
     if (source is String) {
       stringFile = StringSourceFile.fromUri(resourceUri, source);
     }
     switch (inputKind) {
-      case api.InputKind.UTF8:
+      case api.InputKind.utf8:
         input = stringFile ?? Utf8BytesSourceFile(resourceUri, source);
         break;
       case api.InputKind.binary:
@@ -60,13 +66,15 @@ class MemorySourceFileProvider extends CompilerSourceFileProvider {
   }
 
   @override
-  Future<api.Input<List<int>>> readFromUri(Uri resourceUri,
-          {api.InputKind inputKind = api.InputKind.UTF8}) =>
-      readBytesFromUri(resourceUri, inputKind);
+  Future<api.Input<Uint8List>> readFromUri(
+    Uri uri, {
+    api.InputKind inputKind = api.InputKind.utf8,
+  }) => readBytesFromUri(uri, inputKind);
 
   @override
-  api.Input<List<int>>? getUtf8SourceFile(Uri resourceUri) {
+  api.Input<Uint8List>? getUtf8SourceFile(Uri resourceUri) {
     var source = memorySourceFiles[resourceUri.path];
+    if (source == null) return null;
     return source is String
         ? StringSourceFile.fromUri(resourceUri, source)
         : Utf8BytesSourceFile(resourceUri, source);

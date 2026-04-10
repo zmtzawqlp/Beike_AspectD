@@ -3,7 +3,6 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart' as ir;
-import 'package:kernel/type_environment.dart' as ir;
 
 import 'entity_data.dart';
 
@@ -16,8 +15,8 @@ import '../elements/entities.dart';
 import '../elements/types.dart';
 import '../ir/util.dart';
 import '../kernel/element_map.dart';
-import '../kernel/kelements.dart' show KLocalFunction;
 import '../kernel/kernel_world.dart' show KClosedWorld;
+import '../js_model/elements.dart' show JLocalFunction;
 import '../universe/use.dart';
 import '../universe/world_impact.dart' show WorldImpact;
 
@@ -58,7 +57,11 @@ class EntityDataInfoBuilder {
   final EntityDataRegistry registry;
 
   EntityDataInfoBuilder(
-      this.closedWorld, this.elementMap, this.compiler, this.registry);
+    this.closedWorld,
+    this.elementMap,
+    this.compiler,
+    this.registry,
+  );
 
   Map<Entity, WorldImpact> get impactCache => compiler.impactCache;
   KElementEnvironment get elementEnvironment =>
@@ -99,8 +102,10 @@ class EntityDataInfoBuilder {
   }
 
   /// Recursively collects all the dependencies of [types].
-  void addTypeListDependencies(Iterable<DartType>? types,
-      [ImportEntity? import]) {
+  void addTypeListDependencies(
+    Iterable<DartType>? types, [
+    ImportEntity? import,
+  ]) {
     if (types == null) return;
     TypeEntityDataVisitor(this, import, commonElements).visitIterable(types);
   }
@@ -115,7 +120,7 @@ class EntityDataInfoBuilder {
     if (!closedWorld.isMemberUsed(element)) {
       return;
     }
-    _addDependenciesFromImpact(element);
+    _addDependenciesFromEntityImpact(element);
     ConstantCollector.collect(elementMap, element, this);
   }
 
@@ -125,9 +130,11 @@ class EntityDataInfoBuilder {
       if (usedEntity is MemberEntity) {
         addMember(usedEntity, import: staticUse.deferredImport);
       } else {
-        assert(usedEntity is KLocalFunction,
-            failedAt(usedEntity, "Unexpected static use $staticUse."));
-        var localFunction = usedEntity as KLocalFunction;
+        assert(
+          usedEntity is JLocalFunction,
+          failedAt(usedEntity, "Unexpected static use $staticUse."),
+        );
+        var localFunction = usedEntity as JLocalFunction;
         // TODO(sra): Consult KClosedWorld to see if signature is needed.
         addTypeDependencies(localFunction.functionType);
         addLocalFunction(localFunction);
@@ -135,8 +142,8 @@ class EntityDataInfoBuilder {
     }
 
     switch (staticUse.kind) {
-      case StaticUseKind.CONSTRUCTOR_INVOKE:
-      case StaticUseKind.CONST_CONSTRUCTOR_INVOKE:
+      case StaticUseKind.constructorInvoke:
+      case StaticUseKind.constConstructorInvoke:
         // The receiver type of generative constructors is a entityData of
         // the constructor (handled by `addMember` above) and not a
         // entityData at the call site.
@@ -147,34 +154,34 @@ class EntityDataInfoBuilder {
         addTypeListDependencies(staticUse.type!.typeArguments);
         processEntity();
         break;
-      case StaticUseKind.STATIC_INVOKE:
-      case StaticUseKind.CLOSURE_CALL:
-      case StaticUseKind.DIRECT_INVOKE:
+      case StaticUseKind.staticInvoke:
+      case StaticUseKind.closureCall:
+      case StaticUseKind.directInvoke:
         // TODO(johnniwinther): Use rti need data to skip unneeded type
         // arguments.
         addTypeListDependencies(staticUse.typeArguments);
         processEntity();
         break;
-      case StaticUseKind.STATIC_TEAR_OFF:
-      case StaticUseKind.CLOSURE:
-      case StaticUseKind.STATIC_GET:
-      case StaticUseKind.STATIC_SET:
-      case StaticUseKind.WEAK_STATIC_TEAR_OFF:
+      case StaticUseKind.staticTearOff:
+      case StaticUseKind.closure:
+      case StaticUseKind.staticGet:
+      case StaticUseKind.staticSet:
+      case StaticUseKind.weakStaticTearOff:
         processEntity();
         break;
-      case StaticUseKind.SUPER_TEAR_OFF:
-      case StaticUseKind.SUPER_FIELD_SET:
-      case StaticUseKind.SUPER_GET:
-      case StaticUseKind.SUPER_SETTER_SET:
-      case StaticUseKind.SUPER_INVOKE:
-      case StaticUseKind.INSTANCE_FIELD_GET:
-      case StaticUseKind.INSTANCE_FIELD_SET:
-      case StaticUseKind.FIELD_INIT:
-      case StaticUseKind.FIELD_CONSTANT_INIT:
+      case StaticUseKind.superTearOff:
+      case StaticUseKind.superFieldSet:
+      case StaticUseKind.superGet:
+      case StaticUseKind.superSetterSet:
+      case StaticUseKind.superInvoke:
+      case StaticUseKind.instanceFieldGet:
+      case StaticUseKind.instanceFieldSet:
+      case StaticUseKind.fieldInit:
+      case StaticUseKind.fieldConstantInit:
         // These static uses are not relevant for this algorithm.
         break;
-      case StaticUseKind.CALL_METHOD:
-      case StaticUseKind.INLINING:
+      case StaticUseKind.callMethod:
+      case StaticUseKind.inlining:
         failedAt(parent!, "Unexpected static use: $staticUse.");
     }
   }
@@ -189,63 +196,79 @@ class EntityDataInfoBuilder {
 
     DartType type = typeUse.type;
     switch (typeUse.kind) {
-      case TypeUseKind.TYPE_LITERAL:
+      case TypeUseKind.typeLiteral:
         addTypeDependencies(type, typeUse.deferredImport);
         break;
-      case TypeUseKind.CONST_INSTANTIATION:
+      case TypeUseKind.constInstantiation:
         addClassIfInterfaceType(type, typeUse.deferredImport);
         addTypeDependencies(type, typeUse.deferredImport);
         break;
-      case TypeUseKind.INSTANTIATION:
-      case TypeUseKind.NATIVE_INSTANTIATION:
-      case TypeUseKind.RECORD_INSTANTIATION:
+      case TypeUseKind.instantiation:
+      case TypeUseKind.nativeInstantiation:
+      case TypeUseKind.recordInstantiation:
         addClassIfInterfaceType(type);
         addTypeDependencies(type);
         break;
-      case TypeUseKind.IS_CHECK:
-      case TypeUseKind.CATCH_TYPE:
+      case TypeUseKind.isCheck:
+      case TypeUseKind.catchType:
         addTypeDependencies(type);
         break;
-      case TypeUseKind.AS_CAST:
+      case TypeUseKind.asCast:
         if (closedWorld.annotationsData
             .getExplicitCastCheckPolicy(parent)
             .isEmitted) {
           addTypeDependencies(type);
         }
         break;
-      case TypeUseKind.IMPLICIT_CAST:
+      case TypeUseKind.implicitCast:
         if (closedWorld.annotationsData
             .getImplicitDowncastCheckPolicy(parent)
             .isEmitted) {
           addTypeDependencies(type);
         }
         break;
-      case TypeUseKind.PARAMETER_CHECK:
-      case TypeUseKind.TYPE_VARIABLE_BOUND_CHECK:
+      case TypeUseKind.parameterCheck:
+      case TypeUseKind.typeVariableBoundCheck:
         if (closedWorld.annotationsData
             .getParameterCheckPolicy(parent)
             .isEmitted) {
           addTypeDependencies(type);
         }
         break;
-      case TypeUseKind.RTI_VALUE:
-      case TypeUseKind.TYPE_ARGUMENT:
-      case TypeUseKind.NAMED_TYPE_VARIABLE_NEW_RTI:
-      case TypeUseKind.CONSTRUCTOR_REFERENCE:
+      case TypeUseKind.rtiValue:
+      case TypeUseKind.typeArgument:
+      case TypeUseKind.namedTypeVariable:
+      case TypeUseKind.constructorReference:
         failedAt(parent!, "Unexpected type use: $typeUse.");
     }
   }
 
-  /// Extract any dependencies that are known from the impact of [element].
-  void _addDependenciesFromImpact(MemberEntity element) {
-    WorldImpact worldImpact = impactCache[element]!;
+  void _addFromConditionalUse(ConditionalUse conditionalUse) {
+    if (conditionalUse.originalConditions.any(closedWorld.isMemberUsed)) {
+      _addDependenciesFromImpact(conditionalUse.impact);
+    } else {
+      final replacementImpact = conditionalUse.replacementImpact;
+      if (replacementImpact != null) {
+        _addDependenciesFromImpact(replacementImpact);
+      }
+    }
+  }
+
+  void _addDependenciesFromImpact(WorldImpact worldImpact) {
     worldImpact.forEachStaticUse(_addFromStaticUse);
     worldImpact.forEachTypeUse(_addFromTypeUse);
+    worldImpact.forEachConditionalUse((_, use) => _addFromConditionalUse(use));
 
     // TODO(johnniwinther): Use rti need data to skip unneeded type
     // arguments.
     worldImpact.forEachDynamicUse(
-        (_, use) => addTypeListDependencies(use.typeArguments));
+      (_, use) => addTypeListDependencies(use.typeArguments),
+    );
+  }
+
+  /// Extract any dependencies that are known from the impact of [element].
+  void _addDependenciesFromEntityImpact(MemberEntity element) {
+    _addDependenciesFromImpact(impactCache[element]!);
   }
 }
 
@@ -289,8 +312,9 @@ class EntityDataInfoVisitor extends EntityDataVisitor {
     });
     elementEnvironment.forEachSuperClass(cls, (superClass) {
       addClassAndMaybeAddEffectiveMixinClass(superClass);
-      infoBuilder
-          .addTypeDependencies(elementEnvironment.getThisType(superClass));
+      infoBuilder.addTypeDependencies(
+        elementEnvironment.getThisType(superClass),
+      );
     });
     addClassAndMaybeAddEffectiveMixinClass(cls);
   }
@@ -307,8 +331,9 @@ class EntityDataInfoVisitor extends EntityDataVisitor {
   @override
   void visitMemberEntityData(MemberEntity element) {
     if (element is FunctionEntity) {
-      infoBuilder
-          .addTypeDependencies(elementEnvironment.getFunctionType(element));
+      infoBuilder.addTypeDependencies(
+        elementEnvironment.getFunctionType(element),
+      );
     }
     if (element.isStatic ||
         element.isTopLevel ||
@@ -364,11 +389,6 @@ class TypeEntityDataVisitor implements DartTypeVisitor<void, Null> {
 
   void visitIterable(Iterable<DartType> types) {
     types.forEach(visit);
-  }
-
-  @override
-  void visitLegacyType(LegacyType type, Null argument) {
-    visit(type.baseType);
   }
 
   @override
@@ -446,85 +466,100 @@ class TypeEntityDataVisitor implements DartTypeVisitor<void, Null> {
 class ConstantCollector extends ir.RecursiveVisitor {
   final KernelToElementMap elementMap;
   final EntityDataInfoBuilder infoBuilder;
-  final ir.StaticTypeContext staticTypeContext;
 
-  ConstantCollector(this.elementMap, this.staticTypeContext, this.infoBuilder);
+  ConstantCollector(this.elementMap, this.infoBuilder);
 
   CommonElements get commonElements => elementMap.commonElements;
 
   /// Extract the set of constants that are used in the body of [member].
-  static void collect(KernelToElementMap elementMap, MemberEntity member,
-      EntityDataInfoBuilder infoBuilder) {
+  static void collect(
+    KernelToElementMap elementMap,
+    MemberEntity member,
+    EntityDataInfoBuilder infoBuilder,
+  ) {
     ir.Member node = elementMap.getMemberNode(member);
 
     // Fetch the internal node in order to skip annotations on the member.
     // TODO(sigmund): replace this pattern when the kernel-ast provides a better
     // way to skip annotations (issue 31565).
-    var visitor = ConstantCollector(
-        elementMap, elementMap.getStaticTypeContext(member), infoBuilder);
+    var visitor = ConstantCollector(elementMap, infoBuilder);
     if (node is ir.Field) {
       node.initializer?.accept(visitor);
       return;
     }
 
     if (node is ir.Constructor) {
-      node.initializers.forEach((i) => i.accept(visitor));
+      for (var i in node.initializers) {
+        i.accept(visitor);
+      }
     }
     node.function?.accept(visitor);
   }
 
   void add(ir.Expression node, {bool requireConstant = true}) {
     ConstantValue? constant = elementMap.getConstantValue(
-        staticTypeContext, node,
-        requireConstant: requireConstant);
+      node,
+      requireConstant: requireConstant,
+    );
     if (constant != null) {
-      infoBuilder.addConstant(constant,
-          import: elementMap.getImport(getDeferredImport(node)));
+      infoBuilder.addConstant(
+        constant,
+        import: elementMap.getImport(getDeferredImport(node)),
+      );
     }
   }
 
   @override
-  void visitIntLiteral(ir.IntLiteral literal) {}
+  void visitIntLiteral(ir.IntLiteral node) {}
 
   @override
-  void visitDoubleLiteral(ir.DoubleLiteral literal) {}
+  void visitDoubleLiteral(ir.DoubleLiteral node) {}
 
   @override
-  void visitBoolLiteral(ir.BoolLiteral literal) {}
+  void visitBoolLiteral(ir.BoolLiteral node) {}
 
   @override
-  void visitStringLiteral(ir.StringLiteral literal) {}
+  void visitStringLiteral(ir.StringLiteral node) {}
 
   @override
-  void visitSymbolLiteral(ir.SymbolLiteral literal) => add(literal);
+  void visitSymbolLiteral(ir.SymbolLiteral node) => add(node);
 
   @override
-  void visitNullLiteral(ir.NullLiteral literal) {}
+  void visitNullLiteral(ir.NullLiteral node) {}
 
   @override
-  void visitListLiteral(ir.ListLiteral literal) {
-    if (literal.isConst) {
-      add(literal);
+  void visitListLiteral(ir.ListLiteral node) {
+    if (node.isConst) {
+      add(node);
     } else {
-      super.visitListLiteral(literal);
+      super.visitListLiteral(node);
     }
   }
 
   @override
-  void visitSetLiteral(ir.SetLiteral literal) {
-    if (literal.isConst) {
-      add(literal);
+  void visitSetLiteral(ir.SetLiteral node) {
+    if (node.isConst) {
+      add(node);
     } else {
-      super.visitSetLiteral(literal);
+      super.visitSetLiteral(node);
     }
   }
 
   @override
-  void visitMapLiteral(ir.MapLiteral literal) {
-    if (literal.isConst) {
-      add(literal);
+  void visitMapLiteral(ir.MapLiteral node) {
+    if (node.isConst) {
+      add(node);
     } else {
-      super.visitMapLiteral(literal);
+      super.visitMapLiteral(node);
+    }
+  }
+
+  @override
+  void visitRecordLiteral(ir.RecordLiteral node) {
+    if (node.isConst) {
+      add(node);
+    } else {
+      super.visitRecordLiteral(node);
     }
   }
 

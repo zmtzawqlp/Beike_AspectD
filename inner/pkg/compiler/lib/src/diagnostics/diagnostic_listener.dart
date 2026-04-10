@@ -2,7 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.diagnostic_listener;
+library;
+
+// ignore: implementation_imports
+import 'package:front_end/src/api_unstable/dart2js.dart'
+    as ir
+    show LocatedMessage;
 
 import '../../compiler_api.dart' as api;
 import '../compiler.dart' show Compiler;
@@ -33,61 +38,99 @@ class DiagnosticReporter {
 
   Entity? get currentElement => _currentElement;
 
-  DiagnosticMessage createMessage(Spannable spannable, MessageKind messageKind,
-      [Map<String, String> arguments = const {}]) {
+  DiagnosticMessage createMessage(
+    Spannable spannable,
+    MessageKind messageKind, [
+    Map<String, String> arguments = const {},
+  ]) {
     SourceSpan span = spanFromSpannable(spannable);
-    MessageTemplate template = MessageTemplate.TEMPLATES[messageKind]!;
+    MessageTemplate template = MessageTemplate.templates[messageKind]!;
     Message message = template.message(arguments, options);
     return DiagnosticMessage(span, spannable, message);
   }
 
-  void reportError(DiagnosticMessage message,
-      [List<DiagnosticMessage> infos = const <DiagnosticMessage>[]]) {
-    _reportDiagnosticInternal(message, infos, api.Diagnostic.ERROR);
+  DiagnosticCfeMessage createCfeMessage(
+    Spannable spannable,
+    MessageKind messageKind,
+    String messageCode, [
+    Map<String, String> arguments = const {},
+  ]) {
+    SourceSpan span = spanFromSpannable(spannable);
+    MessageTemplate template = MessageTemplate.templates[messageKind]!;
+    Message message = template.message(arguments, options);
+    return DiagnosticCfeMessage(span, spannable, message, messageCode);
   }
 
-  void reportErrorMessage(Spannable spannable, MessageKind messageKind,
-      [Map<String, String> arguments = const {}]) {
+  void reportError(
+    DiagnosticMessage message, [
+    List<DiagnosticMessage> infos = const <DiagnosticMessage>[],
+  ]) {
+    _reportDiagnosticInternal(message, infos, api.Diagnostic.error);
+  }
+
+  void reportErrorMessage(
+    Spannable spannable,
+    MessageKind messageKind, [
+    Map<String, String> arguments = const {},
+  ]) {
     reportError(createMessage(spannable, messageKind, arguments));
   }
 
-  void reportWarning(DiagnosticMessage message,
-      [List<DiagnosticMessage> infos = const <DiagnosticMessage>[]]) {
-    _reportDiagnosticInternal(message, infos, api.Diagnostic.WARNING);
+  void reportWarning(
+    DiagnosticMessage message, [
+    List<DiagnosticMessage> infos = const <DiagnosticMessage>[],
+  ]) {
+    _reportDiagnosticInternal(message, infos, api.Diagnostic.warning);
   }
 
-  void reportWarningMessage(Spannable spannable, MessageKind messageKind,
-      [Map<String, String> arguments = const {}]) {
+  void reportWarningMessage(
+    Spannable spannable,
+    MessageKind messageKind, [
+    Map<String, String> arguments = const {},
+  ]) {
     reportWarning(createMessage(spannable, messageKind, arguments));
   }
 
-  void reportHint(DiagnosticMessage message,
-      [List<DiagnosticMessage> infos = const <DiagnosticMessage>[]]) {
-    _reportDiagnosticInternal(message, infos, api.Diagnostic.HINT);
+  void reportHint(
+    DiagnosticMessage message, [
+    List<DiagnosticMessage> infos = const <DiagnosticMessage>[],
+  ]) {
+    _reportDiagnosticInternal(message, infos, api.Diagnostic.hint);
   }
 
-  void reportHintMessage(Spannable spannable, MessageKind messageKind,
-      [Map<String, String> arguments = const {}]) {
+  void reportHintMessage(
+    Spannable spannable,
+    MessageKind messageKind, [
+    Map<String, String> arguments = const {},
+  ]) {
     reportHint(createMessage(spannable, messageKind, arguments));
   }
 
-  void reportInfo(DiagnosticMessage message,
-      [List<DiagnosticMessage> infos = const <DiagnosticMessage>[]]) {
-    _reportDiagnosticInternal(message, infos, api.Diagnostic.INFO);
+  void reportInfo(
+    DiagnosticMessage message, [
+    List<DiagnosticMessage> infos = const <DiagnosticMessage>[],
+  ]) {
+    _reportDiagnosticInternal(message, infos, api.Diagnostic.info);
   }
 
-  void reportInfoMessage(Spannable node, MessageKind errorCode,
-      [Map<String, String> arguments = const {}]) {
+  void reportInfoMessage(
+    Spannable node,
+    MessageKind errorCode, [
+    Map<String, String> arguments = const {},
+  ]) {
     reportInfo(createMessage(node, errorCode, arguments));
   }
 
-  void _reportDiagnosticInternal(DiagnosticMessage message,
-      List<DiagnosticMessage> infos, api.Diagnostic kind) {
+  void _reportDiagnosticInternal(
+    DiagnosticMessage message,
+    List<DiagnosticMessage> infos,
+    api.Diagnostic kind,
+  ) {
     if (!options.showAllPackageWarnings &&
-        message.spannable != NO_LOCATION_SPANNABLE) {
+        message.spannable != noLocationSpannable) {
       switch (kind) {
-        case api.Diagnostic.WARNING:
-        case api.Diagnostic.HINT:
+        case api.Diagnostic.warning:
+        case api.Diagnostic.hint:
           Entity? element = _elementFromSpannable(message.spannable);
           if (element != null && !_compiler.inUserCode(element)) {
             Uri uri = _compiler.getCanonicalUri(element)!;
@@ -95,9 +138,11 @@ class DiagnosticReporter {
               _reportDiagnostic(message, infos, kind);
               return;
             }
-            SuppressionInfo info =
-                _suppressedWarnings.putIfAbsent(uri, () => SuppressionInfo());
-            if (kind == api.Diagnostic.WARNING) {
+            SuppressionInfo info = _suppressedWarnings.putIfAbsent(
+              uri,
+              () => SuppressionInfo(),
+            );
+            if (kind == api.Diagnostic.warning) {
               info.warnings++;
             } else {
               info.hints++;
@@ -106,10 +151,15 @@ class DiagnosticReporter {
             return;
           }
           break;
-        case api.Diagnostic.INFO:
+        case api.Diagnostic.info:
           if (_lastDiagnosticWasFiltered) {
             return;
           }
+          break;
+        case api.Diagnostic.error:
+        case api.Diagnostic.verboseInfo:
+        case api.Diagnostic.crash:
+        case api.Diagnostic.context:
           break;
       }
     }
@@ -117,12 +167,15 @@ class DiagnosticReporter {
     _reportDiagnostic(message, infos, kind);
   }
 
-  void _reportDiagnostic(DiagnosticMessage message,
-      List<DiagnosticMessage> infos, api.Diagnostic kind) {
+  void _reportDiagnostic(
+    DiagnosticMessage message,
+    List<DiagnosticMessage> infos,
+    api.Diagnostic kind,
+  ) {
     _compiler.reportDiagnostic(message, infos, kind);
-    if (kind == api.Diagnostic.ERROR ||
-        kind == api.Diagnostic.CRASH ||
-        (options.fatalWarnings && kind == api.Diagnostic.WARNING)) {
+    if (kind == api.Diagnostic.error ||
+        kind == api.Diagnostic.crash ||
+        (options.fatalWarnings && kind == api.Diagnostic.warning)) {
       _compiler.fatalDiagnosticReported(message, infos, kind);
     }
   }
@@ -135,7 +188,7 @@ class DiagnosticReporter {
   /// [withCurrentElement] performs an operation, [f], returning the return
   /// value from [f].  If an error occurs then report it as having occurred
   /// during compilation of [element].  Can be nested.
-  dynamic withCurrentElement(Entity element, dynamic f()) {
+  dynamic withCurrentElement(Entity element, dynamic Function() f) {
     Entity? old = currentElement;
     _currentElement = element;
     try {
@@ -165,12 +218,14 @@ class DiagnosticReporter {
   }
 
   void _reportAssertionFailure(SpannableAssertionFailure ex) {
-    String message =
-        (ex.message != null) ? tryToString(ex.message) : tryToString(ex);
+    String message = (ex.message != null)
+        ? tryToString(ex.message!)
+        : tryToString(ex);
     _reportDiagnosticInternal(
-        createMessage(ex.node, MessageKind.GENERIC, {'text': message}),
-        const <DiagnosticMessage>[],
-        api.Diagnostic.CRASH);
+      createMessage(ex.node, MessageKind.generic, {'text': message}),
+      const <DiagnosticMessage>[],
+      api.Diagnostic.crash,
+    );
   }
 
   /// Use the compiler context [SourceSpan] from spannable using the
@@ -184,10 +239,10 @@ class DiagnosticReporter {
   /// If [node] is a [Node] we assert in checked mode that the corresponding
   /// tokens can be found within the tokens of the current element.
   SourceSpan spanFromSpannable(Spannable spannable) {
-    if (spannable == CURRENT_ELEMENT_SPANNABLE) {
+    if (spannable == currentElementSpannable) {
       if (currentElement == null) return SourceSpan.unknown();
       spannable = currentElement!;
-    } else if (spannable == NO_LOCATION_SPANNABLE) {
+    } else if (spannable == noLocationSpannable) {
       if (currentElement == null) return SourceSpan.unknown();
       spannable = currentElement!;
     }
@@ -204,27 +259,35 @@ class DiagnosticReporter {
     return _spanFromStrategy(spannable);
   }
 
-  dynamic internalError(Spannable? spannable, reason) {
+  Never internalError(Spannable? spannable, Object reason) {
     String message = tryToString(reason);
     _reportDiagnosticInternal(
-        createMessage(spannable ?? SourceSpan.unknown(), MessageKind.GENERIC,
-            {'text': message}),
-        const <DiagnosticMessage>[],
-        api.Diagnostic.CRASH);
+      createMessage(spannable ?? SourceSpan.unknown(), MessageKind.generic, {
+        'text': message,
+      }),
+      const <DiagnosticMessage>[],
+      api.Diagnostic.crash,
+    );
     throw 'Internal Error: $message';
   }
 
   void _unhandledExceptionOnElement(Entity element) {
     if (_hasCrashed) return;
     _hasCrashed = true;
-    _reportDiagnostic(createMessage(element, MessageKind.COMPILER_CRASHED),
-        const <DiagnosticMessage>[], api.Diagnostic.CRASH);
+    _reportDiagnostic(
+      createMessage(element, MessageKind.compilerCrashed),
+      const <DiagnosticMessage>[],
+      api.Diagnostic.crash,
+    );
     _pleaseReportCrash();
   }
 
   void _pleaseReportCrash() {
-    print(MessageTemplate.TEMPLATES[MessageKind.PLEASE_REPORT_THE_CRASH]!
-        .message({'buildId': _compiler.options.buildId}, options));
+    print(
+      MessageTemplate.templates[MessageKind.pleaseReportTheCrash]!.message({
+        'buildId': _compiler.options.buildId,
+      }, options),
+    );
   }
 
   /// Finds the approximate [Element] for [node]. [currentElement] is used as
@@ -239,16 +302,18 @@ class DiagnosticReporter {
     return element ?? currentElement;
   }
 
-  void log(message) {
-    Message msg = MessageTemplate.TEMPLATES[MessageKind.GENERIC]!
-        .message({'text': '$message'}, options);
+  void log(Object message) {
+    Message msg = MessageTemplate.templates[MessageKind.generic]!.message({
+      'text': '$message',
+    }, options);
     _reportDiagnostic(
-        DiagnosticMessage(SourceSpan.unknown(), NO_LOCATION_SPANNABLE, msg),
-        const <DiagnosticMessage>[],
-        api.Diagnostic.VERBOSE_INFO);
+      DiagnosticMessage(SourceSpan.unknown(), noLocationSpannable, msg),
+      const <DiagnosticMessage>[],
+      api.Diagnostic.verboseInfo,
+    );
   }
 
-  String tryToString(object) {
+  String tryToString(Object object) {
     try {
       return object.toString();
     } catch (_) {
@@ -256,7 +321,7 @@ class DiagnosticReporter {
     }
   }
 
-  Future onError(Uri? uri, error, StackTrace stackTrace) {
+  Future<Never> onError(Uri? uri, Object error, StackTrace stackTrace) {
     try {
       if (!_hasCrashed) {
         _hasCrashed = true;
@@ -264,10 +329,13 @@ class DiagnosticReporter {
           _reportAssertionFailure(error);
         } else {
           _reportDiagnostic(
-              createMessage(
-                  SourceSpan(uri ?? Uri(), 0, 0), MessageKind.COMPILER_CRASHED),
-              const <DiagnosticMessage>[],
-              api.Diagnostic.CRASH);
+            createMessage(
+              SourceSpan(uri ?? Uri(), 0, 0),
+              MessageKind.compilerCrashed,
+            ),
+            const <DiagnosticMessage>[],
+            api.Diagnostic.crash,
+          );
         }
         _pleaseReportCrash();
       }
@@ -279,7 +347,11 @@ class DiagnosticReporter {
 
   /// Called when an [exception] is thrown from user-provided code, like from
   /// the input provider or diagnostics handler.
-  void onCrashInUserCode(String message, exception, stackTrace) {
+  void onCrashInUserCode(
+    String message,
+    Object exception,
+    StackTrace stackTrace,
+  ) {
     _hasCrashed = true;
     print('$message: ${tryToString(exception)}');
     print(tryToString(stackTrace));
@@ -288,23 +360,23 @@ class DiagnosticReporter {
   void reportSuppressedMessagesSummary() {
     if (!options.showAllPackageWarnings && !options.suppressWarnings) {
       _suppressedWarnings.forEach((Uri uri, SuppressionInfo info) {
-        MessageKind kind = MessageKind.HIDDEN_WARNINGS_HINTS;
+        MessageKind kind = MessageKind.hiddenWarningsHints;
         if (info.warnings == 0) {
-          kind = MessageKind.HIDDEN_HINTS;
+          kind = MessageKind.hiddenHints;
         } else if (info.hints == 0) {
-          kind = MessageKind.HIDDEN_WARNINGS;
+          kind = MessageKind.hiddenWarnings;
         }
-        MessageTemplate template = MessageTemplate.TEMPLATES[kind]!;
+        MessageTemplate template = MessageTemplate.templates[kind]!;
         Message message = template.message({
           'warnings': info.warnings.toString(),
           'hints': info.hints.toString(),
           'uri': uri.toString(),
         }, options);
         _reportDiagnostic(
-            DiagnosticMessage(
-                SourceSpan.unknown(), NO_LOCATION_SPANNABLE, message),
-            const <DiagnosticMessage>[],
-            api.Diagnostic.HINT);
+          DiagnosticMessage(SourceSpan.unknown(), noLocationSpannable, message),
+          const <DiagnosticMessage>[],
+          api.Diagnostic.hint,
+        );
       });
     }
   }
@@ -318,8 +390,55 @@ class DiagnosticMessage {
   DiagnosticMessage(this.sourceSpan, this.spannable, this.message);
 }
 
+/// Message generated by the CFE with an additional CFE-specific [messageCode].
+class DiagnosticCfeMessage extends DiagnosticMessage {
+  final String messageCode;
+
+  DiagnosticCfeMessage(
+    super.sourceSpan,
+    super.spannable,
+    super.message,
+    this.messageCode,
+  );
+}
+
 /// Information about suppressed warnings and hints for a given library.
 class SuppressionInfo {
   int warnings = 0;
   int hints = 0;
+}
+
+void reportLocatedMessage(
+  DiagnosticReporter reporter,
+  ir.LocatedMessage message,
+  List<ir.LocatedMessage>? context,
+) {
+  DiagnosticMessage diagnosticMessage = _createDiagnosticMessage(
+    reporter,
+    message,
+  );
+  var infos = <DiagnosticMessage>[];
+  if (context != null) {
+    for (ir.LocatedMessage message in context) {
+      infos.add(_createDiagnosticMessage(reporter, message));
+    }
+  }
+  reporter.reportError(diagnosticMessage, infos);
+}
+
+DiagnosticMessage _createDiagnosticMessage(
+  DiagnosticReporter reporter,
+  ir.LocatedMessage message,
+) {
+  var sourceSpan = SourceSpan(
+    message.uri!,
+    message.charOffset,
+    message.charOffset + message.length,
+  );
+  return reporter.createCfeMessage(
+    sourceSpan,
+    MessageKind.generic,
+    message.code.name,
+    {'text': message.problemMessage},
+  );
 }

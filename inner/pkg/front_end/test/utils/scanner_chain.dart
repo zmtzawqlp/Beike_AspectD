@@ -1,21 +1,19 @@
 // Copyright (c) 2016, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
-library fasta.testing.scanner_chain;
-
-import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
-    show ScannerResult, scan;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:_fe_analyzer_shared/src/scanner/io.dart' show readBytesFromFile;
-
+import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
+    show ScannerResult, scan;
 import 'package:testing/testing.dart'
     show ChainContext, Result, Step, TestDescription;
 
 class ReadFile {
   final Uri uri;
 
-  final List<int> bytes;
+  final Uint8List bytes;
 
   const ReadFile(this.uri, this.bytes);
 }

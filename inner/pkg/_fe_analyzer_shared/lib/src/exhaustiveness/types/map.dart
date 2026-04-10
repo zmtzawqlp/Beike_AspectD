@@ -8,12 +8,19 @@ part of '../types.dart';
 /// uniqueness.
 class MapPatternStaticType<Type extends Object>
     extends RestrictedStaticType<Type, MapTypeRestriction<Type>> {
-  MapPatternStaticType(super.typeOperations, super.fieldLookup, super.type,
-      super.restriction, super.name);
+  MapPatternStaticType(
+    super.typeOperations,
+    super.fieldLookup,
+    super.type,
+    super.restriction,
+    super.name,
+  );
 
   @override
-  String spaceToText(Map<Key, Space> spaceProperties,
-      Map<Key, Space> additionalSpaceProperties) {
+  String spaceToText(
+    Map<Key, Space> spaceProperties,
+    Map<Key, Space> additionalSpaceProperties,
+  ) {
     StringBuffer buffer = new StringBuffer();
     buffer.write(restriction.typeArgumentsText);
     buffer.write('{');
@@ -30,9 +37,12 @@ class MapPatternStaticType<Type extends Object>
   }
 
   @override
-  void witnessToText(StringBuffer buffer, PropertyWitness witness,
-      Map<Key, PropertyWitness> witnessFields,
-      {required bool forCorrection}) {
+  void witnessToDart(
+    DartTemplateBuffer buffer,
+    PropertyWitness witness,
+    Map<Key, PropertyWitness> witnessFields, {
+    required bool forCorrection,
+  }) {
     buffer.write('{');
     String comma = '';
     for (MapKey key in restriction.keys) {
@@ -41,7 +51,7 @@ class MapPatternStaticType<Type extends Object>
       buffer.write(': ');
       PropertyWitness? witness = witnessFields[key];
       if (witness != null) {
-        witness.witnessToText(buffer, forCorrection: forCorrection);
+        witness.witnessToDart(buffer, forCorrection: forCorrection);
       } else {
         buffer.write('_');
       }
@@ -65,7 +75,7 @@ class MapPatternStaticType<Type extends Object>
         buffer.write(key.name);
         buffer.write(': ');
         PropertyWitness field = entry.value;
-        field.witnessToText(buffer, forCorrection: forCorrection);
+        field.witnessToDart(buffer, forCorrection: forCorrection);
       }
     }
     buffer.write(additionalEnd);
@@ -87,11 +97,18 @@ class MapTypeRestriction<Type extends Object> implements Restriction<Type> {
   final String typeArgumentsText;
 
   MapTypeRestriction(
-      this.keyType, this.valueType, this.keys, this.typeArgumentsText);
+    this.keyType,
+    this.valueType,
+    this.keys,
+    this.typeArgumentsText,
+  );
 
   @override
-  late final int hashCode =
-      Object.hash(keyType, valueType, Object.hashAllUnordered(keys));
+  late final int hashCode = Object.hash(
+    keyType,
+    valueType,
+    Object.hashAllUnordered(keys),
+  );
 
   @override
   bool get isUnrestricted {

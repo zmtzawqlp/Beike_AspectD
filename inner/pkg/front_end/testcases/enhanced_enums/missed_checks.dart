@@ -6,8 +6,9 @@ enum E1 {
   element.new(); // Ok: invocation of the unnamed constructor.
 }
 
+// Error.
 enum E2<values> {
-  element; // Error.
+  element;
 }
 
 enum E3<element> {
@@ -35,5 +36,29 @@ abstract class A1 extends SuperclassWithEquals implements Enum {} // Error.
 abstract class A2 extends SuperclassWithHashCode implements Enum {} // Error.
 
 abstract class A3 extends SuperclassWithValues implements Enum {} // Error.
+
+enum E4 {
+  E4
+}
+
+enum E5 {
+  a;
+  get E5 => null;
+}
+
+enum E6 {
+  a;
+  set E6(_) {}
+}
+
+enum E7 {
+  a;
+  E7() {}
+}
+
+enum E8 {
+  a;
+  factory E8.values() => a;
+}
 
 main() {}

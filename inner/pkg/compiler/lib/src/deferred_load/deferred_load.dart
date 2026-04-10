@@ -266,7 +266,9 @@
 // TODO(sigmund): investigate different heuristics for how to select the next
 // work item (e.g. we might converge faster if we pick first the update that
 // contains a bigger delta.)
-library deferred_load;
+library;
+
+import 'dart:convert';
 
 import '../../compiler_api.dart' as api show OutputType;
 import '../common.dart';
@@ -280,6 +282,7 @@ import '../elements/entities.dart';
 import '../elements/types.dart';
 import '../kernel/element_map.dart';
 import '../kernel/kernel_world.dart' show KClosedWorld;
+import '../options.dart';
 import '../util/util.dart' show makeUnique;
 import 'algorithm_state.dart';
 import 'entity_data.dart';
@@ -287,7 +290,7 @@ import 'import_set.dart';
 import 'output_unit.dart';
 import 'program_split_constraints/builder.dart' as psc show Builder;
 
-class _DeferredLoadTaskMetrics implements Metrics {
+class DeferredLoadTaskMetrics implements Metrics {
   @override
   String get namespace => 'deferred_load';
 
@@ -313,8 +316,12 @@ class DeferredLoadTask extends CompilerTask {
 
   /// A sentinel used only by the [ImportSet] corresponding to the
   /// [_mainOutputUnit].
-  final ImportEntity _mainImport =
-      ImportEntity(true, 'main#main', Uri(), Uri());
+  final ImportEntity _mainImport = ImportEntity(
+    true,
+    'main#main',
+    Uri(),
+    Uri(),
+  );
 
   /// A set containing (eventually) all output units that will result from the
   /// program.
@@ -344,16 +351,19 @@ class DeferredLoadTask extends CompilerTask {
 
   final KernelToElementMap _elementMap;
 
+  DeferredLoadTaskMetrics? _deferredLoadMetrics;
+  DeferredLoadTaskMetrics get deferredLoadMetrics =>
+      _deferredLoadMetrics ??= DeferredLoadTaskMetrics();
   @override
-  final _DeferredLoadTaskMetrics metrics = _DeferredLoadTaskMetrics();
+  Metrics get metrics => _deferredLoadMetrics ?? Metrics.none();
 
   bool get disableProgramSplit => compiler.options.disableProgramSplit;
 
   AlgorithmState? algorithmState;
 
   DeferredLoadTask(this.compiler, this._elementMap)
-      : _mainOutputUnit = OutputUnit(true, 'main', {}),
-        super(compiler.measurer) {
+    : _mainOutputUnit = OutputUnit(true, 'main', {}),
+      super(compiler.measurer) {
     _allOutputUnits.add(_mainOutputUnit);
   }
 
@@ -379,7 +389,7 @@ class DeferredLoadTask extends CompilerTask {
       counter++;
       importSet.unit = unit;
       _allOutputUnits.add(unit);
-      metrics.outputUnitElements.add(1);
+      deferredLoadMetrics.outputUnitElements.add(1);
     }
 
     // Generate an output unit for all import sets that are associated with an
@@ -402,10 +412,10 @@ class DeferredLoadTask extends CompilerTask {
     int nextDeferId = 0;
     Set<String> usedImportNames = {};
     for (ImportEntity import in allDeferredImports) {
-      String result = computeImportDeferName(import, compiler);
       if (useIds) {
         importDeferName[import] = (++nextDeferId).toString();
       } else {
+        String result = computeImportDeferName(import, compiler);
         // Note: tools that process the json file to build multi-part initial load
         // bundles depend on the fact that makeUnique appends only digits, or a
         // period followed by digits.
@@ -425,11 +435,13 @@ class DeferredLoadTask extends CompilerTask {
     return '';
   }
 
+  bool get generateDeferredLoadIdMap => compiler.stage.emitsDeferredLoadIds;
+
   /// Performs the deferred loading algorithm.
   ///
   /// See the top-level library comment for details.
   OutputUnitData run(FunctionEntity main, KClosedWorld closedWorld) {
-    return metrics.time.measure(() => _run(main, closedWorld));
+    return deferredLoadMetrics.time.measure(() => _run(main, closedWorld));
   }
 
   OutputUnitData _run(FunctionEntity main, KClosedWorld closedWorld) {
@@ -437,9 +449,14 @@ class DeferredLoadTask extends CompilerTask {
       return _buildResult();
     }
 
-    work() {
+    void work() {
       algorithmState = AlgorithmState.create(
-          main, compiler, _elementMap, closedWorld, importSets!);
+        main,
+        compiler,
+        _elementMap,
+        closedWorld,
+        importSets!,
+      );
     }
 
     reporter.withCurrentElement(main.library, () => measure(work));
@@ -468,8 +485,11 @@ class DeferredLoadTask extends CompilerTask {
         graph.add(representation.join());
       }
     }
-    compiler.outputProvider
-        .createOutputSink(deferredGraphUri.path, '', api.OutputType.debug)
+    compiler.outputProvider.createOutputSink(
+        deferredGraphUri.path,
+        '',
+        api.OutputType.debug,
+      )
       ..add(graph.join('\n'))
       ..close();
   }
@@ -481,39 +501,47 @@ class DeferredLoadTask extends CompilerTask {
     if (deferredGraphUri != null) {
       _dumpDeferredGraph(deferredGraphUri);
     }
+    bool updateMaps = true;
+    if (generateDeferredLoadIdMap) {
+      _writeDeferredLoadIdMap();
+      updateMaps = false;
+    }
     Map<ClassEntity, OutputUnit> classMap = {};
     Map<ClassEntity, OutputUnit> classTypeMap = {};
     Map<MemberEntity, OutputUnit> memberMap = {};
     Map<Local, OutputUnit> localFunctionMap = {};
     Map<ConstantValue, OutputUnit> constantMap = {};
-    algorithmState?.entityToSet.forEach((d, s) {
-      if (d is ClassEntityData) {
-        classMap[d.entity] = s.unit!;
-      } else if (d is ClassTypeEntityData) {
-        classTypeMap[d.entity] = s.unit!;
-      } else if (d is MemberEntityData) {
-        memberMap[d.entity] = s.unit!;
-      } else if (d is LocalFunctionEntityData) {
-        localFunctionMap[d.entity] = s.unit!;
-      } else if (d is ConstantEntityData) {
-        constantMap[d.entity] = s.unit!;
-      } else {
-        throw 'Unrecognized EntityData $d';
-      }
-    });
+    if (updateMaps) {
+      algorithmState?.entityToSet.forEach((d, s) {
+        if (d is ClassEntityData) {
+          classMap[d.entity] = s.unit!;
+        } else if (d is ClassTypeEntityData) {
+          classTypeMap[d.entity] = s.unit!;
+        } else if (d is MemberEntityData) {
+          memberMap[d.entity] = s.unit!;
+        } else if (d is LocalFunctionEntityData) {
+          localFunctionMap[d.entity] = s.unit!;
+        } else if (d is ConstantEntityData) {
+          constantMap[d.entity] = s.unit!;
+        } else {
+          throw 'Unrecognized EntityData $d';
+        }
+      });
+    }
     algorithmState = null;
     importSets = null;
     return OutputUnitData(
-        this.isProgramSplit && !disableProgramSplit,
-        this._mainOutputUnit,
-        classMap,
-        classTypeMap,
-        memberMap,
-        localFunctionMap,
-        constantMap,
-        _allOutputUnits,
-        importDeferName,
-        _deferredImportDescriptions);
+      isProgramSplit && !disableProgramSplit,
+      _mainOutputUnit,
+      classMap,
+      classTypeMap,
+      memberMap,
+      localFunctionMap,
+      constantMap,
+      _allOutputUnits,
+      importDeferName,
+      _deferredImportDescriptions,
+    );
   }
 
   void beforeResolution(Uri rootLibraryUri, Iterable<Uri> libraries) {
@@ -523,8 +551,11 @@ class DeferredLoadTask extends CompilerTask {
         reporter.withCurrentElement(library, () {
           for (ImportEntity import in elementEnvironment.getImports(library)) {
             if (import.isDeferred) {
-              _deferredImportDescriptions[import] =
-                  ImportDescription(import, library, rootLibraryUri);
+              _deferredImportDescriptions[import] = ImportDescription(
+                import,
+                library,
+                rootLibraryUri,
+              );
               isProgramSplit = true;
             }
           }
@@ -544,7 +575,10 @@ class DeferredLoadTask extends CompilerTask {
 
       // Build the [ImportSet] representing the [_mainOutputUnit].
       importSetsLattice.buildMainSet(
-          _mainImport, _mainOutputUnit, _allDeferredImports);
+        _mainImport,
+        _mainOutputUnit,
+        _allDeferredImports,
+      );
     });
   }
 
@@ -555,15 +589,19 @@ class DeferredLoadTask extends CompilerTask {
     algorithmState?.entityToSet.forEach((d, importSet) {
       if (d is ClassEntityData) {
         var element = d.entity;
-        var elements =
-            elementMap.putIfAbsent(importSet.unit!, () => <String>[]);
+        var elements = elementMap.putIfAbsent(
+          importSet.unit!,
+          () => <String>[],
+        );
         var id = element.name;
         id = '$id cls';
         elements.add(id);
       } else if (d is ClassTypeEntityData) {
         var element = d.entity;
-        var elements =
-            elementMap.putIfAbsent(importSet.unit!, () => <String>[]);
+        var elements = elementMap.putIfAbsent(
+          importSet.unit!,
+          () => <String>[],
+        );
         var id = element.name;
         id = '$id type';
         elements.add(id);
@@ -631,12 +669,35 @@ class DeferredLoadTask extends CompilerTask {
     }
 
     StringBuffer sb = StringBuffer();
-    for (OutputUnit outputUnit in _allOutputUnits.toList()
-      ..sort((a, b) => text[a]!.compareTo(text[b]!))) {
+    for (OutputUnit outputUnit
+        in _allOutputUnits.toList()
+          ..sort((a, b) => text[a]!.compareTo(text[b]!))) {
       sb.write('\n\n-------------------------------\n');
       sb.write('Output unit: ${outputUnit.name}');
       sb.write('\n ${text[outputUnit]}');
     }
     return sb.toString();
+  }
+
+  void _writeDeferredLoadIdMap() {
+    Map<String, dynamic> topLevel = {};
+    // Json does not support comments, so we embed the explanation in the
+    // data.
+    topLevel['_comment'] =
+        'This mapping shows the runtime deferred load id for each deferred '
+        'import in the program. The mappings are grouped by URI containing the '
+        'import.';
+    final mapping = <String, Map<String, String>>{};
+    topLevel['mapping'] = mapping;
+    importDeferName.forEach((import, deferredName) {
+      (mapping['${import.uri}'] ??= {})[import.name!] = deferredName;
+    });
+    compiler.outputProvider.createOutputSink(
+        compiler.options.dataUriForStage(CompilerStage.deferredLoadIds).path,
+        '',
+        api.OutputType.deferredLoadIds,
+      )
+      ..add(const JsonEncoder.withIndent("  ").convert(topLevel))
+      ..close();
   }
 }

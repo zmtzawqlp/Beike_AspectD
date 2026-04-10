@@ -2,17 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: foo:[exact=JSUInt31]*/
+/*member: foo:[exact=JSUInt31|powerset={I}{O}{N}]*/
 foo() {
   var a = [1, 2, 3];
   return a
-      . /*Container([exact=JSExtendableArray], element: [exact=JSUInt31], length: 3)*/
-      first;
+      . /*Container([exact=JSExtendableArray|powerset={I}{G}{M}], element: [exact=JSUInt31|powerset={I}{O}{N}], length: 3, powerset: {I}{G}{M})*/ first;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   foo();
 }

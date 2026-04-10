@@ -1,11 +1,11 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 
 import "org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_lib.dart";
 
 static method main() → dynamic {}
 
-library unaliased_bounds_checks_in_constructor_calls_with_parts_lib /*isNonNullableByDefault*/;
+library unaliased_bounds_checks_in_constructor_calls_with_parts_lib;
 //
 // Problems in library:
 //
@@ -21,7 +21,7 @@ import self as self2;
 import "dart:core" as core;
 
 part ./unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart;
-typedef A<X extends core::num, unrelated Y extends core::Object? = dynamic> = self2::C<X>;
+typedef /* from org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart */ A<X extends core::num, unrelated Y extends core::Object? = dynamic> = self2::C<X>;
 class C<X extends core::Object? = dynamic> extends core::Object { // from org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart
   synthetic constructor •() → self2::C<self2::C::X%>
     : super core::Object::•()
@@ -30,5 +30,5 @@ class C<X extends core::Object? = dynamic> extends core::Object { // from org-da
 static method /* from org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart */ foo() → dynamic {
   new self2::C::•<dynamic>();
 }
-static method /* from org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart */ _#A#new#tearOff<X extends core::num, unrelated Y extends core::Object? = dynamic>() → self2::C<self2::_#A#new#tearOff::X>
+static synthetic method /* from org-dartlang-testcase:///unaliased_bounds_checks_in_constructor_calls_with_parts_part_lib.dart */ _#A#new#tearOff<X extends core::num, unrelated Y extends core::Object? = dynamic>() → self2::C<self2::_#A#new#tearOff::X>
   return new self2::C::•<self2::_#A#new#tearOff::X>();

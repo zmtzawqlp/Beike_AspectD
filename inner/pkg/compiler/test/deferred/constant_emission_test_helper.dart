@@ -24,12 +24,17 @@ class OutputUnitDescriptor {
   const OutputUnitDescriptor(this.uri, this.member, this.name);
 }
 
-run(Map<String, String> sourceFiles, List<OutputUnitDescriptor> outputUnits,
-    Map<String, Set<String>> expectedOutputUnits) async {
+run(
+  Map<String, String> sourceFiles,
+  List<OutputUnitDescriptor> outputUnits,
+  Map<String, Set<String>> expectedOutputUnits,
+) async {
   OutputCollector collector = OutputCollector();
   CompilationResult result = await runCompiler(
-      memorySourceFiles: sourceFiles, outputProvider: collector);
-  Compiler compiler = result.compiler;
+    memorySourceFiles: sourceFiles,
+    outputProvider: collector,
+  );
+  Compiler compiler = result.compiler!;
   DartTypes dartTypes = compiler.frontendStrategy.commonElements.dartTypes;
   ProgramLookup lookup = ProgramLookup(compiler.backendStrategy);
   var closedWorld = compiler.backendClosedWorldForTesting!;
@@ -47,8 +52,10 @@ run(Map<String, String> sourceFiles, List<OutputUnitDescriptor> outputUnits,
 
   for (OutputUnitDescriptor descriptor in outputUnits) {
     LibraryEntity library = lookupLibrary(descriptor.uri);
-    MemberEntity member =
-        elementEnvironment.lookupLibraryMember(library, descriptor.member)!;
+    MemberEntity member = elementEnvironment.lookupLibraryMember(
+      library,
+      descriptor.member,
+    )!;
     OutputUnit outputUnit = outputUnitForMember(member);
     fragments[descriptor.name] = lookup.getFragment(outputUnit)!;
   }
@@ -77,8 +84,10 @@ run(Map<String, String> sourceFiles, List<OutputUnitDescriptor> outputUnits,
   expectedOutputUnits.forEach((String constant, Set<String> expectedSet) {
     Set<String> actualSet = actualOutputUnits[constant] ?? const <String>{};
     if (!equalSets(expectedSet, actualSet)) {
-      print("ERROR: Constant $constant found in $actualSet, expected "
-          "$expectedSet");
+      print(
+        "ERROR: Constant $constant found in $actualSet, expected "
+        "$expectedSet",
+      );
       errorsFound = true;
     }
   });

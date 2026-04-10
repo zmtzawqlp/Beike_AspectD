@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -28,7 +28,7 @@ class D extends self::C implements self::I {
   synthetic constructor •() → self::D
     : super self::C::•()
     ;
-  forwarding-stub method f(covariant-by-declaration self::A a) → void
+  forwarding-stub synthetic method f(covariant-by-declaration self::A a) → void
     return super.{self::C::f}(a as self::B);
 }
 static method main() → void {
@@ -36,7 +36,7 @@ static method main() → void {
   try {
     i.{self::I::f}(new self::A::•()){(self::A) → void};
   }
-  on core::Object catch(final core::Object _) {
+  on core::Object catch(final wildcard core::Object _#wc0#formal) {
     return;
   }
   throw "Missing type error";

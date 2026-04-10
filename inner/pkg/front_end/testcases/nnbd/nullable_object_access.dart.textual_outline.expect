@@ -1,4 +1,4 @@
-abstract class CustomType extends Type {
+abstract class CustomType implements Type {
   void call() {}
 }
 
@@ -12,5 +12,6 @@ abstract class Class {
 }
 
 main() {}
+
 void test(Class c1, Class? c2, Invocation invocation,
     CustomInvocation customInvocation) {}

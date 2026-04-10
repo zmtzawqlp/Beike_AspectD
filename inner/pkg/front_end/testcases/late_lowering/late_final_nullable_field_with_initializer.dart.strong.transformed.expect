@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 import "dart:_internal" as _in;
@@ -27,7 +27,7 @@ class Class<T extends core::Object? = dynamic> extends core::Object {
     if(!self::Class::_#lateStaticField1#isSet) {
       final core::int? #t1 = self::Class::initLateStaticField1(87);
       if(self::Class::_#lateStaticField1#isSet)
-        throw new _in::LateError::fieldADI("lateStaticField1");
+        throw{for-error-handling} new _in::LateError::fieldADI("lateStaticField1");
       self::Class::_#lateStaticField1 = #t1;
       self::Class::_#lateStaticField1#isSet = true;
     }
@@ -40,7 +40,7 @@ class Class<T extends core::Object? = dynamic> extends core::Object {
     if(!self::Class::_#lateStaticField2#isSet) {
       final core::int? #t2 = self::Class::initLateStaticField2(42);
       if(self::Class::_#lateStaticField2#isSet)
-        throw new _in::LateError::fieldADI("lateStaticField2");
+        throw{for-error-handling} new _in::LateError::fieldADI("lateStaticField2");
       self::Class::_#lateStaticField2 = #t2;
       self::Class::_#lateStaticField2#isSet = true;
     }
@@ -58,7 +58,7 @@ class Class<T extends core::Object? = dynamic> extends core::Object {
     if(!this.{self::Class::_#Class#lateInstanceField#isSet}{core::bool}) {
       final core::int? #t3 = this.{self::Class::initLateInstanceField}(16){(core::int) → core::int?};
       if(this.{self::Class::_#Class#lateInstanceField#isSet}{core::bool})
-        throw new _in::LateError::fieldADI("lateInstanceField");
+        throw{for-error-handling} new _in::LateError::fieldADI("lateInstanceField");
       this.{self::Class::_#Class#lateInstanceField} = #t3;
       this.{self::Class::_#Class#lateInstanceField#isSet} = true;
     }
@@ -71,7 +71,7 @@ class Class<T extends core::Object? = dynamic> extends core::Object {
     if(!this.{self::Class::_#Class#lateGenericInstanceField#isSet}{core::bool}) {
       final self::Class::T? #t4 = this.{self::Class::initLateGenericInstanceField}(this.{self::Class::field}{self::Class::T?}){(self::Class::T?) → self::Class::T?};
       if(this.{self::Class::_#Class#lateGenericInstanceField#isSet}{core::bool})
-        throw new _in::LateError::fieldADI("lateGenericInstanceField");
+        throw{for-error-handling} new _in::LateError::fieldADI("lateGenericInstanceField");
       this.{self::Class::_#Class#lateGenericInstanceField} = #t4;
       this.{self::Class::_#Class#lateGenericInstanceField#isSet} = true;
     }
@@ -89,13 +89,13 @@ class Class<T extends core::Object? = dynamic> extends core::Object {
 extension Extension<T extends core::Object? = dynamic> on self::Class<T%> {
   static field lateExtensionField1Init = self::Extension|lateExtensionField1Init;
   static method initLateExtensionField1 = self::Extension|initLateExtensionField1;
-  static field lateExtensionField1 = self::_#Extension|lateExtensionField1;
-  static field lateExtensionField1 = self::_#Extension|lateExtensionField1#isSet;
+  static impl field lateExtensionField1 = self::_#Extension|lateExtensionField1;
+  static impl field lateExtensionField1 = self::_#Extension|lateExtensionField1#isSet;
   static get lateExtensionField1 = get self::Extension|lateExtensionField1;
   static field lateExtensionField2Init = self::Extension|lateExtensionField2Init;
   static method initLateExtensionField2 = self::Extension|initLateExtensionField2;
-  static field lateExtensionField2 = self::_#Extension|lateExtensionField2;
-  static field lateExtensionField2 = self::_#Extension|lateExtensionField2#isSet;
+  static impl field lateExtensionField2 = self::_#Extension|lateExtensionField2;
+  static impl field lateExtensionField2 = self::_#Extension|lateExtensionField2#isSet;
   static get lateExtensionField2 = get self::Extension|lateExtensionField2;
   static method staticMethod = self::Extension|staticMethod;
 }
@@ -115,39 +115,39 @@ static get lateTopLevelField1() → core::int? {
   if(!self::_#lateTopLevelField1#isSet) {
     final core::int? #t5 = self::initLateTopLevelField1(123);
     if(self::_#lateTopLevelField1#isSet)
-      throw new _in::LateError::fieldADI("lateTopLevelField1");
+      throw{for-error-handling} new _in::LateError::fieldADI("lateTopLevelField1");
     self::_#lateTopLevelField1 = #t5;
     self::_#lateTopLevelField1#isSet = true;
   }
   return self::_#lateTopLevelField1;
 }
-static method Extension|initLateExtensionField1(core::int value) → core::int? {
+static extension-member method Extension|initLateExtensionField1(core::int value) → core::int? {
   return self::Extension|lateExtensionField1Init = value;
 }
-static get Extension|lateExtensionField1() → core::int? {
+static extension-member get Extension|lateExtensionField1() → core::int? {
   if(!self::_#Extension|lateExtensionField1#isSet) {
     final core::int? #t6 = self::Extension|initLateExtensionField1(87);
     if(self::_#Extension|lateExtensionField1#isSet)
-      throw new _in::LateError::fieldADI("lateExtensionField1");
+      throw{for-error-handling} new _in::LateError::fieldADI("lateExtensionField1");
     self::_#Extension|lateExtensionField1 = #t6;
     self::_#Extension|lateExtensionField1#isSet = true;
   }
   return self::_#Extension|lateExtensionField1;
 }
-static method Extension|initLateExtensionField2(core::int value) → core::int? {
+static extension-member method Extension|initLateExtensionField2(core::int value) → core::int? {
   return self::Extension|lateExtensionField2Init = value;
 }
-static get Extension|lateExtensionField2() → core::int? {
+static extension-member get Extension|lateExtensionField2() → core::int? {
   if(!self::_#Extension|lateExtensionField2#isSet) {
     final core::int? #t7 = self::Extension|initLateExtensionField2(42);
     if(self::_#Extension|lateExtensionField2#isSet)
-      throw new _in::LateError::fieldADI("lateExtensionField2");
+      throw{for-error-handling} new _in::LateError::fieldADI("lateExtensionField2");
     self::_#Extension|lateExtensionField2 = #t7;
     self::_#Extension|lateExtensionField2#isSet = true;
   }
   return self::_#Extension|lateExtensionField2;
 }
-static method Extension|staticMethod() → dynamic {
+static extension-member method Extension|staticMethod() → dynamic {
   self::expect(null, self::Extension|lateExtensionField2Init);
   self::expect(42, self::Extension|lateExtensionField2);
   self::expect(42, self::Extension|lateExtensionField2Init);

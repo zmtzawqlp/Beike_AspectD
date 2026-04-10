@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import "package:expect/minitest.dart";
+import "package:expect/legacy/minitest.dart"; // ignore: deprecated_member_use
 
 import "package:kernel/ast.dart";
 import "package:kernel/class_hierarchy.dart";
@@ -338,11 +338,11 @@ class H extends self::G implements self::C, self::A {}
           implements_}) {
     var typeParameters = typeParameterNames
         .map((name) => new TypeParameter(
-            name, coreTypes.objectLegacyRawType, coreTypes.objectLegacyRawType))
+            name, coreTypes.objectNullableRawType, const DynamicType()))
         .toList();
     var typeParameterTypes = typeParameters
-        .map(
-            (parameter) => new TypeParameterType(parameter, Nullability.legacy))
+        .map((parameter) =>
+            new TypeParameterType(parameter, Nullability.undetermined))
         .toList();
     var supertype =
         extends_ != null ? extends_(typeParameterTypes) : objectSuper;
@@ -576,14 +576,14 @@ class C extends self::B {
   }
 
   void test_getClassAsInstanceOf_generic_extends() {
-    var int = coreTypes.intLegacyRawType;
-    var bool = coreTypes.boolLegacyRawType;
+    var int = coreTypes.intNonNullableRawType;
+    var bool = coreTypes.boolNonNullableRawType;
 
     var a = addGenericClass('A', ['T', 'U']);
 
     var bT = new TypeParameter(
-        'T', coreTypes.objectLegacyRawType, coreTypes.objectLegacyRawType);
-    var bTT = new TypeParameterType(bT, Nullability.legacy);
+        'T', coreTypes.objectNullableRawType, const DynamicType());
+    var bTT = new TypeParameterType(bT, Nullability.undetermined);
     var b = addClass(new Class(
         name: 'B',
         typeParameters: [bT],
@@ -596,9 +596,9 @@ class C extends self::B {
         fileUri: library.fileUri));
 
     _assertTestLibraryText('''
-class A<T*, U*> {}
-class B<T*> extends self::A<self::B::T*, core::bool*> {}
-class C extends self::B<core::int*> {}
+class A<T? = dynamic, U? = dynamic> {}
+class B<T? = dynamic> extends self::A<self::B::T%, core::bool> {}
+class C extends self::B<core::int> {}
 ''');
 
     expect(hierarchy.getClassAsInstanceOf(a, objectClass), objectSuper);
@@ -609,14 +609,14 @@ class C extends self::B<core::int*> {}
   }
 
   void test_getClassAsInstanceOf_generic_implements() {
-    var int = coreTypes.intLegacyRawType;
-    var bool = coreTypes.boolLegacyRawType;
+    var int = coreTypes.intNonNullableRawType;
+    var bool = coreTypes.boolNonNullableRawType;
 
     var a = addGenericClass('A', ['T', 'U']);
 
     var bT = new TypeParameter(
-        'T', coreTypes.objectLegacyRawType, coreTypes.objectLegacyRawType);
-    var bTT = new TypeParameterType(bT, Nullability.legacy);
+        'T', coreTypes.objectNullableRawType, const DynamicType());
+    var bTT = new TypeParameterType(bT, Nullability.undetermined);
     var b = addClass(new Class(
         name: 'B',
         typeParameters: [bT],
@@ -635,9 +635,9 @@ class C extends self::B<core::int*> {}
         fileUri: library.fileUri));
 
     _assertTestLibraryText('''
-class A<T*, U*> {}
-class B<T*> implements self::A<self::B::T*, core::bool*> {}
-class C implements self::B<core::int*> {}
+class A<T? = dynamic, U? = dynamic> {}
+class B<T? = dynamic> implements self::A<self::B::T%, core::bool> {}
+class C implements self::B<core::int> {}
 ''');
 
     expect(hierarchy.getClassAsInstanceOf(a, objectClass), objectSuper);
@@ -648,14 +648,14 @@ class C implements self::B<core::int*> {}
   }
 
   void test_getClassAsInstanceOf_generic_with() {
-    var int = coreTypes.intLegacyRawType;
-    var bool = coreTypes.boolLegacyRawType;
+    var int = coreTypes.intNonNullableRawType;
+    var bool = coreTypes.boolNonNullableRawType;
 
     var a = addGenericClass('A', ['T', 'U']);
 
     var bT = new TypeParameter(
-        'T', coreTypes.objectLegacyRawType, coreTypes.objectLegacyRawType);
-    var bTT = new TypeParameterType(bT, Nullability.legacy);
+        'T', coreTypes.objectNullableRawType, const DynamicType());
+    var bTT = new TypeParameterType(bT, Nullability.undetermined);
     var b = addClass(new Class(
         name: 'B',
         typeParameters: [bT],
@@ -670,9 +670,9 @@ class C implements self::B<core::int*> {}
         fileUri: library.fileUri));
 
     _assertTestLibraryText('''
-class A<T*, U*> {}
-class B<T*> = core::Object with self::A<self::B::T*, core::bool*> {}
-class C = core::Object with self::B<core::int*> {}
+class A<T? = dynamic, U? = dynamic> {}
+class B<T? = dynamic> = core::Object with self::A<self::B::T%, core::bool> {}
+class C = core::Object with self::B<core::int> {}
 ''');
 
     expect(hierarchy.getClassAsInstanceOf(a, objectClass), objectSuper);
@@ -1325,14 +1325,14 @@ class B extends self::A {
   }
 
   void test_getTypeAsInstanceOf_generic_extends() {
-    var int = coreTypes.intLegacyRawType;
-    var bool = coreTypes.boolLegacyRawType;
+    var int = coreTypes.intNonNullableRawType;
+    var bool = coreTypes.boolNonNullableRawType;
 
     var a = addGenericClass('A', ['T', 'U']);
 
     var bT = new TypeParameter(
-        'T', coreTypes.objectLegacyRawType, coreTypes.objectLegacyRawType);
-    var bTT = new TypeParameterType(bT, Nullability.legacy);
+        'T', coreTypes.objectNullableRawType, const DynamicType());
+    var bTT = new TypeParameterType(bT, Nullability.undetermined);
     var b = addClass(new Class(
         name: 'B',
         typeParameters: [bT],
@@ -1340,19 +1340,15 @@ class B extends self::A {
         fileUri: library.fileUri));
 
     _assertTestLibraryText('''
-class A<T*, U*> {}
-class B<T*> extends self::A<self::B::T*, core::bool*> {}
+class A<T? = dynamic, U? = dynamic> {}
+class B<T? = dynamic> extends self::A<self::B::T%, core::bool> {}
 ''');
 
-    var b_int = new InterfaceType(b, Nullability.legacy, [int]);
-    expect(
-        hierarchy.getTypeAsInstanceOf(b_int, a,
-            isNonNullableByDefault: library.isNonNullableByDefault),
-        new InterfaceType(a, Nullability.legacy, [int, bool]));
-    expect(
-        hierarchy.getTypeAsInstanceOf(b_int, objectClass,
-            isNonNullableByDefault: library.isNonNullableByDefault),
-        new InterfaceType(objectClass, Nullability.legacy));
+    var b_int = new InterfaceType(b, Nullability.nonNullable, [int]);
+    expect(hierarchy.getInterfaceTypeAsInstanceOfClass(b_int, a),
+        new InterfaceType(a, Nullability.nonNullable, [int, bool]));
+    expect(hierarchy.getInterfaceTypeAsInstanceOfClass(b_int, objectClass),
+        new InterfaceType(objectClass, Nullability.nonNullable));
   }
 
   void _assertOverridePairs(Class class_, List<String> expected) {

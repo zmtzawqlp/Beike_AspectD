@@ -83,7 +83,7 @@ void exhaustiveSwitchGenericBounded<T3 extends String>(A<T3> a) {
 void nonExhaustiveSwitchWrongGeneric1<T4, S4>(A<T4> a) {
   /*
    checkingOrder={A<T4>,B<T4>,C,D<dynamic, dynamic>},
-   error=non-exhaustive:B<T4>(),
+   error=non-exhaustive:B<T4>();D<dynamic, dynamic>(),
    subtypes={B<T4>,C,D<dynamic, dynamic>},
    type=A<T4>
   */
@@ -169,15 +169,17 @@ void nonExhaustiveSwitch1(A<int> a) {
 void nonExhaustiveSwitch2(A<int> a) {
   /*
    checkingOrder={A<int>,B<int>,C,D<dynamic, dynamic>},
-   error=non-exhaustive:B<int>(),
+   error=non-exhaustive:B<int>();D<dynamic, dynamic>(),
    subtypes={B<int>,C,D<dynamic, dynamic>},
    type=A<int>
   */
   switch (a) {
-    /*space=C*/ case C c:
+    /*space=C*/
+    case C c:
       print('C');
       break;
-    /*space=D<dynamic, int>*/ case D<dynamic, int> d:
+    /*space=D<dynamic, int>*/
+    case D<dynamic, int> d:
       print('D');
       break;
   }

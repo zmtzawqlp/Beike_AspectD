@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -10,15 +10,14 @@ import self as self;
 import "dart:core" as core;
 
 class E extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E> values = #C7;
   enum-element static const field self::E e1 = #C3;
   enum-element static const field self::E e2 = #C6;
-  const constructor •(core::int #index, core::String #name) → self::E
+  static const field core::List<self::E> values = #C7;
+  const synthetic constructor •(core::int #index, core::String #name) → self::E
     : super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E.${this.{core::_Enum::_name}{core::String}}";
-  set values(core::List<self::E> val) → void {}
 }
 static method main() → dynamic {}
 

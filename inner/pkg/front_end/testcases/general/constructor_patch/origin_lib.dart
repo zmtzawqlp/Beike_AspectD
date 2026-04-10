@@ -5,6 +5,7 @@
 class Class {
   external Class.generative({bool defaultValue = true});
   external const Class.constGenerative({bool defaultValue = true});
+  external Class._private();
 }
 
 class Class2 {
@@ -12,3 +13,16 @@ class Class2 {
 
   external Class2(int field);
 }
+
+test() {
+  new Class._private(); // Ok
+  new Class._privateInjected(); // Ok
+  const Class3._(); // Ok
+}
+
+class Subclass extends Class {
+  Subclass.private() : super._private(); // Ok
+  Subclass.privateInjected() : super._privateInjected(); // Ok
+}
+
+class Class3 {}

@@ -1,7 +1,4 @@
 {
-  "org-dartlang-sdk:///lib/_internal/js_runtime/lib/async_patch.dart": {
-    "Dynamic access of 'iterator'.": 1
-  },
   "org-dartlang-sdk:///lib/_internal/js_runtime/lib/js_helper.dart": {
     "Dynamic access of 'length'.": 2
   },
@@ -18,6 +15,7 @@
     "Dynamic access of 'attributes'.": 1,
     "Dynamic invocation of '[]'.": 1,
     "Dynamic invocation of 'call'.": 2,
+    "Dynamic invocation of 'toList'.": 1,
     "Dynamic invocation of 'toLowerCase'.": 1
   }
 }

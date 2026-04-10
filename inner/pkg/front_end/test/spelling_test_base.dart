@@ -3,27 +3,20 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show File, Platform;
-
 import 'dart:typed_data' show Uint8List;
 
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart' show ErrorToken;
-
 import 'package:_fe_analyzer_shared/src/scanner/token.dart'
     show BeginToken, KeywordToken, StringToken, Token;
-
 import 'package:_fe_analyzer_shared/src/scanner/utf8_bytes_scanner.dart'
     show Utf8BytesScanner;
-
-import 'package:front_end/src/fasta/command_line_reporting.dart'
+import 'package:front_end/src/base/command_line_reporting.dart'
     as command_line_reporting;
-
 import 'package:kernel/kernel.dart' show Location, Source;
-
 import 'package:testing/testing.dart'
     show Chain, ChainContext, Result, Step, TestDescription;
 
 import 'spell_checking_utils.dart' as spell;
-
 import 'testing_utils.dart' show filterList;
 
 abstract class SpellContext extends ChainContext {
@@ -37,25 +30,18 @@ abstract class SpellContext extends ChainContext {
 
   SpellContext({required this.interactive, required this.onlyInGit});
 
-  // Override special handling of negative tests.
-  @override
-  Result processTestResult(
-      TestDescription description, Result result, bool last) {
-    return result;
-  }
-
   List<spell.Dictionaries> get dictionaries;
 
   bool get onlyDenylisted;
 
   String get repoRelativeSuitePath;
 
-  Set<String> reportedWords = {};
+  Map<String, List<String>?> reportedWordsAndAlternatives = {};
   Set<String> reportedWordsDenylisted = {};
 
   @override
-  Stream<TestDescription> list(Chain suite) {
-    return filterList(suite, onlyInGit, super.list(suite));
+  Future<List<TestDescription>> list(Chain suite) async {
+    return filterList(suite, onlyInGit, await super.list(suite));
   }
 
   @override
@@ -68,7 +54,7 @@ abstract class SpellContext extends ChainContext {
     }
     String suitePath = suiteFile.path;
     spell.spellSummarizeAndInteractiveMode(
-        reportedWords,
+        reportedWordsAndAlternatives,
         reportedWordsDenylisted,
         dictionaries,
         interactive,
@@ -85,15 +71,12 @@ class SpellTest extends Step<TestDescription, TestDescription, SpellContext> {
 
   @override
   Future<Result<TestDescription>> run(
-      TestDescription description, SpellContext context) async {
+      TestDescription description, SpellContext context) {
     File f = new File.fromUri(description.uri);
-    List<int> rawBytes = f.readAsBytesSync();
-
-    Uint8List bytes = new Uint8List(rawBytes.length + 1);
-    bytes.setRange(0, rawBytes.length, rawBytes);
+    Uint8List rawBytes = f.readAsBytesSync();
 
     Utf8BytesScanner scanner =
-        new Utf8BytesScanner(bytes, includeComments: true);
+        new Utf8BytesScanner(rawBytes, includeComments: true);
     Token firstToken = scanner.tokenize();
     Token? token = firstToken;
 
@@ -109,7 +92,7 @@ class SpellTest extends Step<TestDescription, TestDescription, SpellContext> {
         context.reportedWordsDenylisted.add(word);
       } else {
         message = "The word '$word' is not in our dictionary.";
-        context.reportedWords.add(word);
+        context.reportedWordsAndAlternatives[word] = alternatives;
       }
       if (alternatives != null && alternatives.isNotEmpty) {
         message += "\n\nThe following word(s) was 'close' "
@@ -136,7 +119,7 @@ class SpellTest extends Step<TestDescription, TestDescription, SpellContext> {
     while (token != null) {
       if (token is ErrorToken) {
         // For now just accept that.
-        return pass(description);
+        return new Future.value(pass(description));
       }
       if (token.precedingComments != null) {
         Token? comment = token.precedingComments;
@@ -187,9 +170,9 @@ class SpellTest extends Step<TestDescription, TestDescription, SpellContext> {
     }
 
     if (errors == null) {
-      return pass(description);
+      return new Future.value(pass(description));
     } else {
-      return fail(description, errors!.join("\n\n"));
+      return new Future.value(fail(description, errors!.join("\n\n")));
     }
   }
 }

@@ -2,7 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-/*library: nnbd=true*/
 library expressions;
 
 import 'dart:math' deferred as prefix;
@@ -70,8 +69,16 @@ get topLevelGetter => 42;
 set topLevelSetter(/*dynamic*/ _) {}
 topLevelMethod() {}
 
-T genericTopLevelMethod1<T>(T /*T%*/ t) => t;
-T genericTopLevelMethod2<T, S>(T /*T%*/ t, S /*S%*/ s) => t;
+T genericTopLevelMethod1<T>(
+        T /*normal|limited.genericTopLevelMethod1.T%*/ /*verbose.expressions::genericTopLevelMethod1.T%*/
+            t) =>
+    t;
+T genericTopLevelMethod2<T, S>(
+        T /*normal|limited.genericTopLevelMethod2.T%*/ /*verbose.expressions::genericTopLevelMethod2.T%*/
+            t,
+        S /*normal|limited.genericTopLevelMethod2.S%*/ /*verbose.expressions::genericTopLevelMethod2.S%*/
+            s) =>
+    t;
 
 /*member: exprNullLiteral:null*/
 exprNullLiteral() => null;
@@ -233,6 +240,9 @@ exprGenericInvocation2b(Class variable) =>
 /*member: exprDynamicInvocation:variable.method1()*/
 exprDynamicInvocation(variable) => variable.method1();
 
+/*member: exprDynamicInvocationImplicitCall:variable()*/
+exprDynamicInvocationImplicitCall(variable) => variable();
+
 /*normal|limited.member: exprObjectInvocation:variable.{Object.toString}()*/
 /*verbose.member: exprObjectInvocation:variable.{dart.core::Object.toString}()*/
 exprObjectInvocation(variable) => variable.toString();
@@ -338,11 +348,11 @@ exprNewGeneric() => new GenericClass<int, bool>();
 exprNewGenericNamed() => new GenericClass<int, bool>.named();
 
 /*normal|limited.member: exprIs:o is List<int>*/
-/*verbose.member: exprIs:o is{ForNonNullableByDefault} dart.core::List<dart.core::int>*/
+/*verbose.member: exprIs:o is dart.core::List<dart.core::int>*/
 exprIs(o) => o is List<int>;
 
 /*normal|limited.member: exprAs:o as List<int>*/
-/*verbose.member: exprAs:o as{ForNonNullableByDefault} dart.core::List<dart.core::int>*/
+/*verbose.member: exprAs:o as dart.core::List<dart.core::int>*/
 exprAs(o) => o as List<int>;
 
 /*member: exprNullCheck:o!*/

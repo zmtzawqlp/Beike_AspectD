@@ -2,11 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:js_shared/variance.dart';
+
 import '../common/elements.dart' show CommonElements;
 import '../common/names.dart';
-import '../options.dart';
 import '../serialization/serialization.dart';
-import '../util/util.dart' show equalElements, equalSets, identicalElements;
+import '../util/util.dart' show equalElements, equalSets;
 import '../universe/record_shape.dart';
 import 'entities.dart';
 
@@ -15,19 +16,20 @@ import 'entities.dart';
 /// This hierarchy is a super hierarchy of the use-case specific hierarchies
 /// used in different parts of the compiler. This hierarchy abstracts details
 /// not generally needed or required for the Dart type hierarchy. For instance,
-/// the hierarchy in 'resolution_types.dart' has properties supporting lazy
-/// computation (like computeAlias) and distinctions between 'Foo' and
-/// 'Foo<dynamic>', features that are not needed for code generation and not
+/// the hierarchy in `resolution_types.dart` has properties supporting lazy
+/// computation (like computeAlias) and distinctions between `Foo` and
+/// `Foo<dynamic>`, features that are not needed for code generation and not
 /// supported from kernel.
 ///
-/// Current only 'resolution_types.dart' implement this hierarchy but when the
+/// Current only `resolution_types.dart` implement this hierarchy but when the
 /// compiler moves to use [Entity] instead of [Element] this hierarchy can be
 /// implemented directly but other entity systems, for instance based directly
 /// on kernel ir without the need for [Element].
 
 extension on DataSourceReader {
   List<DartType> _readDartTypes(
-      List<FunctionTypeVariable> functionTypeVariables) {
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     int count = readInt();
     List<DartType> types = List<DartType>.filled(count, const NeverType._());
     for (int index = 0; index < count; index++) {
@@ -39,7 +41,9 @@ extension on DataSourceReader {
 
 extension on DataSinkWriter {
   void _writeDartTypes(
-      List<DartType> types, List<FunctionTypeVariable> functionTypeVariables) {
+    List<DartType> types,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     writeInt(types.length);
     for (DartType type in types) {
       type.writeToDataSink(this, functionTypeVariables);
@@ -50,21 +54,23 @@ extension on DataSinkWriter {
 abstract class DartType {
   const DartType();
 
-  static DartType readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  static DartType readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     DartType? type = readFromDataSourceOrNull(source, functionTypeVariables);
     if (type == null) throw StateError('Unexpected null DartType');
     return type;
   }
 
-  static DartType? readFromDataSourceOrNull(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  static DartType? readFromDataSourceOrNull(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     DartTypeKind kind = source.readEnum(DartTypeKind.values);
     switch (kind) {
       case DartTypeKind.none:
         return null;
-      case DartTypeKind.legacyType:
-        return LegacyType._readFromDataSource(source, functionTypeVariables);
       case DartTypeKind.nullableType:
         return NullableType._readFromDataSource(source, functionTypeVariables);
       case DartTypeKind.neverType:
@@ -73,10 +79,14 @@ abstract class DartType {
         return VoidType._readFromDataSource(source, functionTypeVariables);
       case DartTypeKind.typeVariable:
         return TypeVariableType._readFromDataSource(
-            source, functionTypeVariables);
+          source,
+          functionTypeVariables,
+        );
       case DartTypeKind.functionTypeVariable:
         return FunctionTypeVariable._readFromDataSource(
-            source, functionTypeVariables);
+          source,
+          functionTypeVariables,
+        );
       case DartTypeKind.functionType:
         return FunctionType._readFromDataSource(source, functionTypeVariables);
       case DartTypeKind.interfaceType:
@@ -95,10 +105,12 @@ abstract class DartType {
   }
 
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables);
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  );
 
-  /// Returns the base type if this is a [LegacyType] or [NullableType] and
-  /// returns this type otherwise.
+  /// Returns the base type if this is a [NullableType] and returns this type
+  /// otherwise.
   DartType get withoutNullability => this;
 
   /// Whether this type contains a type variable.
@@ -119,7 +131,7 @@ abstract class DartType {
 
   /// Applies [f] to each occurrence of a [TypeVariableType] within this
   /// type. This excludes function type variables, whether free or bound.
-  void forEachTypeVariable(f(TypeVariableType variable)) {}
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {}
 
   /// Calls the visit method on [visitor] corresponding to this type.
   R accept<R, A>(DartTypeVisitor<R, A> visitor, A argument);
@@ -127,10 +139,10 @@ abstract class DartType {
   bool _equals(DartType other, _Assumptions? assumptions);
 
   @override
-  String toString() => toStructuredText(null, null);
+  String toString() => toStructuredText(null);
 
-  String toStructuredText(DartTypes? dartTypes, CompilerOptions? options) =>
-      _DartTypeToStringVisitor(dartTypes, options).run(this);
+  String toStructuredText(DartTypes? dartTypes) =>
+      _DartTypeToStringVisitor(dartTypes).run(this);
 }
 
 /// Pairs of [FunctionTypeVariable]s that are currently assumed to be
@@ -154,7 +166,9 @@ class _Assumptions {
   }
 
   void assumePairs(
-      List<FunctionTypeVariable> as, List<FunctionTypeVariable> bs) {
+    List<FunctionTypeVariable> as,
+    List<FunctionTypeVariable> bs,
+  ) {
     int length = as.length;
     assert(length == bs.length);
     for (int i = 0; i < length; i++) {
@@ -179,7 +193,9 @@ class _Assumptions {
   }
 
   void forgetPairs(
-      List<FunctionTypeVariable> as, List<FunctionTypeVariable> bs) {
+    List<FunctionTypeVariable> as,
+    List<FunctionTypeVariable> bs,
+  ) {
     int length = as.length;
     assert(length == bs.length);
     for (int i = 0; i < length; i++) {
@@ -197,10 +213,14 @@ class _Assumptions {
     StringBuffer sb = StringBuffer();
     sb.write('_Assumptions(');
     String comma = '';
-    _assumptionMap
-        .forEach((FunctionTypeVariable a, Set<FunctionTypeVariable> set) {
-      sb.write('$comma$a (${identityHashCode(a)})->'
-          '{${set.map((b) => '$b (${identityHashCode(b)})').join(',')}}');
+    _assumptionMap.forEach((
+      FunctionTypeVariable a,
+      Set<FunctionTypeVariable> set,
+    ) {
+      sb.write(
+        '$comma$a (${identityHashCode(a)})->'
+        '{${set.map((b) => '$b (${identityHashCode(b)})').join(',')}}',
+      );
       comma = ',';
     });
     sb.write(')');
@@ -208,76 +228,27 @@ class _Assumptions {
   }
 }
 
-class LegacyType extends DartType {
-  final DartType baseType;
-
-  const LegacyType._(this.baseType);
-
-  factory LegacyType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
-    DartType baseType =
-        DartType.readFromDataSource(source, functionTypeVariables);
-    return LegacyType._(baseType);
-  }
-
-  @override
-  void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
-    sink.writeEnum(DartTypeKind.legacyType);
-    baseType.writeToDataSink(sink, functionTypeVariables);
-  }
-
-  @override
-  DartType get withoutNullability => baseType;
-
-  @override
-  bool get containsTypeVariables => baseType.containsTypeVariables;
-
-  @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
-    baseType.forEachTypeVariable(f);
-  }
-
-  @override
-  R accept<R, A>(DartTypeVisitor<R, A> visitor, A argument) =>
-      visitor.visitLegacyType(this, argument);
-
-  @override
-  int get hashCode => baseType.hashCode * 31;
-
-  @override
-  bool operator ==(other) {
-    if (identical(this, other)) return true;
-    if (other is! LegacyType) return false;
-    return _equalsInternal(other, null);
-  }
-
-  @override
-  bool _equals(DartType other, _Assumptions? assumptions) {
-    if (identical(this, other)) return true;
-    if (other is! LegacyType) return false;
-    return _equalsInternal(other, assumptions);
-  }
-
-  bool _equalsInternal(LegacyType other, _Assumptions? assumptions) =>
-      baseType._equals(other.baseType, assumptions);
-}
-
 class NullableType extends DartType {
   final DartType baseType;
 
   const NullableType._(this.baseType);
 
-  factory NullableType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
-    DartType baseType =
-        DartType.readFromDataSource(source, functionTypeVariables);
+  factory NullableType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
+    DartType baseType = DartType.readFromDataSource(
+      source,
+      functionTypeVariables,
+    );
     return NullableType._(baseType);
   }
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.nullableType);
     baseType.writeToDataSink(sink, functionTypeVariables);
   }
@@ -289,7 +260,7 @@ class NullableType extends DartType {
   bool get containsTypeVariables => baseType.containsTypeVariables;
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
     baseType.forEachTypeVariable(f);
   }
 
@@ -329,8 +300,10 @@ class InterfaceType extends DartType {
     return InterfaceType._allocate(element, typeArguments);
   }
 
-  factory InterfaceType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory InterfaceType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     ClassEntity element = source.readClass();
     List<DartType> typeArguments = source._readDartTypes(functionTypeVariables);
     return InterfaceType._(element, typeArguments);
@@ -338,7 +311,9 @@ class InterfaceType extends DartType {
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.interfaceType);
     sink.writeClass(element);
     sink._writeDartTypes(typeArguments, functionTypeVariables);
@@ -346,20 +321,21 @@ class InterfaceType extends DartType {
 
   @override
   bool get isObject =>
-      element.name == 'Object' &&
-      element.library.canonicalUri == Uris.dart_core;
+      element.name == 'Object' && element.library.canonicalUri == Uris.dartCore;
 
   @override
   bool get isNull =>
-      element.name == 'Null' && element.library.canonicalUri == Uris.dart_core;
+      element.name == 'Null' && element.library.canonicalUri == Uris.dartCore;
 
   @override
   bool get containsTypeVariables =>
       typeArguments.any((type) => type.containsTypeVariables);
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
-    typeArguments.forEach((type) => type.forEachTypeVariable(f));
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
+    for (var type in typeArguments) {
+      type.forEachTypeVariable(f);
+    }
   }
 
   @override
@@ -399,8 +375,10 @@ class RecordType extends DartType {
   final RecordShape shape;
   final List<DartType> fields;
 
-  static late final _emptyRecordType =
-      RecordType._allocate(RecordShape(0, const []), const []);
+  static final _emptyRecordType = RecordType._allocate(
+    RecordShape(0, const []),
+    const [],
+  );
 
   RecordType._allocate(this.shape, this.fields);
 
@@ -410,8 +388,10 @@ class RecordType extends DartType {
     return RecordType._allocate(shape, fields);
   }
 
-  factory RecordType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory RecordType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     final shape = RecordShape.readFromDataSource(source);
     final fields = source._readDartTypes(functionTypeVariables);
     return RecordType._(shape, fields);
@@ -419,7 +399,9 @@ class RecordType extends DartType {
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.recordType);
     shape.writeToDataSink(sink);
     sink._writeDartTypes(fields, functionTypeVariables);
@@ -431,8 +413,10 @@ class RecordType extends DartType {
   }
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
-    fields.forEach((type) => type.forEachTypeVariable(f));
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
+    for (var type in fields) {
+      type.forEachTypeVariable(f);
+    }
   }
 
   @override
@@ -473,15 +457,19 @@ class TypeVariableType extends DartType {
 
   const TypeVariableType._(this.element);
 
-  factory TypeVariableType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory TypeVariableType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     TypeVariableEntity element = source.readTypeVariable();
     return TypeVariableType._(element);
   }
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.typeVariable);
     sink.writeTypeVariable(element);
   }
@@ -490,7 +478,7 @@ class TypeVariableType extends DartType {
   bool get containsTypeVariables => true;
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
     f(this);
   }
 
@@ -513,7 +501,7 @@ class TypeVariableType extends DartType {
 /// A type variable declared on a function type.
 ///
 /// For instance `T` in
-///     void Function<T>(T t)
+///     `void Function<T>(T t)`
 ///
 /// Such a type variable is different from a [TypeVariableType] because it
 /// doesn't have a unique identity; is equal to any other
@@ -529,8 +517,10 @@ class FunctionTypeVariable extends DartType {
 
   FunctionTypeVariable._(this.index);
 
-  factory FunctionTypeVariable._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory FunctionTypeVariable._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     int index = source.readInt();
     assert(0 <= index && index < functionTypeVariables.length);
     return functionTypeVariables[index];
@@ -538,7 +528,9 @@ class FunctionTypeVariable extends DartType {
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     int index = functionTypeVariables.indexOf(this);
     if (index == -1) {
       // TODO(johnniwinther): Avoid free variables.
@@ -551,6 +543,9 @@ class FunctionTypeVariable extends DartType {
 
   @override
   int get hashCode => index * 113; // ignore bound which can have cycles.
+
+  @override
+  bool operator ==(other) => identical(this, other);
 
   @override
   bool _equals(DartType other, _Assumptions? assumptions) {
@@ -568,14 +563,18 @@ class FunctionTypeVariable extends DartType {
 class NeverType extends DartType {
   const NeverType._();
 
-  factory NeverType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory NeverType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     return const NeverType._();
   }
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.neverType);
   }
 
@@ -596,13 +595,16 @@ class NeverType extends DartType {
 class VoidType extends DartType {
   const VoidType._();
 
-  factory VoidType._readFromDataSource(DataSourceReader source,
-          List<FunctionTypeVariable> functionTypeVariables) =>
-      const VoidType._();
+  factory VoidType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) => const VoidType._();
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.voidType);
   }
 
@@ -623,13 +625,16 @@ class VoidType extends DartType {
 class DynamicType extends DartType {
   const DynamicType._();
 
-  factory DynamicType._readFromDataSource(DataSourceReader source,
-          List<FunctionTypeVariable> functionTypeVariables) =>
-      const DynamicType._();
+  factory DynamicType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) => const DynamicType._();
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.dynamicType);
   }
 
@@ -650,13 +655,16 @@ class DynamicType extends DartType {
 class ErasedType extends DartType {
   const ErasedType._();
 
-  factory ErasedType._readFromDataSource(DataSourceReader source,
-          List<FunctionTypeVariable> functionTypeVariables) =>
-      const ErasedType._();
+  factory ErasedType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) => const ErasedType._();
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.erasedType);
   }
 
@@ -688,13 +696,16 @@ class ErasedType extends DartType {
 class AnyType extends DartType {
   const AnyType._();
 
-  factory AnyType._readFromDataSource(DataSourceReader source,
-          List<FunctionTypeVariable> functionTypeVariables) =>
-      const AnyType._();
+  factory AnyType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) => const AnyType._();
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.anyType);
   }
 
@@ -730,22 +741,24 @@ class FunctionType extends DartType {
   final List<FunctionTypeVariable> typeVariables;
 
   FunctionType._allocate(
-      this.returnType,
-      this.parameterTypes,
-      this.optionalParameterTypes,
-      this.namedParameters,
-      this.requiredNamedParameters,
-      this.namedParameterTypes,
-      this.typeVariables);
+    this.returnType,
+    this.parameterTypes,
+    this.optionalParameterTypes,
+    this.namedParameters,
+    this.requiredNamedParameters,
+    this.namedParameterTypes,
+    this.typeVariables,
+  );
 
   factory FunctionType._(
-      DartType returnType,
-      List<DartType> parameterTypes,
-      List<DartType> optionalParameterTypes,
-      List<String> namedParameters,
-      Set<String> requiredNamedParameters,
-      List<DartType> namedParameterTypes,
-      List<FunctionTypeVariable> typeVariables) {
+    DartType returnType,
+    List<DartType> parameterTypes,
+    List<DartType> optionalParameterTypes,
+    List<String> namedParameters,
+    Set<String> requiredNamedParameters,
+    List<DartType> namedParameterTypes,
+    List<FunctionTypeVariable> typeVariables,
+  ) {
     // Canonicalize empty collections to constants to save storage.
     if (parameterTypes.isEmpty) parameterTypes = const [];
     if (optionalParameterTypes.isEmpty) optionalParameterTypes = const [];
@@ -755,55 +768,72 @@ class FunctionType extends DartType {
     if (typeVariables.isEmpty) typeVariables = const [];
 
     return FunctionType._allocate(
-        returnType,
-        parameterTypes,
-        optionalParameterTypes,
-        namedParameters,
-        requiredNamedParameters,
-        namedParameterTypes,
-        typeVariables);
+      returnType,
+      parameterTypes,
+      optionalParameterTypes,
+      namedParameters,
+      requiredNamedParameters,
+      namedParameterTypes,
+      typeVariables,
+    );
   }
 
-  factory FunctionType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
+  factory FunctionType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     int typeVariableCount = source.readInt();
     List<FunctionTypeVariable> typeVariables =
         List<FunctionTypeVariable>.generate(
-            typeVariableCount, (int index) => FunctionTypeVariable._(index));
+          typeVariableCount,
+          (int index) => FunctionTypeVariable._(index),
+        );
     functionTypeVariables = List<FunctionTypeVariable>.of(functionTypeVariables)
       ..addAll(typeVariables);
     for (int index = 0; index < typeVariableCount; index++) {
-      typeVariables[index].bound =
-          DartType.readFromDataSource(source, functionTypeVariables);
+      typeVariables[index].bound = DartType.readFromDataSource(
+        source,
+        functionTypeVariables,
+      );
     }
-    DartType returnType =
-        DartType.readFromDataSource(source, functionTypeVariables);
-    List<DartType> parameterTypes =
-        source._readDartTypes(functionTypeVariables);
-    List<DartType> optionalParameterTypes =
-        source._readDartTypes(functionTypeVariables);
-    List<DartType> namedParameterTypes =
-        source._readDartTypes(functionTypeVariables);
-    List<String> namedParameters =
-        List<String>.filled(namedParameterTypes.length, '');
+    DartType returnType = DartType.readFromDataSource(
+      source,
+      functionTypeVariables,
+    );
+    List<DartType> parameterTypes = source._readDartTypes(
+      functionTypeVariables,
+    );
+    List<DartType> optionalParameterTypes = source._readDartTypes(
+      functionTypeVariables,
+    );
+    List<DartType> namedParameterTypes = source._readDartTypes(
+      functionTypeVariables,
+    );
+    List<String> namedParameters = List<String>.filled(
+      namedParameterTypes.length,
+      '',
+    );
     var requiredNamedParameters = <String>{};
     for (int i = 0; i < namedParameters.length; i++) {
       namedParameters[i] = source.readString();
       if (source.readBool()) requiredNamedParameters.add(namedParameters[i]);
     }
     return FunctionType._(
-        returnType,
-        parameterTypes,
-        optionalParameterTypes,
-        namedParameters,
-        requiredNamedParameters,
-        namedParameterTypes,
-        typeVariables);
+      returnType,
+      parameterTypes,
+      optionalParameterTypes,
+      namedParameters,
+      requiredNamedParameters,
+      namedParameterTypes,
+      typeVariables,
+    );
   }
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.functionType);
     functionTypeVariables = List<FunctionTypeVariable>.of(functionTypeVariables)
       ..addAll(typeVariables);
@@ -831,12 +861,20 @@ class FunctionType extends DartType {
   }
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
-    typeVariables.forEach((type) => type.bound.forEachTypeVariable(f));
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
+    for (var type in typeVariables) {
+      type.bound.forEachTypeVariable(f);
+    }
     returnType.forEachTypeVariable(f);
-    parameterTypes.forEach((type) => type.forEachTypeVariable(f));
-    optionalParameterTypes.forEach((type) => type.forEachTypeVariable(f));
-    namedParameterTypes.forEach((type) => type.forEachTypeVariable(f));
+    for (var type in parameterTypes) {
+      type.forEachTypeVariable(f);
+    }
+    for (var type in optionalParameterTypes) {
+      type.forEachTypeVariable(f);
+    }
+    for (var type in namedParameterTypes) {
+      type.forEachTypeVariable(f);
+    }
   }
 
   @override
@@ -884,20 +922,27 @@ class FunctionType extends DartType {
     assumptions.assumePairs(typeVariables, other.typeVariables);
     try {
       for (int index = 0; index < typeVariables.length; index++) {
-        if (!typeVariables[index]
-            .bound
-            ._equals(other.typeVariables[index].bound, assumptions)) {
+        if (!typeVariables[index].bound._equals(
+          other.typeVariables[index].bound,
+          assumptions,
+        )) {
           return false;
         }
       }
       return returnType._equals(other.returnType, assumptions) &&
           _equalTypes(parameterTypes, other.parameterTypes, assumptions) &&
-          _equalTypes(optionalParameterTypes, other.optionalParameterTypes,
-              assumptions) &&
+          _equalTypes(
+            optionalParameterTypes,
+            other.optionalParameterTypes,
+            assumptions,
+          ) &&
           equalElements(namedParameters, other.namedParameters) &&
           equalSets(requiredNamedParameters, other.requiredNamedParameters) &&
           _equalTypes(
-              namedParameterTypes, other.namedParameterTypes, assumptions);
+            namedParameterTypes,
+            other.namedParameterTypes,
+            assumptions,
+          );
     } finally {
       assumptions.forgetPairs(typeVariables, other.typeVariables);
     }
@@ -909,16 +954,22 @@ class FutureOrType extends DartType {
 
   const FutureOrType._(this.typeArgument);
 
-  factory FutureOrType._readFromDataSource(DataSourceReader source,
-      List<FunctionTypeVariable> functionTypeVariables) {
-    DartType typeArgument =
-        DartType.readFromDataSource(source, functionTypeVariables);
+  factory FutureOrType._readFromDataSource(
+    DataSourceReader source,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
+    DartType typeArgument = DartType.readFromDataSource(
+      source,
+      functionTypeVariables,
+    );
     return FutureOrType._(typeArgument);
   }
 
   @override
   void writeToDataSink(
-      DataSinkWriter sink, List<FunctionTypeVariable> functionTypeVariables) {
+    DataSinkWriter sink,
+    List<FunctionTypeVariable> functionTypeVariables,
+  ) {
     sink.writeEnum(DartTypeKind.futureOr);
     typeArgument.writeToDataSink(sink, functionTypeVariables);
   }
@@ -927,7 +978,7 @@ class FutureOrType extends DartType {
   bool get containsTypeVariables => typeArgument.containsTypeVariables;
 
   @override
-  void forEachTypeVariable(f(TypeVariableType variable)) {
+  void forEachTypeVariable(void Function(TypeVariableType variable) f) {
     typeArgument.forEachTypeVariable(f);
   }
 
@@ -958,7 +1009,10 @@ class FutureOrType extends DartType {
 }
 
 bool _equalTypes(
-    List<DartType> a, List<DartType> b, _Assumptions? assumptions) {
+  List<DartType> a,
+  List<DartType> b,
+  _Assumptions? assumptions,
+) {
   if (a.length != b.length) return false;
   for (int index = 0; index < a.length; index++) {
     if (!a[index]._equals(b[index], assumptions)) {
@@ -972,8 +1026,6 @@ abstract class DartTypeVisitor<R, A> {
   const DartTypeVisitor();
 
   R visit(covariant DartType type, A argument) => type.accept(this, argument);
-
-  R visitLegacyType(covariant LegacyType type, A argument);
 
   R visitNullableType(covariant NullableType type, A argument);
 
@@ -1000,125 +1052,6 @@ abstract class DartTypeVisitor<R, A> {
   R visitFutureOrType(covariant FutureOrType type, A argument);
 }
 
-class _LegacyErasureVisitor extends DartTypeVisitor<DartType, Null> {
-  final DartTypes _dartTypes;
-
-  _LegacyErasureVisitor(this._dartTypes);
-
-  DartType erase(DartType type) => visit(type, null);
-
-  List<DartType> eraseList(List<DartType> types) {
-    List<DartType> erasedTypes = types.map(erase).toList();
-    return identicalElements(erasedTypes, types) ? types : erasedTypes;
-  }
-
-  @override
-  DartType visit(DartType type, Null _) => type.accept(this, _);
-
-  @override
-  DartType visitLegacyType(LegacyType type, Null _) => erase(type.baseType);
-
-  @override
-  DartType visitNullableType(NullableType type, Null _) {
-    var baseType = erase(type.baseType);
-    if (identical(baseType, type.baseType)) return type;
-    return _dartTypes.nullableType(baseType);
-  }
-
-  @override
-  NeverType visitNeverType(NeverType type, Null _) => type;
-
-  @override
-  VoidType visitVoidType(VoidType type, Null _) => type;
-
-  @override
-  TypeVariableType visitTypeVariableType(TypeVariableType type, Null _) => type;
-
-  @override
-  FunctionTypeVariable visitFunctionTypeVariable(
-          FunctionTypeVariable type, Null _) =>
-      type;
-
-  @override
-  FunctionType visitFunctionType(FunctionType type, Null _) {
-    var returnType = erase(type.returnType);
-    var parameterTypes = eraseList(type.parameterTypes);
-    var optionalParameterTypes = eraseList(type.optionalParameterTypes);
-    var namedParameterTypes = eraseList(type.namedParameterTypes);
-
-    var oldTypeVariables = type.typeVariables;
-    var length = oldTypeVariables.length;
-
-    // Use the old type variables as placeholders that are overwritten.
-    List<FunctionTypeVariable> typeVariables =
-        List<FunctionTypeVariable>.of(oldTypeVariables, growable: false);
-    List<FunctionTypeVariable> erasableTypeVariables = [];
-    List<FunctionTypeVariable> erasedTypeVariables = [];
-    for (int i = 0; i < length; i++) {
-      var oldTypeVariable = oldTypeVariables[i];
-      var oldBound = oldTypeVariable.bound;
-      var bound = erase(oldBound);
-      if (identical(bound, oldBound)) {
-        typeVariables[i] = oldTypeVariable;
-      } else {
-        var typeVariable = _dartTypes.functionTypeVariable(i)..bound = bound;
-        typeVariables[i] = typeVariable;
-        erasableTypeVariables.add(oldTypeVariable);
-        erasedTypeVariables.add(typeVariable);
-      }
-    }
-
-    if (identical(returnType, type.returnType) &&
-        identical(parameterTypes, type.parameterTypes) &&
-        identical(optionalParameterTypes, type.optionalParameterTypes) &&
-        identical(namedParameterTypes, type.namedParameterTypes) &&
-        erasableTypeVariables.isEmpty) return type;
-
-    // TODO(48820): Can we avoid the cast?
-    return _dartTypes.subst(
-        erasedTypeVariables,
-        erasableTypeVariables,
-        _dartTypes.functionType(
-            returnType,
-            parameterTypes,
-            optionalParameterTypes,
-            type.namedParameters,
-            type.requiredNamedParameters,
-            namedParameterTypes,
-            typeVariables)) as FunctionType;
-  }
-
-  @override
-  InterfaceType visitInterfaceType(InterfaceType type, Null _) {
-    var typeArguments = eraseList(type.typeArguments);
-    if (identical(typeArguments, type.typeArguments)) return type;
-    return _dartTypes.interfaceType(type.element, typeArguments);
-  }
-
-  @override
-  RecordType visitRecordType(RecordType type, Null _) {
-    final fields = eraseList(type.fields);
-    if (identical(fields, type.fields)) return type;
-    return _dartTypes.recordType(type.shape, fields);
-  }
-
-  @override
-  DynamicType visitDynamicType(DynamicType type, Null _) => type;
-
-  @override
-  ErasedType visitErasedType(ErasedType type, Null _) => type;
-
-  @override
-  AnyType visitAnyType(AnyType type, Null _) => type;
-
-  @override
-  DartType visitFutureOrType(FutureOrType type, Null _) {
-    var typeArgument = erase(type.typeArgument);
-    if (identical(typeArgument, type.typeArgument)) return type;
-    return _dartTypes.futureOrType(typeArgument);
-  }
-}
-
 abstract class DartTypeSubstitutionVisitor<A>
     extends DartTypeVisitor<DartType, A> {
   DartTypes get dartTypes;
@@ -1127,7 +1060,7 @@ abstract class DartTypeSubstitutionVisitor<A>
   final Map<DartType, DartType> _map = Map.identity();
 
   DartType _mapped(DartType oldType, DartType newType) {
-    assert(_map[oldType] == null);
+    assert(!_map.containsKey(oldType));
     return _map[oldType] = newType;
   }
 
@@ -1137,7 +1070,10 @@ abstract class DartTypeSubstitutionVisitor<A>
   /// on only one visit. This allows the substitution visitor to count the
   /// number of times the replacement term occurs in the final term.
   DartType substituteTypeVariableType(
-      TypeVariableType type, A argument, bool freshReference);
+    TypeVariableType type,
+    A argument,
+    bool freshReference,
+  );
 
   /// Returns the replacement for the function type variable [type]. Returns the
   /// original [type] if not substituted. The substitution algorithm sometimes
@@ -1146,21 +1082,10 @@ abstract class DartTypeSubstitutionVisitor<A>
   /// visitor to count the number of times the replacement term occurs in the
   /// final term.
   DartType substituteFunctionTypeVariable(
-          FunctionTypeVariable type, A argument, bool freshReference) =>
-      type;
-
-  @override
-  DartType visitLegacyType(covariant LegacyType type, A argument) {
-    DartType? probe = _map[type];
-    if (probe != null) return probe;
-
-    DartType newBaseType = visit(type.baseType, argument);
-    // Create a new type only if necessary.
-    if (identical(type.baseType, newBaseType)) {
-      return _mapped(type, type);
-    }
-    return _mapped(type, dartTypes.legacyType(newBaseType));
-  }
+    FunctionTypeVariable type,
+    A argument,
+    bool freshReference,
+  ) => type;
 
   @override
   DartType visitNullableType(covariant NullableType type, A argument) {
@@ -1185,7 +1110,9 @@ abstract class DartTypeSubstitutionVisitor<A>
 
   @override
   DartType visitFunctionTypeVariable(
-      covariant FunctionTypeVariable type, A argument) {
+    covariant FunctionTypeVariable type,
+    A argument,
+  ) {
     // Function type variables are added to the map only for type variables that
     // need to be replaced with updated bounds.
     DartType? probe = _map[type];
@@ -1201,16 +1128,24 @@ abstract class DartTypeSubstitutionVisitor<A>
     DartType? probe = _map[type];
     if (probe != null) return probe;
 
-    List<FunctionTypeVariable> newTypeVariables =
-        _handleFunctionTypeVariables(type.typeVariables, argument);
+    List<FunctionTypeVariable> newTypeVariables = _handleFunctionTypeVariables(
+      type.typeVariables,
+      argument,
+    );
 
     DartType newReturnType = visit(type.returnType, argument);
-    List<DartType> newParameterTypes =
-        _substTypes(type.parameterTypes, argument);
-    List<DartType> newOptionalParameterTypes =
-        _substTypes(type.optionalParameterTypes, argument);
-    List<DartType> newNamedParameterTypes =
-        _substTypes(type.namedParameterTypes, argument);
+    List<DartType> newParameterTypes = _substTypes(
+      type.parameterTypes,
+      argument,
+    );
+    List<DartType> newOptionalParameterTypes = _substTypes(
+      type.optionalParameterTypes,
+      argument,
+    );
+    List<DartType> newNamedParameterTypes = _substTypes(
+      type.namedParameterTypes,
+      argument,
+    );
 
     // Create a new type only if necessary.
     if (identical(type.typeVariables, newTypeVariables) &&
@@ -1222,19 +1157,23 @@ abstract class DartTypeSubstitutionVisitor<A>
     }
 
     return _mapped(
-        type,
-        dartTypes.functionType(
-            newReturnType,
-            newParameterTypes,
-            newOptionalParameterTypes,
-            type.namedParameters,
-            type.requiredNamedParameters,
-            newNamedParameterTypes,
-            newTypeVariables));
+      type,
+      dartTypes.functionType(
+        newReturnType,
+        newParameterTypes,
+        newOptionalParameterTypes,
+        type.namedParameters,
+        type.requiredNamedParameters,
+        newNamedParameterTypes,
+        newTypeVariables,
+      ),
+    );
   }
 
   List<FunctionTypeVariable> _handleFunctionTypeVariables(
-      List<FunctionTypeVariable> variables, A argument) {
+    List<FunctionTypeVariable> variables,
+    A argument,
+  ) {
     if (variables.isEmpty) return variables;
 
     // Type variables may depend on each other. Consider:
@@ -1263,8 +1202,9 @@ abstract class DartTypeSubstitutionVisitor<A>
           changed = true;
           undecided[i] = null;
           newVariables ??= variables.toList();
-          FunctionTypeVariable newVariable =
-              dartTypes.functionTypeVariable(variable.index);
+          FunctionTypeVariable newVariable = dartTypes.functionTypeVariable(
+            variable.index,
+          );
           newVariables[i] = newVariable;
           _mapped(variable, newVariable);
         }
@@ -1299,7 +1239,9 @@ abstract class DartTypeSubstitutionVisitor<A>
       return _mapped(type, type);
     }
     return _mapped(
-        type, dartTypes.interfaceType(type.element, newTypeArguments));
+      type,
+      dartTypes.interfaceType(type.element, newTypeArguments),
+    );
   }
 
   @override
@@ -1360,8 +1302,10 @@ class _DependencyCheck<A> extends DartTypeStructuralPredicateVisitor {
 
   @override
   bool handleTypeVariableType(TypeVariableType type) {
-    return !identical(type,
-        _substitutionVisitor.substituteTypeVariableType(type, argument, false));
+    return !identical(
+      type,
+      _substitutionVisitor.substituteTypeVariableType(type, argument, false),
+    );
   }
 
   @override
@@ -1371,9 +1315,13 @@ class _DependencyCheck<A> extends DartTypeStructuralPredicateVisitor {
     DartType? probe = _substitutionVisitor._map[type];
     if (probe != null) return probe != type;
     return !identical(
+      type,
+      _substitutionVisitor.substituteFunctionTypeVariable(
         type,
-        _substitutionVisitor.substituteFunctionTypeVariable(
-            type, argument, false));
+        argument,
+        false,
+      ),
+    );
   }
 }
 
@@ -1386,7 +1334,6 @@ abstract class DartTypeStructuralPredicateVisitor
 
   bool run(DartType type) => visit(type, null);
 
-  bool handleLegacyType(LegacyType type) => false;
   bool handleNullableType(NullableType type) => false;
   bool handleNeverType(NeverType type) => false;
   bool handleVoidType(VoidType type) => false;
@@ -1402,13 +1349,10 @@ abstract class DartTypeStructuralPredicateVisitor
   bool handleFutureOrType(FutureOrType type) => false;
 
   @override
-  bool visitLegacyType(LegacyType type, List<FunctionTypeVariable>? bindings) =>
-      handleLegacyType(type) || visit(type.baseType, bindings);
-
-  @override
   bool visitNullableType(
-          NullableType type, List<FunctionTypeVariable>? bindings) =>
-      handleNullableType(type) || visit(type.baseType, bindings);
+    NullableType type,
+    List<FunctionTypeVariable>? bindings,
+  ) => handleNullableType(type) || visit(type.baseType, bindings);
 
   @override
   bool visitNeverType(NeverType type, List<FunctionTypeVariable>? bindings) =>
@@ -1420,20 +1364,25 @@ abstract class DartTypeStructuralPredicateVisitor
 
   @override
   bool visitTypeVariableType(
-          TypeVariableType type, List<FunctionTypeVariable>? bindings) =>
-      handleTypeVariableType(type);
+    TypeVariableType type,
+    List<FunctionTypeVariable>? bindings,
+  ) => handleTypeVariableType(type);
 
   @override
   bool visitFunctionTypeVariable(
-      FunctionTypeVariable type, List<FunctionTypeVariable>? bindings) {
-    return bindings != null && bindings.indexOf(type) >= 0
+    FunctionTypeVariable type,
+    List<FunctionTypeVariable>? bindings,
+  ) {
+    return bindings != null && bindings.contains(type)
         ? handleBoundFunctionTypeVariable(type)
         : handleFreeFunctionTypeVariable(type);
   }
 
   @override
   bool visitFunctionType(
-      FunctionType type, List<FunctionTypeVariable>? bindings) {
+    FunctionType type,
+    List<FunctionTypeVariable>? bindings,
+  ) {
     if (handleFunctionType(type)) return true;
     List<FunctionTypeVariable> typeVariables = type.typeVariables;
     if (typeVariables.isNotEmpty) {
@@ -1442,9 +1391,12 @@ abstract class DartTypeStructuralPredicateVisitor
     }
 
     bool result = visit(type.returnType, bindings);
-    result = result ||
-        _visitAll(type.typeVariables.map((variable) => variable.bound).toList(),
-            bindings);
+    result =
+        result ||
+        _visitAll(
+          type.typeVariables.map((variable) => variable.bound).toList(),
+          bindings,
+        );
     result = result || _visitAll(type.parameterTypes, bindings);
     result = result || _visitAll(type.optionalParameterTypes, bindings);
     result = result || _visitAll(type.namedParameterTypes, bindings);
@@ -1455,7 +1407,9 @@ abstract class DartTypeStructuralPredicateVisitor
 
   @override
   bool visitInterfaceType(
-      InterfaceType type, List<FunctionTypeVariable>? bindings) {
+    InterfaceType type,
+    List<FunctionTypeVariable>? bindings,
+  ) {
     if (handleInterfaceType(type)) return true;
     return _visitAll(type.typeArguments, bindings);
   }
@@ -1468,8 +1422,9 @@ abstract class DartTypeStructuralPredicateVisitor
 
   @override
   bool visitDynamicType(
-          DynamicType type, List<FunctionTypeVariable>? bindings) =>
-      handleDynamicType(type);
+    DynamicType type,
+    List<FunctionTypeVariable>? bindings,
+  ) => handleDynamicType(type);
 
   @override
   bool visitErasedType(ErasedType type, List<FunctionTypeVariable>? bindings) =>
@@ -1481,7 +1436,9 @@ abstract class DartTypeStructuralPredicateVisitor
 
   @override
   bool visitFutureOrType(
-      FutureOrType type, List<FunctionTypeVariable>? bindings) {
+    FutureOrType type,
+    List<FunctionTypeVariable>? bindings,
+  ) {
     if (handleFutureOrType(type)) return true;
     return visit(type.typeArgument, bindings);
   }
@@ -1511,13 +1468,22 @@ class SimpleDartTypeSubstitutionVisitor
   final List<DartType> parameters;
 
   SimpleDartTypeSubstitutionVisitor(
-      this.dartTypes, this.arguments, this.parameters);
+    this.dartTypes,
+    this.arguments,
+    this.parameters,
+  ) : assert(
+        arguments.length == parameters.length,
+        'Type substitution mismatch\n  $arguments\n  $parameters',
+      );
 
   DartType substitute(DartType input) => visit(input, null);
 
   @override
   DartType substituteTypeVariableType(
-      TypeVariableType type, Null _, bool freshReference) {
+    TypeVariableType type,
+    Null _,
+    bool freshReference,
+  ) {
     int index = parameters.indexOf(type);
     if (index != -1) {
       return arguments[index];
@@ -1528,7 +1494,10 @@ class SimpleDartTypeSubstitutionVisitor
 
   @override
   DartType substituteFunctionTypeVariable(
-      covariant FunctionTypeVariable type, Null _, bool freshReference) {
+    covariant FunctionTypeVariable type,
+    Null argument,
+    bool freshReference,
+  ) {
     int index = parameters.indexOf(type);
     if (index != -1) {
       return arguments[index];
@@ -1547,14 +1516,13 @@ class _DeferredName {
 
 class _DartTypeToStringVisitor extends DartTypeVisitor<void, void> {
   final DartTypes? _dartTypes; // May be null.
-  final CompilerOptions? _options; // May be null.
-  final List _fragments = []; // Strings and _DeferredNames
+  final List<Object> _fragments = []; // Strings and _DeferredNames
   bool _lastIsIdentifier = false;
   List<FunctionTypeVariable>? _boundVariables;
   Map<FunctionTypeVariable, _DeferredName>? _variableToName;
   Set<FunctionType>? _genericFunctions;
 
-  _DartTypeToStringVisitor(this._dartTypes, this._options);
+  _DartTypeToStringVisitor(this._dartTypes);
 
   String run(DartType type) {
     _visit(type);
@@ -1564,13 +1532,12 @@ class _DartTypeToStringVisitor extends DartTypeVisitor<void, void> {
       // Assign names to _DeferredNames that were not assigned while visiting a
       // generic function type.
       Set<String> usedNames = {
-        for (final deferred in variableToName.values)
-          if (deferred.name != null) deferred.name!
+        for (final deferred in variableToName.values) ?deferred.name,
       };
       int startGroup = (_genericFunctions?.length ?? 0) + 1;
       for (var entry in variableToName.entries) {
         if (entry.value.name != null) continue;
-        for (int group = startGroup;; group++) {
+        for (int group = startGroup; ; group++) {
           String name = _functionTypeVariableName(entry.key, group);
           if (!usedNames.add(name)) continue;
           entry.value.name = name;
@@ -1614,18 +1581,6 @@ class _DartTypeToStringVisitor extends DartTypeVisitor<void, void> {
   }
 
   @override
-  void visitLegacyType(covariant LegacyType type, _) {
-    _visit(type.baseType);
-    // We do not emit the '*' token for legacy types because this is a purely
-    // internal notion. The language specification does not define a '*' token
-    // in the type language, and no such token should be surfaced to users.
-    // For debugging, pass `--debug-print-legacy-stars` to emit the '*'.
-    if (_options == null || _options!.printLegacyStars) {
-      _token('*');
-    }
-  }
-
-  @override
   void visitNullableType(covariant NullableType type, _) {
     _visit(type.baseType);
     _token('?');
@@ -1658,7 +1613,7 @@ class _DartTypeToStringVisitor extends DartTypeVisitor<void, void> {
 
   @override
   void visitTypeVariableType(covariant TypeVariableType type, _) {
-    _identifier(type.element.typeDeclaration!.name!);
+    _identifier(type.element.typeDeclaration.name!);
     _token('.');
     _identifier(type.element.name!);
   }
@@ -1708,7 +1663,7 @@ class _DartTypeToStringVisitor extends DartTypeVisitor<void, void> {
         needsComma = _comma(needsComma);
         _visit(typeVariable);
         DartType bound = typeVariable.bound;
-        if (_dartTypes == null || !_dartTypes!.isTopType(bound)) {
+        if (_dartTypes == null || !_dartTypes.isTopType(bound)) {
           _token(' extends ');
           _visit(bound);
         }
@@ -1805,51 +1760,21 @@ abstract class DartTypes {
   /// The types defined in 'dart:core'.
   CommonElements get commonElements;
 
-  bool get useLegacySubtyping;
-
-  DartType bottomType() =>
-      useLegacySubtyping ? commonElements.nullType : neverType();
-
-  DartType legacyType(DartType baseType) {
-    DartType result;
-    if (isStrongTopType(baseType) ||
-        baseType.isNull ||
-        baseType is LegacyType ||
-        baseType is NullableType) {
-      result = baseType;
-    } else {
-      result = LegacyType._(baseType);
-    }
-    return result;
-  }
-
   DartType nullableType(DartType baseType) {
-    bool _isNullable(DartType t) =>
-        // Note that we can assume null safety is enabled here.
+    bool isNullable(DartType t) =>
         t.isNull ||
         t is NullableType ||
-        t is LegacyType && _isNullable(t.baseType) ||
-        t is FutureOrType && _isNullable(t.typeArgument) ||
-        isStrongTopType(t);
+        t is FutureOrType && isNullable(t.typeArgument) ||
+        isTopType(t);
 
     DartType result;
-    if (isStrongTopType(baseType) ||
+    if (isTopType(baseType) ||
         baseType.isNull ||
         baseType is NullableType ||
-        baseType is FutureOrType && _isNullable(baseType.typeArgument)) {
+        baseType is FutureOrType && isNullable(baseType.typeArgument)) {
       result = baseType;
     } else if (baseType is NeverType) {
       result = commonElements.nullType;
-    } else if (baseType is LegacyType) {
-      DartType legacyBaseType = baseType.baseType;
-      if (legacyBaseType is NeverType) {
-        result = commonElements.nullType;
-      } else if (legacyBaseType is FutureOrType &&
-          _isNullable(legacyBaseType.typeArgument)) {
-        result = legacyBaseType;
-      } else {
-        result = nullableType(legacyBaseType);
-      }
     } else {
       result = NullableType._(baseType);
     }
@@ -1857,8 +1782,9 @@ abstract class DartTypes {
   }
 
   InterfaceType interfaceType(
-          ClassEntity element, List<DartType> typeArguments) =>
-      InterfaceType._(element, typeArguments);
+    ClassEntity element,
+    List<DartType> typeArguments,
+  ) => InterfaceType._(element, typeArguments);
 
   RecordType recordType(RecordShape shape, List<DartType> fields) =>
       RecordType._(shape, fields);
@@ -1882,30 +1808,37 @@ abstract class DartTypes {
   AnyType anyType() => const AnyType._();
 
   FunctionType functionType(
-      DartType returnType,
-      List<DartType> parameterTypes,
-      List<DartType> optionalParameterTypes,
-      List<String> namedParameters,
-      Set<String> requiredNamedParameters,
-      List<DartType> namedParameterTypes,
-      List<FunctionTypeVariable> typeVariables) {
+    DartType returnType,
+    List<DartType> parameterTypes,
+    List<DartType> optionalParameterTypes,
+    List<String> namedParameters,
+    Set<String> requiredNamedParameters,
+    List<DartType> namedParameterTypes,
+    List<FunctionTypeVariable> typeVariables,
+  ) {
     FunctionType type = FunctionType._(
-        returnType,
-        parameterTypes,
-        optionalParameterTypes,
-        namedParameters,
-        requiredNamedParameters,
-        namedParameterTypes,
-        typeVariables);
+      returnType,
+      parameterTypes,
+      optionalParameterTypes,
+      namedParameters,
+      requiredNamedParameters,
+      namedParameterTypes,
+      typeVariables,
+    );
     List<FunctionTypeVariable> normalizableVariables = typeVariables
         .where((FunctionTypeVariable t) => t.bound is NeverType)
         .toList();
     return normalizableVariables.isEmpty
         ? type
         : subst(
-            List<DartType>.filled(normalizableVariables.length, neverType()),
-            normalizableVariables,
-            type) as FunctionType;
+                List<DartType>.filled(
+                  normalizableVariables.length,
+                  neverType(),
+                ),
+                normalizableVariables,
+                type,
+              )
+              as FunctionType;
   }
 
   DartType futureOrType(DartType typeArgument) {
@@ -1915,17 +1848,15 @@ abstract class DartTypes {
     } else if (typeArgument is NeverType) {
       result = commonElements.futureType(typeArgument);
     } else if (typeArgument.isNull) {
-      DartType futureOfNull =
-          commonElements.futureType(commonElements.nullType);
+      DartType futureOfNull = commonElements.futureType(
+        commonElements.nullType,
+      );
       result = nullableType(futureOfNull);
     } else {
       result = FutureOrType._(typeArgument);
     }
     return result;
   }
-
-  DartType eraseLegacy(DartType type) =>
-      _LegacyErasureVisitor(this).erase(type);
 
   /// Performs the substitution `[arguments[i]/parameters[i]]t`.
   ///
@@ -1937,30 +1868,43 @@ abstract class DartTypes {
   ///
   /// Invariant: There must be the same number of [arguments] and [parameters].
   DartType subst(
-      List<DartType> arguments, List<DartType> parameters, DartType t) {
+    List<DartType> arguments,
+    List<DartType> parameters,
+    DartType t,
+  ) {
     assert(arguments.length == parameters.length);
     if (parameters.isEmpty) return t;
-    return SimpleDartTypeSubstitutionVisitor(this, arguments, parameters)
-        .substitute(t);
+    return SimpleDartTypeSubstitutionVisitor(
+      this,
+      arguments,
+      parameters,
+    ).substitute(t);
   }
 
   DartType instantiate(FunctionType t, List<DartType> arguments) {
-    assert(arguments.length == t.typeVariables.length,
-        'Generic function type instantiation is all-or-none');
-    DartType _subst(DartType type) => subst(arguments, t.typeVariables, type);
-    DartType returnType = _subst(t.returnType);
-    List<DartType> parameterTypes = t.parameterTypes.map(_subst).toList();
-    List<DartType> optionalParameterTypes =
-        t.optionalParameterTypes.map(_subst).toList();
-    List<DartType> namedParameterTypes =
-        t.namedParameterTypes.map(_subst).toList();
+    assert(
+      arguments.length == t.typeVariables.length,
+      'Generic function type instantiation is all-or-none',
+    );
+    DartType substType(DartType type) =>
+        subst(arguments, t.typeVariables, type);
+    DartType returnType = substType(t.returnType);
+    List<DartType> parameterTypes = t.parameterTypes.map(substType).toList();
+    List<DartType> optionalParameterTypes = t.optionalParameterTypes
+        .map(substType)
+        .toList();
+    List<DartType> namedParameterTypes = t.namedParameterTypes
+        .map(substType)
+        .toList();
     return functionType(
-        returnType,
-        parameterTypes,
-        optionalParameterTypes,
-        t.namedParameters,
-        t.requiredNamedParameters,
-        namedParameterTypes, const []);
+      returnType,
+      parameterTypes,
+      optionalParameterTypes,
+      t.namedParameters,
+      t.requiredNamedParameters,
+      namedParameterTypes,
+      const [],
+    );
   }
 
   /// Returns `true` if every type argument of [t] is a top type.
@@ -1977,16 +1921,10 @@ abstract class DartTypes {
   }
 
   /// Returns `true` if [t] is a bottom type, that is, a subtype of every type.
-  bool isBottomType(DartType t) =>
-      t is NeverType || (useLegacySubtyping && t.isNull);
+  bool isBottomType(DartType t) => t is NeverType;
 
   /// Returns `true` if [t] is a top type, that is, a supertype of every type.
   bool isTopType(DartType t) =>
-      isStrongTopType(t) ||
-      t is LegacyType && t.baseType.isObject ||
-      useLegacySubtyping && t.isObject;
-
-  bool isStrongTopType(DartType t) =>
       t is VoidType ||
       t is DynamicType ||
       t is ErasedType ||
@@ -1996,24 +1934,28 @@ abstract class DartTypes {
   /// Returns `true` if [s] is a subtype of [t].
   bool isSubtype(DartType s, DartType t) => _subtypeHelper(s, t);
 
-  /// Returns `true` if [s] is assignable to [t].
-  bool isAssignable(DartType s, DartType t) =>
-      isSubtype(s, t) || isSubtype(t, s);
-
   /// Returns `true` if [s] might be a subtype of [t] for some values of
   /// type variables in [s] and [t].
   ///
   /// If [assumeInstantiations], generic function types are assumed to be
   /// potentially instantiated.
-  bool isPotentialSubtype(DartType s, DartType t,
-          {bool assumeInstantiations = true}) =>
-      _subtypeHelper(s, t,
-          allowPotentialSubtypes: true,
-          assumeInstantiations: assumeInstantiations);
+  bool isPotentialSubtype(
+    DartType s,
+    DartType t, {
+    bool assumeInstantiations = true,
+  }) => _subtypeHelper(
+    s,
+    t,
+    allowPotentialSubtypes: true,
+    assumeInstantiations: assumeInstantiations,
+  );
 
-  bool _subtypeHelper(DartType s, DartType t,
-      {bool allowPotentialSubtypes = false,
-      bool assumeInstantiations = false}) {
+  bool _subtypeHelper(
+    DartType s,
+    DartType t, {
+    bool allowPotentialSubtypes = false,
+    bool assumeInstantiations = false,
+  }) {
     assert(allowPotentialSubtypes || !assumeInstantiations);
 
     // TODO(fishythefish): Add constraint solving for potential subtypes.
@@ -2022,13 +1964,15 @@ abstract class DartTypes {
     /// Based on
     /// https://github.com/dart-lang/language/blob/master/resources/type-system/subtyping.md.
     /// See also [_isSubtype] in `dart:_rti`.
-    bool _isSubtype(DartType s, DartType t, _Assumptions? env) {
+    bool isSubtype(DartType s, DartType t, _Assumptions? env) {
       // Reflexivity:
       if (s == t) return true;
       if (env != null &&
           s is FunctionTypeVariable &&
           t is FunctionTypeVariable &&
-          env.isAssumed(s, t)) return true;
+          env.isAssumed(s, t)) {
+        return true;
+      }
 
       if (s is AnyType) return true;
 
@@ -2036,65 +1980,48 @@ abstract class DartTypes {
       if (isTopType(t)) return true;
 
       // Left Top:
-      if (isStrongTopType(s)) return false;
+      if (isTopType(s)) return false;
 
       // Left Bottom:
       if (isBottomType(s)) return true;
 
       // Left Type Variable Bound 1:
       if (s is TypeVariableType) {
-        if (_isSubtype(getTypeVariableBound(s.element), t, env)) return true;
+        if (isSubtype(getTypeVariableBound(s.element), t, env)) return true;
       }
       if (s is FunctionTypeVariable) {
-        if (_isSubtype(s.bound, t, env)) return true;
+        if (isSubtype(s.bound, t, env)) return true;
       }
 
       // Left Null:
       // Note: Interchanging the Left Null and Right Object rules allows us to
       // reduce casework.
-      if (!useLegacySubtyping && s.isNull) {
+      if (s.isNull) {
         if (t is FutureOrType) {
-          return _isSubtype(s, t.typeArgument, env);
+          return isSubtype(s, t.typeArgument, env);
         }
-        return t.isNull || t is LegacyType || t is NullableType;
+        return t.isNull || t is NullableType;
       }
 
       // Right Object:
-      if (!useLegacySubtyping && t.isObject) {
+      if (t.isObject) {
         if (s is FutureOrType) {
-          return _isSubtype(s.typeArgument, t, env);
-        }
-        if (s is LegacyType) {
-          return _isSubtype(s.baseType, t, env);
+          return isSubtype(s.typeArgument, t, env);
         }
         return s is! NullableType;
-      }
-
-      // Left Legacy:
-      if (s is LegacyType) {
-        return _isSubtype(s.baseType, t, env);
-      }
-
-      // Right Legacy:
-      if (t is LegacyType) {
-        // Note that to convert `T*` to `T?`, we can't just say `t._toNullable`.
-        // The resulting type `T?` may be normalizable (e.g. if `T` is `Never`).
-        return _isSubtype(
-            s, useLegacySubtyping ? t.baseType : nullableType(t), env);
       }
 
       // Left FutureOr:
       if (s is FutureOrType) {
         DartType typeArgument = s.typeArgument;
-        return _isSubtype(typeArgument, t, env) &&
-            _isSubtype(commonElements.futureType(typeArgument), t, env);
+        return isSubtype(typeArgument, t, env) &&
+            isSubtype(commonElements.futureType(typeArgument), t, env);
       }
 
       // Left Nullable:
       if (s is NullableType) {
-        return (useLegacySubtyping ||
-                _isSubtype(commonElements.nullType, t, env)) &&
-            _isSubtype(s.baseType, t, env);
+        return (isSubtype(commonElements.nullType, t, env)) &&
+            isSubtype(s.baseType, t, env);
       }
 
       // Type Variable Reflexivity 1 is subsumed by Reflexivity and therefore
@@ -2107,15 +2034,14 @@ abstract class DartTypes {
       // Right FutureOr:
       if (t is FutureOrType) {
         DartType typeArgument = t.typeArgument;
-        return _isSubtype(s, typeArgument, env) ||
-            _isSubtype(s, commonElements.futureType(typeArgument), env);
+        return isSubtype(s, typeArgument, env) ||
+            isSubtype(s, commonElements.futureType(typeArgument), env);
       }
 
       // Right Nullable:
       if (t is NullableType) {
-        return (!useLegacySubtyping &&
-                _isSubtype(s, commonElements.nullType, env)) ||
-            _isSubtype(s, t.baseType, env);
+        return (isSubtype(s, commonElements.nullType, env)) ||
+            isSubtype(s, t.baseType, env);
       }
 
       // Left Promoted Variable does not apply because we do not represent
@@ -2147,13 +2073,13 @@ abstract class DartTypes {
             for (int i = 0; i < length; i++) {
               DartType sBound = sTypeVariables[i].bound;
               DartType tBound = tTypeVariables[i].bound;
-              if (!_isSubtype(sBound, tBound, env) ||
-                  !_isSubtype(tBound, sBound, env)) {
+              if (!isSubtype(sBound, tBound, env) ||
+                  !isSubtype(tBound, sBound, env)) {
                 return false;
               }
             }
 
-            if (!_isSubtype(s.returnType, t.returnType, env)) return false;
+            if (!isSubtype(s.returnType, t.returnType, env)) return false;
 
             List<DartType> sRequiredPositional = s.parameterTypes;
             List<DartType> tRequiredPositional = t.parameterTypes;
@@ -2175,24 +2101,31 @@ abstract class DartTypes {
             }
 
             for (int i = 0; i < sRequiredPositionalLength; i++) {
-              if (!_isSubtype(
-                  tRequiredPositional[i], sRequiredPositional[i], env)) {
+              if (!isSubtype(
+                tRequiredPositional[i],
+                sRequiredPositional[i],
+                env,
+              )) {
                 return false;
               }
             }
 
             for (int i = 0; i < requiredPositionalDelta; i++) {
-              if (!_isSubtype(
-                  tRequiredPositional[sRequiredPositionalLength + i],
-                  sOptionalPositional[i],
-                  env)) {
+              if (!isSubtype(
+                tRequiredPositional[sRequiredPositionalLength + i],
+                sOptionalPositional[i],
+                env,
+              )) {
                 return false;
               }
             }
 
             for (int i = 0; i < tOptionalPositionalLength; i++) {
-              if (!_isSubtype(tOptionalPositional[i],
-                  sOptionalPositional[requiredPositionalDelta + i], env)) {
+              if (!isSubtype(
+                tOptionalPositional[i],
+                sOptionalPositional[requiredPositionalDelta + i],
+                env,
+              )) {
                 return false;
               }
             }
@@ -2214,25 +2147,25 @@ abstract class DartTypes {
                 String sName = sNamed[sIndex++];
                 int comparison = sName.compareTo(tName);
                 if (comparison > 0) return false;
-                bool sIsRequired =
-                    !useLegacySubtyping && sRequiredNamed.contains(sName);
+                bool sIsRequired = sRequiredNamed.contains(sName);
                 if (comparison < 0) {
                   if (sIsRequired) return false;
                   continue;
                 }
-                bool tIsRequired =
-                    !useLegacySubtyping && tRequiredNamed.contains(tName);
+                bool tIsRequired = tRequiredNamed.contains(tName);
                 if (sIsRequired && !tIsRequired) return false;
-                if (!_isSubtype(
-                    tNamedTypes[tIndex], sNamedTypes[sIndex - 1], env))
+                if (!isSubtype(
+                  tNamedTypes[tIndex],
+                  sNamedTypes[sIndex - 1],
+                  env,
+                )) {
                   return false;
+                }
                 break;
               }
             }
-            if (!useLegacySubtyping) {
-              while (sIndex < sNamedLength) {
-                if (sRequiredNamed.contains(sNamed[sIndex++])) return false;
-              }
+            while (sIndex < sNamedLength) {
+              if (sRequiredNamed.contains(sNamed[sIndex++])) return false;
             }
             return true;
           } finally {
@@ -2245,8 +2178,9 @@ abstract class DartTypes {
       // Interface Compositionality + Super-Interface:
       if (s is InterfaceType) {
         if (t is InterfaceType) {
-          InterfaceType? instance =
-              s.element == t.element ? s : asInstanceOf(s, t.element);
+          InterfaceType? instance = s.element == t.element
+              ? s
+              : asInstanceOf(s, t.element);
           if (instance == null) return false;
           List<DartType> sArgs = instance.typeArguments;
           List<DartType> tArgs = t.typeArguments;
@@ -2257,18 +2191,17 @@ abstract class DartTypes {
             switch (variances[i]) {
               case Variance.legacyCovariant:
               case Variance.covariant:
-                if (!_isSubtype(sArgs[i], tArgs[i], env)) return false;
+                if (!isSubtype(sArgs[i], tArgs[i], env)) return false;
                 break;
               case Variance.contravariant:
-                if (!_isSubtype(tArgs[i], sArgs[i], env)) return false;
+                if (!isSubtype(tArgs[i], sArgs[i], env)) return false;
                 break;
               case Variance.invariant:
-                if (!_isSubtype(sArgs[i], tArgs[i], env) ||
-                    !_isSubtype(tArgs[i], sArgs[i], env)) return false;
+                if (!isSubtype(sArgs[i], tArgs[i], env) ||
+                    !isSubtype(tArgs[i], sArgs[i], env)) {
+                  return false;
+                }
                 break;
-              default:
-                throw StateError(
-                    "Invalid variance ${variances[i]} used for subtype check.");
             }
           }
           return true;
@@ -2291,7 +2224,7 @@ abstract class DartTypes {
         List<DartType> tFields = t.fields;
         assert(sFields.length == tFields.length); // Guaranteed by shape.
         for (int i = 0; i < sFields.length; i++) {
-          if (!_isSubtype(sFields[i], tFields[i], env)) return false;
+          if (!isSubtype(sFields[i], tFields[i], env)) return false;
         }
         return true;
       }
@@ -2299,7 +2232,7 @@ abstract class DartTypes {
       return false;
     }
 
-    return _isSubtype(s, t, null);
+    return isSubtype(s, t, null);
   }
 
   /// Returns [type] as an instance of [cls] or `null` if [type] is not a
@@ -2341,11 +2274,17 @@ abstract class DartTypes {
   /// declared on `type.element`. Calls [checkTypeVariableBound] on each type
   /// argument and bound.
   void checkTypeVariableBounds<T>(
+    T context,
+    List<DartType> typeArguments,
+    List<DartType> typeVariables,
+    void Function(
       T context,
-      List<DartType> typeArguments,
-      List<DartType> typeVariables,
-      void checkTypeVariableBound(T context, DartType typeArgument,
-          TypeVariableType typeVariable, DartType bound));
+      DartType typeArgument,
+      TypeVariableType typeVariable,
+      DartType bound,
+    )
+    checkTypeVariableBound,
+  );
 
   /// Returns the [ClassEntity] which declares the type variables occurring in
   // [type], or `null` if [type] does not contain class type variables.
@@ -2371,16 +2310,11 @@ abstract class DartTypes {
 
   List<Variance> getTypeVariableVariances(ClassEntity cls);
 
-  DartType getTearOffParameterType(
-      DartType type, bool isCovariant, bool isNonNullableByDefaultLibrary) {
+  DartType getTearOffParameterType(DartType type, bool isCovariant) {
     if (isCovariant) {
       // A covariant parameter has type `Object` in the method signature.
       var objectType = commonElements.objectType;
-      if (isNonNullableByDefaultLibrary) {
-        return nullableType(objectType);
-      } else {
-        return legacyType(objectType);
-      }
+      return nullableType(objectType);
     }
     return type;
   }
@@ -2395,9 +2329,7 @@ abstract class DartTypes {
         type is FunctionTypeVariable && canAssignGenericFunctionTo(type.bound);
   }
 
-  /// Returns `true` if [type] occurring in a program with no sound null safety
-  /// cannot accept `null` under sound rules.
-  bool isNonNullableIfSound(DartType type) {
+  bool isNonNullable(DartType type) {
     if (type is DynamicType ||
         type is VoidType ||
         type is AnyType ||
@@ -2405,21 +2337,25 @@ abstract class DartTypes {
       return false;
     }
     if (type is NullableType) return false;
-    if (type is LegacyType) {
-      return isNonNullableIfSound(type.baseType);
-    }
     if (type is InterfaceType) {
       if (type.isNull) return false;
       return true;
     }
     if (type is FunctionType) return true;
+    if (type is RecordType) return true;
     if (type is NeverType) return true;
     if (type is TypeVariableType) {
-      return isNonNullableIfSound(getTypeVariableBound(type.element));
+      return isNonNullable(getTypeVariableBound(type.element));
     }
     if (type is FutureOrType) {
-      return isNonNullableIfSound(type.typeArgument);
+      return isNonNullable(type.typeArgument);
     }
     throw UnimplementedError('isNonNullableIfSound $type');
+  }
+
+  DartType getUnionFreeType(DartType type) {
+    if (type is NullableType) return getUnionFreeType(type.baseType);
+    if (type is FutureOrType) return getUnionFreeType(type.typeArgument);
+    return type;
   }
 }

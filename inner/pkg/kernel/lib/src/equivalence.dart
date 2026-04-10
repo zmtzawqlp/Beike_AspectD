@@ -26,23 +26,105 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   EquivalenceVisitor({this.strategy = const EquivalenceStrategy()});
 
   @override
-  bool defaultNode(Node node, Node other) {
-    return false;
+  bool visitAuxiliaryConstant(AuxiliaryConstant node, Node other) {
+    return strategy.checkAuxiliaryConstant(this, node, other);
   }
 
   @override
-  bool defaultTreeNode(TreeNode node, Node other) {
-    return false;
+  bool visitNullConstant(NullConstant node, Node other) {
+    return strategy.checkNullConstant(this, node, other);
   }
 
   @override
-  bool visitLibrary(Library node, Node other) {
-    return strategy.checkLibrary(this, node, other);
+  bool visitBoolConstant(BoolConstant node, Node other) {
+    return strategy.checkBoolConstant(this, node, other);
   }
 
   @override
-  bool visitTypedef(Typedef node, Node other) {
-    return strategy.checkTypedef(this, node, other);
+  bool visitIntConstant(IntConstant node, Node other) {
+    return strategy.checkIntConstant(this, node, other);
+  }
+
+  @override
+  bool visitDoubleConstant(DoubleConstant node, Node other) {
+    return strategy.checkDoubleConstant(this, node, other);
+  }
+
+  @override
+  bool visitStringConstant(StringConstant node, Node other) {
+    return strategy.checkStringConstant(this, node, other);
+  }
+
+  @override
+  bool visitSymbolConstant(SymbolConstant node, Node other) {
+    return strategy.checkSymbolConstant(this, node, other);
+  }
+
+  @override
+  bool visitMapConstant(MapConstant node, Node other) {
+    return strategy.checkMapConstant(this, node, other);
+  }
+
+  @override
+  bool visitListConstant(ListConstant node, Node other) {
+    return strategy.checkListConstant(this, node, other);
+  }
+
+  @override
+  bool visitSetConstant(SetConstant node, Node other) {
+    return strategy.checkSetConstant(this, node, other);
+  }
+
+  @override
+  bool visitRecordConstant(RecordConstant node, Node other) {
+    return strategy.checkRecordConstant(this, node, other);
+  }
+
+  @override
+  bool visitInstanceConstant(InstanceConstant node, Node other) {
+    return strategy.checkInstanceConstant(this, node, other);
+  }
+
+  @override
+  bool visitInstantiationConstant(InstantiationConstant node, Node other) {
+    return strategy.checkInstantiationConstant(this, node, other);
+  }
+
+  @override
+  bool visitStaticTearOffConstant(StaticTearOffConstant node, Node other) {
+    return strategy.checkStaticTearOffConstant(this, node, other);
+  }
+
+  @override
+  bool visitConstructorTearOffConstant(
+      ConstructorTearOffConstant node, Node other) {
+    return strategy.checkConstructorTearOffConstant(this, node, other);
+  }
+
+  @override
+  bool visitRedirectingFactoryTearOffConstant(
+      RedirectingFactoryTearOffConstant node, Node other) {
+    return strategy.checkRedirectingFactoryTearOffConstant(this, node, other);
+  }
+
+  @override
+  bool visitTypedefTearOffConstant(TypedefTearOffConstant node, Node other) {
+    return strategy.checkTypedefTearOffConstant(this, node, other);
+  }
+
+  @override
+  bool visitTypeLiteralConstant(TypeLiteralConstant node, Node other) {
+    return strategy.checkTypeLiteralConstant(this, node, other);
+  }
+
+  @override
+  bool visitUnevaluatedConstant(UnevaluatedConstant node, Node other) {
+    return strategy.checkUnevaluatedConstant(this, node, other);
+  }
+
+  @override
+  bool visitComponent(Component node, Node other) {
+    return strategy.checkComponent(this, node, other);
   }
 
   @override
@@ -56,13 +138,14 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitInlineClass(InlineClass node, Node other) {
-    return strategy.checkInlineClass(this, node, other);
+  bool visitExtensionTypeDeclaration(
+      ExtensionTypeDeclaration node, Node other) {
+    return strategy.checkExtensionTypeDeclaration(this, node, other);
   }
 
   @override
-  bool defaultMember(Member node, Node other) {
-    return false;
+  bool visitLibrary(Library node, Node other) {
+    return strategy.checkLibrary(this, node, other);
   }
 
   @override
@@ -76,73 +159,18 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitRedirectingFactory(RedirectingFactory node, Node other) {
-    return strategy.checkRedirectingFactory(this, node, other);
-  }
-
-  @override
   bool visitProcedure(Procedure node, Node other) {
     return strategy.checkProcedure(this, node, other);
   }
 
   @override
-  bool visitLibraryDependency(LibraryDependency node, Node other) {
-    return strategy.checkLibraryDependency(this, node, other);
+  bool visitTypedef(Typedef node, Node other) {
+    return strategy.checkTypedef(this, node, other);
   }
 
   @override
-  bool visitLibraryPart(LibraryPart node, Node other) {
-    return strategy.checkLibraryPart(this, node, other);
-  }
-
-  @override
-  bool visitCombinator(Combinator node, Node other) {
-    return strategy.checkCombinator(this, node, other);
-  }
-
-  @override
-  bool defaultInitializer(Initializer node, Node other) {
-    return false;
-  }
-
-  @override
-  bool visitInvalidInitializer(InvalidInitializer node, Node other) {
-    return strategy.checkInvalidInitializer(this, node, other);
-  }
-
-  @override
-  bool visitFieldInitializer(FieldInitializer node, Node other) {
-    return strategy.checkFieldInitializer(this, node, other);
-  }
-
-  @override
-  bool visitSuperInitializer(SuperInitializer node, Node other) {
-    return strategy.checkSuperInitializer(this, node, other);
-  }
-
-  @override
-  bool visitRedirectingInitializer(RedirectingInitializer node, Node other) {
-    return strategy.checkRedirectingInitializer(this, node, other);
-  }
-
-  @override
-  bool visitLocalInitializer(LocalInitializer node, Node other) {
-    return strategy.checkLocalInitializer(this, node, other);
-  }
-
-  @override
-  bool visitAssertInitializer(AssertInitializer node, Node other) {
-    return strategy.checkAssertInitializer(this, node, other);
-  }
-
-  @override
-  bool visitFunctionNode(FunctionNode node, Node other) {
-    return strategy.checkFunctionNode(this, node, other);
-  }
-
-  @override
-  bool defaultExpression(Expression node, Node other) {
-    return false;
+  bool visitAuxiliaryExpression(AuxiliaryExpression node, Node other) {
+    return strategy.checkAuxiliaryExpression(this, node, other);
   }
 
   @override
@@ -360,11 +388,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool defaultBasicLiteral(BasicLiteral node, Node other) {
-    return false;
-  }
-
-  @override
   bool visitStringLiteral(StringLiteral node, Node other) {
     return strategy.checkStringLiteral(this, node, other);
   }
@@ -511,149 +534,58 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool defaultStatement(Statement node, Node other) {
-    return false;
+  bool visitFunctionNode(FunctionNode node, Node other) {
+    return strategy.checkFunctionNode(this, node, other);
   }
 
   @override
-  bool visitExpressionStatement(ExpressionStatement node, Node other) {
-    return strategy.checkExpressionStatement(this, node, other);
+  bool visitAuxiliaryInitializer(AuxiliaryInitializer node, Node other) {
+    return strategy.checkAuxiliaryInitializer(this, node, other);
   }
 
   @override
-  bool visitBlock(Block node, Node other) {
-    return strategy.checkBlock(this, node, other);
+  bool visitInvalidInitializer(InvalidInitializer node, Node other) {
+    return strategy.checkInvalidInitializer(this, node, other);
   }
 
   @override
-  bool visitAssertBlock(AssertBlock node, Node other) {
-    return strategy.checkAssertBlock(this, node, other);
+  bool visitFieldInitializer(FieldInitializer node, Node other) {
+    return strategy.checkFieldInitializer(this, node, other);
   }
 
   @override
-  bool visitEmptyStatement(EmptyStatement node, Node other) {
-    return strategy.checkEmptyStatement(this, node, other);
+  bool visitSuperInitializer(SuperInitializer node, Node other) {
+    return strategy.checkSuperInitializer(this, node, other);
   }
 
   @override
-  bool visitAssertStatement(AssertStatement node, Node other) {
-    return strategy.checkAssertStatement(this, node, other);
+  bool visitRedirectingInitializer(RedirectingInitializer node, Node other) {
+    return strategy.checkRedirectingInitializer(this, node, other);
   }
 
   @override
-  bool visitLabeledStatement(LabeledStatement node, Node other) {
-    return strategy.checkLabeledStatement(this, node, other);
+  bool visitLocalInitializer(LocalInitializer node, Node other) {
+    return strategy.checkLocalInitializer(this, node, other);
   }
 
   @override
-  bool visitBreakStatement(BreakStatement node, Node other) {
-    return strategy.checkBreakStatement(this, node, other);
+  bool visitAssertInitializer(AssertInitializer node, Node other) {
+    return strategy.checkAssertInitializer(this, node, other);
   }
 
   @override
-  bool visitWhileStatement(WhileStatement node, Node other) {
-    return strategy.checkWhileStatement(this, node, other);
+  bool visitLibraryDependency(LibraryDependency node, Node other) {
+    return strategy.checkLibraryDependency(this, node, other);
   }
 
   @override
-  bool visitDoStatement(DoStatement node, Node other) {
-    return strategy.checkDoStatement(this, node, other);
+  bool visitLibraryPart(LibraryPart node, Node other) {
+    return strategy.checkLibraryPart(this, node, other);
   }
 
   @override
-  bool visitForStatement(ForStatement node, Node other) {
-    return strategy.checkForStatement(this, node, other);
-  }
-
-  @override
-  bool visitForInStatement(ForInStatement node, Node other) {
-    return strategy.checkForInStatement(this, node, other);
-  }
-
-  @override
-  bool visitSwitchStatement(SwitchStatement node, Node other) {
-    return strategy.checkSwitchStatement(this, node, other);
-  }
-
-  @override
-  bool visitContinueSwitchStatement(ContinueSwitchStatement node, Node other) {
-    return strategy.checkContinueSwitchStatement(this, node, other);
-  }
-
-  @override
-  bool visitIfStatement(IfStatement node, Node other) {
-    return strategy.checkIfStatement(this, node, other);
-  }
-
-  @override
-  bool visitReturnStatement(ReturnStatement node, Node other) {
-    return strategy.checkReturnStatement(this, node, other);
-  }
-
-  @override
-  bool visitTryCatch(TryCatch node, Node other) {
-    return strategy.checkTryCatch(this, node, other);
-  }
-
-  @override
-  bool visitTryFinally(TryFinally node, Node other) {
-    return strategy.checkTryFinally(this, node, other);
-  }
-
-  @override
-  bool visitYieldStatement(YieldStatement node, Node other) {
-    return strategy.checkYieldStatement(this, node, other);
-  }
-
-  @override
-  bool visitVariableDeclaration(VariableDeclaration node, Node other) {
-    return strategy.checkVariableDeclaration(this, node, other);
-  }
-
-  @override
-  bool visitFunctionDeclaration(FunctionDeclaration node, Node other) {
-    return strategy.checkFunctionDeclaration(this, node, other);
-  }
-
-  @override
-  bool visitPatternSwitchStatement(PatternSwitchStatement node, Node other) {
-    return strategy.checkPatternSwitchStatement(this, node, other);
-  }
-
-  @override
-  bool visitPatternVariableDeclaration(
-      PatternVariableDeclaration node, Node other) {
-    return strategy.checkPatternVariableDeclaration(this, node, other);
-  }
-
-  @override
-  bool visitIfCaseStatement(IfCaseStatement node, Node other) {
-    return strategy.checkIfCaseStatement(this, node, other);
-  }
-
-  @override
-  bool visitSwitchCase(SwitchCase node, Node other) {
-    return strategy.checkSwitchCase(this, node, other);
-  }
-
-  @override
-  bool visitCatch(Catch node, Node other) {
-    return strategy.checkCatch(this, node, other);
-  }
-
-  @override
-  bool visitTypeParameter(TypeParameter node, Node other) {
-    return strategy.checkTypeParameter(this, node, other);
-  }
-
-  @override
-  bool visitComponent(Component node, Node other) {
-    return strategy.checkComponent(this, node, other);
-  }
-
-  @override
-  bool defaultPattern(Pattern node, Node other) {
-    return false;
+  bool visitCombinator(Combinator node, Node other) {
+    return strategy.checkCombinator(this, node, other);
   }
 
   @override
@@ -762,8 +694,144 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
+  bool visitSwitchCase(SwitchCase node, Node other) {
+    return strategy.checkSwitchCase(this, node, other);
+  }
+
+  @override
+  bool visitPatternSwitchStatement(PatternSwitchStatement node, Node other) {
+    return strategy.checkPatternSwitchStatement(this, node, other);
+  }
+
+  @override
+  bool visitSwitchStatement(SwitchStatement node, Node other) {
+    return strategy.checkSwitchStatement(this, node, other);
+  }
+
+  @override
+  bool visitPatternVariableDeclaration(
+      PatternVariableDeclaration node, Node other) {
+    return strategy.checkPatternVariableDeclaration(this, node, other);
+  }
+
+  @override
+  bool visitIfCaseStatement(IfCaseStatement node, Node other) {
+    return strategy.checkIfCaseStatement(this, node, other);
+  }
+
+  @override
+  bool visitAuxiliaryStatement(AuxiliaryStatement node, Node other) {
+    return strategy.checkAuxiliaryStatement(this, node, other);
+  }
+
+  @override
+  bool visitExpressionStatement(ExpressionStatement node, Node other) {
+    return strategy.checkExpressionStatement(this, node, other);
+  }
+
+  @override
+  bool visitBlock(Block node, Node other) {
+    return strategy.checkBlock(this, node, other);
+  }
+
+  @override
+  bool visitAssertBlock(AssertBlock node, Node other) {
+    return strategy.checkAssertBlock(this, node, other);
+  }
+
+  @override
+  bool visitEmptyStatement(EmptyStatement node, Node other) {
+    return strategy.checkEmptyStatement(this, node, other);
+  }
+
+  @override
+  bool visitAssertStatement(AssertStatement node, Node other) {
+    return strategy.checkAssertStatement(this, node, other);
+  }
+
+  @override
+  bool visitLabeledStatement(LabeledStatement node, Node other) {
+    return strategy.checkLabeledStatement(this, node, other);
+  }
+
+  @override
+  bool visitBreakStatement(BreakStatement node, Node other) {
+    return strategy.checkBreakStatement(this, node, other);
+  }
+
+  @override
+  bool visitWhileStatement(WhileStatement node, Node other) {
+    return strategy.checkWhileStatement(this, node, other);
+  }
+
+  @override
+  bool visitDoStatement(DoStatement node, Node other) {
+    return strategy.checkDoStatement(this, node, other);
+  }
+
+  @override
+  bool visitForStatement(ForStatement node, Node other) {
+    return strategy.checkForStatement(this, node, other);
+  }
+
+  @override
+  bool visitForInStatement(ForInStatement node, Node other) {
+    return strategy.checkForInStatement(this, node, other);
+  }
+
+  @override
+  bool visitContinueSwitchStatement(ContinueSwitchStatement node, Node other) {
+    return strategy.checkContinueSwitchStatement(this, node, other);
+  }
+
+  @override
+  bool visitIfStatement(IfStatement node, Node other) {
+    return strategy.checkIfStatement(this, node, other);
+  }
+
+  @override
+  bool visitReturnStatement(ReturnStatement node, Node other) {
+    return strategy.checkReturnStatement(this, node, other);
+  }
+
+  @override
+  bool visitTryCatch(TryCatch node, Node other) {
+    return strategy.checkTryCatch(this, node, other);
+  }
+
+  @override
+  bool visitTryFinally(TryFinally node, Node other) {
+    return strategy.checkTryFinally(this, node, other);
+  }
+
+  @override
+  bool visitYieldStatement(YieldStatement node, Node other) {
+    return strategy.checkYieldStatement(this, node, other);
+  }
+
+  @override
+  bool visitVariableDeclaration(VariableDeclaration node, Node other) {
+    return strategy.checkVariableDeclaration(this, node, other);
+  }
+
+  @override
+  bool visitFunctionDeclaration(FunctionDeclaration node, Node other) {
+    return strategy.checkFunctionDeclaration(this, node, other);
+  }
+
+  @override
   bool visitSwitchExpressionCase(SwitchExpressionCase node, Node other) {
     return strategy.checkSwitchExpressionCase(this, node, other);
+  }
+
+  @override
+  bool visitCatch(Catch node, Node other) {
+    return strategy.checkCatch(this, node, other);
+  }
+
+  @override
+  bool visitTypeParameter(TypeParameter node, Node other) {
+    return strategy.checkTypeParameter(this, node, other);
   }
 
   @override
@@ -772,8 +840,28 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool defaultDartType(DartType node, Node other) {
-    return false;
+  bool visitStructuralParameter(StructuralParameter node, Node other) {
+    return strategy.checkStructuralParameter(this, node, other);
+  }
+
+  @override
+  bool visitSupertype(Supertype node, Node other) {
+    return strategy.checkSupertype(this, node, other);
+  }
+
+  @override
+  bool visitInterfaceType(InterfaceType node, Node other) {
+    return strategy.checkInterfaceType(this, node, other);
+  }
+
+  @override
+  bool visitExtensionType(ExtensionType node, Node other) {
+    return strategy.checkExtensionType(this, node, other);
+  }
+
+  @override
+  bool visitAuxiliaryType(AuxiliaryType node, Node other) {
+    return strategy.checkAuxiliaryType(this, node, other);
   }
 
   @override
@@ -802,11 +890,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitInterfaceType(InterfaceType node, Node other) {
-    return strategy.checkInterfaceType(this, node, other);
-  }
-
-  @override
   bool visitFunctionType(FunctionType node, Node other) {
     return strategy.checkFunctionType(this, node, other);
   }
@@ -822,16 +905,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitExtensionType(ExtensionType node, Node other) {
-    return strategy.checkExtensionType(this, node, other);
-  }
-
-  @override
-  bool visitInlineType(InlineType node, Node other) {
-    return strategy.checkInlineType(this, node, other);
-  }
-
-  @override
   bool visitIntersectionType(IntersectionType node, Node other) {
     return strategy.checkIntersectionType(this, node, other);
   }
@@ -839,6 +912,11 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   @override
   bool visitTypeParameterType(TypeParameterType node, Node other) {
     return strategy.checkTypeParameterType(this, node, other);
+  }
+
+  @override
+  bool visitStructuralParameterType(StructuralParameterType node, Node other) {
+    return strategy.checkStructuralParameterType(this, node, other);
   }
 
   @override
@@ -852,113 +930,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitSupertype(Supertype node, Node other) {
-    return strategy.checkSupertype(this, node, other);
-  }
-
-  @override
-  bool defaultConstant(Constant node, Node other) {
-    return false;
-  }
-
-  @override
-  bool visitNullConstant(NullConstant node, Node other) {
-    return strategy.checkNullConstant(this, node, other);
-  }
-
-  @override
-  bool visitBoolConstant(BoolConstant node, Node other) {
-    return strategy.checkBoolConstant(this, node, other);
-  }
-
-  @override
-  bool visitIntConstant(IntConstant node, Node other) {
-    return strategy.checkIntConstant(this, node, other);
-  }
-
-  @override
-  bool visitDoubleConstant(DoubleConstant node, Node other) {
-    return strategy.checkDoubleConstant(this, node, other);
-  }
-
-  @override
-  bool visitStringConstant(StringConstant node, Node other) {
-    return strategy.checkStringConstant(this, node, other);
-  }
-
-  @override
-  bool visitSymbolConstant(SymbolConstant node, Node other) {
-    return strategy.checkSymbolConstant(this, node, other);
-  }
-
-  @override
-  bool visitMapConstant(MapConstant node, Node other) {
-    return strategy.checkMapConstant(this, node, other);
-  }
-
-  @override
-  bool visitListConstant(ListConstant node, Node other) {
-    return strategy.checkListConstant(this, node, other);
-  }
-
-  @override
-  bool visitSetConstant(SetConstant node, Node other) {
-    return strategy.checkSetConstant(this, node, other);
-  }
-
-  @override
-  bool visitRecordConstant(RecordConstant node, Node other) {
-    return strategy.checkRecordConstant(this, node, other);
-  }
-
-  @override
-  bool visitInstanceConstant(InstanceConstant node, Node other) {
-    return strategy.checkInstanceConstant(this, node, other);
-  }
-
-  @override
-  bool visitInstantiationConstant(InstantiationConstant node, Node other) {
-    return strategy.checkInstantiationConstant(this, node, other);
-  }
-
-  @override
-  bool visitStaticTearOffConstant(StaticTearOffConstant node, Node other) {
-    return strategy.checkStaticTearOffConstant(this, node, other);
-  }
-
-  @override
-  bool visitConstructorTearOffConstant(
-      ConstructorTearOffConstant node, Node other) {
-    return strategy.checkConstructorTearOffConstant(this, node, other);
-  }
-
-  @override
-  bool visitRedirectingFactoryTearOffConstant(
-      RedirectingFactoryTearOffConstant node, Node other) {
-    return strategy.checkRedirectingFactoryTearOffConstant(this, node, other);
-  }
-
-  @override
-  bool visitTypedefTearOffConstant(TypedefTearOffConstant node, Node other) {
-    return strategy.checkTypedefTearOffConstant(this, node, other);
-  }
-
-  @override
-  bool visitTypeLiteralConstant(TypeLiteralConstant node, Node other) {
-    return strategy.checkTypeLiteralConstant(this, node, other);
-  }
-
-  @override
-  bool visitUnevaluatedConstant(UnevaluatedConstant node, Node other) {
-    return strategy.checkUnevaluatedConstant(this, node, other);
-  }
-
-  @override
-  bool visitTypedefReference(Typedef node, Node other) {
-    return false;
-  }
-
-  @override
   bool visitClassReference(Class node, Node other) {
     return false;
   }
@@ -969,12 +940,8 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitInlineClassReference(InlineClass node, Node other) {
-    return false;
-  }
-
-  @override
-  bool defaultMemberReference(Member node, Node other) {
+  bool visitExtensionTypeDeclarationReference(
+      ExtensionTypeDeclaration node, Node other) {
     return false;
   }
 
@@ -989,17 +956,17 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   @override
-  bool visitRedirectingFactoryReference(RedirectingFactory node, Node other) {
-    return false;
-  }
-
-  @override
   bool visitProcedureReference(Procedure node, Node other) {
     return false;
   }
 
   @override
-  bool defaultConstantReference(Constant node, Node other) {
+  bool visitTypedefReference(Typedef node, Node other) {
+    return false;
+  }
+
+  @override
+  bool visitAuxiliaryConstantReference(AuxiliaryConstant node, Node other) {
     return false;
   }
 
@@ -1157,22 +1124,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
     return result;
   }
 
-  /// Returns `true` if [a] and [b] are identical or equal. Inequivalence is
-  /// _not_ registered.
-  bool shallowMatchNodes<T extends Node>(T? a, T? b) {
-    return _checkValues(a, b);
-  }
-
-  /// Returns `true` if [a] and [b] are equivalent, as defined by the current
-  /// strategy. Inequivalence is _not_ registered.
-  bool deepMatchNodes<T extends Node>(T? a, T? b) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result = checkNodes(a, b);
-    _checkingState = oldState;
-    return result;
-  }
-
   /// Returns `true` if [a] and [b] are equivalent, either by existing
   /// assumption or as defined by their corresponding canonical names.
   /// Inequivalence is _not_ registered.
@@ -1225,17 +1176,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   /// Returns `true` if [a] and [b] are equivalent, either by their
-  /// corresponding canonical names or by assumption. Inequivalence is _not_
-  /// registered.
-  bool deeplyMatchReferences(Reference? a, Reference? b) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result = checkReferences(a, b);
-    _checkingState = oldState;
-    return result;
-  }
-
-  /// Returns `true` if [a] and [b] are equivalent, either by their
   /// corresponding canonical names or by assumption, and registers the
   /// inequivalence otherwise.
   bool checkReferences(Reference? a, Reference? b, [String propertyName = '']) {
@@ -1263,17 +1203,20 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   }
 
   bool matchDeclarations(dynamic a, dynamic b) {
+    if (a is SwitchCase) {
+      return b is SwitchCase;
+    }
     if (a is LabeledStatement) {
       return b is LabeledStatement;
     }
     if (a is VariableDeclaration) {
       return b is VariableDeclaration && a.name == b.name;
     }
-    if (a is SwitchCase) {
-      return b is SwitchCase;
-    }
     if (a is TypeParameter) {
       return b is TypeParameter && a.name == b.name;
+    }
+    if (a is StructuralParameter) {
+      return b is StructuralParameter && a.name == b.name;
     }
     return false;
   }
@@ -1290,14 +1233,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
     } else {
       return false;
     }
-  }
-
-  bool deepMatchDeclarations(dynamic a, dynamic b) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result = checkDeclarations(a, b);
-    _checkingState = oldState;
-    return result;
   }
 
   bool checkDeclarations(dynamic a, dynamic b, [String propertyName = '']) {
@@ -1318,7 +1253,7 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   /// If run in a checking state, the [propertyName] is used for registering
   /// inequivalences.
   bool checkLists<E>(
-      List<E>? a, List<E>? b, bool Function(E?, E?, String) equivalentValues,
+      List<E>? a, List<E>? b, bool Function(E, E, String) equivalentValues,
       [String propertyName = '']) {
     if (identical(a, b)) return true;
     if (a == null || b == null) return false;
@@ -1335,27 +1270,14 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
     return true;
   }
 
-  /// Returns `true` if lists [a] and [b] are equivalent, using
-  /// [equivalentValues] to determine element-wise equivalence.
-  ///
-  /// Inequivalence is _not_ registered.
-  bool matchLists<E>(
-      List<E>? a, List<E>? b, bool Function(E?, E?, String) equivalentValues) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result = checkLists(a, b, equivalentValues);
-    _checkingState = oldState;
-    return result;
-  }
-
   /// Returns `true` if sets [a] and [b] are equivalent, using
   /// [matchingValues] to determine which elements that should be checked for
   /// element-wise equivalence using [equivalentValues].
   ///
   /// If run in a checking state, the [propertyName] is used for registering
   /// inequivalences.
-  bool checkSets<E>(Set<E>? a, Set<E>? b, bool Function(E?, E?) matchingValues,
-      bool Function(E?, E?, String) equivalentValues,
+  bool checkSets<E>(Set<E>? a, Set<E>? b, bool Function(E, E) matchingValues,
+      bool Function(E, E, String) equivalentValues,
       [String propertyName = '']) {
     if (identical(a, b)) return true;
     if (a == null || b == null) return false;
@@ -1393,20 +1315,6 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
     return true;
   }
 
-  /// Returns `true` if sets [a] and [b] are equivalent, using
-  /// [matchingValues] to determine which elements that should be checked for
-  /// element-wise equivalence using [equivalentValues].
-  ///
-  /// Inequivalence is _not_registered.
-  bool matchSets<E>(Set<E>? a, Set<E>? b, bool Function(E?, E?) matchingValues,
-      bool Function(E?, E?, String) equivalentValues) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result = checkSets(a, b, matchingValues, equivalentValues);
-    _checkingState = oldState;
-    return result;
-  }
-
   /// Returns `true` if maps [a] and [b] are equivalent, using
   /// [matchingKeys] to determine which entries that should be checked for
   /// entry-wise equivalence using [equivalentKeys] and [equivalentValues] to
@@ -1417,9 +1325,9 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
   bool checkMaps<K, V>(
       Map<K, V>? a,
       Map<K, V>? b,
-      bool Function(K?, K?) matchingKeys,
-      bool Function(K?, K?, String) equivalentKeys,
-      bool Function(V?, V?, String) equivalentValues,
+      bool Function(K, K) matchingKeys,
+      bool Function(K, K, String) equivalentKeys,
+      bool Function(V, V, String) equivalentValues,
       [String propertyName = '']) {
     if (identical(a, b)) return true;
     if (a == null || b == null) return false;
@@ -1447,7 +1355,7 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
       if (hasFoundKey) {
         bKeys.remove(foundKey);
         if (!equivalentValues(
-            a[aKey], b[foundKey], '${propertyName}[${aKey}]')) {
+            a[aKey]!, b[foundKey]!, '${propertyName}[${aKey}]')) {
           return false;
         }
       } else {
@@ -1461,53 +1369,11 @@ class EquivalenceVisitor implements Visitor1<bool, Node> {
     return true;
   }
 
-  /// Returns `true` if maps [a] and [b] are equivalent, using
-  /// [matchingKeys] to determine which entries that should be checked for
-  /// entry-wise equivalence using [equivalentKeys] and [equivalentValues] to
-  /// determine key and value equivalences, respectively.
-  ///
-  /// Inequivalence is _not_ registered.
-  bool matchMaps<K, V>(
-      Map<K, V>? a,
-      Map<K, V>? b,
-      bool Function(K?, K?) matchingKeys,
-      bool Function(K?, K?, String) equivalentKeys,
-      bool Function(V?, V?, String) equivalentValues) {
-    CheckingState oldState = _checkingState;
-    _checkingState = _checkingState.toMatchingState();
-    bool result =
-        checkMaps(a, b, matchingKeys, equivalentKeys, equivalentValues);
-    _checkingState = oldState;
-    return result;
-  }
-
   /// The current state of the visitor.
   ///
   /// This holds the current assumptions, found inequivalences, and whether
   /// inequivalences are currently registered.
   CheckingState _checkingState = new CheckingState();
-
-  /// Runs [f] in a new state that holds all current assumptions. If
-  /// [isAsserting] is `true`, inequivalences are registered. Returns the
-  /// collected inequivalences.
-  ///
-  /// If [f] returns `false`, the returned result is marked as having
-  /// inequivalences even when non have being registered.
-  EquivalenceResult inSubState(bool Function() f, {bool isAsserting = false}) {
-    CheckingState _oldState = _checkingState;
-    _checkingState = _checkingState.createSubState(isAsserting: isAsserting);
-    bool hasInequivalences = f();
-    EquivalenceResult result =
-        _checkingState.toResult(hasInequivalences: hasInequivalences);
-    _checkingState = _oldState;
-    return result;
-  }
-
-  /// Registers that the visitor enters the property named [propertyName] and
-  /// the currently visited node.
-  void pushPropertyState(String propertyName) {
-    _checkingState.pushPropertyState(propertyName);
-  }
 
   /// Registers that the visitor enters nodes [a] and [b].
   void pushNodeState(Node a, Node b) {
@@ -1571,101 +1437,380 @@ EquivalenceResult checkEquivalence(Node a, Node b,
 class EquivalenceStrategy {
   const EquivalenceStrategy();
 
-  bool checkLibrary(EquivalenceVisitor visitor, Library? node, Object? other) {
+  bool checkAuxiliaryConstant(
+      EquivalenceVisitor visitor, AuxiliaryConstant? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! Library) return false;
-    if (other is! Library) return false;
-    if (!visitor.matchNamedNodes(node, other)) {
-      return false;
-    }
+    if (node is! AuxiliaryConstant) return false;
+    if (other is! AuxiliaryConstant) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkLibrary_importUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_fileUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_languageVersion(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_flags(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_name(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_problemsAsJson(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_annotations(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_dependencies(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_additionalExports(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_parts(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_typedefs(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_classes(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_extensions(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_inlineClasses(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_procedures(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_fields(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_reference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibrary_fileOffset(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkNullConstant(
+      EquivalenceVisitor visitor, NullConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! NullConstant) return false;
+    if (other is! NullConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkNullConstant_value(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
     return result;
   }
 
-  bool checkTypedef(EquivalenceVisitor visitor, Typedef? node, Object? other) {
+  bool checkBoolConstant(
+      EquivalenceVisitor visitor, BoolConstant? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! Typedef) return false;
-    if (other is! Typedef) return false;
-    if (!visitor.matchNamedNodes(node, other)) {
-      return false;
-    }
+    if (node is! BoolConstant) return false;
+    if (other is! BoolConstant) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkTypedef_fileUri(visitor, node, other)) {
+    if (!checkBoolConstant_value(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_annotations(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkIntConstant(
+      EquivalenceVisitor visitor, IntConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! IntConstant) return false;
+    if (other is! IntConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkIntConstant_value(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_name(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkDoubleConstant(
+      EquivalenceVisitor visitor, DoubleConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! DoubleConstant) return false;
+    if (other is! DoubleConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkDoubleConstant_value(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_typeParameters(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkStringConstant(
+      EquivalenceVisitor visitor, StringConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! StringConstant) return false;
+    if (other is! StringConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkStringConstant_value(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_type(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSymbolConstant(
+      EquivalenceVisitor visitor, SymbolConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! SymbolConstant) return false;
+    if (other is! SymbolConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSymbolConstant_name(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_reference(visitor, node, other)) {
+    if (!checkSymbolConstant_libraryReference(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkTypedef_fileOffset(visitor, node, other)) {
+    visitor.popState();
+    return result;
+  }
+
+  bool checkConstantMapEntry(
+      EquivalenceVisitor visitor, ConstantMapEntry? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ConstantMapEntry) return false;
+    if (other is! ConstantMapEntry) return false;
+    bool result = true;
+    if (!checkConstantMapEntry_key(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantMapEntry_value(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    return result;
+  }
+
+  bool checkMapConstant(
+      EquivalenceVisitor visitor, MapConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! MapConstant) return false;
+    if (other is! MapConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkMapConstant_keyType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapConstant_valueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapConstant_entries(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkListConstant(
+      EquivalenceVisitor visitor, ListConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ListConstant) return false;
+    if (other is! ListConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkListConstant_typeArgument(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListConstant_entries(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSetConstant(
+      EquivalenceVisitor visitor, SetConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! SetConstant) return false;
+    if (other is! SetConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSetConstant_typeArgument(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSetConstant_entries(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRecordConstant(
+      EquivalenceVisitor visitor, RecordConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RecordConstant) return false;
+    if (other is! RecordConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRecordConstant_positional(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordConstant_named(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordConstant_recordType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkInstanceConstant(
+      EquivalenceVisitor visitor, InstanceConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! InstanceConstant) return false;
+    if (other is! InstanceConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkInstanceConstant_classReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInstanceConstant_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInstanceConstant_fieldValues(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkInstantiationConstant(
+      EquivalenceVisitor visitor, InstantiationConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! InstantiationConstant) return false;
+    if (other is! InstantiationConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkInstantiationConstant_tearOffConstant(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInstantiationConstant_types(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkStaticTearOffConstant(
+      EquivalenceVisitor visitor, StaticTearOffConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! StaticTearOffConstant) return false;
+    if (other is! StaticTearOffConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkStaticTearOffConstant_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkConstructorTearOffConstant(EquivalenceVisitor visitor,
+      ConstructorTearOffConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ConstructorTearOffConstant) return false;
+    if (other is! ConstructorTearOffConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkConstructorTearOffConstant_targetReference(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRedirectingFactoryTearOffConstant(EquivalenceVisitor visitor,
+      RedirectingFactoryTearOffConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RedirectingFactoryTearOffConstant) return false;
+    if (other is! RedirectingFactoryTearOffConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRedirectingFactoryTearOffConstant_targetReference(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkTypedefTearOffConstant(
+      EquivalenceVisitor visitor, TypedefTearOffConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! TypedefTearOffConstant) return false;
+    if (other is! TypedefTearOffConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkTypedefTearOffConstant_parameters(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkTypedefTearOffConstant_tearOffConstant(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkTypedefTearOffConstant_types(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkTypeLiteralConstant(
+      EquivalenceVisitor visitor, TypeLiteralConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! TypeLiteralConstant) return false;
+    if (other is! TypeLiteralConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkTypeLiteralConstant_type(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkUnevaluatedConstant(
+      EquivalenceVisitor visitor, UnevaluatedConstant? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! UnevaluatedConstant) return false;
+    if (other is! UnevaluatedConstant) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkUnevaluatedConstant_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSource(EquivalenceVisitor visitor, Source? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! Source) return false;
+    if (other is! Source) return false;
+    bool result = true;
+    if (!checkSource_lineStarts(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSource_source(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSource_importUri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSource_fileUri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSource_constantCoverageConstructors(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSource_cachedText(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    return result;
+  }
+
+  bool checkMetadataRepository(
+      EquivalenceVisitor visitor, MetadataRepository? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! MetadataRepository) return false;
+    if (other is! MetadataRepository) return false;
+    bool result = true;
+    return result;
+  }
+
+  bool checkComponent(
+      EquivalenceVisitor visitor, Component? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! Component) return false;
+    if (other is! Component) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkComponent_problemsAsJson(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkComponent_libraries(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkComponent_uriToSource(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkComponent_metadata(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkComponent_mainMethodName(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkComponent_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -1720,9 +1865,6 @@ class EquivalenceStrategy {
     if (!checkClass_procedures(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkClass_redirectingFactories(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
     if (!checkClass_reference(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
@@ -1730,49 +1872,6 @@ class EquivalenceStrategy {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
-    return result;
-  }
-
-  bool checkExtensionTypeShowHideClause(EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ExtensionTypeShowHideClause) return false;
-    if (other is! ExtensionTypeShowHideClause) return false;
-    bool result = true;
-    if (!checkExtensionTypeShowHideClause_shownSupertypes(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_shownMethods(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_shownGetters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_shownSetters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_shownOperators(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_hiddenSupertypes(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_hiddenMethods(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_hiddenGetters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_hiddenSetters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionTypeShowHideClause_hiddenOperators(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
     return result;
   }
 
@@ -1791,7 +1890,11 @@ class EquivalenceStrategy {
     if (!checkExtensionMemberDescriptor_flags(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkExtensionMemberDescriptor_member(visitor, node, other)) {
+    if (!checkExtensionMemberDescriptor_memberReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkExtensionMemberDescriptor_tearOffReference(
+        visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     return result;
@@ -1819,10 +1922,7 @@ class EquivalenceStrategy {
     if (!checkExtension_onType(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkExtension_showHideClause(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtension_members(visitor, node, other)) {
+    if (!checkExtension_memberDescriptors(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     if (!checkExtension_annotations(visitor, node, other)) {
@@ -1841,68 +1941,146 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkInlineClassMemberDescriptor(EquivalenceVisitor visitor,
-      InlineClassMemberDescriptor? node, Object? other) {
+  bool checkExtensionTypeMemberDescriptor(EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! InlineClassMemberDescriptor) return false;
-    if (other is! InlineClassMemberDescriptor) return false;
+    if (node is! ExtensionTypeMemberDescriptor) return false;
+    if (other is! ExtensionTypeMemberDescriptor) return false;
     bool result = true;
-    if (!checkInlineClassMemberDescriptor_name(visitor, node, other)) {
+    if (!checkExtensionTypeMemberDescriptor_name(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClassMemberDescriptor_kind(visitor, node, other)) {
+    if (!checkExtensionTypeMemberDescriptor_kind(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClassMemberDescriptor_flags(visitor, node, other)) {
+    if (!checkExtensionTypeMemberDescriptor_flags(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClassMemberDescriptor_member(visitor, node, other)) {
+    if (!checkExtensionTypeMemberDescriptor_memberReference(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkExtensionTypeMemberDescriptor_tearOffReference(
+        visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     return result;
   }
 
-  bool checkInlineClass(
-      EquivalenceVisitor visitor, InlineClass? node, Object? other) {
+  bool checkExtensionTypeDeclaration(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! InlineClass) return false;
-    if (other is! InlineClass) return false;
+    if (node is! ExtensionTypeDeclaration) return false;
+    if (other is! ExtensionTypeDeclaration) return false;
     if (!visitor.matchNamedNodes(node, other)) {
       return false;
     }
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkInlineClass_name(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_name(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_fileUri(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_fileUri(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_typeParameters(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_typeParameters(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_declaredRepresentationType(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_declaredRepresentationType(
+        visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_representationName(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_representationName(
+        visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_members(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_procedures(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_annotations(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_memberDescriptors(
+        visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_implements(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_annotations(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_flags(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_implements(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_reference(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_flags(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkInlineClass_fileOffset(visitor, node, other)) {
+    if (!checkExtensionTypeDeclaration_reference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkExtensionTypeDeclaration_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkLibrary(EquivalenceVisitor visitor, Library? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! Library) return false;
+    if (other is! Library) return false;
+    if (!visitor.matchNamedNodes(node, other)) {
+      return false;
+    }
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkLibrary_importUri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_fileUri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_languageVersion(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_flags(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_name(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_problemsAsJson(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_annotations(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_dependencies(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_additionalExports(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_parts(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_typedefs(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_classes(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_extensions(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_extensionTypeDeclarations(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_procedures(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_fields(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_reference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibrary_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -2005,53 +2183,6 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkRedirectingFactory(
-      EquivalenceVisitor visitor, RedirectingFactory? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RedirectingFactory) return false;
-    if (other is! RedirectingFactory) return false;
-    if (!visitor.matchNamedNodes(node, other)) {
-      return false;
-    }
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRedirectingFactory_flags(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_function(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_fileEndOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_annotations(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_name(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_fileUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_transformerFlags(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_reference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingFactory_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
   bool checkProcedure(
       EquivalenceVisitor visitor, Procedure? node, Object? other) {
     if (identical(node, other)) return true;
@@ -2108,243 +2239,48 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkLibraryDependency(
-      EquivalenceVisitor visitor, LibraryDependency? node, Object? other) {
+  bool checkTypedef(EquivalenceVisitor visitor, Typedef? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! LibraryDependency) return false;
-    if (other is! LibraryDependency) return false;
+    if (node is! Typedef) return false;
+    if (other is! Typedef) return false;
+    if (!visitor.matchNamedNodes(node, other)) {
+      return false;
+    }
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkLibraryDependency_flags(visitor, node, other)) {
+    if (!checkTypedef_fileUri(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkLibraryDependency_annotations(visitor, node, other)) {
+    if (!checkTypedef_annotations(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkLibraryDependency_importedLibraryReference(
-        visitor, node, other)) {
+    if (!checkTypedef_name(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkLibraryDependency_name(visitor, node, other)) {
+    if (!checkTypedef_typeParameters(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkLibraryDependency_combinators(visitor, node, other)) {
+    if (!checkTypedef_type(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkLibraryDependency_fileOffset(visitor, node, other)) {
+    if (!checkTypedef_reference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkTypedef_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
     return result;
   }
 
-  bool checkLibraryPart(
-      EquivalenceVisitor visitor, LibraryPart? node, Object? other) {
+  bool checkAuxiliaryExpression(
+      EquivalenceVisitor visitor, AuxiliaryExpression? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! LibraryPart) return false;
-    if (other is! LibraryPart) return false;
+    if (node is! AuxiliaryExpression) return false;
+    if (other is! AuxiliaryExpression) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkLibraryPart_annotations(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibraryPart_partUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLibraryPart_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkCombinator(
-      EquivalenceVisitor visitor, Combinator? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! Combinator) return false;
-    if (other is! Combinator) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkCombinator_isShow(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkCombinator_names(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkCombinator_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkInvalidInitializer(
-      EquivalenceVisitor visitor, InvalidInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InvalidInitializer) return false;
-    if (other is! InvalidInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInvalidInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInvalidInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkFieldInitializer(
-      EquivalenceVisitor visitor, FieldInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! FieldInitializer) return false;
-    if (other is! FieldInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkFieldInitializer_fieldReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFieldInitializer_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFieldInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFieldInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkSuperInitializer(
-      EquivalenceVisitor visitor, SuperInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SuperInitializer) return false;
-    if (other is! SuperInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSuperInitializer_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSuperInitializer_arguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSuperInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSuperInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkRedirectingInitializer(
-      EquivalenceVisitor visitor, RedirectingInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RedirectingInitializer) return false;
-    if (other is! RedirectingInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRedirectingInitializer_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingInitializer_arguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRedirectingInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkLocalInitializer(
-      EquivalenceVisitor visitor, LocalInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! LocalInitializer) return false;
-    if (other is! LocalInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkLocalInitializer_variable(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLocalInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkLocalInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkAssertInitializer(
-      EquivalenceVisitor visitor, AssertInitializer? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! AssertInitializer) return false;
-    if (other is! AssertInitializer) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkAssertInitializer_statement(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAssertInitializer_isSynthetic(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAssertInitializer_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkFunctionNode(
-      EquivalenceVisitor visitor, FunctionNode? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! FunctionNode) return false;
-    if (other is! FunctionNode) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkFunctionNode_fileEndOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_asyncMarker(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_dartAsyncMarker(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_typeParameters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_requiredParameterCount(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_positionalParameters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_namedParameters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_returnType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_body(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_futureValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_lazyBuilder(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkFunctionNode_fileOffset(visitor, node, other)) {
+    if (!checkAuxiliaryExpression_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -2769,6 +2705,9 @@ class EquivalenceStrategy {
       result = visitor.resultOnInequivalence;
     }
     if (!checkDynamicInvocation_arguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkDynamicInvocation_flags(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     if (!checkDynamicInvocation_fileOffset(visitor, node, other)) {
@@ -3257,9 +3196,6 @@ class EquivalenceStrategy {
     if (other is! IsExpression) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkIsExpression_flags(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
     if (!checkIsExpression_operand(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
@@ -3463,6 +3399,9 @@ class EquivalenceStrategy {
     visitor.pushNodeState(node, other);
     bool result = true;
     if (!checkThrow_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkThrow_flags(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     if (!checkThrow_fileOffset(visitor, node, other)) {
@@ -3741,7 +3680,7 @@ class EquivalenceStrategy {
     if (other is! TypedefTearOff) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkTypedefTearOff_typeParameters(visitor, node, other)) {
+    if (!checkTypedefTearOff_structuralParameters(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     if (!checkTypedefTearOff_expression(visitor, node, other)) {
@@ -3863,6 +3802,1030 @@ class EquivalenceStrategy {
       result = visitor.resultOnInequivalence;
     }
     if (!checkMapLiteralEntry_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRedirectingFactoryTarget(EquivalenceVisitor visitor,
+      RedirectingFactoryTarget? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RedirectingFactoryTarget) return false;
+    if (other is! RedirectingFactoryTarget) return false;
+    bool result = true;
+    if (!checkRedirectingFactoryTarget_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRedirectingFactoryTarget_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRedirectingFactoryTarget_errorMessage(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    return result;
+  }
+
+  bool checkFunctionNode(
+      EquivalenceVisitor visitor, FunctionNode? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! FunctionNode) return false;
+    if (other is! FunctionNode) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkFunctionNode_fileEndOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_asyncMarker(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_dartAsyncMarker(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_typeParameters(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_requiredParameterCount(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_positionalParameters(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_namedParameters(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_returnType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_body(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_emittedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_redirectingFactoryTarget(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_lazyBuilder(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFunctionNode_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAuxiliaryInitializer(
+      EquivalenceVisitor visitor, AuxiliaryInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AuxiliaryInitializer) return false;
+    if (other is! AuxiliaryInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkAuxiliaryInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAuxiliaryInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkInvalidInitializer(
+      EquivalenceVisitor visitor, InvalidInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! InvalidInitializer) return false;
+    if (other is! InvalidInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkInvalidInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInvalidInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkFieldInitializer(
+      EquivalenceVisitor visitor, FieldInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! FieldInitializer) return false;
+    if (other is! FieldInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkFieldInitializer_fieldReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFieldInitializer_value(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFieldInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkFieldInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSuperInitializer(
+      EquivalenceVisitor visitor, SuperInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! SuperInitializer) return false;
+    if (other is! SuperInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSuperInitializer_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSuperInitializer_arguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSuperInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSuperInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRedirectingInitializer(
+      EquivalenceVisitor visitor, RedirectingInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RedirectingInitializer) return false;
+    if (other is! RedirectingInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRedirectingInitializer_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRedirectingInitializer_arguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRedirectingInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRedirectingInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkLocalInitializer(
+      EquivalenceVisitor visitor, LocalInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! LocalInitializer) return false;
+    if (other is! LocalInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkLocalInitializer_variable(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLocalInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLocalInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAssertInitializer(
+      EquivalenceVisitor visitor, AssertInitializer? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AssertInitializer) return false;
+    if (other is! AssertInitializer) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkAssertInitializer_statement(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssertInitializer_isSynthetic(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssertInitializer_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkLibraryDependency(
+      EquivalenceVisitor visitor, LibraryDependency? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! LibraryDependency) return false;
+    if (other is! LibraryDependency) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkLibraryDependency_flags(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryDependency_annotations(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryDependency_importedLibraryReference(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryDependency_name(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryDependency_combinators(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryDependency_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkLibraryPart(
+      EquivalenceVisitor visitor, LibraryPart? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! LibraryPart) return false;
+    if (other is! LibraryPart) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkLibraryPart_annotations(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryPart_partUri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkLibraryPart_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkCombinator(
+      EquivalenceVisitor visitor, Combinator? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! Combinator) return false;
+    if (other is! Combinator) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkCombinator_isShow(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkCombinator_names(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkCombinator_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkConstantPattern(
+      EquivalenceVisitor visitor, ConstantPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ConstantPattern) return false;
+    if (other is! ConstantPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkConstantPattern_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantPattern_expressionType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantPattern_equalsTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantPattern_equalsType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantPattern_value(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkConstantPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAndPattern(
+      EquivalenceVisitor visitor, AndPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AndPattern) return false;
+    if (other is! AndPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkAndPattern_left(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAndPattern_right(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAndPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkOrPattern(
+      EquivalenceVisitor visitor, OrPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! OrPattern) return false;
+    if (other is! OrPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkOrPattern_left(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkOrPattern_right(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkOrPattern_orPatternJointVariables(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkOrPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkCastPattern(
+      EquivalenceVisitor visitor, CastPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! CastPattern) return false;
+    if (other is! CastPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkCastPattern_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkCastPattern_type(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkCastPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkNullAssertPattern(
+      EquivalenceVisitor visitor, NullAssertPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! NullAssertPattern) return false;
+    if (other is! NullAssertPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkNullAssertPattern_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNullAssertPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkNullCheckPattern(
+      EquivalenceVisitor visitor, NullCheckPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! NullCheckPattern) return false;
+    if (other is! NullCheckPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkNullCheckPattern_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNullCheckPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkListPattern(
+      EquivalenceVisitor visitor, ListPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ListPattern) return false;
+    if (other is! ListPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkListPattern_flags(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_typeArgument(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_patterns(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_requiredType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_lookupType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_lengthTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_lengthType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_lengthCheckTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_lengthCheckType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_sublistTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_sublistType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_minusTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_minusType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_indexGetTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_indexGetType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkListPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkObjectPattern(
+      EquivalenceVisitor visitor, ObjectPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ObjectPattern) return false;
+    if (other is! ObjectPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkObjectPattern_requiredType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkObjectPattern_fields(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkObjectPattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkObjectPattern_needsCheck(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkObjectPattern_lookupType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkObjectPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRelationalPattern(
+      EquivalenceVisitor visitor, RelationalPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RelationalPattern) return false;
+    if (other is! RelationalPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRelationalPattern_kind(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_expressionType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_accessKind(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_name(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_functionType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_expressionValue(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRelationalPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkWildcardPattern(
+      EquivalenceVisitor visitor, WildcardPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! WildcardPattern) return false;
+    if (other is! WildcardPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkWildcardPattern_type(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkWildcardPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAssignedVariablePattern(EquivalenceVisitor visitor,
+      AssignedVariablePattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AssignedVariablePattern) return false;
+    if (other is! AssignedVariablePattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkAssignedVariablePattern_variable(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssignedVariablePattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssignedVariablePattern_needsCast(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssignedVariablePattern_hasObservableEffect(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkAssignedVariablePattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkMapPattern(
+      EquivalenceVisitor visitor, MapPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! MapPattern) return false;
+    if (other is! MapPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkMapPattern_flags(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_keyType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_valueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_entries(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_requiredType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_lookupType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_containsKeyTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_containsKeyType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_indexGetTargetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_indexGetType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkNamedPattern(
+      EquivalenceVisitor visitor, NamedPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! NamedPattern) return false;
+    if (other is! NamedPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkNamedPattern_name(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_fieldName(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_accessKind(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_targetReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_resultType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_checkReturn(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_recordType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_recordFieldIndex(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_functionType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkNamedPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRecordPattern(
+      EquivalenceVisitor visitor, RecordPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RecordPattern) return false;
+    if (other is! RecordPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRecordPattern_patterns(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordPattern_requiredType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordPattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordPattern_needsCheck(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordPattern_lookupType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRecordPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkVariablePattern(
+      EquivalenceVisitor visitor, VariablePattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! VariablePattern) return false;
+    if (other is! VariablePattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkVariablePattern_type(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkVariablePattern_variable(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkVariablePattern_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkVariablePattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkRestPattern(
+      EquivalenceVisitor visitor, RestPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! RestPattern) return false;
+    if (other is! RestPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkRestPattern_subPattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkRestPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkInvalidPattern(
+      EquivalenceVisitor visitor, InvalidPattern? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! InvalidPattern) return false;
+    if (other is! InvalidPattern) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkInvalidPattern_invalidExpression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInvalidPattern_declaredVariables(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInvalidPattern_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkMapPatternEntry(
+      EquivalenceVisitor visitor, MapPatternEntry? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! MapPatternEntry) return false;
+    if (other is! MapPatternEntry) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkMapPatternEntry_key(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPatternEntry_value(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPatternEntry_keyType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPatternEntry_keyValue(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkMapPatternEntry_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkMapPatternRestEntry(
+      EquivalenceVisitor visitor, MapPatternRestEntry? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! MapPatternRestEntry) return false;
+    if (other is! MapPatternRestEntry) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkMapPatternRestEntry_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkPatternGuard(
+      EquivalenceVisitor visitor, PatternGuard? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! PatternGuard) return false;
+    if (other is! PatternGuard) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkPatternGuard_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternGuard_guard(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternGuard_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkPatternSwitchCase(
+      EquivalenceVisitor visitor, PatternSwitchCase? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! PatternSwitchCase) return false;
+    if (other is! PatternSwitchCase) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkPatternSwitchCase_caseOffsets(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_patternGuards(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_labelUsers(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_body(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_isDefault(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_hasLabel(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_jointVariables(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_jointVariableFirstUseOffsets(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchCase_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSwitchCase(
+      EquivalenceVisitor visitor, SwitchCase? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! SwitchCase) return false;
+    if (other is! SwitchCase) return false;
+    if (!visitor.checkDeclarations(node, other, '')) {
+      return false;
+    }
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSwitchCase_expressions(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchCase_expressionOffsets(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchCase_body(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchCase_isDefault(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchCase_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkPatternSwitchStatement(
+      EquivalenceVisitor visitor, PatternSwitchStatement? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! PatternSwitchStatement) return false;
+    if (other is! PatternSwitchStatement) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkPatternSwitchStatement_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchStatement_cases(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchStatement_expressionTypeInternal(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchStatement_lastCaseTerminates(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchStatement_isExplicitlyExhaustive(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternSwitchStatement_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSwitchStatement(
+      EquivalenceVisitor visitor, SwitchStatement? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! SwitchStatement) return false;
+    if (other is! SwitchStatement) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSwitchStatement_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchStatement_cases(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchStatement_isExplicitlyExhaustive(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchStatement_expressionTypeInternal(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSwitchStatement_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkPatternVariableDeclaration(EquivalenceVisitor visitor,
+      PatternVariableDeclaration? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! PatternVariableDeclaration) return false;
+    if (other is! PatternVariableDeclaration) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkPatternVariableDeclaration_pattern(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternVariableDeclaration_initializer(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternVariableDeclaration_isFinal(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternVariableDeclaration_matchedValueType(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkPatternVariableDeclaration_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkIfCaseStatement(
+      EquivalenceVisitor visitor, IfCaseStatement? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! IfCaseStatement) return false;
+    if (other is! IfCaseStatement) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkIfCaseStatement_expression(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkIfCaseStatement_patternGuard(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkIfCaseStatement_then(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkIfCaseStatement_otherwise(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkIfCaseStatement_matchedValueType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkIfCaseStatement_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAuxiliaryStatement(
+      EquivalenceVisitor visitor, AuxiliaryStatement? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AuxiliaryStatement) return false;
+    if (other is! AuxiliaryStatement) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkAuxiliaryStatement_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -4094,29 +5057,6 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkSwitchStatement(
-      EquivalenceVisitor visitor, SwitchStatement? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SwitchStatement) return false;
-    if (other is! SwitchStatement) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSwitchStatement_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchStatement_cases(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchStatement_isExplicitlyExhaustive(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchStatement_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
   bool checkContinueSwitchStatement(EquivalenceVisitor visitor,
       ContinueSwitchStatement? node, Object? other) {
     if (identical(node, other)) return true;
@@ -4295,115 +5235,20 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkPatternSwitchStatement(
-      EquivalenceVisitor visitor, PatternSwitchStatement? node, Object? other) {
+  bool checkSwitchExpressionCase(
+      EquivalenceVisitor visitor, SwitchExpressionCase? node, Object? other) {
     if (identical(node, other)) return true;
-    if (node is! PatternSwitchStatement) return false;
-    if (other is! PatternSwitchStatement) return false;
+    if (node is! SwitchExpressionCase) return false;
+    if (other is! SwitchExpressionCase) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    if (!checkPatternSwitchStatement_expression(visitor, node, other)) {
+    if (!checkSwitchExpressionCase_patternGuard(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkPatternSwitchStatement_cases(visitor, node, other)) {
+    if (!checkSwitchExpressionCase_expression(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
-    if (!checkPatternSwitchStatement_expressionType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchStatement_lastCaseTerminates(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchStatement_isExplicitlyExhaustive(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchStatement_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkPatternVariableDeclaration(EquivalenceVisitor visitor,
-      PatternVariableDeclaration? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! PatternVariableDeclaration) return false;
-    if (other is! PatternVariableDeclaration) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkPatternVariableDeclaration_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternVariableDeclaration_initializer(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternVariableDeclaration_isFinal(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternVariableDeclaration_matchedValueType(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternVariableDeclaration_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkIfCaseStatement(
-      EquivalenceVisitor visitor, IfCaseStatement? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! IfCaseStatement) return false;
-    if (other is! IfCaseStatement) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkIfCaseStatement_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkIfCaseStatement_patternGuard(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkIfCaseStatement_then(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkIfCaseStatement_otherwise(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkIfCaseStatement_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkIfCaseStatement_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkSwitchCase(
-      EquivalenceVisitor visitor, SwitchCase? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SwitchCase) return false;
-    if (other is! SwitchCase) return false;
-    if (!visitor.checkDeclarations(node, other, '')) {
-      return false;
-    }
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSwitchCase_expressions(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchCase_expressionOffsets(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchCase_body(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchCase_isDefault(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchCase_fileOffset(visitor, node, other)) {
+    if (!checkSwitchExpressionCase_fileOffset(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -4470,676 +5315,6 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkSource(EquivalenceVisitor visitor, Source? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! Source) return false;
-    if (other is! Source) return false;
-    bool result = true;
-    if (!checkSource_lineStarts(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSource_source(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSource_importUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSource_fileUri(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSource_constantCoverageConstructors(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSource_cachedText(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    return result;
-  }
-
-  bool checkMetadataRepository(
-      EquivalenceVisitor visitor, MetadataRepository? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! MetadataRepository) return false;
-    if (other is! MetadataRepository) return false;
-    bool result = true;
-    return result;
-  }
-
-  bool checkComponent(
-      EquivalenceVisitor visitor, Component? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! Component) return false;
-    if (other is! Component) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkComponent_problemsAsJson(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_libraries(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_uriToSource(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_metadata(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_mainMethodName(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_mode(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkComponent_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkConstantPattern(
-      EquivalenceVisitor visitor, ConstantPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ConstantPattern) return false;
-    if (other is! ConstantPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkConstantPattern_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantPattern_expressionType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantPattern_equalsTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantPattern_equalsType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantPattern_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkAndPattern(
-      EquivalenceVisitor visitor, AndPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! AndPattern) return false;
-    if (other is! AndPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkAndPattern_left(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAndPattern_right(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAndPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkOrPattern(
-      EquivalenceVisitor visitor, OrPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! OrPattern) return false;
-    if (other is! OrPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkOrPattern_left(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkOrPattern_right(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkOrPattern_orPatternJointVariables(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkOrPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkCastPattern(
-      EquivalenceVisitor visitor, CastPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! CastPattern) return false;
-    if (other is! CastPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkCastPattern_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkCastPattern_type(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkCastPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkNullAssertPattern(
-      EquivalenceVisitor visitor, NullAssertPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! NullAssertPattern) return false;
-    if (other is! NullAssertPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkNullAssertPattern_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNullAssertPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkNullCheckPattern(
-      EquivalenceVisitor visitor, NullCheckPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! NullCheckPattern) return false;
-    if (other is! NullCheckPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkNullCheckPattern_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNullCheckPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkListPattern(
-      EquivalenceVisitor visitor, ListPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ListPattern) return false;
-    if (other is! ListPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkListPattern_typeArgument(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_patterns(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_requiredType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_needsCheck(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_lookupType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_hasRestPattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_lengthTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_lengthType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_lengthCheckTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_lengthCheckType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_sublistTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_sublistType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_minusTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_minusType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_indexGetTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_indexGetType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkObjectPattern(
-      EquivalenceVisitor visitor, ObjectPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ObjectPattern) return false;
-    if (other is! ObjectPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkObjectPattern_requiredType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkObjectPattern_fields(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkObjectPattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkObjectPattern_needsCheck(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkObjectPattern_lookupType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkObjectPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkRelationalPattern(
-      EquivalenceVisitor visitor, RelationalPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RelationalPattern) return false;
-    if (other is! RelationalPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRelationalPattern_kind(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_expressionType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_accessKind(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_name(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_functionType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_expressionValue(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRelationalPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkWildcardPattern(
-      EquivalenceVisitor visitor, WildcardPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! WildcardPattern) return false;
-    if (other is! WildcardPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkWildcardPattern_type(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkWildcardPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkAssignedVariablePattern(EquivalenceVisitor visitor,
-      AssignedVariablePattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! AssignedVariablePattern) return false;
-    if (other is! AssignedVariablePattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkAssignedVariablePattern_variable(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAssignedVariablePattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAssignedVariablePattern_needsCast(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkAssignedVariablePattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkMapPattern(
-      EquivalenceVisitor visitor, MapPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! MapPattern) return false;
-    if (other is! MapPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkMapPattern_keyType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_valueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_entries(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_requiredType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_needsCheck(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_lookupType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_containsKeyTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_containsKeyType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_indexGetTargetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_indexGetType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkNamedPattern(
-      EquivalenceVisitor visitor, NamedPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! NamedPattern) return false;
-    if (other is! NamedPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkNamedPattern_name(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_fieldName(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_accessKind(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_resultType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_recordType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_recordFieldIndex(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_functionType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkNamedPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkRecordPattern(
-      EquivalenceVisitor visitor, RecordPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RecordPattern) return false;
-    if (other is! RecordPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRecordPattern_patterns(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordPattern_requiredType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordPattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordPattern_needsCheck(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordPattern_lookupType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkVariablePattern(
-      EquivalenceVisitor visitor, VariablePattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! VariablePattern) return false;
-    if (other is! VariablePattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkVariablePattern_type(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkVariablePattern_variable(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkVariablePattern_matchedValueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkVariablePattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkRestPattern(
-      EquivalenceVisitor visitor, RestPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RestPattern) return false;
-    if (other is! RestPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRestPattern_subPattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRestPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkInvalidPattern(
-      EquivalenceVisitor visitor, InvalidPattern? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InvalidPattern) return false;
-    if (other is! InvalidPattern) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInvalidPattern_invalidExpression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInvalidPattern_declaredVariables(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInvalidPattern_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkMapPatternEntry(
-      EquivalenceVisitor visitor, MapPatternEntry? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! MapPatternEntry) return false;
-    if (other is! MapPatternEntry) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkMapPatternEntry_key(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPatternEntry_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPatternEntry_keyType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPatternEntry_keyValue(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapPatternEntry_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkMapPatternRestEntry(
-      EquivalenceVisitor visitor, MapPatternRestEntry? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! MapPatternRestEntry) return false;
-    if (other is! MapPatternRestEntry) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkMapPatternRestEntry_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkPatternGuard(
-      EquivalenceVisitor visitor, PatternGuard? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! PatternGuard) return false;
-    if (other is! PatternGuard) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkPatternGuard_pattern(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternGuard_guard(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternGuard_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkPatternSwitchCase(
-      EquivalenceVisitor visitor, PatternSwitchCase? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! PatternSwitchCase) return false;
-    if (other is! PatternSwitchCase) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkPatternSwitchCase_caseOffsets(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_patternGuards(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_labelUsers(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_body(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_isDefault(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_hasLabel(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_jointVariables(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_jointVariableFirstUseOffsets(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkPatternSwitchCase_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkSwitchExpressionCase(
-      EquivalenceVisitor visitor, SwitchExpressionCase? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SwitchExpressionCase) return false;
-    if (other is! SwitchExpressionCase) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSwitchExpressionCase_patternGuard(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchExpressionCase_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSwitchExpressionCase_fileOffset(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
   bool checkName(EquivalenceVisitor visitor, Name? node, Object? other) {
     if (identical(node, other)) return true;
     if (node is! Name) return false;
@@ -5149,6 +5324,110 @@ class EquivalenceStrategy {
     if (!checkName_text(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkStructuralParameter(
+      EquivalenceVisitor visitor, StructuralParameter? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! StructuralParameter) return false;
+    if (other is! StructuralParameter) return false;
+    if (!visitor.checkDeclarations(node, other, '')) {
+      return false;
+    }
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkStructuralParameter_flags(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_name(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_fileOffset(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_uri(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_bound(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_defaultType(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameter_variance(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkSupertype(
+      EquivalenceVisitor visitor, Supertype? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! Supertype) return false;
+    if (other is! Supertype) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkSupertype_className(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkSupertype_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkInterfaceType(
+      EquivalenceVisitor visitor, InterfaceType? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! InterfaceType) return false;
+    if (other is! InterfaceType) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkInterfaceType_classReference(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInterfaceType_declaredNullability(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkInterfaceType_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkExtensionType(
+      EquivalenceVisitor visitor, ExtensionType? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! ExtensionType) return false;
+    if (other is! ExtensionType) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkExtensionType_extensionTypeDeclarationReference(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkExtensionType_declaredNullability(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkExtensionType_typeArguments(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkAuxiliaryType(
+      EquivalenceVisitor visitor, AuxiliaryType? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! AuxiliaryType) return false;
+    if (other is! AuxiliaryType) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
     visitor.popState();
     return result;
   }
@@ -5207,26 +5486,6 @@ class EquivalenceStrategy {
     if (other is! NullType) return false;
     visitor.pushNodeState(node, other);
     bool result = true;
-    visitor.popState();
-    return result;
-  }
-
-  bool checkInterfaceType(
-      EquivalenceVisitor visitor, InterfaceType? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InterfaceType) return false;
-    if (other is! InterfaceType) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInterfaceType_className(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInterfaceType_declaredNullability(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInterfaceType_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
     visitor.popState();
     return result;
   }
@@ -5297,52 +5556,6 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkExtensionType(
-      EquivalenceVisitor visitor, ExtensionType? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ExtensionType) return false;
-    if (other is! ExtensionType) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkExtensionType_extensionReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionType_declaredNullability(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionType_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkExtensionType_onType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
-  bool checkInlineType(
-      EquivalenceVisitor visitor, InlineType? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InlineType) return false;
-    if (other is! InlineType) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInlineType_inlineClassReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInlineType_declaredNullability(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInlineType_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInlineType_instantiatedRepresentationType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
-  }
-
   bool checkIntersectionType(
       EquivalenceVisitor visitor, IntersectionType? node, Object? other) {
     if (identical(node, other)) return true;
@@ -5371,6 +5584,24 @@ class EquivalenceStrategy {
       result = visitor.resultOnInequivalence;
     }
     if (!checkTypeParameterType_parameter(visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    visitor.popState();
+    return result;
+  }
+
+  bool checkStructuralParameterType(EquivalenceVisitor visitor,
+      StructuralParameterType? node, Object? other) {
+    if (identical(node, other)) return true;
+    if (node is! StructuralParameterType) return false;
+    if (other is! StructuralParameterType) return false;
+    visitor.pushNodeState(node, other);
+    bool result = true;
+    if (!checkStructuralParameterType_declaredNullability(
+        visitor, node, other)) {
+      result = visitor.resultOnInequivalence;
+    }
+    if (!checkStructuralParameterType_parameter(visitor, node, other)) {
       result = visitor.resultOnInequivalence;
     }
     visitor.popState();
@@ -5417,326 +5648,563 @@ class EquivalenceStrategy {
     return result;
   }
 
-  bool checkSupertype(
-      EquivalenceVisitor visitor, Supertype? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! Supertype) return false;
-    if (other is! Supertype) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSupertype_className(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSupertype_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkPrimitiveConstant_value(EquivalenceVisitor visitor,
+      PrimitiveConstant node, PrimitiveConstant other) {
+    return visitor.checkValues(node.value, other.value, 'value');
   }
 
-  bool checkNullConstant(
-      EquivalenceVisitor visitor, NullConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! NullConstant) return false;
-    if (other is! NullConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkNullConstant_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkNullConstant_value(
+      EquivalenceVisitor visitor, NullConstant node, NullConstant other) {
+    return checkPrimitiveConstant_value(visitor, node, other);
   }
 
-  bool checkBoolConstant(
-      EquivalenceVisitor visitor, BoolConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! BoolConstant) return false;
-    if (other is! BoolConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkBoolConstant_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkBoolConstant_value(
+      EquivalenceVisitor visitor, BoolConstant node, BoolConstant other) {
+    return checkPrimitiveConstant_value(visitor, node, other);
   }
 
-  bool checkIntConstant(
-      EquivalenceVisitor visitor, IntConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! IntConstant) return false;
-    if (other is! IntConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkIntConstant_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkIntConstant_value(
+      EquivalenceVisitor visitor, IntConstant node, IntConstant other) {
+    return checkPrimitiveConstant_value(visitor, node, other);
   }
 
-  bool checkDoubleConstant(
-      EquivalenceVisitor visitor, DoubleConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! DoubleConstant) return false;
-    if (other is! DoubleConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkDoubleConstant_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkDoubleConstant_value(
+      EquivalenceVisitor visitor, DoubleConstant node, DoubleConstant other) {
+    return checkPrimitiveConstant_value(visitor, node, other);
   }
 
-  bool checkStringConstant(
-      EquivalenceVisitor visitor, StringConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! StringConstant) return false;
-    if (other is! StringConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkStringConstant_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkStringConstant_value(
+      EquivalenceVisitor visitor, StringConstant node, StringConstant other) {
+    return checkPrimitiveConstant_value(visitor, node, other);
   }
 
-  bool checkSymbolConstant(
-      EquivalenceVisitor visitor, SymbolConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SymbolConstant) return false;
-    if (other is! SymbolConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSymbolConstant_name(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSymbolConstant_libraryReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkSymbolConstant_name(
+      EquivalenceVisitor visitor, SymbolConstant node, SymbolConstant other) {
+    return visitor.checkValues(node.name, other.name, 'name');
   }
 
-  bool checkConstantMapEntry(
-      EquivalenceVisitor visitor, ConstantMapEntry? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ConstantMapEntry) return false;
-    if (other is! ConstantMapEntry) return false;
-    bool result = true;
-    if (!checkConstantMapEntry_key(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkConstantMapEntry_value(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    return result;
+  bool checkSymbolConstant_libraryReference(
+      EquivalenceVisitor visitor, SymbolConstant node, SymbolConstant other) {
+    return visitor.checkReferences(
+        node.libraryReference, other.libraryReference, 'libraryReference');
   }
 
-  bool checkMapConstant(
-      EquivalenceVisitor visitor, MapConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! MapConstant) return false;
-    if (other is! MapConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkMapConstant_keyType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapConstant_valueType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkMapConstant_entries(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkMapConstant_keyType(
+      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
+    return visitor.checkNodes(node.keyType, other.keyType, 'keyType');
   }
 
-  bool checkListConstant(
-      EquivalenceVisitor visitor, ListConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ListConstant) return false;
-    if (other is! ListConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkListConstant_typeArgument(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkListConstant_entries(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkMapConstant_valueType(
+      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
+    return visitor.checkNodes(node.valueType, other.valueType, 'valueType');
   }
 
-  bool checkSetConstant(
-      EquivalenceVisitor visitor, SetConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! SetConstant) return false;
-    if (other is! SetConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkSetConstant_typeArgument(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkSetConstant_entries(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkConstantMapEntry_key(EquivalenceVisitor visitor,
+      ConstantMapEntry node, ConstantMapEntry other) {
+    return visitor.checkNodes(node.key, other.key, 'key');
   }
 
-  bool checkRecordConstant(
-      EquivalenceVisitor visitor, RecordConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RecordConstant) return false;
-    if (other is! RecordConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRecordConstant_positional(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordConstant_named(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkRecordConstant_recordType(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkConstantMapEntry_value(EquivalenceVisitor visitor,
+      ConstantMapEntry node, ConstantMapEntry other) {
+    return visitor.checkNodes(node.value, other.value, 'value');
   }
 
-  bool checkInstanceConstant(
-      EquivalenceVisitor visitor, InstanceConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InstanceConstant) return false;
-    if (other is! InstanceConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInstanceConstant_classReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInstanceConstant_typeArguments(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInstanceConstant_fieldValues(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkMapConstant_entries(
+      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
+    return visitor.checkLists(node.entries, other.entries, (a, b, _) {
+      if (identical(a, b)) return true;
+      return checkConstantMapEntry(visitor, a, b);
+    }, 'entries');
   }
 
-  bool checkInstantiationConstant(
-      EquivalenceVisitor visitor, InstantiationConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! InstantiationConstant) return false;
-    if (other is! InstantiationConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkInstantiationConstant_tearOffConstant(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkInstantiationConstant_types(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkListConstant_typeArgument(
+      EquivalenceVisitor visitor, ListConstant node, ListConstant other) {
+    return visitor.checkNodes(
+        node.typeArgument, other.typeArgument, 'typeArgument');
   }
 
-  bool checkStaticTearOffConstant(
-      EquivalenceVisitor visitor, StaticTearOffConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! StaticTearOffConstant) return false;
-    if (other is! StaticTearOffConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkStaticTearOffConstant_targetReference(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkListConstant_entries(
+      EquivalenceVisitor visitor, ListConstant node, ListConstant other) {
+    return visitor.checkLists(
+        node.entries, other.entries, visitor.checkNodes, 'entries');
   }
 
-  bool checkConstructorTearOffConstant(EquivalenceVisitor visitor,
-      ConstructorTearOffConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! ConstructorTearOffConstant) return false;
-    if (other is! ConstructorTearOffConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkConstructorTearOffConstant_targetReference(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkSetConstant_typeArgument(
+      EquivalenceVisitor visitor, SetConstant node, SetConstant other) {
+    return visitor.checkNodes(
+        node.typeArgument, other.typeArgument, 'typeArgument');
   }
 
-  bool checkRedirectingFactoryTearOffConstant(EquivalenceVisitor visitor,
-      RedirectingFactoryTearOffConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! RedirectingFactoryTearOffConstant) return false;
-    if (other is! RedirectingFactoryTearOffConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkRedirectingFactoryTearOffConstant_targetReference(
-        visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkSetConstant_entries(
+      EquivalenceVisitor visitor, SetConstant node, SetConstant other) {
+    return visitor.checkLists(
+        node.entries, other.entries, visitor.checkNodes, 'entries');
   }
 
-  bool checkTypedefTearOffConstant(
-      EquivalenceVisitor visitor, TypedefTearOffConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! TypedefTearOffConstant) return false;
-    if (other is! TypedefTearOffConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkTypedefTearOffConstant_parameters(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkTypedefTearOffConstant_tearOffConstant(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    if (!checkTypedefTearOffConstant_types(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkRecordConstant_positional(
+      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
+    return visitor.checkLists(
+        node.positional, other.positional, visitor.checkNodes, 'positional');
   }
 
-  bool checkTypeLiteralConstant(
-      EquivalenceVisitor visitor, TypeLiteralConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! TypeLiteralConstant) return false;
-    if (other is! TypeLiteralConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkTypeLiteralConstant_type(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkRecordConstant_named(
+      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
+    return visitor.checkMaps(node.named, other.named, visitor.matchValues,
+        visitor.checkValues, visitor.checkNodes, 'named');
   }
 
-  bool checkUnevaluatedConstant(
-      EquivalenceVisitor visitor, UnevaluatedConstant? node, Object? other) {
-    if (identical(node, other)) return true;
-    if (node is! UnevaluatedConstant) return false;
-    if (other is! UnevaluatedConstant) return false;
-    visitor.pushNodeState(node, other);
-    bool result = true;
-    if (!checkUnevaluatedConstant_expression(visitor, node, other)) {
-      result = visitor.resultOnInequivalence;
-    }
-    visitor.popState();
-    return result;
+  bool checkRecordConstant_recordType(
+      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
+    return visitor.checkNodes(node.recordType, other.recordType, 'recordType');
+  }
+
+  bool checkInstanceConstant_classReference(EquivalenceVisitor visitor,
+      InstanceConstant node, InstanceConstant other) {
+    return visitor.checkReferences(
+        node.classReference, other.classReference, 'classReference');
+  }
+
+  bool checkInstanceConstant_typeArguments(EquivalenceVisitor visitor,
+      InstanceConstant node, InstanceConstant other) {
+    return visitor.checkLists(node.typeArguments, other.typeArguments,
+        visitor.checkNodes, 'typeArguments');
+  }
+
+  bool checkInstanceConstant_fieldValues(EquivalenceVisitor visitor,
+      InstanceConstant node, InstanceConstant other) {
+    return visitor.checkMaps(
+        node.fieldValues,
+        other.fieldValues,
+        visitor.matchReferences,
+        visitor.checkReferences,
+        visitor.checkNodes,
+        'fieldValues');
+  }
+
+  bool checkInstantiationConstant_tearOffConstant(EquivalenceVisitor visitor,
+      InstantiationConstant node, InstantiationConstant other) {
+    return visitor.checkNodes(
+        node.tearOffConstant, other.tearOffConstant, 'tearOffConstant');
+  }
+
+  bool checkInstantiationConstant_types(EquivalenceVisitor visitor,
+      InstantiationConstant node, InstantiationConstant other) {
+    return visitor.checkLists(
+        node.types, other.types, visitor.checkNodes, 'types');
+  }
+
+  bool checkStaticTearOffConstant_targetReference(EquivalenceVisitor visitor,
+      StaticTearOffConstant node, StaticTearOffConstant other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
+  }
+
+  bool checkConstructorTearOffConstant_targetReference(
+      EquivalenceVisitor visitor,
+      ConstructorTearOffConstant node,
+      ConstructorTearOffConstant other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
+  }
+
+  bool checkRedirectingFactoryTearOffConstant_targetReference(
+      EquivalenceVisitor visitor,
+      RedirectingFactoryTearOffConstant node,
+      RedirectingFactoryTearOffConstant other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
+  }
+
+  bool checkTypedefTearOffConstant_parameters(EquivalenceVisitor visitor,
+      TypedefTearOffConstant node, TypedefTearOffConstant other) {
+    return visitor.checkLists(
+        node.parameters, other.parameters, visitor.checkNodes, 'parameters');
+  }
+
+  bool checkTypedefTearOffConstant_tearOffConstant(EquivalenceVisitor visitor,
+      TypedefTearOffConstant node, TypedefTearOffConstant other) {
+    return visitor.checkNodes(
+        node.tearOffConstant, other.tearOffConstant, 'tearOffConstant');
+  }
+
+  bool checkTypedefTearOffConstant_types(EquivalenceVisitor visitor,
+      TypedefTearOffConstant node, TypedefTearOffConstant other) {
+    return visitor.checkLists(
+        node.types, other.types, visitor.checkNodes, 'types');
+  }
+
+  bool checkTypeLiteralConstant_type(EquivalenceVisitor visitor,
+      TypeLiteralConstant node, TypeLiteralConstant other) {
+    return visitor.checkNodes(node.type, other.type, 'type');
+  }
+
+  bool checkUnevaluatedConstant_expression(EquivalenceVisitor visitor,
+      UnevaluatedConstant node, UnevaluatedConstant other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkComponent_problemsAsJson(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return visitor.checkLists(node.problemsAsJson, other.problemsAsJson,
+        visitor.checkValues, 'problemsAsJson');
+  }
+
+  bool checkComponent_libraries(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return visitor.checkLists(
+        node.libraries, other.libraries, visitor.checkNodes, 'libraries');
+  }
+
+  bool checkSource_lineStarts(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkLists(
+        node.lineStarts, other.lineStarts, visitor.checkValues, 'lineStarts');
+  }
+
+  bool checkSource_source(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkLists(
+        node.source, other.source, visitor.checkValues, 'source');
+  }
+
+  bool checkSource_importUri(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkValues(node.importUri, other.importUri, 'importUri');
+  }
+
+  bool checkSource_fileUri(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
+  }
+
+  bool checkSource_constantCoverageConstructors(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkSets(
+        node.constantCoverageConstructors,
+        other.constantCoverageConstructors,
+        visitor.matchReferences,
+        visitor.checkReferences,
+        'constantCoverageConstructors');
+  }
+
+  bool checkSource_cachedText(
+      EquivalenceVisitor visitor, Source node, Source other) {
+    return visitor.checkValues(node.cachedText, other.cachedText, 'cachedText');
+  }
+
+  bool checkComponent_uriToSource(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return visitor.checkMaps(node.uriToSource, other.uriToSource,
+        visitor.matchValues, visitor.checkValues, (a, b, _) {
+      if (identical(a, b)) return true;
+      return checkSource(visitor, a, b);
+    }, 'uriToSource');
+  }
+
+  bool checkComponent_metadata(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return visitor.checkMaps(
+        node.metadata, other.metadata, visitor.matchValues, visitor.checkValues,
+        (a, b, _) {
+      if (identical(a, b)) return true;
+      return checkMetadataRepository(visitor, a, b);
+    }, 'metadata');
+  }
+
+  bool checkComponent_mainMethodName(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return visitor.checkReferences(
+        node.mainMethodName, other.mainMethodName, 'mainMethodName');
+  }
+
+  bool checkTreeNode_fileOffset(
+      EquivalenceVisitor visitor, TreeNode node, TreeNode other) {
+    return visitor.checkValues(node.fileOffset, other.fileOffset, 'fileOffset');
+  }
+
+  bool checkComponent_fileOffset(
+      EquivalenceVisitor visitor, Component node, Component other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkClass_startFileOffset(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkValues(
+        node.startFileOffset, other.startFileOffset, 'startFileOffset');
+  }
+
+  bool checkClass_fileEndOffset(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkValues(
+        node.fileEndOffset, other.fileEndOffset, 'fileEndOffset');
+  }
+
+  bool checkClass_annotations(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  }
+
+  bool checkClass_name(EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkClass_flags(EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkClass_fileUri(EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
+  }
+
+  bool checkClass_typeParameters(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(node.typeParameters, other.typeParameters,
+        visitor.checkNodes, 'typeParameters');
+  }
+
+  bool checkClass_supertype(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkNodes(node.supertype, other.supertype, 'supertype');
+  }
+
+  bool checkClass_mixedInType(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkNodes(
+        node.mixedInType, other.mixedInType, 'mixedInType');
+  }
+
+  bool checkClass_implementedTypes(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(node.implementedTypes, other.implementedTypes,
+        visitor.checkNodes, 'implementedTypes');
+  }
+
+  bool checkClass_fields(EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(
+        node.fields, other.fields, visitor.checkNodes, 'fields');
+  }
+
+  bool checkClass_constructors(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(node.constructors, other.constructors,
+        visitor.checkNodes, 'constructors');
+  }
+
+  bool checkClass_procedures(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return visitor.checkLists(
+        node.procedures, other.procedures, visitor.checkNodes, 'procedures');
+  }
+
+  bool checkNamedNode_reference(
+      EquivalenceVisitor visitor, NamedNode node, NamedNode other) {
+    return visitor.checkReferences(
+        node.reference, other.reference, 'reference');
+  }
+
+  bool checkClass_reference(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return checkNamedNode_reference(visitor, node, other);
+  }
+
+  bool checkNamedNode_fileOffset(
+      EquivalenceVisitor visitor, NamedNode node, NamedNode other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkClass_fileOffset(
+      EquivalenceVisitor visitor, Class node, Class other) {
+    return checkNamedNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkExtension_name(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkExtension_fileUri(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
+  }
+
+  bool checkExtension_typeParameters(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkLists(node.typeParameters, other.typeParameters,
+        visitor.checkNodes, 'typeParameters');
+  }
+
+  bool checkExtension_onType(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkNodes(node.onType, other.onType, 'onType');
+  }
+
+  bool checkExtensionMemberDescriptor_name(EquivalenceVisitor visitor,
+      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
+    return visitor.checkNodes(node.name, other.name, 'name');
+  }
+
+  bool checkExtensionMemberDescriptor_kind(EquivalenceVisitor visitor,
+      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
+    return visitor.checkValues(node.kind, other.kind, 'kind');
+  }
+
+  bool checkExtensionMemberDescriptor_flags(EquivalenceVisitor visitor,
+      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkExtensionMemberDescriptor_memberReference(
+      EquivalenceVisitor visitor,
+      ExtensionMemberDescriptor node,
+      ExtensionMemberDescriptor other) {
+    return visitor.checkReferences(
+        node.memberReference, other.memberReference, 'memberReference');
+  }
+
+  bool checkExtensionMemberDescriptor_tearOffReference(
+      EquivalenceVisitor visitor,
+      ExtensionMemberDescriptor node,
+      ExtensionMemberDescriptor other) {
+    return visitor.checkReferences(
+        node.tearOffReference, other.tearOffReference, 'tearOffReference');
+  }
+
+  bool checkExtension_memberDescriptors(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkLists(node.memberDescriptors, other.memberDescriptors,
+        (a, b, _) {
+      if (identical(a, b)) return true;
+      return checkExtensionMemberDescriptor(visitor, a, b);
+    }, 'memberDescriptors');
+  }
+
+  bool checkExtension_annotations(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkLists(
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  }
+
+  bool checkExtension_flags(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkExtension_reference(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return checkNamedNode_reference(visitor, node, other);
+  }
+
+  bool checkExtension_fileOffset(
+      EquivalenceVisitor visitor, Extension node, Extension other) {
+    return checkNamedNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkExtensionTypeDeclaration_name(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkExtensionTypeDeclaration_fileUri(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
+  }
+
+  bool checkExtensionTypeDeclaration_typeParameters(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkLists(node.typeParameters, other.typeParameters,
+        visitor.checkNodes, 'typeParameters');
+  }
+
+  bool checkExtensionTypeDeclaration_declaredRepresentationType(
+      EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node,
+      ExtensionTypeDeclaration other) {
+    return visitor.checkNodes(node.declaredRepresentationType,
+        other.declaredRepresentationType, 'declaredRepresentationType');
+  }
+
+  bool checkExtensionTypeDeclaration_representationName(
+      EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node,
+      ExtensionTypeDeclaration other) {
+    return visitor.checkValues(node.representationName,
+        other.representationName, 'representationName');
+  }
+
+  bool checkExtensionTypeDeclaration_procedures(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkLists(
+        node.procedures, other.procedures, visitor.checkNodes, 'procedures');
+  }
+
+  bool checkExtensionTypeMemberDescriptor_name(EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor node, ExtensionTypeMemberDescriptor other) {
+    return visitor.checkNodes(node.name, other.name, 'name');
+  }
+
+  bool checkExtensionTypeMemberDescriptor_kind(EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor node, ExtensionTypeMemberDescriptor other) {
+    return visitor.checkValues(node.kind, other.kind, 'kind');
+  }
+
+  bool checkExtensionTypeMemberDescriptor_flags(EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor node, ExtensionTypeMemberDescriptor other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkExtensionTypeMemberDescriptor_memberReference(
+      EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor node,
+      ExtensionTypeMemberDescriptor other) {
+    return visitor.checkReferences(
+        node.memberReference, other.memberReference, 'memberReference');
+  }
+
+  bool checkExtensionTypeMemberDescriptor_tearOffReference(
+      EquivalenceVisitor visitor,
+      ExtensionTypeMemberDescriptor node,
+      ExtensionTypeMemberDescriptor other) {
+    return visitor.checkReferences(
+        node.tearOffReference, other.tearOffReference, 'tearOffReference');
+  }
+
+  bool checkExtensionTypeDeclaration_memberDescriptors(
+      EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node,
+      ExtensionTypeDeclaration other) {
+    return visitor.checkLists(node.memberDescriptors, other.memberDescriptors,
+        (a, b, _) {
+      if (identical(a, b)) return true;
+      return checkExtensionTypeMemberDescriptor(visitor, a, b);
+    }, 'memberDescriptors');
+  }
+
+  bool checkExtensionTypeDeclaration_annotations(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkLists(
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  }
+
+  bool checkExtensionTypeDeclaration_implements(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkLists(
+        node.implements, other.implements, visitor.checkNodes, 'implements');
+  }
+
+  bool checkExtensionTypeDeclaration_flags(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkExtensionTypeDeclaration_reference(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return checkNamedNode_reference(visitor, node, other);
+  }
+
+  bool checkExtensionTypeDeclaration_fileOffset(EquivalenceVisitor visitor,
+      ExtensionTypeDeclaration node, ExtensionTypeDeclaration other) {
+    return checkNamedNode_fileOffset(visitor, node, other);
   }
 
   bool checkLibrary_importUri(
@@ -5813,10 +6281,13 @@ class EquivalenceStrategy {
         node.extensions, other.extensions, visitor.checkNodes, 'extensions');
   }
 
-  bool checkLibrary_inlineClasses(
+  bool checkLibrary_extensionTypeDeclarations(
       EquivalenceVisitor visitor, Library node, Library other) {
-    return visitor.checkLists(node.inlineClasses, other.inlineClasses,
-        visitor.checkNodes, 'inlineClasses');
+    return visitor.checkLists(
+        node.extensionTypeDeclarations,
+        other.extensionTypeDeclarations,
+        visitor.checkNodes,
+        'extensionTypeDeclarations');
   }
 
   bool checkLibrary_procedures(
@@ -5831,390 +6302,13 @@ class EquivalenceStrategy {
         node.fields, other.fields, visitor.checkNodes, 'fields');
   }
 
-  bool checkNamedNode_reference(
-      EquivalenceVisitor visitor, NamedNode node, NamedNode other) {
-    return visitor.checkReferences(
-        node.reference, other.reference, 'reference');
-  }
-
   bool checkLibrary_reference(
       EquivalenceVisitor visitor, Library node, Library other) {
     return checkNamedNode_reference(visitor, node, other);
   }
 
-  bool checkTreeNode_fileOffset(
-      EquivalenceVisitor visitor, TreeNode node, TreeNode other) {
-    return visitor.checkValues(node.fileOffset, other.fileOffset, 'fileOffset');
-  }
-
-  bool checkNamedNode_fileOffset(
-      EquivalenceVisitor visitor, NamedNode node, NamedNode other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
   bool checkLibrary_fileOffset(
       EquivalenceVisitor visitor, Library node, Library other) {
-    return checkNamedNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkTypedef_fileUri(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
-  }
-
-  bool checkTypedef_annotations(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
-  }
-
-  bool checkTypedef_name(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return visitor.checkValues(node.name, other.name, 'name');
-  }
-
-  bool checkTypedef_typeParameters(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return visitor.checkLists(node.typeParameters, other.typeParameters,
-        visitor.checkNodes, 'typeParameters');
-  }
-
-  bool checkTypedef_type(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return visitor.checkNodes(node.type, other.type, 'type');
-  }
-
-  bool checkTypedef_reference(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return checkNamedNode_reference(visitor, node, other);
-  }
-
-  bool checkTypedef_fileOffset(
-      EquivalenceVisitor visitor, Typedef node, Typedef other) {
-    return checkNamedNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkClass_startFileOffset(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkValues(
-        node.startFileOffset, other.startFileOffset, 'startFileOffset');
-  }
-
-  bool checkClass_fileEndOffset(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkValues(
-        node.fileEndOffset, other.fileEndOffset, 'fileEndOffset');
-  }
-
-  bool checkClass_annotations(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
-  }
-
-  bool checkClass_name(EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkValues(node.name, other.name, 'name');
-  }
-
-  bool checkClass_flags(EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkClass_fileUri(EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
-  }
-
-  bool checkClass_typeParameters(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(node.typeParameters, other.typeParameters,
-        visitor.checkNodes, 'typeParameters');
-  }
-
-  bool checkClass_supertype(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkNodes(node.supertype, other.supertype, 'supertype');
-  }
-
-  bool checkClass_mixedInType(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkNodes(
-        node.mixedInType, other.mixedInType, 'mixedInType');
-  }
-
-  bool checkClass_implementedTypes(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(node.implementedTypes, other.implementedTypes,
-        visitor.checkNodes, 'implementedTypes');
-  }
-
-  bool checkClass_fields(EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(
-        node.fields, other.fields, visitor.checkNodes, 'fields');
-  }
-
-  bool checkClass_constructors(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(node.constructors, other.constructors,
-        visitor.checkNodes, 'constructors');
-  }
-
-  bool checkClass_procedures(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(
-        node.procedures, other.procedures, visitor.checkNodes, 'procedures');
-  }
-
-  bool checkClass_redirectingFactories(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return visitor.checkLists(node.redirectingFactories,
-        other.redirectingFactories, visitor.checkNodes, 'redirectingFactories');
-  }
-
-  bool checkClass_reference(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return checkNamedNode_reference(visitor, node, other);
-  }
-
-  bool checkClass_fileOffset(
-      EquivalenceVisitor visitor, Class node, Class other) {
-    return checkNamedNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkExtension_name(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkValues(node.name, other.name, 'name');
-  }
-
-  bool checkExtension_fileUri(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
-  }
-
-  bool checkExtension_typeParameters(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkLists(node.typeParameters, other.typeParameters,
-        visitor.checkNodes, 'typeParameters');
-  }
-
-  bool checkExtension_onType(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkNodes(node.onType, other.onType, 'onType');
-  }
-
-  bool checkExtensionTypeShowHideClause_shownSupertypes(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.shownSupertypes, other.shownSupertypes,
-        visitor.checkNodes, 'shownSupertypes');
-  }
-
-  bool checkExtensionTypeShowHideClause_shownMethods(EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node, ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.shownMethods, other.shownMethods,
-        visitor.checkReferences, 'shownMethods');
-  }
-
-  bool checkExtensionTypeShowHideClause_shownGetters(EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node, ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.shownGetters, other.shownGetters,
-        visitor.checkReferences, 'shownGetters');
-  }
-
-  bool checkExtensionTypeShowHideClause_shownSetters(EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node, ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.shownSetters, other.shownSetters,
-        visitor.checkReferences, 'shownSetters');
-  }
-
-  bool checkExtensionTypeShowHideClause_shownOperators(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.shownOperators, other.shownOperators,
-        visitor.checkReferences, 'shownOperators');
-  }
-
-  bool checkExtensionTypeShowHideClause_hiddenSupertypes(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.hiddenSupertypes, other.hiddenSupertypes,
-        visitor.checkNodes, 'hiddenSupertypes');
-  }
-
-  bool checkExtensionTypeShowHideClause_hiddenMethods(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.hiddenMethods, other.hiddenMethods,
-        visitor.checkReferences, 'hiddenMethods');
-  }
-
-  bool checkExtensionTypeShowHideClause_hiddenGetters(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.hiddenGetters, other.hiddenGetters,
-        visitor.checkReferences, 'hiddenGetters');
-  }
-
-  bool checkExtensionTypeShowHideClause_hiddenSetters(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.hiddenSetters, other.hiddenSetters,
-        visitor.checkReferences, 'hiddenSetters');
-  }
-
-  bool checkExtensionTypeShowHideClause_hiddenOperators(
-      EquivalenceVisitor visitor,
-      ExtensionTypeShowHideClause node,
-      ExtensionTypeShowHideClause other) {
-    return visitor.checkLists(node.hiddenOperators, other.hiddenOperators,
-        visitor.checkReferences, 'hiddenOperators');
-  }
-
-  bool checkExtension_showHideClause(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    'showHideClause';
-    return checkExtensionTypeShowHideClause(
-        visitor, node.showHideClause, other.showHideClause);
-  }
-
-  bool checkExtensionMemberDescriptor_name(EquivalenceVisitor visitor,
-      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
-    return visitor.checkNodes(node.name, other.name, 'name');
-  }
-
-  bool checkExtensionMemberDescriptor_kind(EquivalenceVisitor visitor,
-      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
-    return visitor.checkValues(node.kind, other.kind, 'kind');
-  }
-
-  bool checkExtensionMemberDescriptor_flags(EquivalenceVisitor visitor,
-      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkExtensionMemberDescriptor_member(EquivalenceVisitor visitor,
-      ExtensionMemberDescriptor node, ExtensionMemberDescriptor other) {
-    return visitor.checkReferences(node.member, other.member, 'member');
-  }
-
-  bool checkExtension_members(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkLists(node.members, other.members, (a, b, _) {
-      if (identical(a, b)) return true;
-      if (a is! ExtensionMemberDescriptor) return false;
-      if (b is! ExtensionMemberDescriptor) return false;
-      return checkExtensionMemberDescriptor(visitor, a, b);
-    }, 'members');
-  }
-
-  bool checkExtension_annotations(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
-  }
-
-  bool checkExtension_flags(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkExtension_reference(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return checkNamedNode_reference(visitor, node, other);
-  }
-
-  bool checkExtension_fileOffset(
-      EquivalenceVisitor visitor, Extension node, Extension other) {
-    return checkNamedNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkInlineClass_name(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkValues(node.name, other.name, 'name');
-  }
-
-  bool checkInlineClass_fileUri(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
-  }
-
-  bool checkInlineClass_typeParameters(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkLists(node.typeParameters, other.typeParameters,
-        visitor.checkNodes, 'typeParameters');
-  }
-
-  bool checkInlineClass_declaredRepresentationType(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkNodes(node.declaredRepresentationType,
-        other.declaredRepresentationType, 'declaredRepresentationType');
-  }
-
-  bool checkInlineClass_representationName(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkValues(node.representationName,
-        other.representationName, 'representationName');
-  }
-
-  bool checkInlineClassMemberDescriptor_name(EquivalenceVisitor visitor,
-      InlineClassMemberDescriptor node, InlineClassMemberDescriptor other) {
-    return visitor.checkNodes(node.name, other.name, 'name');
-  }
-
-  bool checkInlineClassMemberDescriptor_kind(EquivalenceVisitor visitor,
-      InlineClassMemberDescriptor node, InlineClassMemberDescriptor other) {
-    return visitor.checkValues(node.kind, other.kind, 'kind');
-  }
-
-  bool checkInlineClassMemberDescriptor_flags(EquivalenceVisitor visitor,
-      InlineClassMemberDescriptor node, InlineClassMemberDescriptor other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkInlineClassMemberDescriptor_member(EquivalenceVisitor visitor,
-      InlineClassMemberDescriptor node, InlineClassMemberDescriptor other) {
-    return visitor.checkReferences(node.member, other.member, 'member');
-  }
-
-  bool checkInlineClass_members(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkLists(node.members, other.members, (a, b, _) {
-      if (identical(a, b)) return true;
-      if (a is! InlineClassMemberDescriptor) return false;
-      if (b is! InlineClassMemberDescriptor) return false;
-      return checkInlineClassMemberDescriptor(visitor, a, b);
-    }, 'members');
-  }
-
-  bool checkInlineClass_annotations(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
-  }
-
-  bool checkInlineClass_implements(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkLists(
-        node.implements, other.implements, visitor.checkNodes, 'implements');
-  }
-
-  bool checkInlineClass_flags(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkInlineClass_reference(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
-    return checkNamedNode_reference(visitor, node, other);
-  }
-
-  bool checkInlineClass_fileOffset(
-      EquivalenceVisitor visitor, InlineClass node, InlineClass other) {
     return checkNamedNode_fileOffset(visitor, node, other);
   }
 
@@ -6372,63 +6466,6 @@ class EquivalenceStrategy {
     return checkMember_fileOffset(visitor, node, other);
   }
 
-  bool checkRedirectingFactory_flags(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
-  bool checkRedirectingFactory_typeArguments(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return visitor.checkLists(node.typeArguments, other.typeArguments,
-        visitor.checkNodes, 'typeArguments');
-  }
-
-  bool checkRedirectingFactory_targetReference(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkRedirectingFactory_function(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return visitor.checkNodes(node.function, other.function, 'function');
-  }
-
-  bool checkRedirectingFactory_fileEndOffset(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_fileEndOffset(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_annotations(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_annotations(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_name(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_name(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_fileUri(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_fileUri(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_transformerFlags(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_transformerFlags(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_reference(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_reference(visitor, node, other);
-  }
-
-  bool checkRedirectingFactory_fileOffset(EquivalenceVisitor visitor,
-      RedirectingFactory node, RedirectingFactory other) {
-    return checkMember_fileOffset(visitor, node, other);
-  }
-
   bool checkProcedure_fileStartOffset(
       EquivalenceVisitor visitor, Procedure node, Procedure other) {
     return visitor.checkValues(
@@ -6502,254 +6539,51 @@ class EquivalenceStrategy {
     return checkMember_fileOffset(visitor, node, other);
   }
 
-  bool checkLibraryDependency_flags(EquivalenceVisitor visitor,
-      LibraryDependency node, LibraryDependency other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
+  bool checkTypedef_fileUri(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
+    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
   }
 
-  bool checkLibraryDependency_annotations(EquivalenceVisitor visitor,
-      LibraryDependency node, LibraryDependency other) {
+  bool checkTypedef_annotations(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
     return visitor.checkLists(
         node.annotations, other.annotations, visitor.checkNodes, 'annotations');
   }
 
-  bool checkLibraryDependency_importedLibraryReference(
-      EquivalenceVisitor visitor,
-      LibraryDependency node,
-      LibraryDependency other) {
-    return visitor.checkReferences(node.importedLibraryReference,
-        other.importedLibraryReference, 'importedLibraryReference');
-  }
-
-  bool checkLibraryDependency_name(EquivalenceVisitor visitor,
-      LibraryDependency node, LibraryDependency other) {
+  bool checkTypedef_name(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
     return visitor.checkValues(node.name, other.name, 'name');
   }
 
-  bool checkLibraryDependency_combinators(EquivalenceVisitor visitor,
-      LibraryDependency node, LibraryDependency other) {
-    return visitor.checkLists(
-        node.combinators, other.combinators, visitor.checkNodes, 'combinators');
-  }
-
-  bool checkLibraryDependency_fileOffset(EquivalenceVisitor visitor,
-      LibraryDependency node, LibraryDependency other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkLibraryPart_annotations(
-      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
-  }
-
-  bool checkLibraryPart_partUri(
-      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
-    return visitor.checkValues(node.partUri, other.partUri, 'partUri');
-  }
-
-  bool checkLibraryPart_fileOffset(
-      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkCombinator_isShow(
-      EquivalenceVisitor visitor, Combinator node, Combinator other) {
-    return visitor.checkValues(node.isShow, other.isShow, 'isShow');
-  }
-
-  bool checkCombinator_names(
-      EquivalenceVisitor visitor, Combinator node, Combinator other) {
-    return visitor.checkLists(
-        node.names, other.names, visitor.checkValues, 'names');
-  }
-
-  bool checkCombinator_fileOffset(
-      EquivalenceVisitor visitor, Combinator node, Combinator other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkInitializer_isSynthetic(
-      EquivalenceVisitor visitor, Initializer node, Initializer other) {
-    return visitor.checkValues(
-        node.isSynthetic, other.isSynthetic, 'isSynthetic');
-  }
-
-  bool checkInvalidInitializer_isSynthetic(EquivalenceVisitor visitor,
-      InvalidInitializer node, InvalidInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkInitializer_fileOffset(
-      EquivalenceVisitor visitor, Initializer node, Initializer other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkInvalidInitializer_fileOffset(EquivalenceVisitor visitor,
-      InvalidInitializer node, InvalidInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkFieldInitializer_fieldReference(EquivalenceVisitor visitor,
-      FieldInitializer node, FieldInitializer other) {
-    return visitor.checkReferences(
-        node.fieldReference, other.fieldReference, 'fieldReference');
-  }
-
-  bool checkFieldInitializer_value(EquivalenceVisitor visitor,
-      FieldInitializer node, FieldInitializer other) {
-    return visitor.checkNodes(node.value, other.value, 'value');
-  }
-
-  bool checkFieldInitializer_isSynthetic(EquivalenceVisitor visitor,
-      FieldInitializer node, FieldInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkFieldInitializer_fileOffset(EquivalenceVisitor visitor,
-      FieldInitializer node, FieldInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkSuperInitializer_targetReference(EquivalenceVisitor visitor,
-      SuperInitializer node, SuperInitializer other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkSuperInitializer_arguments(EquivalenceVisitor visitor,
-      SuperInitializer node, SuperInitializer other) {
-    return visitor.checkNodes(node.arguments, other.arguments, 'arguments');
-  }
-
-  bool checkSuperInitializer_isSynthetic(EquivalenceVisitor visitor,
-      SuperInitializer node, SuperInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkSuperInitializer_fileOffset(EquivalenceVisitor visitor,
-      SuperInitializer node, SuperInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkRedirectingInitializer_targetReference(EquivalenceVisitor visitor,
-      RedirectingInitializer node, RedirectingInitializer other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkRedirectingInitializer_arguments(EquivalenceVisitor visitor,
-      RedirectingInitializer node, RedirectingInitializer other) {
-    return visitor.checkNodes(node.arguments, other.arguments, 'arguments');
-  }
-
-  bool checkRedirectingInitializer_isSynthetic(EquivalenceVisitor visitor,
-      RedirectingInitializer node, RedirectingInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkRedirectingInitializer_fileOffset(EquivalenceVisitor visitor,
-      RedirectingInitializer node, RedirectingInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkLocalInitializer_variable(EquivalenceVisitor visitor,
-      LocalInitializer node, LocalInitializer other) {
-    return visitor.checkNodes(node.variable, other.variable, 'variable');
-  }
-
-  bool checkLocalInitializer_isSynthetic(EquivalenceVisitor visitor,
-      LocalInitializer node, LocalInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkLocalInitializer_fileOffset(EquivalenceVisitor visitor,
-      LocalInitializer node, LocalInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkAssertInitializer_statement(EquivalenceVisitor visitor,
-      AssertInitializer node, AssertInitializer other) {
-    return visitor.checkNodes(node.statement, other.statement, 'statement');
-  }
-
-  bool checkAssertInitializer_isSynthetic(EquivalenceVisitor visitor,
-      AssertInitializer node, AssertInitializer other) {
-    return checkInitializer_isSynthetic(visitor, node, other);
-  }
-
-  bool checkAssertInitializer_fileOffset(EquivalenceVisitor visitor,
-      AssertInitializer node, AssertInitializer other) {
-    return checkInitializer_fileOffset(visitor, node, other);
-  }
-
-  bool checkFunctionNode_fileEndOffset(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkValues(
-        node.fileEndOffset, other.fileEndOffset, 'fileEndOffset');
-  }
-
-  bool checkFunctionNode_asyncMarker(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkValues(
-        node.asyncMarker, other.asyncMarker, 'asyncMarker');
-  }
-
-  bool checkFunctionNode_dartAsyncMarker(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkValues(
-        node.dartAsyncMarker, other.dartAsyncMarker, 'dartAsyncMarker');
-  }
-
-  bool checkFunctionNode_typeParameters(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+  bool checkTypedef_typeParameters(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
     return visitor.checkLists(node.typeParameters, other.typeParameters,
         visitor.checkNodes, 'typeParameters');
   }
 
-  bool checkFunctionNode_requiredParameterCount(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkValues(node.requiredParameterCount,
-        other.requiredParameterCount, 'requiredParameterCount');
+  bool checkTypedef_type(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
+    return visitor.checkNodes(node.type, other.type, 'type');
   }
 
-  bool checkFunctionNode_positionalParameters(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkLists(node.positionalParameters,
-        other.positionalParameters, visitor.checkNodes, 'positionalParameters');
+  bool checkTypedef_reference(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
+    return checkNamedNode_reference(visitor, node, other);
   }
 
-  bool checkFunctionNode_namedParameters(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkLists(node.namedParameters, other.namedParameters,
-        visitor.checkNodes, 'namedParameters');
+  bool checkTypedef_fileOffset(
+      EquivalenceVisitor visitor, Typedef node, Typedef other) {
+    return checkNamedNode_fileOffset(visitor, node, other);
   }
 
-  bool checkFunctionNode_returnType(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkNodes(node.returnType, other.returnType, 'returnType');
-  }
-
-  bool checkFunctionNode_body(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkFunctionNode_futureValueType(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkNodes(
-        node.futureValueType, other.futureValueType, 'futureValueType');
-  }
-
-  bool checkFunctionNode_lazyBuilder(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
-    return visitor.checkValues(
-        node.lazyBuilder, other.lazyBuilder, 'lazyBuilder');
-  }
-
-  bool checkFunctionNode_fileOffset(
-      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+  bool checkExpression_fileOffset(
+      EquivalenceVisitor visitor, Expression node, Expression other) {
     return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkAuxiliaryExpression_fileOffset(EquivalenceVisitor visitor,
+      AuxiliaryExpression node, AuxiliaryExpression other) {
+    return checkExpression_fileOffset(visitor, node, other);
   }
 
   bool checkInvalidExpression_message(EquivalenceVisitor visitor,
@@ -6760,11 +6594,6 @@ class EquivalenceStrategy {
   bool checkInvalidExpression_expression(EquivalenceVisitor visitor,
       InvalidExpression node, InvalidExpression other) {
     return visitor.checkNodes(node.expression, other.expression, 'expression');
-  }
-
-  bool checkExpression_fileOffset(
-      EquivalenceVisitor visitor, Expression node, Expression other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
   }
 
   bool checkInvalidExpression_fileOffset(EquivalenceVisitor visitor,
@@ -7131,6 +6960,11 @@ class EquivalenceStrategy {
   bool checkDynamicInvocation_arguments(EquivalenceVisitor visitor,
       DynamicInvocation node, DynamicInvocation other) {
     return visitor.checkNodes(node.arguments, other.arguments, 'arguments');
+  }
+
+  bool checkDynamicInvocation_flags(EquivalenceVisitor visitor,
+      DynamicInvocation node, DynamicInvocation other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
   }
 
   bool checkInvocationExpression_fileOffset(EquivalenceVisitor visitor,
@@ -7599,11 +7433,6 @@ class EquivalenceStrategy {
     return checkExpression_fileOffset(visitor, node, other);
   }
 
-  bool checkIsExpression_flags(
-      EquivalenceVisitor visitor, IsExpression node, IsExpression other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
-  }
-
   bool checkIsExpression_operand(
       EquivalenceVisitor visitor, IsExpression node, IsExpression other) {
     return visitor.checkNodes(node.operand, other.operand, 'operand');
@@ -7732,6 +7561,10 @@ class EquivalenceStrategy {
   bool checkThrow_expression(
       EquivalenceVisitor visitor, Throw node, Throw other) {
     return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkThrow_flags(EquivalenceVisitor visitor, Throw node, Throw other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
   }
 
   bool checkThrow_fileOffset(
@@ -7948,10 +7781,10 @@ class EquivalenceStrategy {
     return checkExpression_fileOffset(visitor, node, other);
   }
 
-  bool checkTypedefTearOff_typeParameters(
+  bool checkTypedefTearOff_structuralParameters(
       EquivalenceVisitor visitor, TypedefTearOff node, TypedefTearOff other) {
-    return visitor.checkLists(node.typeParameters, other.typeParameters,
-        visitor.checkNodes, 'typeParameters');
+    return visitor.checkLists(node.structuralParameters,
+        other.structuralParameters, visitor.checkNodes, 'structuralParameters');
   }
 
   bool checkTypedefTearOff_expression(
@@ -8071,632 +7904,288 @@ class EquivalenceStrategy {
     return checkTreeNode_fileOffset(visitor, node, other);
   }
 
-  bool checkExpressionStatement_expression(EquivalenceVisitor visitor,
-      ExpressionStatement node, ExpressionStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
-  }
-
-  bool checkStatement_fileOffset(
-      EquivalenceVisitor visitor, Statement node, Statement other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkExpressionStatement_fileOffset(EquivalenceVisitor visitor,
-      ExpressionStatement node, ExpressionStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkBlock_statements(
-      EquivalenceVisitor visitor, Block node, Block other) {
-    return visitor.checkLists(
-        node.statements, other.statements, visitor.checkNodes, 'statements');
-  }
-
-  bool checkBlock_fileEndOffset(
-      EquivalenceVisitor visitor, Block node, Block other) {
+  bool checkFunctionNode_fileEndOffset(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
     return visitor.checkValues(
         node.fileEndOffset, other.fileEndOffset, 'fileEndOffset');
   }
 
-  bool checkBlock_fileOffset(
-      EquivalenceVisitor visitor, Block node, Block other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFunctionNode_asyncMarker(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkValues(
+        node.asyncMarker, other.asyncMarker, 'asyncMarker');
   }
 
-  bool checkAssertBlock_statements(
-      EquivalenceVisitor visitor, AssertBlock node, AssertBlock other) {
-    return visitor.checkLists(
-        node.statements, other.statements, visitor.checkNodes, 'statements');
+  bool checkFunctionNode_dartAsyncMarker(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkValues(
+        node.dartAsyncMarker, other.dartAsyncMarker, 'dartAsyncMarker');
   }
 
-  bool checkAssertBlock_fileOffset(
-      EquivalenceVisitor visitor, AssertBlock node, AssertBlock other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFunctionNode_typeParameters(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkLists(node.typeParameters, other.typeParameters,
+        visitor.checkNodes, 'typeParameters');
   }
 
-  bool checkEmptyStatement_fileOffset(
-      EquivalenceVisitor visitor, EmptyStatement node, EmptyStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFunctionNode_requiredParameterCount(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkValues(node.requiredParameterCount,
+        other.requiredParameterCount, 'requiredParameterCount');
   }
 
-  bool checkAssertStatement_condition(
-      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
-    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  bool checkFunctionNode_positionalParameters(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkLists(node.positionalParameters,
+        other.positionalParameters, visitor.checkNodes, 'positionalParameters');
   }
 
-  bool checkAssertStatement_message(
-      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
-    return visitor.checkNodes(node.message, other.message, 'message');
+  bool checkFunctionNode_namedParameters(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkLists(node.namedParameters, other.namedParameters,
+        visitor.checkNodes, 'namedParameters');
   }
 
-  bool checkAssertStatement_conditionStartOffset(
-      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
-    return visitor.checkValues(node.conditionStartOffset,
-        other.conditionStartOffset, 'conditionStartOffset');
+  bool checkFunctionNode_returnType(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkNodes(node.returnType, other.returnType, 'returnType');
   }
 
-  bool checkAssertStatement_conditionEndOffset(
-      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
-    return visitor.checkValues(node.conditionEndOffset,
-        other.conditionEndOffset, 'conditionEndOffset');
-  }
-
-  bool checkAssertStatement_fileOffset(
-      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkLabeledStatement_body(EquivalenceVisitor visitor,
-      LabeledStatement node, LabeledStatement other) {
+  bool checkFunctionNode_body(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
     return visitor.checkNodes(node.body, other.body, 'body');
   }
 
-  bool checkLabeledStatement_fileOffset(EquivalenceVisitor visitor,
-      LabeledStatement node, LabeledStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFunctionNode_emittedValueType(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkNodes(
+        node.emittedValueType, other.emittedValueType, 'emittedValueType');
   }
 
-  bool checkBreakStatement_target(
-      EquivalenceVisitor visitor, BreakStatement node, BreakStatement other) {
-    return visitor.checkDeclarations(node.target, other.target, 'target');
+  bool checkRedirectingFactoryTarget_targetReference(EquivalenceVisitor visitor,
+      RedirectingFactoryTarget node, RedirectingFactoryTarget other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
   }
 
-  bool checkBreakStatement_fileOffset(
-      EquivalenceVisitor visitor, BreakStatement node, BreakStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkRedirectingFactoryTarget_typeArguments(EquivalenceVisitor visitor,
+      RedirectingFactoryTarget node, RedirectingFactoryTarget other) {
+    return visitor.checkLists(node.typeArguments, other.typeArguments,
+        visitor.checkNodes, 'typeArguments');
   }
 
-  bool checkWhileStatement_condition(
-      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
-    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  bool checkRedirectingFactoryTarget_errorMessage(EquivalenceVisitor visitor,
+      RedirectingFactoryTarget node, RedirectingFactoryTarget other) {
+    return visitor.checkValues(
+        node.errorMessage, other.errorMessage, 'errorMessage');
   }
 
-  bool checkWhileStatement_body(
-      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
+  bool checkFunctionNode_redirectingFactoryTarget(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    'redirectingFactoryTarget';
+    return checkRedirectingFactoryTarget(
+        visitor, node.redirectingFactoryTarget, other.redirectingFactoryTarget);
   }
 
-  bool checkWhileStatement_fileOffset(
-      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFunctionNode_lazyBuilder(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return visitor.checkValues(
+        node.lazyBuilder, other.lazyBuilder, 'lazyBuilder');
   }
 
-  bool checkDoStatement_body(
-      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
+  bool checkFunctionNode_fileOffset(
+      EquivalenceVisitor visitor, FunctionNode node, FunctionNode other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
   }
 
-  bool checkDoStatement_condition(
-      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
-    return visitor.checkNodes(node.condition, other.condition, 'condition');
-  }
-
-  bool checkDoStatement_fileOffset(
-      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkForStatement_variables(
-      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
-    return visitor.checkLists(
-        node.variables, other.variables, visitor.checkNodes, 'variables');
-  }
-
-  bool checkForStatement_condition(
-      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
-    return visitor.checkNodes(node.condition, other.condition, 'condition');
-  }
-
-  bool checkForStatement_updates(
-      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
-    return visitor.checkLists(
-        node.updates, other.updates, visitor.checkNodes, 'updates');
-  }
-
-  bool checkForStatement_body(
-      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkForStatement_fileOffset(
-      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkForInStatement_bodyOffset(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return visitor.checkValues(node.bodyOffset, other.bodyOffset, 'bodyOffset');
-  }
-
-  bool checkForInStatement_variable(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return visitor.checkNodes(node.variable, other.variable, 'variable');
-  }
-
-  bool checkForInStatement_iterable(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return visitor.checkNodes(node.iterable, other.iterable, 'iterable');
-  }
-
-  bool checkForInStatement_body(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkForInStatement_isAsync(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return visitor.checkValues(node.isAsync, other.isAsync, 'isAsync');
-  }
-
-  bool checkForInStatement_fileOffset(
-      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkSwitchStatement_expression(
-      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
-  }
-
-  bool checkSwitchStatement_cases(
-      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
-    return visitor.checkLists(
-        node.cases, other.cases, visitor.checkNodes, 'cases');
-  }
-
-  bool checkSwitchStatement_isExplicitlyExhaustive(
-      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
-    return visitor.checkValues(node.isExplicitlyExhaustive,
-        other.isExplicitlyExhaustive, 'isExplicitlyExhaustive');
-  }
-
-  bool checkSwitchStatement_fileOffset(
-      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkContinueSwitchStatement_target(EquivalenceVisitor visitor,
-      ContinueSwitchStatement node, ContinueSwitchStatement other) {
-    return visitor.checkDeclarations(node.target, other.target, 'target');
-  }
-
-  bool checkContinueSwitchStatement_fileOffset(EquivalenceVisitor visitor,
-      ContinueSwitchStatement node, ContinueSwitchStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkIfStatement_condition(
-      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
-    return visitor.checkNodes(node.condition, other.condition, 'condition');
-  }
-
-  bool checkIfStatement_then(
-      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
-    return visitor.checkNodes(node.then, other.then, 'then');
-  }
-
-  bool checkIfStatement_otherwise(
-      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
-    return visitor.checkNodes(node.otherwise, other.otherwise, 'otherwise');
-  }
-
-  bool checkIfStatement_fileOffset(
-      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkReturnStatement_expression(
-      EquivalenceVisitor visitor, ReturnStatement node, ReturnStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
-  }
-
-  bool checkReturnStatement_fileOffset(
-      EquivalenceVisitor visitor, ReturnStatement node, ReturnStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkTryCatch_body(
-      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkTryCatch_catches(
-      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
-    return visitor.checkLists(
-        node.catches, other.catches, visitor.checkNodes, 'catches');
-  }
-
-  bool checkTryCatch_isSynthetic(
-      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
+  bool checkInitializer_isSynthetic(
+      EquivalenceVisitor visitor, Initializer node, Initializer other) {
     return visitor.checkValues(
         node.isSynthetic, other.isSynthetic, 'isSynthetic');
   }
 
-  bool checkTryCatch_fileOffset(
-      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkAuxiliaryInitializer_isSynthetic(EquivalenceVisitor visitor,
+      AuxiliaryInitializer node, AuxiliaryInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkTryFinally_body(
-      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
+  bool checkInitializer_fileOffset(
+      EquivalenceVisitor visitor, Initializer node, Initializer other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
   }
 
-  bool checkTryFinally_finalizer(
-      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
-    return visitor.checkNodes(node.finalizer, other.finalizer, 'finalizer');
+  bool checkAuxiliaryInitializer_fileOffset(EquivalenceVisitor visitor,
+      AuxiliaryInitializer node, AuxiliaryInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkTryFinally_fileOffset(
-      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkInvalidInitializer_isSynthetic(EquivalenceVisitor visitor,
+      InvalidInitializer node, InvalidInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkYieldStatement_expression(
-      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  bool checkInvalidInitializer_fileOffset(EquivalenceVisitor visitor,
+      InvalidInitializer node, InvalidInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkYieldStatement_flags(
-      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
+  bool checkFieldInitializer_fieldReference(EquivalenceVisitor visitor,
+      FieldInitializer node, FieldInitializer other) {
+    return visitor.checkReferences(
+        node.fieldReference, other.fieldReference, 'fieldReference');
   }
 
-  bool checkYieldStatement_fileOffset(
-      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkFieldInitializer_value(EquivalenceVisitor visitor,
+      FieldInitializer node, FieldInitializer other) {
+    return visitor.checkNodes(node.value, other.value, 'value');
   }
 
-  bool checkVariableDeclaration_fileEqualsOffset(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkValues(
-        node.fileEqualsOffset, other.fileEqualsOffset, 'fileEqualsOffset');
+  bool checkFieldInitializer_isSynthetic(EquivalenceVisitor visitor,
+      FieldInitializer node, FieldInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkVariableDeclaration_annotations(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkLists(
-        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  bool checkFieldInitializer_fileOffset(EquivalenceVisitor visitor,
+      FieldInitializer node, FieldInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkVariableDeclaration_name(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkValues(node.name, other.name, 'name');
+  bool checkSuperInitializer_targetReference(EquivalenceVisitor visitor,
+      SuperInitializer node, SuperInitializer other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
   }
 
-  bool checkVariableDeclaration_flags(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkValues(node.flags, other.flags, 'flags');
+  bool checkSuperInitializer_arguments(EquivalenceVisitor visitor,
+      SuperInitializer node, SuperInitializer other) {
+    return visitor.checkNodes(node.arguments, other.arguments, 'arguments');
   }
 
-  bool checkVariableDeclaration_type(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkNodes(node.type, other.type, 'type');
+  bool checkSuperInitializer_isSynthetic(EquivalenceVisitor visitor,
+      SuperInitializer node, SuperInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkVariableDeclaration_binaryOffsetNoTag(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkValues(
-        node.binaryOffsetNoTag, other.binaryOffsetNoTag, 'binaryOffsetNoTag');
+  bool checkSuperInitializer_fileOffset(EquivalenceVisitor visitor,
+      SuperInitializer node, SuperInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkVariableDeclaration_initializer(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return visitor.checkNodes(
-        node.initializer, other.initializer, 'initializer');
+  bool checkRedirectingInitializer_targetReference(EquivalenceVisitor visitor,
+      RedirectingInitializer node, RedirectingInitializer other) {
+    return visitor.checkReferences(
+        node.targetReference, other.targetReference, 'targetReference');
   }
 
-  bool checkVariableDeclaration_fileOffset(EquivalenceVisitor visitor,
-      VariableDeclaration node, VariableDeclaration other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkRedirectingInitializer_arguments(EquivalenceVisitor visitor,
+      RedirectingInitializer node, RedirectingInitializer other) {
+    return visitor.checkNodes(node.arguments, other.arguments, 'arguments');
   }
 
-  bool checkFunctionDeclaration_variable(EquivalenceVisitor visitor,
-      FunctionDeclaration node, FunctionDeclaration other) {
+  bool checkRedirectingInitializer_isSynthetic(EquivalenceVisitor visitor,
+      RedirectingInitializer node, RedirectingInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
+  }
+
+  bool checkRedirectingInitializer_fileOffset(EquivalenceVisitor visitor,
+      RedirectingInitializer node, RedirectingInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
+  }
+
+  bool checkLocalInitializer_variable(EquivalenceVisitor visitor,
+      LocalInitializer node, LocalInitializer other) {
     return visitor.checkNodes(node.variable, other.variable, 'variable');
   }
 
-  bool checkFunctionDeclaration_function(EquivalenceVisitor visitor,
-      FunctionDeclaration node, FunctionDeclaration other) {
-    return visitor.checkNodes(node.function, other.function, 'function');
+  bool checkLocalInitializer_isSynthetic(EquivalenceVisitor visitor,
+      LocalInitializer node, LocalInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkFunctionDeclaration_fileOffset(EquivalenceVisitor visitor,
-      FunctionDeclaration node, FunctionDeclaration other) {
-    return checkStatement_fileOffset(visitor, node, other);
+  bool checkLocalInitializer_fileOffset(EquivalenceVisitor visitor,
+      LocalInitializer node, LocalInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkPatternSwitchStatement_expression(EquivalenceVisitor visitor,
-      PatternSwitchStatement node, PatternSwitchStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  bool checkAssertInitializer_statement(EquivalenceVisitor visitor,
+      AssertInitializer node, AssertInitializer other) {
+    return visitor.checkNodes(node.statement, other.statement, 'statement');
   }
 
-  bool checkPatternSwitchStatement_cases(EquivalenceVisitor visitor,
-      PatternSwitchStatement node, PatternSwitchStatement other) {
-    return visitor.checkLists(
-        node.cases, other.cases, visitor.checkNodes, 'cases');
+  bool checkAssertInitializer_isSynthetic(EquivalenceVisitor visitor,
+      AssertInitializer node, AssertInitializer other) {
+    return checkInitializer_isSynthetic(visitor, node, other);
   }
 
-  bool checkPatternSwitchStatement_expressionType(EquivalenceVisitor visitor,
-      PatternSwitchStatement node, PatternSwitchStatement other) {
-    return visitor.checkNodes(
-        node.expressionType, other.expressionType, 'expressionType');
+  bool checkAssertInitializer_fileOffset(EquivalenceVisitor visitor,
+      AssertInitializer node, AssertInitializer other) {
+    return checkInitializer_fileOffset(visitor, node, other);
   }
 
-  bool checkPatternSwitchStatement_lastCaseTerminates(
-      EquivalenceVisitor visitor,
-      PatternSwitchStatement node,
-      PatternSwitchStatement other) {
-    return visitor.checkValues(node.lastCaseTerminates,
-        other.lastCaseTerminates, 'lastCaseTerminates');
-  }
-
-  bool checkPatternSwitchStatement_isExplicitlyExhaustive(
-      EquivalenceVisitor visitor,
-      PatternSwitchStatement node,
-      PatternSwitchStatement other) {
-    return visitor.checkValues(node.isExplicitlyExhaustive,
-        other.isExplicitlyExhaustive, 'isExplicitlyExhaustive');
-  }
-
-  bool checkPatternSwitchStatement_fileOffset(EquivalenceVisitor visitor,
-      PatternSwitchStatement node, PatternSwitchStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkPatternVariableDeclaration_pattern(EquivalenceVisitor visitor,
-      PatternVariableDeclaration node, PatternVariableDeclaration other) {
-    return visitor.checkNodes(node.pattern, other.pattern, 'pattern');
-  }
-
-  bool checkPatternVariableDeclaration_initializer(EquivalenceVisitor visitor,
-      PatternVariableDeclaration node, PatternVariableDeclaration other) {
-    return visitor.checkNodes(
-        node.initializer, other.initializer, 'initializer');
-  }
-
-  bool checkPatternVariableDeclaration_isFinal(EquivalenceVisitor visitor,
-      PatternVariableDeclaration node, PatternVariableDeclaration other) {
-    return visitor.checkValues(node.isFinal, other.isFinal, 'isFinal');
-  }
-
-  bool checkPatternVariableDeclaration_matchedValueType(
-      EquivalenceVisitor visitor,
-      PatternVariableDeclaration node,
-      PatternVariableDeclaration other) {
-    return visitor.checkNodes(
-        node.matchedValueType, other.matchedValueType, 'matchedValueType');
-  }
-
-  bool checkPatternVariableDeclaration_fileOffset(EquivalenceVisitor visitor,
-      PatternVariableDeclaration node, PatternVariableDeclaration other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkIfCaseStatement_expression(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
-  }
-
-  bool checkIfCaseStatement_patternGuard(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return visitor.checkNodes(
-        node.patternGuard, other.patternGuard, 'patternGuard');
-  }
-
-  bool checkIfCaseStatement_then(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return visitor.checkNodes(node.then, other.then, 'then');
-  }
-
-  bool checkIfCaseStatement_otherwise(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return visitor.checkNodes(node.otherwise, other.otherwise, 'otherwise');
-  }
-
-  bool checkIfCaseStatement_matchedValueType(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return visitor.checkNodes(
-        node.matchedValueType, other.matchedValueType, 'matchedValueType');
-  }
-
-  bool checkIfCaseStatement_fileOffset(
-      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
-    return checkStatement_fileOffset(visitor, node, other);
-  }
-
-  bool checkSwitchCase_expressions(
-      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
-    return visitor.checkLists(
-        node.expressions, other.expressions, visitor.checkNodes, 'expressions');
-  }
-
-  bool checkSwitchCase_expressionOffsets(
-      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
-    return visitor.checkLists(node.expressionOffsets, other.expressionOffsets,
-        visitor.checkValues, 'expressionOffsets');
-  }
-
-  bool checkSwitchCase_body(
-      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkSwitchCase_isDefault(
-      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
-    return visitor.checkValues(node.isDefault, other.isDefault, 'isDefault');
-  }
-
-  bool checkSwitchCase_fileOffset(
-      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkCatch_guard(EquivalenceVisitor visitor, Catch node, Catch other) {
-    return visitor.checkNodes(node.guard, other.guard, 'guard');
-  }
-
-  bool checkCatch_exception(
-      EquivalenceVisitor visitor, Catch node, Catch other) {
-    return visitor.checkNodes(node.exception, other.exception, 'exception');
-  }
-
-  bool checkCatch_stackTrace(
-      EquivalenceVisitor visitor, Catch node, Catch other) {
-    return visitor.checkNodes(node.stackTrace, other.stackTrace, 'stackTrace');
-  }
-
-  bool checkCatch_body(EquivalenceVisitor visitor, Catch node, Catch other) {
-    return visitor.checkNodes(node.body, other.body, 'body');
-  }
-
-  bool checkCatch_fileOffset(
-      EquivalenceVisitor visitor, Catch node, Catch other) {
-    return checkTreeNode_fileOffset(visitor, node, other);
-  }
-
-  bool checkTypeParameter_flags(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+  bool checkLibraryDependency_flags(EquivalenceVisitor visitor,
+      LibraryDependency node, LibraryDependency other) {
     return visitor.checkValues(node.flags, other.flags, 'flags');
   }
 
-  bool checkTypeParameter_annotations(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+  bool checkLibraryDependency_annotations(EquivalenceVisitor visitor,
+      LibraryDependency node, LibraryDependency other) {
     return visitor.checkLists(
         node.annotations, other.annotations, visitor.checkNodes, 'annotations');
   }
 
-  bool checkTypeParameter_name(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+  bool checkLibraryDependency_importedLibraryReference(
+      EquivalenceVisitor visitor,
+      LibraryDependency node,
+      LibraryDependency other) {
+    return visitor.checkReferences(node.importedLibraryReference,
+        other.importedLibraryReference, 'importedLibraryReference');
+  }
+
+  bool checkLibraryDependency_name(EquivalenceVisitor visitor,
+      LibraryDependency node, LibraryDependency other) {
     return visitor.checkValues(node.name, other.name, 'name');
   }
 
-  bool checkTypeParameter_bound(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
-    return visitor.checkNodes(node.bound, other.bound, 'bound');
+  bool checkLibraryDependency_combinators(EquivalenceVisitor visitor,
+      LibraryDependency node, LibraryDependency other) {
+    return visitor.checkLists(
+        node.combinators, other.combinators, visitor.checkNodes, 'combinators');
   }
 
-  bool checkTypeParameter_defaultType(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
-    return visitor.checkNodes(
-        node.defaultType, other.defaultType, 'defaultType');
-  }
-
-  bool checkTypeParameter_variance(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
-    return visitor.checkValues(node.variance, other.variance, 'variance');
-  }
-
-  bool checkTypeParameter_fileOffset(
-      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+  bool checkLibraryDependency_fileOffset(EquivalenceVisitor visitor,
+      LibraryDependency node, LibraryDependency other) {
     return checkTreeNode_fileOffset(visitor, node, other);
   }
 
-  bool checkComponent_problemsAsJson(
-      EquivalenceVisitor visitor, Component node, Component other) {
-    return visitor.checkLists(node.problemsAsJson, other.problemsAsJson,
-        visitor.checkValues, 'problemsAsJson');
-  }
-
-  bool checkComponent_libraries(
-      EquivalenceVisitor visitor, Component node, Component other) {
+  bool checkLibraryPart_annotations(
+      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
     return visitor.checkLists(
-        node.libraries, other.libraries, visitor.checkNodes, 'libraries');
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
   }
 
-  bool checkSource_lineStarts(
-      EquivalenceVisitor visitor, Source node, Source other) {
+  bool checkLibraryPart_partUri(
+      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
+    return visitor.checkValues(node.partUri, other.partUri, 'partUri');
+  }
+
+  bool checkLibraryPart_fileOffset(
+      EquivalenceVisitor visitor, LibraryPart node, LibraryPart other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkCombinator_isShow(
+      EquivalenceVisitor visitor, Combinator node, Combinator other) {
+    return visitor.checkValues(node.isShow, other.isShow, 'isShow');
+  }
+
+  bool checkCombinator_names(
+      EquivalenceVisitor visitor, Combinator node, Combinator other) {
     return visitor.checkLists(
-        node.lineStarts, other.lineStarts, visitor.checkValues, 'lineStarts');
+        node.names, other.names, visitor.checkValues, 'names');
   }
 
-  bool checkSource_source(
-      EquivalenceVisitor visitor, Source node, Source other) {
-    return visitor.checkLists(
-        node.source, other.source, visitor.checkValues, 'source');
-  }
-
-  bool checkSource_importUri(
-      EquivalenceVisitor visitor, Source node, Source other) {
-    return visitor.checkValues(node.importUri, other.importUri, 'importUri');
-  }
-
-  bool checkSource_fileUri(
-      EquivalenceVisitor visitor, Source node, Source other) {
-    return visitor.checkValues(node.fileUri, other.fileUri, 'fileUri');
-  }
-
-  bool checkSource_constantCoverageConstructors(
-      EquivalenceVisitor visitor, Source node, Source other) {
-    return visitor.checkSets(
-        node.constantCoverageConstructors,
-        other.constantCoverageConstructors,
-        visitor.matchReferences,
-        visitor.checkReferences,
-        'constantCoverageConstructors');
-  }
-
-  bool checkSource_cachedText(
-      EquivalenceVisitor visitor, Source node, Source other) {
-    return visitor.checkValues(node.cachedText, other.cachedText, 'cachedText');
-  }
-
-  bool checkComponent_uriToSource(
-      EquivalenceVisitor visitor, Component node, Component other) {
-    return visitor.checkMaps(node.uriToSource, other.uriToSource,
-        visitor.matchValues, visitor.checkValues, (a, b, _) {
-      if (identical(a, b)) return true;
-      if (a is! Source) return false;
-      if (b is! Source) return false;
-      return checkSource(visitor, a, b);
-    }, 'uriToSource');
-  }
-
-  bool checkComponent_metadata(
-      EquivalenceVisitor visitor, Component node, Component other) {
-    return visitor.checkMaps(
-        node.metadata, other.metadata, visitor.matchValues, visitor.checkValues,
-        (a, b, _) {
-      if (identical(a, b)) return true;
-      if (a is! MetadataRepository) return false;
-      if (b is! MetadataRepository) return false;
-      return checkMetadataRepository(visitor, a, b);
-    }, 'metadata');
-  }
-
-  bool checkComponent_mainMethodName(
-      EquivalenceVisitor visitor, Component node, Component other) {
-    return visitor.checkReferences(
-        node.mainMethodName, other.mainMethodName, 'mainMethodName');
-  }
-
-  bool checkComponent_mode(
-      EquivalenceVisitor visitor, Component node, Component other) {
-    return visitor.checkValues(node.mode, other.mode, 'mode');
-  }
-
-  bool checkComponent_fileOffset(
-      EquivalenceVisitor visitor, Component node, Component other) {
+  bool checkCombinator_fileOffset(
+      EquivalenceVisitor visitor, Combinator node, Combinator other) {
     return checkTreeNode_fileOffset(visitor, node, other);
   }
 
@@ -8811,6 +8300,11 @@ class EquivalenceStrategy {
     return checkPattern_fileOffset(visitor, node, other);
   }
 
+  bool checkListPattern_flags(
+      EquivalenceVisitor visitor, ListPattern node, ListPattern other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
   bool checkListPattern_typeArgument(
       EquivalenceVisitor visitor, ListPattern node, ListPattern other) {
     return visitor.checkNodes(
@@ -8835,20 +8329,9 @@ class EquivalenceStrategy {
         node.matchedValueType, other.matchedValueType, 'matchedValueType');
   }
 
-  bool checkListPattern_needsCheck(
-      EquivalenceVisitor visitor, ListPattern node, ListPattern other) {
-    return visitor.checkValues(node.needsCheck, other.needsCheck, 'needsCheck');
-  }
-
   bool checkListPattern_lookupType(
       EquivalenceVisitor visitor, ListPattern node, ListPattern other) {
     return visitor.checkNodes(node.lookupType, other.lookupType, 'lookupType');
-  }
-
-  bool checkListPattern_hasRestPattern(
-      EquivalenceVisitor visitor, ListPattern node, ListPattern other) {
-    return visitor.checkValues(
-        node.hasRestPattern, other.hasRestPattern, 'hasRestPattern');
   }
 
   bool checkListPattern_lengthTargetReference(
@@ -9034,9 +8517,22 @@ class EquivalenceStrategy {
     return visitor.checkValues(node.needsCast, other.needsCast, 'needsCast');
   }
 
+  bool checkAssignedVariablePattern_hasObservableEffect(
+      EquivalenceVisitor visitor,
+      AssignedVariablePattern node,
+      AssignedVariablePattern other) {
+    return visitor.checkValues(node.hasObservableEffect,
+        other.hasObservableEffect, 'hasObservableEffect');
+  }
+
   bool checkAssignedVariablePattern_fileOffset(EquivalenceVisitor visitor,
       AssignedVariablePattern node, AssignedVariablePattern other) {
     return checkPattern_fileOffset(visitor, node, other);
+  }
+
+  bool checkMapPattern_flags(
+      EquivalenceVisitor visitor, MapPattern node, MapPattern other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
   }
 
   bool checkMapPattern_keyType(
@@ -9065,11 +8561,6 @@ class EquivalenceStrategy {
       EquivalenceVisitor visitor, MapPattern node, MapPattern other) {
     return visitor.checkNodes(
         node.matchedValueType, other.matchedValueType, 'matchedValueType');
-  }
-
-  bool checkMapPattern_needsCheck(
-      EquivalenceVisitor visitor, MapPattern node, MapPattern other) {
-    return visitor.checkValues(node.needsCheck, other.needsCheck, 'needsCheck');
   }
 
   bool checkMapPattern_lookupType(
@@ -9135,6 +8626,12 @@ class EquivalenceStrategy {
   bool checkNamedPattern_resultType(
       EquivalenceVisitor visitor, NamedPattern node, NamedPattern other) {
     return visitor.checkNodes(node.resultType, other.resultType, 'resultType');
+  }
+
+  bool checkNamedPattern_checkReturn(
+      EquivalenceVisitor visitor, NamedPattern node, NamedPattern other) {
+    return visitor.checkValues(
+        node.checkReturn, other.checkReturn, 'checkReturn');
   }
 
   bool checkNamedPattern_recordType(
@@ -9346,6 +8843,500 @@ class EquivalenceStrategy {
     return checkTreeNode_fileOffset(visitor, node, other);
   }
 
+  bool checkSwitchCase_expressions(
+      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
+    return visitor.checkLists(
+        node.expressions, other.expressions, visitor.checkNodes, 'expressions');
+  }
+
+  bool checkSwitchCase_expressionOffsets(
+      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
+    return visitor.checkLists(node.expressionOffsets, other.expressionOffsets,
+        visitor.checkValues, 'expressionOffsets');
+  }
+
+  bool checkSwitchCase_body(
+      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkSwitchCase_isDefault(
+      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
+    return visitor.checkValues(node.isDefault, other.isDefault, 'isDefault');
+  }
+
+  bool checkSwitchCase_fileOffset(
+      EquivalenceVisitor visitor, SwitchCase node, SwitchCase other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkPatternSwitchStatement_expression(EquivalenceVisitor visitor,
+      PatternSwitchStatement node, PatternSwitchStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkPatternSwitchStatement_cases(EquivalenceVisitor visitor,
+      PatternSwitchStatement node, PatternSwitchStatement other) {
+    return visitor.checkLists(
+        node.cases, other.cases, visitor.checkNodes, 'cases');
+  }
+
+  bool checkPatternSwitchStatement_expressionTypeInternal(
+      EquivalenceVisitor visitor,
+      PatternSwitchStatement node,
+      PatternSwitchStatement other) {
+    return visitor.checkNodes(node.expressionTypeInternal,
+        other.expressionTypeInternal, 'expressionTypeInternal');
+  }
+
+  bool checkPatternSwitchStatement_lastCaseTerminates(
+      EquivalenceVisitor visitor,
+      PatternSwitchStatement node,
+      PatternSwitchStatement other) {
+    return visitor.checkValues(node.lastCaseTerminates,
+        other.lastCaseTerminates, 'lastCaseTerminates');
+  }
+
+  bool checkPatternSwitchStatement_isExplicitlyExhaustive(
+      EquivalenceVisitor visitor,
+      PatternSwitchStatement node,
+      PatternSwitchStatement other) {
+    return visitor.checkValues(node.isExplicitlyExhaustive,
+        other.isExplicitlyExhaustive, 'isExplicitlyExhaustive');
+  }
+
+  bool checkStatement_fileOffset(
+      EquivalenceVisitor visitor, Statement node, Statement other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkPatternSwitchStatement_fileOffset(EquivalenceVisitor visitor,
+      PatternSwitchStatement node, PatternSwitchStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkSwitchStatement_expression(
+      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkSwitchStatement_cases(
+      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
+    return visitor.checkLists(
+        node.cases, other.cases, visitor.checkNodes, 'cases');
+  }
+
+  bool checkSwitchStatement_isExplicitlyExhaustive(
+      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
+    return visitor.checkValues(node.isExplicitlyExhaustive,
+        other.isExplicitlyExhaustive, 'isExplicitlyExhaustive');
+  }
+
+  bool checkSwitchStatement_expressionTypeInternal(
+      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
+    return visitor.checkNodes(node.expressionTypeInternal,
+        other.expressionTypeInternal, 'expressionTypeInternal');
+  }
+
+  bool checkSwitchStatement_fileOffset(
+      EquivalenceVisitor visitor, SwitchStatement node, SwitchStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkPatternVariableDeclaration_pattern(EquivalenceVisitor visitor,
+      PatternVariableDeclaration node, PatternVariableDeclaration other) {
+    return visitor.checkNodes(node.pattern, other.pattern, 'pattern');
+  }
+
+  bool checkPatternVariableDeclaration_initializer(EquivalenceVisitor visitor,
+      PatternVariableDeclaration node, PatternVariableDeclaration other) {
+    return visitor.checkNodes(
+        node.initializer, other.initializer, 'initializer');
+  }
+
+  bool checkPatternVariableDeclaration_isFinal(EquivalenceVisitor visitor,
+      PatternVariableDeclaration node, PatternVariableDeclaration other) {
+    return visitor.checkValues(node.isFinal, other.isFinal, 'isFinal');
+  }
+
+  bool checkPatternVariableDeclaration_matchedValueType(
+      EquivalenceVisitor visitor,
+      PatternVariableDeclaration node,
+      PatternVariableDeclaration other) {
+    return visitor.checkNodes(
+        node.matchedValueType, other.matchedValueType, 'matchedValueType');
+  }
+
+  bool checkPatternVariableDeclaration_fileOffset(EquivalenceVisitor visitor,
+      PatternVariableDeclaration node, PatternVariableDeclaration other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkIfCaseStatement_expression(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkIfCaseStatement_patternGuard(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return visitor.checkNodes(
+        node.patternGuard, other.patternGuard, 'patternGuard');
+  }
+
+  bool checkIfCaseStatement_then(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return visitor.checkNodes(node.then, other.then, 'then');
+  }
+
+  bool checkIfCaseStatement_otherwise(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return visitor.checkNodes(node.otherwise, other.otherwise, 'otherwise');
+  }
+
+  bool checkIfCaseStatement_matchedValueType(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return visitor.checkNodes(
+        node.matchedValueType, other.matchedValueType, 'matchedValueType');
+  }
+
+  bool checkIfCaseStatement_fileOffset(
+      EquivalenceVisitor visitor, IfCaseStatement node, IfCaseStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkAuxiliaryStatement_fileOffset(EquivalenceVisitor visitor,
+      AuxiliaryStatement node, AuxiliaryStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkExpressionStatement_expression(EquivalenceVisitor visitor,
+      ExpressionStatement node, ExpressionStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkExpressionStatement_fileOffset(EquivalenceVisitor visitor,
+      ExpressionStatement node, ExpressionStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkBlock_statements(
+      EquivalenceVisitor visitor, Block node, Block other) {
+    return visitor.checkLists(
+        node.statements, other.statements, visitor.checkNodes, 'statements');
+  }
+
+  bool checkBlock_fileEndOffset(
+      EquivalenceVisitor visitor, Block node, Block other) {
+    return visitor.checkValues(
+        node.fileEndOffset, other.fileEndOffset, 'fileEndOffset');
+  }
+
+  bool checkBlock_fileOffset(
+      EquivalenceVisitor visitor, Block node, Block other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkAssertBlock_statements(
+      EquivalenceVisitor visitor, AssertBlock node, AssertBlock other) {
+    return visitor.checkLists(
+        node.statements, other.statements, visitor.checkNodes, 'statements');
+  }
+
+  bool checkAssertBlock_fileOffset(
+      EquivalenceVisitor visitor, AssertBlock node, AssertBlock other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkEmptyStatement_fileOffset(
+      EquivalenceVisitor visitor, EmptyStatement node, EmptyStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkAssertStatement_condition(
+      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
+    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  }
+
+  bool checkAssertStatement_message(
+      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
+    return visitor.checkNodes(node.message, other.message, 'message');
+  }
+
+  bool checkAssertStatement_conditionStartOffset(
+      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
+    return visitor.checkValues(node.conditionStartOffset,
+        other.conditionStartOffset, 'conditionStartOffset');
+  }
+
+  bool checkAssertStatement_conditionEndOffset(
+      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
+    return visitor.checkValues(node.conditionEndOffset,
+        other.conditionEndOffset, 'conditionEndOffset');
+  }
+
+  bool checkAssertStatement_fileOffset(
+      EquivalenceVisitor visitor, AssertStatement node, AssertStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkLabeledStatement_body(EquivalenceVisitor visitor,
+      LabeledStatement node, LabeledStatement other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkLabeledStatement_fileOffset(EquivalenceVisitor visitor,
+      LabeledStatement node, LabeledStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkBreakStatement_target(
+      EquivalenceVisitor visitor, BreakStatement node, BreakStatement other) {
+    return visitor.checkDeclarations(node.target, other.target, 'target');
+  }
+
+  bool checkBreakStatement_fileOffset(
+      EquivalenceVisitor visitor, BreakStatement node, BreakStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkWhileStatement_condition(
+      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
+    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  }
+
+  bool checkWhileStatement_body(
+      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkWhileStatement_fileOffset(
+      EquivalenceVisitor visitor, WhileStatement node, WhileStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkDoStatement_body(
+      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkDoStatement_condition(
+      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
+    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  }
+
+  bool checkDoStatement_fileOffset(
+      EquivalenceVisitor visitor, DoStatement node, DoStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkForStatement_variables(
+      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
+    return visitor.checkLists(
+        node.variables, other.variables, visitor.checkNodes, 'variables');
+  }
+
+  bool checkForStatement_condition(
+      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
+    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  }
+
+  bool checkForStatement_updates(
+      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
+    return visitor.checkLists(
+        node.updates, other.updates, visitor.checkNodes, 'updates');
+  }
+
+  bool checkForStatement_body(
+      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkForStatement_fileOffset(
+      EquivalenceVisitor visitor, ForStatement node, ForStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkForInStatement_bodyOffset(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return visitor.checkValues(node.bodyOffset, other.bodyOffset, 'bodyOffset');
+  }
+
+  bool checkForInStatement_variable(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return visitor.checkNodes(node.variable, other.variable, 'variable');
+  }
+
+  bool checkForInStatement_iterable(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return visitor.checkNodes(node.iterable, other.iterable, 'iterable');
+  }
+
+  bool checkForInStatement_body(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkForInStatement_isAsync(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return visitor.checkValues(node.isAsync, other.isAsync, 'isAsync');
+  }
+
+  bool checkForInStatement_fileOffset(
+      EquivalenceVisitor visitor, ForInStatement node, ForInStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkContinueSwitchStatement_target(EquivalenceVisitor visitor,
+      ContinueSwitchStatement node, ContinueSwitchStatement other) {
+    return visitor.checkDeclarations(node.target, other.target, 'target');
+  }
+
+  bool checkContinueSwitchStatement_fileOffset(EquivalenceVisitor visitor,
+      ContinueSwitchStatement node, ContinueSwitchStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkIfStatement_condition(
+      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
+    return visitor.checkNodes(node.condition, other.condition, 'condition');
+  }
+
+  bool checkIfStatement_then(
+      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
+    return visitor.checkNodes(node.then, other.then, 'then');
+  }
+
+  bool checkIfStatement_otherwise(
+      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
+    return visitor.checkNodes(node.otherwise, other.otherwise, 'otherwise');
+  }
+
+  bool checkIfStatement_fileOffset(
+      EquivalenceVisitor visitor, IfStatement node, IfStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkReturnStatement_expression(
+      EquivalenceVisitor visitor, ReturnStatement node, ReturnStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkReturnStatement_fileOffset(
+      EquivalenceVisitor visitor, ReturnStatement node, ReturnStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkTryCatch_body(
+      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkTryCatch_catches(
+      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
+    return visitor.checkLists(
+        node.catches, other.catches, visitor.checkNodes, 'catches');
+  }
+
+  bool checkTryCatch_isSynthetic(
+      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
+    return visitor.checkValues(
+        node.isSynthetic, other.isSynthetic, 'isSynthetic');
+  }
+
+  bool checkTryCatch_fileOffset(
+      EquivalenceVisitor visitor, TryCatch node, TryCatch other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkTryFinally_body(
+      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkTryFinally_finalizer(
+      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
+    return visitor.checkNodes(node.finalizer, other.finalizer, 'finalizer');
+  }
+
+  bool checkTryFinally_fileOffset(
+      EquivalenceVisitor visitor, TryFinally node, TryFinally other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkYieldStatement_expression(
+      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
+    return visitor.checkNodes(node.expression, other.expression, 'expression');
+  }
+
+  bool checkYieldStatement_flags(
+      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkYieldStatement_fileOffset(
+      EquivalenceVisitor visitor, YieldStatement node, YieldStatement other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkVariableDeclaration_fileEqualsOffset(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkValues(
+        node.fileEqualsOffset, other.fileEqualsOffset, 'fileEqualsOffset');
+  }
+
+  bool checkVariableDeclaration_annotations(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkLists(
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  }
+
+  bool checkVariableDeclaration_name(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkVariableDeclaration_flags(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkVariableDeclaration_type(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkNodes(node.type, other.type, 'type');
+  }
+
+  bool checkVariableDeclaration_binaryOffsetNoTag(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkValues(
+        node.binaryOffsetNoTag, other.binaryOffsetNoTag, 'binaryOffsetNoTag');
+  }
+
+  bool checkVariableDeclaration_initializer(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return visitor.checkNodes(
+        node.initializer, other.initializer, 'initializer');
+  }
+
+  bool checkVariableDeclaration_fileOffset(EquivalenceVisitor visitor,
+      VariableDeclaration node, VariableDeclaration other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
+  bool checkFunctionDeclaration_variable(EquivalenceVisitor visitor,
+      FunctionDeclaration node, FunctionDeclaration other) {
+    return visitor.checkNodes(node.variable, other.variable, 'variable');
+  }
+
+  bool checkFunctionDeclaration_function(EquivalenceVisitor visitor,
+      FunctionDeclaration node, FunctionDeclaration other) {
+    return visitor.checkNodes(node.function, other.function, 'function');
+  }
+
+  bool checkFunctionDeclaration_fileOffset(EquivalenceVisitor visitor,
+      FunctionDeclaration node, FunctionDeclaration other) {
+    return checkStatement_fileOffset(visitor, node, other);
+  }
+
   bool checkSwitchExpressionCase_patternGuard(EquivalenceVisitor visitor,
       SwitchExpressionCase node, SwitchExpressionCase other) {
     return visitor.checkNodes(
@@ -9362,20 +9353,122 @@ class EquivalenceStrategy {
     return checkTreeNode_fileOffset(visitor, node, other);
   }
 
+  bool checkCatch_guard(EquivalenceVisitor visitor, Catch node, Catch other) {
+    return visitor.checkNodes(node.guard, other.guard, 'guard');
+  }
+
+  bool checkCatch_exception(
+      EquivalenceVisitor visitor, Catch node, Catch other) {
+    return visitor.checkNodes(node.exception, other.exception, 'exception');
+  }
+
+  bool checkCatch_stackTrace(
+      EquivalenceVisitor visitor, Catch node, Catch other) {
+    return visitor.checkNodes(node.stackTrace, other.stackTrace, 'stackTrace');
+  }
+
+  bool checkCatch_body(EquivalenceVisitor visitor, Catch node, Catch other) {
+    return visitor.checkNodes(node.body, other.body, 'body');
+  }
+
+  bool checkCatch_fileOffset(
+      EquivalenceVisitor visitor, Catch node, Catch other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
+  bool checkTypeParameter_flags(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
+  }
+
+  bool checkTypeParameter_annotations(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkLists(
+        node.annotations, other.annotations, visitor.checkNodes, 'annotations');
+  }
+
+  bool checkTypeParameter_name(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkTypeParameter_bound(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkNodes(node.bound, other.bound, 'bound');
+  }
+
+  bool checkTypeParameter_defaultType(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkNodes(
+        node.defaultType, other.defaultType, 'defaultType');
+  }
+
+  bool checkTypeParameter_variance(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return visitor.checkValues(node.variance, other.variance, 'variance');
+  }
+
+  bool checkTypeParameter_fileOffset(
+      EquivalenceVisitor visitor, TypeParameter node, TypeParameter other) {
+    return checkTreeNode_fileOffset(visitor, node, other);
+  }
+
   bool checkName_text(EquivalenceVisitor visitor, Name node, Name other) {
     return visitor.checkValues(node.text, other.text, 'text');
   }
 
-  bool checkNeverType_declaredNullability(
-      EquivalenceVisitor visitor, NeverType node, NeverType other) {
-    return visitor.checkValues(node.declaredNullability,
-        other.declaredNullability, 'declaredNullability');
+  bool checkStructuralParameter_flags(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkValues(node.flags, other.flags, 'flags');
   }
 
-  bool checkInterfaceType_className(
-      EquivalenceVisitor visitor, InterfaceType node, InterfaceType other) {
+  bool checkStructuralParameter_name(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkValues(node.name, other.name, 'name');
+  }
+
+  bool checkStructuralParameter_fileOffset(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkValues(node.fileOffset, other.fileOffset, 'fileOffset');
+  }
+
+  bool checkStructuralParameter_uri(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkValues(node.uri, other.uri, 'uri');
+  }
+
+  bool checkStructuralParameter_bound(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkNodes(node.bound, other.bound, 'bound');
+  }
+
+  bool checkStructuralParameter_defaultType(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkNodes(
+        node.defaultType, other.defaultType, 'defaultType');
+  }
+
+  bool checkStructuralParameter_variance(EquivalenceVisitor visitor,
+      StructuralParameter node, StructuralParameter other) {
+    return visitor.checkValues(node.variance, other.variance, 'variance');
+  }
+
+  bool checkSupertype_className(
+      EquivalenceVisitor visitor, Supertype node, Supertype other) {
     return visitor.checkReferences(
         node.className, other.className, 'className');
+  }
+
+  bool checkSupertype_typeArguments(
+      EquivalenceVisitor visitor, Supertype node, Supertype other) {
+    return visitor.checkLists(node.typeArguments, other.typeArguments,
+        visitor.checkNodes, 'typeArguments');
+  }
+
+  bool checkInterfaceType_classReference(
+      EquivalenceVisitor visitor, InterfaceType node, InterfaceType other) {
+    return visitor.checkReferences(
+        node.classReference, other.classReference, 'classReference');
   }
 
   bool checkInterfaceType_declaredNullability(
@@ -9388,6 +9481,32 @@ class EquivalenceStrategy {
       EquivalenceVisitor visitor, InterfaceType node, InterfaceType other) {
     return visitor.checkLists(node.typeArguments, other.typeArguments,
         visitor.checkNodes, 'typeArguments');
+  }
+
+  bool checkExtensionType_extensionTypeDeclarationReference(
+      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
+    return visitor.checkReferences(
+        node.extensionTypeDeclarationReference,
+        other.extensionTypeDeclarationReference,
+        'extensionTypeDeclarationReference');
+  }
+
+  bool checkExtensionType_declaredNullability(
+      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
+    return visitor.checkValues(node.declaredNullability,
+        other.declaredNullability, 'declaredNullability');
+  }
+
+  bool checkExtensionType_typeArguments(
+      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
+    return visitor.checkLists(node.typeArguments, other.typeArguments,
+        visitor.checkNodes, 'typeArguments');
+  }
+
+  bool checkNeverType_declaredNullability(
+      EquivalenceVisitor visitor, NeverType node, NeverType other) {
+    return visitor.checkValues(node.declaredNullability,
+        other.declaredNullability, 'declaredNullability');
   }
 
   bool checkFunctionType_typeParameters(
@@ -9455,53 +9574,6 @@ class EquivalenceStrategy {
         other.declaredNullability, 'declaredNullability');
   }
 
-  bool checkExtensionType_extensionReference(
-      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
-    return visitor.checkReferences(node.extensionReference,
-        other.extensionReference, 'extensionReference');
-  }
-
-  bool checkExtensionType_declaredNullability(
-      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
-    return visitor.checkValues(node.declaredNullability,
-        other.declaredNullability, 'declaredNullability');
-  }
-
-  bool checkExtensionType_typeArguments(
-      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
-    return visitor.checkLists(node.typeArguments, other.typeArguments,
-        visitor.checkNodes, 'typeArguments');
-  }
-
-  bool checkExtensionType_onType(
-      EquivalenceVisitor visitor, ExtensionType node, ExtensionType other) {
-    return visitor.checkNodes(node.onType, other.onType, 'onType');
-  }
-
-  bool checkInlineType_inlineClassReference(
-      EquivalenceVisitor visitor, InlineType node, InlineType other) {
-    return visitor.checkReferences(node.inlineClassReference,
-        other.inlineClassReference, 'inlineClassReference');
-  }
-
-  bool checkInlineType_declaredNullability(
-      EquivalenceVisitor visitor, InlineType node, InlineType other) {
-    return visitor.checkValues(node.declaredNullability,
-        other.declaredNullability, 'declaredNullability');
-  }
-
-  bool checkInlineType_typeArguments(
-      EquivalenceVisitor visitor, InlineType node, InlineType other) {
-    return visitor.checkLists(node.typeArguments, other.typeArguments,
-        visitor.checkNodes, 'typeArguments');
-  }
-
-  bool checkInlineType_instantiatedRepresentationType(
-      EquivalenceVisitor visitor, InlineType node, InlineType other) {
-    return visitor.checkNodes(node.instantiatedRepresentationType,
-        other.instantiatedRepresentationType, 'instantiatedRepresentationType');
-  }
-
   bool checkIntersectionType_left(EquivalenceVisitor visitor,
       IntersectionType node, IntersectionType other) {
     return visitor.checkNodes(node.left, other.left, 'left');
@@ -9520,6 +9592,20 @@ class EquivalenceStrategy {
 
   bool checkTypeParameterType_parameter(EquivalenceVisitor visitor,
       TypeParameterType node, TypeParameterType other) {
+    return visitor.checkDeclarations(
+        node.parameter, other.parameter, 'parameter');
+  }
+
+  bool checkStructuralParameterType_declaredNullability(
+      EquivalenceVisitor visitor,
+      StructuralParameterType node,
+      StructuralParameterType other) {
+    return visitor.checkValues(node.declaredNullability,
+        other.declaredNullability, 'declaredNullability');
+  }
+
+  bool checkStructuralParameterType_parameter(EquivalenceVisitor visitor,
+      StructuralParameterType node, StructuralParameterType other) {
     return visitor.checkDeclarations(
         node.parameter, other.parameter, 'parameter');
   }
@@ -9555,214 +9641,5 @@ class EquivalenceStrategy {
   bool checkNamedType_isRequired(
       EquivalenceVisitor visitor, NamedType node, NamedType other) {
     return visitor.checkValues(node.isRequired, other.isRequired, 'isRequired');
-  }
-
-  bool checkSupertype_className(
-      EquivalenceVisitor visitor, Supertype node, Supertype other) {
-    return visitor.checkReferences(
-        node.className, other.className, 'className');
-  }
-
-  bool checkSupertype_typeArguments(
-      EquivalenceVisitor visitor, Supertype node, Supertype other) {
-    return visitor.checkLists(node.typeArguments, other.typeArguments,
-        visitor.checkNodes, 'typeArguments');
-  }
-
-  bool checkPrimitiveConstant_value(EquivalenceVisitor visitor,
-      PrimitiveConstant node, PrimitiveConstant other) {
-    return visitor.checkValues(node.value, other.value, 'value');
-  }
-
-  bool checkNullConstant_value(
-      EquivalenceVisitor visitor, NullConstant node, NullConstant other) {
-    return checkPrimitiveConstant_value(visitor, node, other);
-  }
-
-  bool checkBoolConstant_value(
-      EquivalenceVisitor visitor, BoolConstant node, BoolConstant other) {
-    return checkPrimitiveConstant_value(visitor, node, other);
-  }
-
-  bool checkIntConstant_value(
-      EquivalenceVisitor visitor, IntConstant node, IntConstant other) {
-    return checkPrimitiveConstant_value(visitor, node, other);
-  }
-
-  bool checkDoubleConstant_value(
-      EquivalenceVisitor visitor, DoubleConstant node, DoubleConstant other) {
-    return checkPrimitiveConstant_value(visitor, node, other);
-  }
-
-  bool checkStringConstant_value(
-      EquivalenceVisitor visitor, StringConstant node, StringConstant other) {
-    return checkPrimitiveConstant_value(visitor, node, other);
-  }
-
-  bool checkSymbolConstant_name(
-      EquivalenceVisitor visitor, SymbolConstant node, SymbolConstant other) {
-    return visitor.checkValues(node.name, other.name, 'name');
-  }
-
-  bool checkSymbolConstant_libraryReference(
-      EquivalenceVisitor visitor, SymbolConstant node, SymbolConstant other) {
-    return visitor.checkReferences(
-        node.libraryReference, other.libraryReference, 'libraryReference');
-  }
-
-  bool checkMapConstant_keyType(
-      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
-    return visitor.checkNodes(node.keyType, other.keyType, 'keyType');
-  }
-
-  bool checkMapConstant_valueType(
-      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
-    return visitor.checkNodes(node.valueType, other.valueType, 'valueType');
-  }
-
-  bool checkConstantMapEntry_key(EquivalenceVisitor visitor,
-      ConstantMapEntry node, ConstantMapEntry other) {
-    return visitor.checkNodes(node.key, other.key, 'key');
-  }
-
-  bool checkConstantMapEntry_value(EquivalenceVisitor visitor,
-      ConstantMapEntry node, ConstantMapEntry other) {
-    return visitor.checkNodes(node.value, other.value, 'value');
-  }
-
-  bool checkMapConstant_entries(
-      EquivalenceVisitor visitor, MapConstant node, MapConstant other) {
-    return visitor.checkLists(node.entries, other.entries, (a, b, _) {
-      if (identical(a, b)) return true;
-      if (a is! ConstantMapEntry) return false;
-      if (b is! ConstantMapEntry) return false;
-      return checkConstantMapEntry(visitor, a, b);
-    }, 'entries');
-  }
-
-  bool checkListConstant_typeArgument(
-      EquivalenceVisitor visitor, ListConstant node, ListConstant other) {
-    return visitor.checkNodes(
-        node.typeArgument, other.typeArgument, 'typeArgument');
-  }
-
-  bool checkListConstant_entries(
-      EquivalenceVisitor visitor, ListConstant node, ListConstant other) {
-    return visitor.checkLists(
-        node.entries, other.entries, visitor.checkNodes, 'entries');
-  }
-
-  bool checkSetConstant_typeArgument(
-      EquivalenceVisitor visitor, SetConstant node, SetConstant other) {
-    return visitor.checkNodes(
-        node.typeArgument, other.typeArgument, 'typeArgument');
-  }
-
-  bool checkSetConstant_entries(
-      EquivalenceVisitor visitor, SetConstant node, SetConstant other) {
-    return visitor.checkLists(
-        node.entries, other.entries, visitor.checkNodes, 'entries');
-  }
-
-  bool checkRecordConstant_positional(
-      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
-    return visitor.checkLists(
-        node.positional, other.positional, visitor.checkNodes, 'positional');
-  }
-
-  bool checkRecordConstant_named(
-      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
-    return visitor.checkMaps(node.named, other.named, visitor.matchValues,
-        visitor.checkValues, visitor.checkNodes, 'named');
-  }
-
-  bool checkRecordConstant_recordType(
-      EquivalenceVisitor visitor, RecordConstant node, RecordConstant other) {
-    return visitor.checkNodes(node.recordType, other.recordType, 'recordType');
-  }
-
-  bool checkInstanceConstant_classReference(EquivalenceVisitor visitor,
-      InstanceConstant node, InstanceConstant other) {
-    return visitor.checkReferences(
-        node.classReference, other.classReference, 'classReference');
-  }
-
-  bool checkInstanceConstant_typeArguments(EquivalenceVisitor visitor,
-      InstanceConstant node, InstanceConstant other) {
-    return visitor.checkLists(node.typeArguments, other.typeArguments,
-        visitor.checkNodes, 'typeArguments');
-  }
-
-  bool checkInstanceConstant_fieldValues(EquivalenceVisitor visitor,
-      InstanceConstant node, InstanceConstant other) {
-    return visitor.checkMaps(
-        node.fieldValues,
-        other.fieldValues,
-        visitor.matchReferences,
-        visitor.checkReferences,
-        visitor.checkNodes,
-        'fieldValues');
-  }
-
-  bool checkInstantiationConstant_tearOffConstant(EquivalenceVisitor visitor,
-      InstantiationConstant node, InstantiationConstant other) {
-    return visitor.checkNodes(
-        node.tearOffConstant, other.tearOffConstant, 'tearOffConstant');
-  }
-
-  bool checkInstantiationConstant_types(EquivalenceVisitor visitor,
-      InstantiationConstant node, InstantiationConstant other) {
-    return visitor.checkLists(
-        node.types, other.types, visitor.checkNodes, 'types');
-  }
-
-  bool checkStaticTearOffConstant_targetReference(EquivalenceVisitor visitor,
-      StaticTearOffConstant node, StaticTearOffConstant other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkConstructorTearOffConstant_targetReference(
-      EquivalenceVisitor visitor,
-      ConstructorTearOffConstant node,
-      ConstructorTearOffConstant other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkRedirectingFactoryTearOffConstant_targetReference(
-      EquivalenceVisitor visitor,
-      RedirectingFactoryTearOffConstant node,
-      RedirectingFactoryTearOffConstant other) {
-    return visitor.checkReferences(
-        node.targetReference, other.targetReference, 'targetReference');
-  }
-
-  bool checkTypedefTearOffConstant_parameters(EquivalenceVisitor visitor,
-      TypedefTearOffConstant node, TypedefTearOffConstant other) {
-    return visitor.checkLists(
-        node.parameters, other.parameters, visitor.checkNodes, 'parameters');
-  }
-
-  bool checkTypedefTearOffConstant_tearOffConstant(EquivalenceVisitor visitor,
-      TypedefTearOffConstant node, TypedefTearOffConstant other) {
-    return visitor.checkNodes(
-        node.tearOffConstant, other.tearOffConstant, 'tearOffConstant');
-  }
-
-  bool checkTypedefTearOffConstant_types(EquivalenceVisitor visitor,
-      TypedefTearOffConstant node, TypedefTearOffConstant other) {
-    return visitor.checkLists(
-        node.types, other.types, visitor.checkNodes, 'types');
-  }
-
-  bool checkTypeLiteralConstant_type(EquivalenceVisitor visitor,
-      TypeLiteralConstant node, TypeLiteralConstant other) {
-    return visitor.checkNodes(node.type, other.type, 'type');
-  }
-
-  bool checkUnevaluatedConstant_expression(EquivalenceVisitor visitor,
-      UnevaluatedConstant node, UnevaluatedConstant other) {
-    return visitor.checkNodes(node.expression, other.expression, 'expression');
   }
 }

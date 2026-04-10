@@ -6,8 +6,8 @@
 
 library subtypeset_test;
 
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/elements/entities.dart';
 import 'package:compiler/src/kernel/kernel_world.dart';
 import 'package:compiler/src/universe/class_set.dart';
@@ -15,12 +15,11 @@ import '../helpers/type_test_helper.dart';
 
 void main() {
   asyncTest(() async {
-    // TODO(johnniwinther): Remove code for Dart 1 tests.
-    await runTests(strongMode: true);
+    await runTests();
   });
 }
 
-runTests({bool strongMode = false}) async {
+runTests() async {
   var env = await TypeEnvironment.create(r"""
       ///        A
       ///       / \
@@ -62,25 +61,30 @@ runTests({bool strongMode = false}) async {
   final I = env.getElement("I") as ClassEntity;
   final Function_ = env.getElement("Function") as ClassEntity;
 
-  void checkClass(ClassEntity cls, List<ClassEntity> expectedSubtypes,
-      {bool checkSubset = false}) {
+  void checkClass(
+    ClassEntity cls,
+    List<ClassEntity> expectedSubtypes, {
+    bool checkSubset = false,
+  }) {
     ClassSet node = world.classHierarchy.getClassSet(cls);
     Set<ClassEntity> actualSubtypes = node.subtypes().toSet();
     if (checkSubset) {
       for (ClassEntity subtype in expectedSubtypes) {
         Expect.isTrue(
-            actualSubtypes.contains(subtype),
-            "Unexpected subtype ${subtype} of ${cls.name}:\n"
-            "Expected: $expectedSubtypes\n"
-            "Found   : $actualSubtypes");
+          actualSubtypes.contains(subtype),
+          "Unexpected subtype ${subtype} of ${cls.name}:\n"
+          "Expected: $expectedSubtypes\n"
+          "Found   : $actualSubtypes",
+        );
       }
     } else {
       Expect.setEquals(
-          expectedSubtypes,
-          actualSubtypes,
-          "Unexpected subtypes of ${cls.name}:\n"
-          "Expected: $expectedSubtypes\n"
-          "Found   : $actualSubtypes");
+        expectedSubtypes,
+        actualSubtypes,
+        "Unexpected subtypes of ${cls.name}:\n"
+        "Expected: $expectedSubtypes\n"
+        "Found   : $actualSubtypes",
+      );
     }
   }
 
@@ -93,6 +97,5 @@ runTests({bool strongMode = false}) async {
   checkClass(G, [G]);
   checkClass(H, [H, I]);
   checkClass(I, [I]);
-  checkClass(Function_, strongMode ? [] : [A, B, C, D, E, F, G],
-      checkSubset: true);
+  checkClass(Function_, [], checkSubset: true);
 }

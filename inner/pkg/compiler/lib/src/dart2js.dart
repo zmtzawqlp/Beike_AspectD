@@ -2,26 +2,29 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.cmdline;
+library;
 
 import 'dart:async' show Future, StreamSubscription;
 import 'dart:convert' show utf8, LineSplitter;
 import 'dart:io' show exit, File, FileMode, Platform, stdin, stderr;
 import 'dart:isolate' show Isolate;
 
+// ignore: implementation_imports
 import 'package:front_end/src/api_unstable/dart2js.dart' as fe;
+import 'package:shell_arg_splitter/shell_arg_splitter.dart';
 
 import '../compiler_api.dart' as api;
 import 'commandline_options.dart';
 import 'common/ram_usage.dart';
+import 'compiler.dart' as default_compiler show Compiler;
 import 'io/mapped_file.dart';
-import 'options.dart' show CompilerOptions, FeatureOptions;
+import 'options.dart'
+    show CompilerOptions, CompilerStage, DumpInfoFormat, FeatureOptions;
 import 'source_file_provider.dart';
-import 'util/command_line.dart';
 import 'util/util.dart' show stackTraceFilePrefix;
 
 const String _defaultSpecificationUri = '../../../../sdk/lib/libraries.json';
-const String OUTPUT_LANGUAGE_DART = 'Dart';
+const String outputLanguageDart = 'Dart';
 
 /// A string to identify the revision or build.
 ///
@@ -29,7 +32,7 @@ const String OUTPUT_LANGUAGE_DART = 'Dart';
 /// an aid in reproducing bug reports.
 ///
 /// The actual string is rewritten by a wrapper script when included in the sdk.
-String? BUILD_ID;
+String? buildID;
 
 /// The data passed to the [HandleOption] callback is either a single
 /// string argument, or the arguments iterator for multiple arguments
@@ -37,7 +40,7 @@ String? BUILD_ID;
 typedef HandleOption = void Function(String data);
 typedef HandleMultiOption = void Function(Iterator<String> data);
 
-abstract class OptionHandler<T> {
+abstract class OptionHandler<T extends Object> {
   String get pattern;
   void handle(T argument);
 }
@@ -129,25 +132,17 @@ void parseCommandLine(List<OptionHandler> handlers, List<String> argv) {
 
 FormattingDiagnosticHandler? diagnosticHandler;
 
-Future<api.CompilationResult> compile(List<String> argv,
-    {fe.InitializedCompilerState? kernelInitializedCompilerState}) {
+Future<api.CompilationResult> compile(
+  List<String> argv, {
+  fe.InitializedCompilerState? kernelInitializedCompilerState,
+}) {
   Stopwatch wallclock = Stopwatch()..start();
   stackTraceFilePrefix = '${Uri.base}';
   Uri? entryUri;
   Uri? inputDillUri;
   Uri librariesSpecificationUri = Uri.base.resolve('lib/libraries.json');
-  bool outputSpecified = false;
   Uri? out;
   Uri? sourceMapOut;
-  Uri? writeModularAnalysisUri;
-  Uri? readDataUri;
-  Uri? writeDataUri;
-  Uri? readClosedWorldUri;
-  Uri? writeClosedWorldUri;
-  Uri? readCodegenUri;
-  Uri? writeCodegenUri;
-  int? codegenShard;
-  int? codegenShards;
   List<String>? bazelPaths;
   List<Uri>? multiRoots;
   String? multiRootScheme = 'org-dartlang-app';
@@ -165,20 +160,17 @@ Future<api.CompilationResult> compile(List<String> argv,
   bool? showWarnings;
   bool? showHints;
   bool? enableColors;
-  List<Uri>? sources;
   int? optimizationLevel;
   Uri? platformBinaries;
-  Map<String, String> environment = Map<String, String>();
-  ReadStrategy readStrategy = ReadStrategy.fromDart;
-  WriteStrategy writeStrategy = WriteStrategy.toJs;
+  Map<String, String> environment = <String, String>{};
   FeatureOptions features = FeatureOptions();
   String? invoker;
 
   void passThrough(String argument) => options.add(argument);
   void ignoreOption(String argument) {}
 
-  if (BUILD_ID != null) {
-    passThrough("--build-id=$BUILD_ID");
+  if (buildID != null) {
+    passThrough("--build-id=$buildID");
   }
 
   Uri extractResolvedFileUri(String argument) {
@@ -187,10 +179,12 @@ Future<api.CompilationResult> compile(List<String> argv,
 
   void setEntryUri(String argument) {
     entryUri = extractResolvedFileUri(argument);
+    options.add('${Flags.entryUri}=$entryUri');
   }
 
   void setInputDillUri(String argument) {
     inputDillUri = extractResolvedFileUri(argument);
+    options.add('${Flags.inputDill}=$inputDillUri');
   }
 
   void setLibrarySpecificationUri(String argument) {
@@ -201,8 +195,14 @@ Future<api.CompilationResult> compile(List<String> argv,
     packageConfig = extractResolvedFileUri(argument);
   }
 
+  void Function(String) setDataUri(String flag) {
+    return (String argument) {
+      final uri = fe.nativeToUri(extractPath(argument, isDirectory: false));
+      options.add('$flag=$uri');
+    };
+  }
+
   void setOutput(Iterator<String> arguments) {
-    outputSpecified = true;
     String option = arguments.current;
     String path;
     if (option == '-o' || option == '--out' || option == '--output') {
@@ -214,17 +214,22 @@ Future<api.CompilationResult> compile(List<String> argv,
       path = extractParameter(option);
     }
     out = Uri.base.resolve(fe.nativeToUriPath(path));
+    options.add('--out=$out');
   }
 
   void setOptimizationLevel(String argument) {
     final value = int.tryParse(extractParameter(argument));
     if (value == null || value < 0 || value > 4) {
-      _helpAndFail("Unsupported optimization level '$argument', "
-          "supported levels are: 0, 1, 2, 3, 4");
+      _helpAndFail(
+        "Unsupported optimization level '$argument', "
+        "supported levels are: 0, 1, 2, 3, 4",
+      );
     }
     if (optimizationLevel != null) {
-      print("Optimization level '$argument' ignored "
-          "due to preceding '-O$optimizationLevel'");
+      print(
+        "Optimization level '$argument' ignored "
+        "due to preceding '-O$optimizationLevel'",
+      );
       return;
     }
     optimizationLevel = value;
@@ -234,19 +239,22 @@ Future<api.CompilationResult> compile(List<String> argv,
     if (argument == '--output-type=dart' ||
         argument == '--output-type=dart-multi') {
       _helpAndFail(
-          "--output-type=dart is no longer supported. It was deprecated "
-          "since Dart 1.11 and removed in Dart 1.19.");
+        "--output-type=dart is no longer supported. It was deprecated "
+        "since Dart 1.11 and removed in Dart 1.19.",
+      );
     }
   }
 
-  setStrip(String argument) {
-    _helpAndFail("Option '--force-strip' is not in use now that"
-        "--output-type=dart is no longer supported.");
+  Never setStrip(String argument) {
+    _helpAndFail(
+      "Option '--force-strip' is not in use now that"
+      "--output-type=dart is no longer supported.",
+    );
   }
 
   void setBazelPaths(String argument) {
     String paths = extractParameter(argument);
-    bazelPaths = <String>[]..addAll(paths.split(','));
+    bazelPaths = <String>[...paths.split(',')];
   }
 
   void setMultiRoots(String argument) {
@@ -305,212 +313,50 @@ Future<api.CompilationResult> compile(List<String> argv,
     List<String> categories = extractParameter(argument).split(',');
     bool isServerMode = categories.length == 1 && categories.single == "Server";
     if (isServerMode) {
-      hints.add("The --categories flag is deprecated and will be deleted in a "
-          "future release, please use '${Flags.serverMode}' instead of "
-          "'--categories=Server'.");
+      hints.add(
+        "The --categories flag is deprecated and will be deleted in a "
+        "future release, please use '${Flags.serverMode}' instead of "
+        "'--categories=Server'.",
+      );
       passThrough(Flags.serverMode);
     } else {
       hints.add(
-          "The --categories flag is deprecated, see the usage for details.");
+        "The --categories flag is deprecated, see the usage for details.",
+      );
     }
   }
 
   void setPlatformBinaries(String argument) {
-    platformBinaries =
-        Uri.base.resolve(extractPath(argument, isDirectory: true));
+    platformBinaries = Uri.base.resolve(
+      extractPath(argument, isDirectory: true),
+    );
   }
 
   List<Uri> setUriList(String flag, String argument) {
     String list = extractParameter(argument);
     List<Uri> uris = list.split(',').map(fe.nativeToUri).toList();
     String uriList = uris.map((uri) => '$uri').join(',');
-    options.add('${flag}=${uriList}');
+    options.add('$flag=$uriList');
     return uris;
-  }
-
-  void setModularAnalysisInputs(String argument) {
-    setUriList(Flags.readModularAnalysis, argument);
-  }
-
-  void setWriteModularAnalysis(String argument) {
-    if (writeStrategy == WriteStrategy.toClosedWorld) {
-      _fail("Cannot use ${Flags.writeModularAnalysis} "
-          "and write serialized closed world simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toData) {
-      _fail("Cannot use ${Flags.writeModularAnalysis} "
-          "and write serialized global data simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toCodegen) {
-      _fail("Cannot use ${Flags.writeModularAnalysis} "
-          "and write serialized codegen simultaneously.");
-    }
-    if (argument != Flags.writeModularAnalysis) {
-      writeModularAnalysisUri =
-          fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-    writeStrategy = writeStrategy == WriteStrategy.toKernel
-        ? WriteStrategy.toKernelWithModularAnalysis
-        : WriteStrategy.toModularAnalysis;
-  }
-
-  void setReadData(String argument) {
-    if (argument != Flags.readData) {
-      readDataUri = fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-
-    if (readStrategy == ReadStrategy.fromDart) {
-      readStrategy = ReadStrategy.fromData;
-    } else if (readStrategy == ReadStrategy.fromClosedWorld) {
-      readStrategy = ReadStrategy.fromDataAndClosedWorld;
-    } else if (readStrategy == ReadStrategy.fromCodegen) {
-      readStrategy = ReadStrategy.fromCodegenAndData;
-    } else if (readStrategy == ReadStrategy.fromCodegenAndClosedWorld) {
-      readStrategy = ReadStrategy.fromCodegenAndClosedWorldAndData;
-    }
-  }
-
-  void setReadClosedWorld(String argument) {
-    if (argument != Flags.readClosedWorld) {
-      readClosedWorldUri =
-          fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-
-    if (readStrategy == ReadStrategy.fromDart) {
-      readStrategy = ReadStrategy.fromClosedWorld;
-    } else if (readStrategy == ReadStrategy.fromData) {
-      readStrategy = ReadStrategy.fromDataAndClosedWorld;
-    } else if (readStrategy == ReadStrategy.fromCodegen) {
-      readStrategy = ReadStrategy.fromCodegenAndClosedWorld;
-    } else if (readStrategy == ReadStrategy.fromCodegenAndData) {
-      readStrategy = ReadStrategy.fromCodegenAndClosedWorldAndData;
-    }
   }
 
   void setDillDependencies(String argument) {
     setUriList(Flags.dillDependencies, argument);
   }
 
-  void setSources(String argument) {
-    sources = setUriList(Flags.sources, argument);
-  }
-
-  void setCfeOnly(String argument) {
-    if (writeStrategy == WriteStrategy.toClosedWorld) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized closed world simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toData) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized data simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toCodegen) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized codegen simultaneously.");
-    }
-    writeStrategy = writeStrategy == WriteStrategy.toModularAnalysis
-        ? WriteStrategy.toKernelWithModularAnalysis
-        : WriteStrategy.toKernel;
-  }
-
-  void setReadCodegen(String argument) {
-    if (argument != Flags.readCodegen) {
-      readCodegenUri =
-          fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-
-    if (readStrategy == ReadStrategy.fromDart) {
-      readStrategy = ReadStrategy.fromCodegen;
-    } else if (readStrategy == ReadStrategy.fromClosedWorld) {
-      readStrategy = ReadStrategy.fromCodegenAndClosedWorld;
-    } else if (readStrategy == ReadStrategy.fromData) {
-      readStrategy = ReadStrategy.fromCodegenAndData;
-    } else if (readStrategy == ReadStrategy.fromDataAndClosedWorld) {
-      readStrategy = ReadStrategy.fromCodegenAndClosedWorldAndData;
-    }
-  }
-
-  void setWriteData(String argument) {
-    if (writeStrategy == WriteStrategy.toKernel) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized data simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toClosedWorld) {
-      _fail("Cannot write closed world and data simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toCodegen) {
-      _fail("Cannot write serialized data and codegen simultaneously.");
-    }
-    if (argument != Flags.writeData) {
-      writeDataUri = fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-    writeStrategy = WriteStrategy.toData;
-  }
-
-  void setWriteClosedWorld(String argument) {
-    if (writeStrategy == WriteStrategy.toKernel) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized data simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toData) {
-      _fail("Cannot write both closed world and data");
-    }
-    if (writeStrategy == WriteStrategy.toCodegen) {
-      _fail("Cannot write serialized data and codegen simultaneously.");
-    }
-    if (argument != Flags.writeClosedWorld) {
-      writeClosedWorldUri =
-          fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-    writeStrategy = WriteStrategy.toClosedWorld;
-  }
-
-  void setWriteCodegen(String argument) {
-    if (writeStrategy == WriteStrategy.toKernel) {
-      _fail("Cannot use ${Flags.cfeOnly} "
-          "and write serialized codegen simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toClosedWorld) {
-      _fail("Cannot write closed world and codegen simultaneously.");
-    }
-    if (writeStrategy == WriteStrategy.toData) {
-      _fail("Cannot write serialized data and codegen data simultaneously.");
-    }
-    if (argument != Flags.writeCodegen) {
-      writeCodegenUri =
-          fe.nativeToUri(extractPath(argument, isDirectory: false));
-    }
-    writeStrategy = WriteStrategy.toCodegen;
-  }
-
-  void setCodegenShard(String argument) {
-    codegenShard = int.parse(extractParameter(argument));
-  }
-
-  void setCodegenShards(String argument) {
-    codegenShards = int.parse(extractParameter(argument));
-  }
-
   void setDumpInfo(String argument) {
-    passThrough(Flags.dumpInfo);
-    if (argument == Flags.dumpInfo || argument == "${Flags.dumpInfo}=json") {
-      return;
-    }
-    if (argument == "${Flags.dumpInfo}=binary") {
+    final hasEnumFormatMatch = DumpInfoFormat.values.any(
+      (e) => '${Flags.dumpInfo}=${e.name}' == argument,
+    );
+    if (argument == Flags.dumpInfo || hasEnumFormatMatch) {
       passThrough(argument);
       return;
     }
-    _helpAndFail("Unsupported dump-info format '$argument', "
-        "supported formats are: json or binary");
-  }
-
-  String? nullSafetyMode;
-  void setNullSafetyMode(String argument) {
-    if (nullSafetyMode != null && nullSafetyMode != argument) {
-      _helpAndFail("Cannot specify both $nullSafetyMode and $argument.");
-    }
-    nullSafetyMode = argument;
-    passThrough(argument);
+    _helpAndFail(
+      "Unsupported dump-info format '$argument', "
+      "supported formats: "
+      "${DumpInfoFormat.values.map((e) => e.name).join(', ')}",
+    );
   }
 
   void setInvoker(String argument) {
@@ -565,8 +411,10 @@ Future<api.CompilationResult> compile(List<String> argv,
       passThrough(argument);
     }),
     // TODO(sigmund): remove entirely after Dart 1.20
-    _OneOption('--output-type=dart|--output-type=dart-multi|--output-type=js',
-        setOutputType),
+    _OneOption(
+      '--output-type=dart|--output-type=dart-multi|--output-type=js',
+      setOutputType,
+    ),
     _OneOption('--use-kernel', ignoreOption),
     _OneOption(Flags.platformBinaries, setPlatformBinaries),
     _OneOption(Flags.noFrequencyBasedMinification, passThrough),
@@ -578,24 +426,18 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption('--library-root=.+', ignoreOption),
     _OneOption('--libraries-spec=.+', setLibrarySpecificationUri),
     _OneOption('${Flags.dillDependencies}=.+', setDillDependencies),
-    _OneOption('${Flags.sources}=.+', setSources),
-    _OneOption('${Flags.readModularAnalysis}=.+', setModularAnalysisInputs),
-    _OneOption('${Flags.writeModularAnalysis}|${Flags.writeModularAnalysis}=.+',
-        setWriteModularAnalysis),
-    _OneOption('${Flags.readData}|${Flags.readData}=.+', setReadData),
-    _OneOption('${Flags.writeData}|${Flags.writeData}=.+', setWriteData),
-    _OneOption(Flags.memoryMappedFiles, passThrough),
-    _OneOption(Flags.noClosedWorldInData, ignoreOption),
-    _OneOption('${Flags.readClosedWorld}|${Flags.readClosedWorld}=.+',
-        setReadClosedWorld),
-    _OneOption('${Flags.writeClosedWorld}|${Flags.writeClosedWorld}=.+',
-        setWriteClosedWorld),
-    _OneOption('${Flags.readCodegen}|${Flags.readCodegen}=.+', setReadCodegen),
+    _OneOption('${Flags.sources}=.+', ignoreOption),
     _OneOption(
-        '${Flags.writeCodegen}|${Flags.writeCodegen}=.+', setWriteCodegen),
-    _OneOption('${Flags.codegenShard}=.+', setCodegenShard),
-    _OneOption('${Flags.codegenShards}=.+', setCodegenShards),
-    _OneOption(Flags.cfeOnly, setCfeOnly),
+      '${Flags.globalInferenceUri}=.+',
+      setDataUri(Flags.globalInferenceUri),
+    ),
+    _OneOption('${Flags.closedWorldUri}=.+', setDataUri(Flags.closedWorldUri)),
+    _OneOption('${Flags.codegenUri}=.+', setDataUri(Flags.codegenUri)),
+    _OneOption('${Flags.codegenShard}=.+', passThrough),
+    _OneOption('${Flags.codegenShards}=.+', passThrough),
+    _OneOption(Flags.cfeOnly, passThrough),
+    _OneOption(Flags.memoryMappedFiles, passThrough),
+    _OneOption('${Flags.stage}=.+', passThrough),
     _OneOption(Flags.debugGlobalInference, passThrough),
     _ManyOptions('--output(?:=.+)?|--out(?:=.+)?|-o.*', setOutput),
     _OneOption('-O.*', setOptimizationLevel),
@@ -608,7 +450,6 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.omitLateNames, passThrough),
     _OneOption(Flags.noOmitLateNames, passThrough),
     _OneOption(Flags.preserveUris, ignoreOption),
-    _OneOption(Flags.printLegacyStars, passThrough),
     _OneOption('--force-strip=.*', setStrip),
     _OneOption(Flags.disableDiagnosticColors, (_) {
       enableColors = false;
@@ -616,12 +457,16 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.enableDiagnosticColors, (_) {
       enableColors = true;
     }),
-    _OneOption('--enable[_-]checked[_-]mode|--checked',
-        (_) => setCheckedMode(Flags.enableCheckedMode)),
+    _OneOption(
+      '--enable[_-]checked[_-]mode|--checked',
+      (_) => setCheckedMode(Flags.enableCheckedMode),
+    ),
     _OneOption(Flags.enableAsserts, passThrough),
     _OneOption(Flags.enableNullAssertions, passThrough),
     _OneOption(Flags.nativeNullAssertions, passThrough),
     _OneOption(Flags.noNativeNullAssertions, passThrough),
+    _OneOption(Flags.interopNullAssertions, passThrough),
+    _OneOption(Flags.noInteropNullAssertions, passThrough),
     _OneOption(Flags.trustTypeAnnotations, setTrustTypeAnnotations),
     _OneOption(Flags.trustPrimitives, passThrough),
     _OneOption(Flags.trustJSInteropTypeAnnotations, ignoreOption),
@@ -641,14 +486,20 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.stopAfterProgramSplit, passThrough),
     _OneOption(Flags.disableTypeInference, passThrough),
     _OneOption(Flags.useTrivialAbstractValueDomain, passThrough),
-    _OneOption(Flags.experimentalWrapped, passThrough),
-    _OneOption(Flags.experimentalPowersets, passThrough),
     _OneOption(Flags.disableRtiOptimization, passThrough),
     _OneOption(Flags.terse, passThrough),
     _OneOption('--deferred-map=.+', passThrough),
+    _OneOption(
+      '${Flags.deferredLoadIdMapUri}=.+',
+      setDataUri(Flags.deferredLoadIdMapUri),
+    ),
     _OneOption('${Flags.writeProgramSplit}=.+', passThrough),
     _OneOption('${Flags.readProgramSplit}=.+', passThrough),
     _OneOption('${Flags.dumpInfo}|${Flags.dumpInfo}=.+', setDumpInfo),
+    _OneOption(
+      '${Flags.dumpInfoDataUri}=.+',
+      setDataUri(Flags.dumpInfoDataUri),
+    ),
     _OneOption('--disallow-unsafe-eval', ignoreOption),
     _OneOption(Option.showPackageWarnings, passThrough),
     _OneOption(Option.enableLanguageExperiments, passThrough),
@@ -659,10 +510,11 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.omitImplicitChecks, passThrough),
     _OneOption(Flags.omitAsCasts, passThrough),
     _OneOption(Flags.laxRuntimeTypeToString, passThrough),
+    _OneOption(Flags.enableProtoShaking, passThrough),
+    _OneOption(Flags.enableProtoMixinShaking, passThrough),
     _OneOption(Flags.benchmarkingProduction, passThrough),
     _OneOption(Flags.benchmarkingExperiment, passThrough),
-    _OneOption(Flags.soundNullSafety, setNullSafetyMode),
-    _OneOption(Flags.noSoundNullSafety, setNullSafetyMode),
+    _OneOption(Flags.soundNullSafety, passThrough),
     _OneOption(Flags.dumpUnusedLibraries, passThrough),
     _OneOption(Flags.writeResources, passThrough),
 
@@ -677,14 +529,15 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.generateCodeWithCompileTimeErrors, ignoreOption),
     _OneOption(Flags.useMultiSourceInfo, passThrough),
     _OneOption(Flags.useNewSourceInfo, passThrough),
-    _OneOption(Flags.useOldRti, passThrough),
     _OneOption(Flags.useSimpleLoadIds, passThrough),
     _OneOption(Flags.testMode, passThrough),
-    _OneOption(Flags.experimentalInferrer, passThrough),
     _OneOption('${Flags.dumpSsa}=.+', passThrough),
     _OneOption('${Flags.cfeInvocationModes}=.+', passThrough),
     _OneOption('${Flags.invoker}=.+', setInvoker),
     _OneOption('${Flags.verbosity}=.+', passThrough),
+    _OneOption(Flags.disableDiagnosticByteCache, passThrough),
+    _OneOption(Flags.enableDeferredLoadingEventLog, passThrough),
+    _OneOption(Flags.omitMemorySummary, passThrough),
 
     // Experimental features.
     // We don't provide documentation for these yet.
@@ -698,7 +551,6 @@ Future<api.CompilationResult> compile(List<String> argv,
     _OneOption(Flags.experimentToBoolean, passThrough),
     _OneOption(Flags.experimentUnreachableMethodsThrow, passThrough),
     _OneOption(Flags.experimentCallInstrumentation, passThrough),
-    _OneOption(Flags.experimentNewRti, ignoreOption),
     _OneOption('${Flags.mergeFragmentsThreshold}=.+', passThrough),
 
     // Wire up feature flags.
@@ -727,21 +579,11 @@ Future<api.CompilationResult> compile(List<String> argv,
     }),
     _OneOption('.*', (String argument) {
       arguments.add(fe.nativeToUriPath(argument));
-    })
+    }),
   ];
 
   parseCommandLine(handlers, argv);
 
-  if (nullSafetyMode == Flags.noSoundNullSafety && platformBinaries == null) {
-    // Compiling without sound null safety is no longer allowed except in the
-    // cases where an unsound platform .dill file is manually provided.
-    // The unsound .dills are no longer packaged in the SDK release so any
-    // compile initiated through `dart compile js --no-sound-null-safety`
-    // will not find a .dill in the default location and should be prevented
-    // from executing.
-    _fail('the flag --no-sound-null-safety is not supported in Dart 3.\n'
-        'See: https://dart.dev/null-safety.');
-  }
   final diagnostic = diagnosticHandler = FormattingDiagnosticHandler();
   if (verbose != null) {
     diagnostic.verbose = verbose!;
@@ -764,17 +606,29 @@ Future<api.CompilationResult> compile(List<String> argv,
 
   if (checkedMode && strongMode) {
     checkedMode = false;
-    hints.add("Option '${Flags.enableCheckedMode}' is not needed in Dart 2.0. "
-        "To enable assertions use '${Flags.enableAsserts}' instead.");
+    hints.add(
+      "Option '${Flags.enableCheckedMode}' is not needed in Dart 2.0. "
+      "To enable assertions use '${Flags.enableAsserts}' instead.",
+    );
   }
 
   if (trustTypeAnnotations && strongMode) {
-    hints.add("Option '${Flags.trustTypeAnnotations}' is not available "
-        "in Dart 2.0. Try using '${Flags.omitImplicitChecks}' instead.");
+    hints.add(
+      "Option '${Flags.trustTypeAnnotations}' is not available "
+      "in Dart 2.0. Try using '${Flags.omitImplicitChecks}' instead.",
+    );
+  }
+
+  if (options.contains(Flags.soundNullSafety)) {
+    warning(
+      "Option '${Flags.soundNullSafety}' is deprecated. As of Dart 3, Dart "
+      "only supports sound null safety. This flag will be removed in a future "
+      "version of Dart.",
+    );
   }
 
   for (String hint in hints) {
-    diagnostic.info(hint, api.Diagnostic.HINT);
+    diagnostic.info(hint, api.Diagnostic.hint);
   }
 
   if (wantHelp || wantVersion) {
@@ -782,7 +636,8 @@ Future<api.CompilationResult> compile(List<String> argv,
   }
 
   if (invoker == null) {
-    final message = "The 'dart2js' entrypoint script is deprecated, "
+    final message =
+        "The 'dart2js' entrypoint script is deprecated, "
         "please use 'dart compile js' instead.";
     // Aside from asking for `-h`, dart2js fails when it is invoked from its
     // snapshot directly and not using the supported workflows.  However, we
@@ -797,10 +652,7 @@ Future<api.CompilationResult> compile(List<String> argv,
     print("Compiler invoked from: '$invoker'");
   }
 
-  if (arguments.isEmpty &&
-      entryUri == null &&
-      inputDillUri == null &&
-      sources == null) {
+  if (arguments.isEmpty && entryUri == null && inputDillUri == null) {
     _helpAndFail('No Dart file specified.');
   }
 
@@ -810,162 +662,58 @@ Future<api.CompilationResult> compile(List<String> argv,
   }
 
   if (trustTypeAnnotations && checkedMode) {
-    _helpAndFail("Option '${Flags.trustTypeAnnotations}' may not be used in "
-        "checked mode.");
+    _helpAndFail(
+      "Option '${Flags.trustTypeAnnotations}' may not be used in "
+      "checked mode.",
+    );
   }
 
   if (arguments.isNotEmpty) {
     String sourceOrDill = arguments[0];
     Uri file = Uri.base.resolve(fe.nativeToUriPath(sourceOrDill));
     if (sourceOrDill.endsWith('.dart')) {
+      options.add('${Flags.entryUri}=$file');
       entryUri = file;
     } else {
       assert(sourceOrDill.endsWith('.dill'));
+      options.add('${Flags.inputDill}=$file');
       inputDillUri = file;
     }
   }
 
-  // Make [scriptName] a relative path..
-  String scriptName = sources == null
-      ? fe.relativizeUri(
-          Uri.base, inputDillUri ?? entryUri!, Platform.isWindows)
-      : sources!
-          .map((uri) => fe.relativizeUri(Uri.base, uri, Platform.isWindows))
-          .join(',');
+  // Make [scriptName] a relative path.
+  String scriptName = fe.relativizeUri(
+    Uri.base,
+    inputDillUri ?? entryUri!,
+    Platform.isWindows,
+  );
 
-  switch (writeStrategy) {
-    case WriteStrategy.toJs:
-      out ??= Uri.base.resolve('out.js');
-      break;
-    case WriteStrategy.toKernel:
-      out ??= Uri.base.resolve('out.dill');
-      options.add(Flags.cfeOnly);
-      if (readStrategy == ReadStrategy.fromClosedWorld) {
-        _fail("Cannot use ${Flags.cfeOnly} "
-            "and read serialized closed world simultaneously.");
-      } else if (readStrategy == ReadStrategy.fromData) {
-        _fail("Cannot use ${Flags.cfeOnly} "
-            "and read serialized data simultaneously.");
-      } else if (readStrategy == ReadStrategy.fromCodegen) {
-        _fail("Cannot use ${Flags.cfeOnly} "
-            "and read serialized codegen simultaneously.");
-      }
-      break;
-    case WriteStrategy.toKernelWithModularAnalysis:
-      out ??= Uri.base.resolve('out.dill');
-      options.add(Flags.cfeOnly);
-      writeModularAnalysisUri ??= Uri.base.resolve('$out.mdata');
-      options.add('${Flags.writeModularAnalysis}=${writeModularAnalysisUri}');
-      break;
-    case WriteStrategy.toModularAnalysis:
-      writeModularAnalysisUri ??= Uri.base.resolve('$out.mdata');
-      options.add('${Flags.writeModularAnalysis}=${writeModularAnalysisUri}');
-      out ??= Uri.base.resolve('out.dill');
-      break;
-    case WriteStrategy.toClosedWorld:
-      out ??= Uri.base.resolve('out.dill');
-      writeClosedWorldUri ??= Uri.base.resolve('$out.world');
-      options.add('${Flags.writeClosedWorld}=${writeClosedWorldUri}');
-      if (readStrategy == ReadStrategy.fromClosedWorld) {
-        _fail("Cannot read and write serialized data simultaneously.");
-      } else if (readStrategy == ReadStrategy.fromData) {
-        _fail("Cannot read from both closed world and data");
-      } else if (readStrategy == ReadStrategy.fromCodegen) {
-        _fail("Cannot read serialized codegen and "
-            "write serialized data simultaneously.");
-      }
-      break;
-    case WriteStrategy.toData:
-      writeDataUri ??= Uri.base.resolve('${out ?? 'global'}.data');
-      options.add('${Flags.writeData}=${writeDataUri}');
-      if (readStrategy == ReadStrategy.fromData) {
-        _fail("Cannot read and write serialized data simultaneously.");
-      } else if (readStrategy == ReadStrategy.fromCodegen) {
-        _fail("Cannot read serialized codegen and "
-            "write serialized data simultaneously.");
-      }
-      break;
-    case WriteStrategy.toCodegen:
-      writeCodegenUri ??= Uri.base.resolve('${out ?? 'codegen'}.code');
-      options.add('${Flags.writeCodegen}=${writeCodegenUri}');
-      if (readStrategy == ReadStrategy.fromCodegen) {
-        _fail("Cannot read and write serialized codegen simultaneously.");
-      }
-      if (readStrategy != ReadStrategy.fromDataAndClosedWorld) {
-        _fail("Can only write serialized codegen from serialized data.");
-      }
-      if (codegenShards == null) {
-        _fail("Cannot write serialized codegen without setting "
-            "${Flags.codegenShards}.");
-      } else if (codegenShards! <= 0) {
-        _fail("${Flags.codegenShards} must be a positive integer.");
-      }
-      if (codegenShard == null) {
-        _fail("Cannot write serialized codegen without setting "
-            "${Flags.codegenShard}.");
-      } else if (codegenShard! < 0 || codegenShard! >= codegenShards!) {
-        _fail("${Flags.codegenShard} must be between 0 and "
-            "${Flags.codegenShards}.");
-      }
-      options.add('${Flags.codegenShard}=$codegenShard');
-      options.add('${Flags.codegenShards}=$codegenShards');
-      break;
+  CompilerOptions compilerOptions =
+      CompilerOptions.parse(
+          options,
+          featureOptions: features,
+          librariesSpecificationUri: librariesSpecificationUri,
+          platformBinaries: platformBinaries,
+          useDefaultOutputUri: true,
+          onError: (String message) => _fail(message),
+          onWarning: (String message) => print(message),
+        )
+        ..packageConfig = packageConfig
+        ..environment = environment
+        ..kernelInitializedCompilerState = kernelInitializedCompilerState
+        ..optimizationLevel = optimizationLevel;
+
+  final errorMessage = compilerOptions.validateStage();
+  if (errorMessage != null) {
+    _fail(errorMessage);
   }
-  switch (readStrategy) {
-    case ReadStrategy.fromDart:
-      break;
-    case ReadStrategy.fromClosedWorld:
-      readClosedWorldUri ??= Uri.base.resolve('$scriptName.world');
-      options.add('${Flags.readClosedWorld}=${readClosedWorldUri}');
-      break;
-    case ReadStrategy.fromData:
-      _fail("Must read from closed world and data.");
-    case ReadStrategy.fromDataAndClosedWorld:
-      readClosedWorldUri ??= Uri.base.resolve('$scriptName.world');
-      options.add('${Flags.readClosedWorld}=${readClosedWorldUri}');
-      readDataUri ??= Uri.base.resolve('$scriptName.data');
-      options.add('${Flags.readData}=${readDataUri}');
-      break;
-    case ReadStrategy.fromCodegen:
-    case ReadStrategy.fromCodegenAndData:
-    case ReadStrategy.fromCodegenAndClosedWorld:
-      _fail("Must read from closed world, data, and codegen");
-    case ReadStrategy.fromCodegenAndClosedWorldAndData:
-      readClosedWorldUri ??= Uri.base.resolve('$scriptName.world');
-      options.add('${Flags.readClosedWorld}=${readClosedWorldUri}');
-      readDataUri ??= Uri.base.resolve('$scriptName.data');
-      options.add('${Flags.readData}=${readDataUri}');
-      readCodegenUri ??= Uri.base.resolve('$scriptName.code');
-      options.add('${Flags.readCodegen}=${readCodegenUri}');
-      if (codegenShards == null) {
-        _fail("Cannot write serialized codegen without setting "
-            "${Flags.codegenShards}.");
-      } else if (codegenShards! <= 0) {
-        _fail("${Flags.codegenShards} must be a positive integer.");
-      }
-      options.add('${Flags.codegenShards}=$codegenShards');
-      break;
-  }
-  if (out != null) {
-    options.add('--out=$out');
-  }
-  if (writeStrategy == WriteStrategy.toJs) {
+
+  out = compilerOptions.setResolvedOutputUri();
+
+  if (compilerOptions.stage.emitsJs) {
     sourceMapOut = Uri.parse('$out.map');
-    options.add('--source-map=${sourceMapOut}');
+    compilerOptions.sourceMapUri ??= sourceMapOut;
   }
-
-  CompilerOptions compilerOptions = CompilerOptions.parse(options,
-      featureOptions: features,
-      librariesSpecificationUri: librariesSpecificationUri,
-      platformBinaries: platformBinaries,
-      onError: (String message) => _fail(message),
-      onWarning: (String message) => print(message))
-    ..entryUri = entryUri
-    ..inputDillUri = inputDillUri
-    ..packageConfig = packageConfig
-    ..environment = environment
-    ..kernelInitializedCompilerState = kernelInitializedCompilerState
-    ..optimizationLevel = optimizationLevel;
 
   // TODO(johnniwinther): Measure time for reading files.
   SourceFileByteReader byteReader = compilerOptions.memoryMappedFiles
@@ -976,31 +724,50 @@ Future<api.CompilationResult> compile(List<String> argv,
   if (bazelPaths != null) {
     if (multiRoots != null) {
       _helpAndFail(
-          'The options --bazel-root and --multi-root cannot be supplied '
-          'together, please choose one or the other.');
+        'The options --bazel-root and --multi-root cannot be supplied '
+        'together, please choose one or the other.',
+      );
     }
-    inputProvider = BazelInputProvider(bazelPaths!, byteReader);
+    inputProvider = BazelInputProvider(
+      bazelPaths!,
+      byteReader,
+      disableByteCache: compilerOptions.disableDiagnosticByteCache,
+    );
   } else if (multiRoots != null) {
-    inputProvider =
-        MultiRootInputProvider(multiRootScheme!, multiRoots!, byteReader);
+    inputProvider = MultiRootInputProvider(
+      multiRootScheme!,
+      multiRoots!,
+      byteReader,
+      disableByteCache: compilerOptions.disableDiagnosticByteCache,
+    );
   } else {
-    inputProvider = CompilerSourceFileProvider(byteReader: byteReader);
+    inputProvider = CompilerSourceFileProvider(
+      byteReader: byteReader,
+      disableByteCache: compilerOptions.disableDiagnosticByteCache,
+    );
   }
 
   diagnostic.registerFileProvider(inputProvider);
 
   RandomAccessFileOutputProvider outputProvider =
-      RandomAccessFileOutputProvider(out, sourceMapOut,
-          onInfo: diagnostic.info, onFailure: _fail);
+      RandomAccessFileOutputProvider(
+        out,
+        sourceMapOut,
+        onInfo: diagnostic.info,
+        onFailure: _fail,
+      );
 
   Future<api.CompilationResult> compilationDone(
-      api.CompilationResult result) async {
+    api.CompilationResult result,
+  ) async {
     if (!result.isSuccess) {
       _fail('Compilation failed.');
     }
     if (out != null) {
       writeString(
-          Uri.parse('$out.deps'), getDepsOutput(inputProvider.getSourceUris()));
+        Uri.parse('$out.deps'),
+        getDepsOutput(inputProvider.getSourceUris()),
+      );
     }
 
     String input = scriptName;
@@ -1013,121 +780,173 @@ Future<api.CompilationResult> compile(List<String> argv,
     String outputName;
 
     String? summary;
-    switch (readStrategy) {
-      case ReadStrategy.fromDart:
-        inputName = inputDillUri != null ? 'kernel bytes' : 'characters Dart';
-        inputSize = inputProvider.dartCharactersRead;
+    switch (compilerOptions.stage) {
+      case CompilerStage.all:
+      case CompilerStage.cfe:
+      case CompilerStage.dumpInfoAll:
+        final sourceCharCount = _formatCharacterCount(
+          inputProvider.sourceBytesFromDill,
+        );
+        inputName = 'input bytes ($sourceCharCount characters source)';
+        inputSize = inputProvider.bytesRead;
         summary = 'Dart file $input ';
         break;
-      case ReadStrategy.fromClosedWorld:
+      case CompilerStage.closedWorld:
+      case CompilerStage.deferredLoadIds:
+        inputName = 'input bytes';
+        inputSize = inputProvider.bytesRead;
+        summary = 'Dart file $input ';
+        break;
+      case CompilerStage.globalInference:
         inputName = 'bytes data';
-        inputSize = inputProvider.dartCharactersRead;
-        String dataInput =
-            fe.relativizeUri(Uri.base, readClosedWorldUri!, Platform.isWindows);
+        inputSize = inputProvider.bytesRead;
+        String dataInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.closedWorld),
+          Platform.isWindows,
+        );
         summary = 'Data files $input and $dataInput ';
         break;
-      case ReadStrategy.fromData:
-        _fail("Must read from closed world and data.");
-      case ReadStrategy.fromDataAndClosedWorld:
+      case CompilerStage.codegenSharded:
+      case CompilerStage.codegenAndJsEmitter:
+      case CompilerStage.dumpInfo:
         inputName = 'bytes data';
-        inputSize = inputProvider.dartCharactersRead;
-        String worldInput =
-            fe.relativizeUri(Uri.base, readClosedWorldUri!, Platform.isWindows);
-        String dataInput =
-            fe.relativizeUri(Uri.base, readDataUri!, Platform.isWindows);
+        inputSize = inputProvider.bytesRead;
+        String worldInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.closedWorld),
+          Platform.isWindows,
+        );
+        String dataInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.globalInference),
+          Platform.isWindows,
+        );
         summary = 'Data files $input, $worldInput, and $dataInput ';
         break;
-      case ReadStrategy.fromCodegen:
-      case ReadStrategy.fromCodegenAndData:
-      case ReadStrategy.fromCodegenAndClosedWorld:
-        _fail("Must read from closed world, data, and codegen");
-      case ReadStrategy.fromCodegenAndClosedWorldAndData:
+      case CompilerStage.jsEmitter:
         inputName = 'bytes data';
-        inputSize = inputProvider.dartCharactersRead;
-        String worldInput =
-            fe.relativizeUri(Uri.base, readClosedWorldUri!, Platform.isWindows);
-        String dataInput =
-            fe.relativizeUri(Uri.base, readDataUri!, Platform.isWindows);
-        String codeInput =
-            fe.relativizeUri(Uri.base, readCodegenUri!, Platform.isWindows);
-        summary = 'Data files $input, $worldInput, $dataInput and '
-            '${codeInput}[0-${codegenShards! - 1}] ';
+        inputSize = inputProvider.bytesRead;
+        String worldInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.closedWorld),
+          Platform.isWindows,
+        );
+        String dataInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.globalInference),
+          Platform.isWindows,
+        );
+        String codeInput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(CompilerStage.codegenSharded),
+          Platform.isWindows,
+        );
+        summary =
+            'Data files $input, $worldInput, $dataInput and '
+            '$codeInput[0-${compilerOptions.codegenShards! - 1}] ';
         break;
     }
 
-    switch (writeStrategy) {
-      case WriteStrategy.toJs:
+    switch (compilerOptions.stage) {
+      case CompilerStage.all:
+      case CompilerStage.dumpInfoAll:
+      case CompilerStage.jsEmitter:
+      case CompilerStage.codegenAndJsEmitter:
+      case CompilerStage.dumpInfo:
         processName = 'Compiled';
         outputName = 'characters JavaScript';
         outputSize = outputProvider.totalCharactersWrittenJavaScript;
         primaryOutputSize = outputProvider.totalCharactersWrittenPrimary;
-        String output = fe.relativizeUri(Uri.base, out!, Platform.isWindows);
-        summary += 'compiled to JavaScript: ${output}';
+        String output = fe.relativizeUri(
+          Uri.base,
+          out ?? Uri.parse('out.js'),
+          Platform.isWindows,
+        );
+        summary += 'compiled to JavaScript: $output';
         break;
-      case WriteStrategy.toKernel:
+      case CompilerStage.cfe:
         processName = 'Compiled';
         outputName = 'kernel bytes';
         outputSize = outputProvider.totalDataWritten;
         String output = fe.relativizeUri(Uri.base, out!, Platform.isWindows);
-        summary += 'compiled to dill: ${output}.';
+        summary += 'compiled to dill: $output.';
         break;
-      case WriteStrategy.toKernelWithModularAnalysis:
-        processName = 'Compiled';
-        outputName = 'kernel and bytes data';
+      case CompilerStage.closedWorld:
+        processName = 'Serialized';
+        outputName = 'bytes data';
         outputSize = outputProvider.totalDataWritten;
-        String output = fe.relativizeUri(Uri.base, out!, Platform.isWindows);
+        final producesDill = compilerOptions.producesModifiedDill;
         String dataOutput = fe.relativizeUri(
-            Uri.base, writeModularAnalysisUri!, Platform.isWindows);
-        summary += 'compiled to dill and data: ${output} and ${dataOutput}.';
+          Uri.base,
+          compilerOptions.dataUriForStage(compilerOptions.stage),
+          Platform.isWindows,
+        );
+        String summaryLine = dataOutput;
+        if (producesDill) {
+          summaryLine += ' and ';
+          summaryLine += fe.relativizeUri(Uri.base, out!, Platform.isWindows);
+        }
+        summary += 'serialized to data: $summaryLine.';
         break;
-      case WriteStrategy.toModularAnalysis:
+      case CompilerStage.deferredLoadIds:
         processName = 'Serialized';
-        outputName = 'bytes data';
-        outputSize = outputProvider.totalDataWritten;
-        String output = fe.relativizeUri(Uri.base, out!, Platform.isWindows);
+        outputName = 'character map';
+        outputSize = outputProvider.totalCharactersWritten;
         String dataOutput = fe.relativizeUri(
-            Uri.base, writeModularAnalysisUri!, Platform.isWindows);
-        summary += 'serialized to dill and data: ${output} and ${dataOutput}.';
+          Uri.base,
+          compilerOptions.dataUriForStage(compilerOptions.stage),
+          Platform.isWindows,
+        );
+        summary += 'mapped to: $dataOutput.';
         break;
-      case WriteStrategy.toClosedWorld:
+      case CompilerStage.globalInference:
         processName = 'Serialized';
         outputName = 'bytes data';
         outputSize = outputProvider.totalDataWritten;
-        String output = fe.relativizeUri(Uri.base, out!, Platform.isWindows);
         String dataOutput = fe.relativizeUri(
-            Uri.base, writeClosedWorldUri!, Platform.isWindows);
-        summary += 'serialized to dill and data: ${output} and ${dataOutput}.';
+          Uri.base,
+          compilerOptions.dataUriForStage(compilerOptions.stage),
+          Platform.isWindows,
+        );
+        summary += 'serialized to data: $dataOutput.';
         break;
-      case WriteStrategy.toData:
+      case CompilerStage.codegenSharded:
         processName = 'Serialized';
         outputName = 'bytes data';
         outputSize = outputProvider.totalDataWritten;
-        String dataOutput =
-            fe.relativizeUri(Uri.base, writeDataUri!, Platform.isWindows);
-        summary += 'serialized to data: ${dataOutput}.';
-        break;
-      case WriteStrategy.toCodegen:
-        processName = 'Serialized';
-        outputName = 'bytes data';
-        outputSize = outputProvider.totalDataWritten;
-        String codeOutput =
-            fe.relativizeUri(Uri.base, writeCodegenUri!, Platform.isWindows);
-        summary += 'serialized to codegen data: '
-            '${codeOutput}${codegenShard}.';
+        String codeOutput = fe.relativizeUri(
+          Uri.base,
+          compilerOptions.dataUriForStage(compilerOptions.stage),
+          Platform.isWindows,
+        );
+        summary +=
+            'serialized to codegen data: '
+            '$codeOutput${compilerOptions.codegenShard}.';
         break;
     }
 
-    print('$processName '
-        '${_formatCharacterCount(inputSize)} $inputName to '
-        '${_formatCharacterCount(outputSize)} $outputName in '
-        '${_formatDurationAsSeconds(wallclock.elapsed)} seconds using '
-        '${await currentHeapCapacityInMb()} of memory');
+    final memoryUsed = compilerOptions.omitMemorySummary
+        ? null
+        : await currentHeapCapacityInMb();
+    final memoryUsedString = memoryUsed != null
+        ? ' using $memoryUsed of memory'
+        : '';
+
+    print(
+      '$processName '
+      '${_formatCharacterCount(inputSize)} $inputName to '
+      '${_formatCharacterCount(outputSize)} $outputName in '
+      '${_formatDurationAsSeconds(wallclock.elapsed)} seconds$memoryUsedString',
+    );
     if (primaryOutputSize != null && out != null) {
-      diagnostic.info('${_formatCharacterCount(primaryOutputSize)} $outputName '
-          'in ${fe.relativizeUri(Uri.base, out!, Platform.isWindows)}');
+      diagnostic.info(
+        '${_formatCharacterCount(primaryOutputSize)} $outputName '
+        'in ${fe.relativizeUri(Uri.base, out!, Platform.isWindows)}',
+      );
     }
-    if (writeStrategy == WriteStrategy.toJs) {
-      if (outputSpecified || diagnostic.verbose) {
+    if (compilerOptions.stage.emitsJs) {
+      if (diagnostic.verbose) {
         print(summary);
         if (diagnostic.verbose) {
           var files = outputProvider.allOutputFiles;
@@ -1142,8 +961,12 @@ Future<api.CompilationResult> compile(List<String> argv,
     return result;
   }
 
-  return compileFunc(compilerOptions, inputProvider, diagnostic, outputProvider)
-      .then(compilationDone);
+  return compileFunc(
+    compilerOptions,
+    inputProvider,
+    diagnostic,
+    outputProvider,
+  ).then(compilationDone);
 }
 
 /// Returns the non-negative integer formatted with a thousands separator.
@@ -1168,47 +991,53 @@ String _formatDurationAsSeconds(Duration duration, [int width = 4]) {
   return text;
 }
 
-class AbortLeg {
-  final message;
-  AbortLeg(this.message);
-  @override
-  toString() => 'Aborted due to --throw-on-error: $message';
-}
-
 void writeString(Uri uri, String text) {
   if (!enableWriteString) return;
   if (!uri.isScheme('file')) {
     _fail('Unhandled scheme ${uri.scheme}.');
   }
-  var file = (File(uri.toFilePath())..createSync(recursive: true))
-      .openSync(mode: FileMode.write);
+  var file = (File(
+    uri.toFilePath(),
+  )..createSync(recursive: true)).openSync(mode: FileMode.write);
   file.writeStringSync(text);
   file.closeSync();
 }
 
 Never _fail(String message) {
   if (diagnosticHandler != null) {
-    diagnosticHandler!
-        .report(null, null, -1, -1, message, api.Diagnostic.ERROR);
+    diagnosticHandler!.report(
+      null,
+      null,
+      -1,
+      -1,
+      message,
+      api.Diagnostic.error,
+    );
   } else {
     print('Error: $message');
   }
   exitFunc(1);
 }
 
-Future<api.CompilationResult> compilerMain(List<String> arguments,
-    {fe.InitializedCompilerState? kernelInitializedCompilerState}) async {
+Future<api.CompilationResult> compilerMain(
+  List<String> arguments, {
+  fe.InitializedCompilerState? kernelInitializedCompilerState,
+}) async {
   if (!arguments.any((a) => a.startsWith('--libraries-spec='))) {
     Uri script = Platform.script;
     if (script.isScheme("package")) {
       script = (await Isolate.resolvePackageUri(script))!;
     }
     Uri librariesJson = script.resolve(_defaultSpecificationUri);
-    arguments = <String>['--libraries-spec=${librariesJson.toFilePath()}']
-      ..addAll(arguments);
+    arguments = <String>[
+      '--libraries-spec=${librariesJson.toFilePath()}',
+      ...arguments,
+    ];
   }
-  return compile(arguments,
-      kernelInitializedCompilerState: kernelInitializedCompilerState);
+  return compile(
+    arguments,
+    kernelInitializedCompilerState: kernelInitializedCompilerState,
+  );
 }
 
 void help() {
@@ -1216,18 +1045,28 @@ void help() {
   // terminal size normally 80x24. Two lines are used for the prompts
   // before and after running the compiler. Another two lines may be
   // used to print an error message.
-  print('''
+  print(
+    '''
 Compile Dart to JavaScript.
 
 Usage: dart compile js [arguments] <dart entry point>
-  -h, --help      Print this usage information (add -v for information about all options).
+  -h, --help      Print this usage information.
+  -h -v           Show detailed information about all options.
   -o, --output    Write the output to <file name>.
   -O<0,1,2,3,4>   Set the compiler optimization level (defaults to -O1).
-  ''');
+     -O0          No optimizations (only meant for debugging the compiler).
+     -O1          Default (includes whole program analyses and inlining).
+     -O2          Safe production-oriented optimizations (like minification).
+     -O3          Potentially unsafe optimizations (see -h -v for details).
+     -O4          More aggressive unsafe optimizations (see -h -v for details).
+'''
+        .trim(),
+  );
 }
 
 void verboseHelp() {
-  print(r'''
+  print(
+    r'''
 Compile Dart to JavaScript.
 
 Usage: dart compile js [arguments] <dart entry point>
@@ -1277,27 +1116,26 @@ Usage: dart compile js [arguments] <dart entry point>
 
   --csp
     Disable dynamic generation of code in the generated output. This is
-    necessary to satisfy CSP restrictions (see http://www.w3.org/TR/CSP/).
+    necessary to satisfy CSP restrictions (see https://www.w3.org/TR/CSP/).
 
   --no-source-maps
     Do not generate a source map file.
 
   --omit-late-names
     Do not include names of late variables in error messages. This allows
-    dart2js to generate smaller code by removing late variable names from the
-    generated JavaScript.
+    the compiler to generate smaller code by removing late variable names from
+    the generated JavaScript.
 
   --native-null-assertions
     Add assertions to web library APIs to ensure that non-nullable APIs do not
-    return null. This is by default set to true in sound null-safety, unless
-    -O3 or higher is passed.
+    return null. This is set to true by default unless -O3 or higher is passed.
 
   -O<0,1,2,3,4>
     Controls optimizations that can help reduce code-size and improve
     performance of the generated code for deployment.
 
     -O0
-       Disables all optimizations. Equivalent to calling dart2js with these
+       Disables all optimizations. Equivalent to calling the compiler with these
        extra flags:
         --disable-inlining
         --disable-type-inference
@@ -1308,7 +1146,7 @@ Usage: dart compile js [arguments] <dart entry point>
        to disable them, they will be added here as well.
 
     -O1
-       Enables default optimizations. Equivalent to calling dart2js with no
+       Enables default optimizations. Equivalent to calling the compiler with no
        extra flags.
 
     -O2
@@ -1316,7 +1154,7 @@ Usage: dart compile js [arguments] <dart entry point>
        for all programs. It however changes the string representation of types,
        which will no longer be consistent with the Dart VM or DDC.
 
-       Equivalent to calling dart2js with these extra flags:
+       Equivalent to calling the compiler with these extra flags:
         --minify
         --lax-runtime-type-to-string
         --omit-late-names
@@ -1330,7 +1168,7 @@ Usage: dart compile js [arguments] <dart entry point>
        without it, and ensure that no subtype of `Error` (such as `TypeError`)
        is ever thrown.
 
-       Equivalent to calling dart2js with these extra flags:
+       Equivalent to calling the compiler with these extra flags:
          -O2
          --omit-implicit-checks
 
@@ -1340,7 +1178,7 @@ Usage: dart compile js [arguments] <dart entry point>
        are more susceptible to variations in input data. To use this option we
        recommend to pay special attention to test edge cases in user input.
 
-       Equivalent to calling dart2js with these extra flags:
+       Equivalent to calling the compiler with these extra flags:
          -O3
          --trust-primitives
 
@@ -1383,11 +1221,7 @@ be removed in a future version:
     Throw an exception if a compile-time error is detected.
 
   --libraries-spec=<file>
-    A .json file containing the libraries specification for dart2js.
-
-  --allow-mock-compilation
-    Do not generate a call to main if either of the following
-    libraries are used: dart:dom, dart:html dart:io.
+    A .json file containing the SDK libraries specification.
 
   --disable-native-live-type-analysis
     Disable the optimization that removes unused native types from dart:html
@@ -1416,15 +1250,16 @@ be removed in a future version:
     exit code to determine if compilation failed.
 
   --no-frequency-based-minification
-    Experimental.  Disabled the new frequency based minifying namer and use the
+    Experimental. Disable the new frequency based minifying namer and use the
     old namer instead.
 '''
-      .trim());
+        .trim(),
+  );
 }
 
 void helpAndExit(bool wantHelp, bool wantVersion, bool verbose) {
   if (wantVersion) {
-    var version = (BUILD_ID == null) ? '<non-SDK build>' : BUILD_ID;
+    var version = (buildID == null) ? '<non-SDK build>' : buildID;
     print('Dart-to-JavaScript compiler (dart2js) version: $version');
   }
   if (wantHelp) {
@@ -1445,8 +1280,14 @@ Never _helpAndFail(String message) {
 
 void warning(String message) {
   if (diagnosticHandler != null) {
-    diagnosticHandler!
-        .report(null, null, -1, -1, message, api.Diagnostic.WARNING);
+    diagnosticHandler!.report(
+      null,
+      null,
+      -1,
+      -1,
+      message,
+      api.Diagnostic.warning,
+    );
   } else {
     print('Warning: $message');
   }
@@ -1458,19 +1299,33 @@ Future<void> main(List<String> arguments) async {
   // provided. It needs to be replaced by reading all the contents of the
   // file and expanding them into the resulting argument list.
   //
-  // TODO: Move this logic to a single place and share it among all tools.
-  if (arguments.length > 0 && arguments.last.startsWith('@')) {
+  // TODO: Remove when internal tooling targets bazelMain instead of this.
+  if (arguments.isNotEmpty && arguments.last.startsWith('@')) {
     var extra = _readLines(arguments.last.substring(1));
     arguments = arguments.take(arguments.length - 1).followedBy(extra).toList();
   }
 
   // Since the sdk/bin/dart2js script adds its own arguments in front of
   // user-supplied arguments we search for '--batch' at the end of the list.
-  if (arguments.length > 0 && arguments.last == "--batch") {
+  if (arguments.isNotEmpty && arguments.last == "--batch") {
     batchMain(arguments.sublist(0, arguments.length - 1));
     return;
   }
   await internalMain(arguments);
+}
+
+Future<String?> bazelMain(List<String> arguments) async {
+  if (arguments.isNotEmpty && arguments.last.startsWith('@')) {
+    var extra = _readLines(arguments.last.substring(1));
+    arguments = arguments.take(arguments.length - 1).followedBy(extra).toList();
+  }
+  final compiler = (await internalMain(arguments)).compiler;
+  if (compiler is default_compiler.Compiler) {
+    final buffer = StringBuffer();
+    compiler.collectMetrics(buffer);
+    return buffer.toString();
+  }
+  return null;
 }
 
 /// Return all non-empty lines in a file found at [path].
@@ -1479,11 +1334,13 @@ Iterable<String> _readLines(String path) {
 }
 
 typedef ExitFunc = Never Function(int exitCode);
-typedef CompileFunc = Future<api.CompilationResult> Function(
-    CompilerOptions compilerOptions,
-    api.CompilerInput compilerInput,
-    api.CompilerDiagnostics compilerDiagnostics,
-    api.CompilerOutput compilerOutput);
+typedef CompileFunc =
+    Future<api.CompilationResult> Function(
+      CompilerOptions compilerOptions,
+      api.CompilerInput compilerInput,
+      api.CompilerDiagnostics compilerDiagnostics,
+      api.CompilerOutput compilerOutput,
+    );
 
 ExitFunc exitFunc = exit;
 CompileFunc compileFunc = api.compile;
@@ -1493,11 +1350,13 @@ CompileFunc compileFunc = api.compile;
 /// Set this to `false` in end-to-end tests to avoid generating '.deps' files.
 bool enableWriteString = true;
 
-Future<api.CompilationResult> internalMain(List<String> arguments,
-    {fe.InitializedCompilerState? kernelInitializedCompilerState}) {
-  Future<api.CompilationResult> onError(exception, trace) {
+Future<api.CompilationResult> internalMain(
+  List<String> arguments, {
+  fe.InitializedCompilerState? kernelInitializedCompilerState,
+}) {
+  Future<api.CompilationResult> onError(Object exception, StackTrace? trace) {
     // If we are already trying to exit, just continue exiting.
-    if (exception == _EXIT_SIGNAL) throw exception;
+    if (exception == _exitSignal) throw exception;
 
     try {
       print('The compiler crashed: $exception');
@@ -1515,9 +1374,10 @@ Future<api.CompilationResult> internalMain(List<String> arguments,
   }
 
   try {
-    return compilerMain(arguments,
-            kernelInitializedCompilerState: kernelInitializedCompilerState)
-        .catchError(onError);
+    return compilerMain(
+      arguments,
+      kernelInitializedCompilerState: kernelInitializedCompilerState,
+    ).catchError(onError);
   } catch (exception, trace) {
     return onError(exception, trace);
   }
@@ -1527,7 +1387,7 @@ class _ExitSignal {
   const _ExitSignal();
 }
 
-const _EXIT_SIGNAL = _ExitSignal();
+const _exitSignal = _ExitSignal();
 
 void batchMain(List<String> batchArguments) {
   int? exitCode;
@@ -1537,83 +1397,64 @@ void batchMain(List<String> batchArguments) {
     if (exitCode == 0) {
       exitCode = errorCode;
     }
-    throw _EXIT_SIGNAL;
+    throw _exitSignal;
   };
 
   var stream = stdin.transform(utf8.decoder).transform(LineSplitter());
-  late StreamSubscription subscription;
+  late StreamSubscription<String> subscription;
   fe.InitializedCompilerState? kernelInitializedCompilerState;
-  subscription = stream.listen((String? line) {
+  subscription = stream.listen((String line) {
     Future.sync(() {
-      subscription.pause();
-      exitCode = 0;
-      if (line == null) exit(0);
-      List<String> testArgs = splitLine(line, windows: Platform.isWindows);
+          subscription.pause();
+          exitCode = 0;
+          List<String> testArgs = splitLine(line, windows: Platform.isWindows);
 
-      // Ignore experiment flags given to the batch runner.
-      //
-      // Batch arguments are provided when the batch compiler is created, and
-      // contain flags that are generally enabled for all tests. Tests
-      // may have more specific flags that could conflict with the batch flags.
-      // For example, the batch runner might be setup to run the non-nullable
-      // experiment, but the test may enable more experiments.
-      //
-      // At this time we are only aware of these kind of conflicts with
-      // experiment flags, so we handle those directly. Currently the test
-      // runner passes experiment flags on both the batch runner and the test
-      // itself, so it is safe to ignore the flag that was given to the batch
-      // runner.
-      List<String> args = [
-        for (var arg in batchArguments)
-          if (!arg.startsWith('--enable-experiment')) arg,
-        ...testArgs,
-      ];
-      return internalMain(args,
-          kernelInitializedCompilerState: kernelInitializedCompilerState);
-    }).then((api.CompilationResult? result) {
-      if (result != null) {
-        kernelInitializedCompilerState = result.kernelInitializedCompilerState;
-      }
-    }).catchError((exception, trace) {
-      if (!identical(exception, _EXIT_SIGNAL)) {
-        exitCode = 253;
-      }
-    }).whenComplete(() {
-      // The testing framework waits for a status line on stdout and
-      // stderr before moving to the next test.
-      if (exitCode == 0) {
-        print(">>> TEST OK");
-      } else if (exitCode == 253) {
-        print(">>> TEST CRASH");
-      } else {
-        print(">>> TEST FAIL");
-      }
-      stderr.writeln(">>> EOF STDERR");
-      subscription.resume();
-    });
+          // Ignore experiment flags given to the batch runner.
+          //
+          // Batch arguments are provided when the batch compiler is created, and
+          // contain flags that are generally enabled for all tests. Tests
+          // may have more specific flags that could conflict with the batch flags.
+          // For example, the batch runner might be setup to run the non-nullable
+          // experiment, but the test may enable more experiments.
+          //
+          // At this time we are only aware of these kind of conflicts with
+          // experiment flags, so we handle those directly. Currently the test
+          // runner passes experiment flags on both the batch runner and the test
+          // itself, so it is safe to ignore the flag that was given to the batch
+          // runner.
+          List<String> args = [
+            for (var arg in batchArguments)
+              if (!arg.startsWith('--enable-experiment')) arg,
+            ...testArgs,
+          ];
+          return internalMain(
+            args,
+            kernelInitializedCompilerState: kernelInitializedCompilerState,
+          );
+        })
+        .then((api.CompilationResult? result) {
+          if (result != null) {
+            kernelInitializedCompilerState =
+                result.kernelInitializedCompilerState;
+          }
+        })
+        .catchError((Object exception, StackTrace trace) {
+          if (!identical(exception, _exitSignal)) {
+            exitCode = 253;
+          }
+        })
+        .whenComplete(() {
+          // The testing framework waits for a status line on stdout and
+          // stderr before moving to the next test.
+          if (exitCode == 0) {
+            print(">>> TEST OK");
+          } else if (exitCode == 253) {
+            print(">>> TEST CRASH");
+          } else {
+            print(">>> TEST FAIL");
+          }
+          stderr.writeln(">>> EOF STDERR");
+          subscription.resume();
+        });
   });
-}
-
-// TODO(joshualitt): Clean up the combinatorial explosion of read strategies.
-// Right now only fromClosedWorld, fromDataAndClosedWorld, and
-// fromCodegenAndClosedWorldAndData are valid.
-enum ReadStrategy {
-  fromDart,
-  fromClosedWorld,
-  fromData,
-  fromDataAndClosedWorld,
-  fromCodegen,
-  fromCodegenAndClosedWorld,
-  fromCodegenAndData,
-  fromCodegenAndClosedWorldAndData,
-}
-
-enum WriteStrategy {
-  toKernel,
-  toKernelWithModularAnalysis,
-  toModularAnalysis,
-  toClosedWorld,
-  toData,
-  toCodegen,
-  toJs
 }

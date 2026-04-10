@@ -2,10 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
-import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/elements/entities.dart';
 import 'package:compiler/src/elements/types.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import '../helpers/type_test_helper.dart';
 
@@ -14,26 +13,28 @@ main() {
     var env = await TypeEnvironment.create("""
 import 'dart:async';
 
-Future<num> futureNum() async => null;
-FutureOr<num> futureOrNum() async => null;
+Never never() => throw '';
 
-Future<int> futureInt() async => null;
-FutureOr<int> futureOrInt() async => null;
+Future<num> futureNum() async => never();
+FutureOr<num> futureOrNum() async => never();
 
-Future<List<num>> futureListNum() async => null;
-FutureOr<List<num>> futureOrListNum() async => null;
+Future<int> futureInt() async => never();
+FutureOr<int> futureOrInt() async => never();
 
-Future<Future<num>> futureFutureNum() async => null;
-FutureOr<FutureOr<num>> futureOrFutureOrNum() async => null;
+Future<List<num>> futureListNum() async => never();
+FutureOr<List<num>> futureOrListNum() async => never();
 
-Future<Null> futureNull() async => null;
-FutureOr<Null> futureOrNull() async => null;
+Future<Future<num>> futureFutureNum() async => never();
+FutureOr<FutureOr<num>> futureOrFutureOrNum() async => never();
+
+Future<Null> futureNull() async => never();
+FutureOr<Null> futureOrNull() async => never();
 
 void returnVoid() {}
 
 class C<T> {
-  Future<T> futureT() async => null;
-  FutureOr<T> futureOrT() async => null;
+  Future<T> futureT() async => never();
+  FutureOr<T> futureOrT() async => never();
 }
 
 main() {
@@ -50,35 +51,48 @@ main() {
   C().futureT();
   C().futureOrT();
 }
-""", options: [Flags.noSoundNullSafety]);
-    FunctionType getFunctionType(String name, String expectedType,
-        [ClassEntity? cls]) {
+""");
+    FunctionType getFunctionType(
+      String name,
+      String expectedType, [
+      ClassEntity? cls,
+    ]) {
       final type = env.getMemberType(name, cls) as FunctionType?;
-      Expect.isNotNull(type,
-          "Member $name not found${cls != null ? ' in class $cls' : ''}.");
+      Expect.isNotNull(
+        type,
+        "Member $name not found${cls != null ? ' in class $cls' : ''}.",
+      );
       Expect.equals(
-          expectedType,
-          env.printType(type!),
-          "Unexpected type for $name"
-          "${cls != null ? ' in class $cls' : ''}.");
+        expectedType,
+        env.printType(type!),
+        "Unexpected type for $name"
+        "${cls != null ? ' in class $cls' : ''}.",
+      );
       return type;
     }
 
-    DartType getReturnType(String name, String expectedType,
-        [ClassEntity? cls]) {
+    DartType getReturnType(
+      String name,
+      String expectedType, [
+      ClassEntity? cls,
+    ]) {
       final type = env.getMemberType(name, cls) as FunctionType?;
-      Expect.isNotNull(type,
-          "Member $name not found${cls != null ? ' in class $cls' : ''}.");
+      Expect.isNotNull(
+        type,
+        "Member $name not found${cls != null ? ' in class $cls' : ''}.",
+      );
       DartType returnType = type!.returnType.withoutNullability;
       Expect.equals(
-          expectedType,
-          env.printType(returnType),
-          "Unexpected return type for $name"
-          "${cls != null ? ' in class $cls' : ''}.");
+        expectedType,
+        env.printType(returnType),
+        "Unexpected return type for $name"
+        "${cls != null ? ' in class $cls' : ''}.",
+      );
       return returnType;
     }
 
-    DartType Object_ = env['Object'];
+    DartType top = env.types.nullableType(env['Object']);
+    DartType bottom = env.types.neverType();
 
     DartType futureNum = getReturnType('futureNum', 'Future<num>');
     final futureOrNum =
@@ -90,14 +104,18 @@ main() {
         getReturnType('futureOrInt', 'FutureOr<int>') as FutureOrType;
     DartType int_ = futureOrInt.typeArgument;
 
-    DartType futureListNum =
-        getReturnType('futureListNum', 'Future<List<num>>');
+    DartType futureListNum = getReturnType(
+      'futureListNum',
+      'Future<List<num>>',
+    );
     final futureOrListNum =
         getReturnType('futureOrListNum', 'FutureOr<List<num>>') as FutureOrType;
     DartType ListNum = futureOrListNum.typeArgument;
 
-    DartType futureFutureNum =
-        getReturnType('futureFutureNum', 'Future<Future<num>>');
+    DartType futureFutureNum = getReturnType(
+      'futureFutureNum',
+      'Future<Future<num>>',
+    );
     final futureOrFutureOrNum =
         getReturnType('futureOrFutureOrNum', 'FutureOr<FutureOr<num>>')
             as FutureOrType;
@@ -116,11 +134,14 @@ main() {
     futureOrT.forEachTypeVariable((t) => Expect.equals(T, t));
 
     DartType returnVoid = getFunctionType('returnVoid', 'void Function()');
-    DartType returnFutureNull =
-        getFunctionType('futureOrNull', 'Future<Null>? Function()');
+    DartType returnFutureNull = getFunctionType(
+      'futureOrNull',
+      'Future<Null>? Function()',
+    );
 
     List<DartType> all = [
-      Object_,
+      top,
+      bottom,
       num_,
       int_,
       Null_,
@@ -149,52 +170,27 @@ main() {
       T: [futureOrT],
       futureNum: [futureOrNum, futureOrFutureOrNum],
       futureInt: [futureNum, futureOrNum, futureOrInt, futureOrFutureOrNum],
-      futureNull: [
-        futureOrNull,
-        futureNum,
-        futureOrNum,
-        futureInt,
-        futureOrInt,
-        futureListNum,
-        futureOrListNum,
-        futureFutureNum,
-        futureOrFutureOrNum,
-        futureT,
-        futureOrT,
-      ],
+      futureNull: [futureOrNull],
       futureListNum: [futureOrListNum],
       futureT: [futureOrT],
       futureFutureNum: [futureOrFutureOrNum],
       futureOrNum: [futureOrFutureOrNum],
       futureOrInt: [futureOrNum, futureOrFutureOrNum],
-      futureOrNull: [
-        futureNull,
-        futureNum,
-        futureOrNum,
-        futureInt,
-        futureOrInt,
-        futureListNum,
-        futureOrListNum,
-        futureFutureNum,
-        futureOrFutureOrNum,
-        futureT,
-        futureOrT,
-      ],
+      futureOrNull: [],
       returnFutureNull: [returnVoid],
     };
 
     for (DartType t in all) {
       List<DartType> expectedSubtypes = expectedSubtypesMap[t] ?? [];
       for (DartType s in all) {
-        bool expectedSubtype = t == s ||
-            expectedSubtypes.contains(s) ||
-            s == Object_ ||
-            t == Null_;
+        bool expectedSubtype =
+            t == s || expectedSubtypes.contains(s) || s == top || t == bottom;
         Expect.equals(
-            expectedSubtype,
-            env.isSubtype(t, s),
-            "$t${expectedSubtype ? '' : ' not'} "
-            "expected to be a subtype of $s.");
+          expectedSubtype,
+          env.isSubtype(t, s),
+          "$t${expectedSubtype ? '' : ' not'} "
+          "expected to be a subtype of $s.",
+        );
       }
     }
   });

@@ -10,7 +10,7 @@ additionalExports = (wid::widgetFactory)
       ;
   }
   abstract class Widget extends fra::Bar implements wid::_HasCreationLocation /*hasConstConstructor*/  {
-    final field wid::_Location? _location /*isLegacy*/;
+    final field wid::_Location? wid::_location;
     const constructor •({wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → fra::Widget
       : super fra::Bar::•(), fra::Widget::_location = $creationLocationd_0dea112b090073317d4
       ;
@@ -30,17 +30,17 @@ library from "package:flutter/src/widgets/widget_inspector.dart" as wid {
     final field dart.core::int column;
     final field dart.core::String name;
     final field dart.core::List<wid::_Location> parameterLocations;
-    const constructor •({required dart.core::String file = #C1, required dart.core::int line = #C1, required dart.core::int column = #C1, required dart.core::String name = #C1, required dart.core::List<wid::_Location> parameterLocations = #C1}) → wid::_Location
+    const constructor •({required dart.core::String file, required dart.core::int line, required dart.core::int column, required dart.core::String name, required dart.core::List<wid::_Location> parameterLocations}) → wid::_Location
       : wid::_Location::file = file, wid::_Location::line = line, wid::_Location::column = column, wid::_Location::name = name, wid::_Location::parameterLocations = parameterLocations, super dart.core::Object::•()
       ;
-    static method _#new#tearOff({required dart.core::String file = #C1, required dart.core::int line = #C1, required dart.core::int column = #C1, required dart.core::String name = #C1, required dart.core::List<wid::_Location> parameterLocations = #C1}) → wid::_Location
+    static synthetic method _#new#tearOff({required dart.core::String file, required dart.core::int line, required dart.core::int column, required dart.core::String name, required dart.core::List<wid::_Location> parameterLocations}) → wid::_Location
       return new wid::_Location::•(file: file, line: line, column: column, name: name, parameterLocations: parameterLocations);
   }
   class _WidgetFactory extends dart.core::Object /*hasConstConstructor*/  {
     const constructor •() → wid::_WidgetFactory
       : super dart.core::Object::•()
       ;
-    static method _#new#tearOff() → wid::_WidgetFactory
+    static synthetic method _#new#tearOff() → wid::_WidgetFactory
       return new wid::_WidgetFactory::•();
   }
   static const field wid::_WidgetFactory widgetFactory = #C2;
@@ -55,66 +55,66 @@ library from "org-dartlang-test:///foo.dart" as foo {
       ;
     static factory •({wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
       return #C8;
-    static method _#new#tearOff() → foo::Foo
+    static synthetic method _#new#tearOff() → foo::Foo
       return foo::Foo::•($creationLocationd_0dea112b090073317d4: #C10);
-    static method _#_#tearOff() → foo::Foo
+    static synthetic method _#_#tearOff() → foo::Foo
       return new foo::Foo::_($creationLocationd_0dea112b090073317d4: #C13);
   }
   extension FooExtension on dart.core::Object? {
     method foo = foo::FooExtension|foo;
-    tearoff foo = foo::FooExtension|get#foo;
+    method tearoff foo = foo::FooExtension|get#foo;
     method bar = foo::FooExtension|bar;
-    tearoff bar = foo::FooExtension|get#bar;
+    method tearoff bar = foo::FooExtension|get#bar;
     method baz = foo::FooExtension|baz;
-    tearoff baz = foo::FooExtension|get#baz;
+    method tearoff baz = foo::FooExtension|get#baz;
     method boz = foo::FooExtension|boz;
-    tearoff boz = foo::FooExtension|get#boz;
+    method tearoff boz = foo::FooExtension|get#boz;
     method constFoo = foo::FooExtension|constFoo;
-    tearoff constFoo = foo::FooExtension|get#constFoo;
+    method tearoff constFoo = foo::FooExtension|get#constFoo;
     get getterFoo = foo::FooExtension|get#getterFoo;
+    set setterFoo = foo::FooExtension|set#setterFoo;
     operator unary- = foo::FooExtension|unary-;
     static method staticFoo = foo::FooExtension|staticFoo;
-    set setterFoo = foo::FooExtension|set#setterFoo;
   }
   static const field wid::_WidgetFactory alias = #C2;
   static const field wid::_WidgetFactory? nullableAlias = #C1;
   static const field wid::_WidgetFactory nonNullableAlias = #C2;
   @#C2
-  static method FooExtension|foo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|foo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
-  static method FooExtension|get#foo(lowered final dart.core::Object? #this) → () → foo::Foo
+  static extension-member method FooExtension|get#foo(lowered final dart.core::Object? #this) → () → foo::Foo
     return () → foo::Foo => foo::FooExtension|foo(#this, $creationLocationd_0dea112b090073317d4: #C17);
   @#C2
-  static method FooExtension|bar(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|bar(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
-  static method FooExtension|get#bar(lowered final dart.core::Object? #this) → () → foo::Foo
+  static extension-member method FooExtension|get#bar(lowered final dart.core::Object? #this) → () → foo::Foo
     return () → foo::Foo => foo::FooExtension|bar(#this, $creationLocationd_0dea112b090073317d4: #C20);
   @#C1
-  static method FooExtension|baz(lowered final dart.core::Object? #this) → foo::Foo
+  static extension-member method FooExtension|baz(lowered final dart.core::Object? #this) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: #C23);
-  static method FooExtension|get#baz(lowered final dart.core::Object? #this) → () → foo::Foo
+  static extension-member method FooExtension|get#baz(lowered final dart.core::Object? #this) → () → foo::Foo
     return () → foo::Foo => foo::FooExtension|baz(#this);
   @#C2
-  static method FooExtension|boz(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|boz(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
-  static method FooExtension|get#boz(lowered final dart.core::Object? #this) → () → foo::Foo
+  static extension-member method FooExtension|get#boz(lowered final dart.core::Object? #this) → () → foo::Foo
     return () → foo::Foo => foo::FooExtension|boz(#this, $creationLocationd_0dea112b090073317d4: #C26);
   @#C2
-  static method FooExtension|constFoo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|constFoo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return #C29;
-  static method FooExtension|get#constFoo(lowered final dart.core::Object? #this) → () → foo::Foo
+  static extension-member method FooExtension|get#constFoo(lowered final dart.core::Object? #this) → () → foo::Foo
     return () → foo::Foo => foo::FooExtension|constFoo(#this, $creationLocationd_0dea112b090073317d4: #C31);
   @#C2
-  static method FooExtension|get#getterFoo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|get#getterFoo(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
   @#C2
-  static method FooExtension|set#setterFoo(lowered final dart.core::Object? #this, dynamic _, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → void
+  static extension-member method FooExtension|set#setterFoo(lowered final dart.core::Object? #this, wildcard dynamic _#wc0#formal, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → void
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
   @#C2
-  static method FooExtension|unary-(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
+  static extension-member method FooExtension|unary-(lowered final dart.core::Object? #this, {wid::_Location? $creationLocationd_0dea112b090073317d4 = #C1}) → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: $creationLocationd_0dea112b090073317d4);
   @#C2
-  static method FooExtension|staticFoo() → foo::Foo
+  static extension-member method FooExtension|staticFoo() → foo::Foo
     return new foo::Foo::_($creationLocationd_0dea112b090073317d4: #C34);
 }
 library from "org-dartlang-test:///main.dart" as main {
@@ -133,7 +133,7 @@ library from "org-dartlang-test:///main.dart" as main {
   static field foo::Foo extensionBoz = foo::FooExtension|boz(null, $creationLocationd_0dea112b090073317d4: #C46);
   static field foo::Foo extensionGetterFoo = foo::FooExtension|get#getterFoo(null, $creationLocationd_0dea112b090073317d4: #C50);
   static field () → Null extensionSetterFoo = () → Null => let final has-declared-initializer Null #t1 = null in let final void #t2 = foo::FooExtension|set#setterFoo(null, #t1, $creationLocationd_0dea112b090073317d4: #C54) in #t1;
-  static field foo::Foo extensionOperatorFoo = foo::FooExtension|unary-(null, $creationLocationd_0dea112b090073317d4: #C58);
+  static field foo::Foo extensionOperatorFoo = foo::FooExtension|unary-(null, $creationLocationd_0dea112b090073317d4: #C57);
   static field foo::Foo extensionStaticFoo = foo::FooExtension|staticFoo();
 }
 constants  {
@@ -150,24 +150,24 @@ constants  {
   #C11 = 10.0
   #C12 = 9.0
   #C13 = wid::_Location {file:#C3, line:#C11, column:#C12, name:#C6, parameterLocations:#C1}
-  #C14 = 15.0
-  #C15 = 7.0
+  #C14 = 14.0
+  #C15 = 3.0
   #C16 = "FooExtension|foo"
   #C17 = wid::_Location {file:#C3, line:#C14, column:#C15, name:#C16, parameterLocations:#C1}
-  #C18 = 18.0
+  #C18 = 17.0
   #C19 = "FooExtension|bar"
   #C20 = wid::_Location {file:#C3, line:#C18, column:#C15, name:#C19, parameterLocations:#C1}
   #C21 = 21.0
   #C22 = 20.0
   #C23 = wid::_Location {file:#C3, line:#C21, column:#C22, name:#C6, parameterLocations:#C1}
-  #C24 = 24.0
+  #C24 = 23.0
   #C25 = "FooExtension|boz"
   #C26 = wid::_Location {file:#C3, line:#C24, column:#C15, name:#C25, parameterLocations:#C1}
   #C27 = 27.0
   #C28 = wid::_Location {file:#C3, line:#C27, column:#C27, name:#C6, parameterLocations:#C1}
   #C29 = foo::Foo {_location:#C28}
   #C30 = "FooExtension|constFoo"
-  #C31 = wid::_Location {file:#C3, line:#C27, column:#C15, name:#C30, parameterLocations:#C1}
+  #C31 = wid::_Location {file:#C3, line:#C5, column:#C15, name:#C30, parameterLocations:#C1}
   #C32 = 39.0
   #C33 = 33.0
   #C34 = wid::_Location {file:#C3, line:#C32, column:#C33, name:#C6, parameterLocations:#C1}
@@ -175,8 +175,8 @@ constants  {
   #C36 = 2.0
   #C37 = 30.0
   #C38 = wid::_Location {file:#C35, line:#C36, column:#C37, name:#C30, parameterLocations:#C1}
-  #C39 = 3.0
-  #C40 = wid::_Location {file:#C35, line:#C39, column:#C18, name:#C6, parameterLocations:#C1}
+  #C39 = 18.0
+  #C40 = wid::_Location {file:#C35, line:#C15, column:#C39, name:#C6, parameterLocations:#C1}
   #C41 = static-tearoff foo::Foo::_#new#tearOff
   #C42 = 6.0
   #C43 = 25.0
@@ -191,10 +191,9 @@ constants  {
   #C52 = 37.0
   #C53 = "FooExtension|set#setterFoo"
   #C54 = wid::_Location {file:#C35, line:#C51, column:#C52, name:#C53, parameterLocations:#C1}
-  #C55 = 14.0
-  #C56 = 28.0
-  #C57 = "FooExtension|unary-"
-  #C58 = wid::_Location {file:#C35, line:#C55, column:#C56, name:#C57, parameterLocations:#C1}
+  #C55 = 28.0
+  #C56 = "FooExtension|unary-"
+  #C57 = wid::_Location {file:#C35, line:#C14, column:#C55, name:#C56, parameterLocations:#C1}
 }
 
 

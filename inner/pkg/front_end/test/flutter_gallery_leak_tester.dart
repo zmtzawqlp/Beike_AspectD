@@ -59,32 +59,13 @@ Future<void> main(List<String> args) async {
     throw "File not found: $frontendServerStarter";
   }
 
-  Directory gallery = new Directory("$rootPath/gallery");
-  if (!gallery.existsSync()) {
-    print("Gallery not found... Attempting to clone via git.");
-    // git clone https://github.com/flutter/gallery.git
-    Process process = await Process.start("git", [
-      "clone",
-      "https://github.com/flutter/gallery.git",
-      "$rootPath/gallery"
-    ]);
-    process.stdout
-        .transform(utf8.decoder)
-        .transform(new LineSplitter())
-        .listen((line) {
-      print("git stdout> $line");
-    });
-    process.stderr
-        .transform(utf8.decoder)
-        .transform(new LineSplitter())
-        .listen((line) {
-      print("git stderr> $line");
-    });
-    int processExitCode = await process.exitCode;
-    print("Exit code from git: $processExitCode");
+  File packageConfig =
+      new File("$rootPath/flutter/.dart_tool/package_config.json");
 
-    process = await Process.start("../flutter/bin/flutter", ["pub", "get"],
-        workingDirectory: "$rootPath/gallery/");
+  if (!packageConfig.existsSync()) {
+    // If the package_config doesn't exist we should run pub get.
+    Process process = await Process.start("bin/flutter", ["pub", "get"],
+        workingDirectory: "$rootPath/flutter/");
     process.stdout
         .transform(utf8.decoder)
         .transform(new LineSplitter())
@@ -97,59 +78,12 @@ Future<void> main(List<String> args) async {
         .listen((line) {
       print("flutter stderr> $line");
     });
-    processExitCode = await process.exitCode;
+    int processExitCode = await process.exitCode;
     print("Exit code from flutter: $processExitCode");
-
-    // Attempt to hack around strings being truncated to 128 bytes in heap dumps
-    // https://github.com/dart-lang/sdk/blob/c59cdee365b94ce066344840f9e3412d642019b5/runtime/vm/object_graph.cc#L809
-    // (pub paths can become too long, so two distinct files will look to have
-    // the same url and thus give a false positive).
-    Uri pubDirUri = Uri.parse("file://${Platform.environment['HOME']}/"
-        ".pub-cache/hosted/pub.dev/");
-    Directory pubDir = new Directory.fromUri(pubDirUri);
-    if (!pubDir.existsSync()) {
-      File galleryPackageConfig =
-          new File("$rootPath/gallery/.dart_tool/package_config.json");
-      String? packagesData;
-      if (galleryPackageConfig.existsSync()) {
-        packagesData = galleryPackageConfig.readAsStringSync();
-      }
-
-      throw "Expected to find $pubDir but didn't.\n"
-          "Content of packages file (${packagesData.runtimeType}): "
-          "$packagesData";
-    }
-
-    File galleryPackageConfig =
-        new File("$rootPath/gallery/.dart_tool/package_config.json");
-    if (!galleryPackageConfig.existsSync()) {
-      throw "Didn't find $galleryPackageConfig";
-    }
-    String data = galleryPackageConfig.readAsStringSync();
-    data = data.replaceAll(pubDirUri.toString(), "../pub/");
-    galleryPackageConfig.writeAsStringSync(data);
-
-    process = await Process.start("ln", ["-s", pubDir.path, "pub"],
-        workingDirectory: "$rootPath/gallery/");
-    process.stdout
-        .transform(utf8.decoder)
-        .transform(new LineSplitter())
-        .listen((line) {
-      print("ln stdout> $line");
-    });
-    process.stderr
-        .transform(utf8.decoder)
-        .transform(new LineSplitter())
-        .listen((line) {
-      print("ln stderr> $line");
-    });
-    processExitCode = await process.exitCode;
-    print("Exit code from ln: $processExitCode");
   }
 
-  File packageConfig =
-      new File("$rootPath/gallery/.dart_tool/package_config.json");
   if (!packageConfig.existsSync()) {
+    // If it still doesn't exist something is wrong.
     throw "Didn't find $packageConfig";
   }
 
@@ -158,6 +92,7 @@ Future<void> main(List<String> args) async {
     Uri.parse("package:kernel/ast.dart"),
     "Library",
     ["fileUri"],
+    expectToAlwaysFind: true,
   ));
   helper.VMServiceHeapHelperSpecificExactLeakFinder heapHelper =
       new helper.VMServiceHeapHelperSpecificExactLeakFinder(
@@ -167,6 +102,7 @@ Future<void> main(List<String> args) async {
         Uri.parse("package:kernel/ast.dart"),
         "Library",
         ["fileUri", "libraryIdForTesting"],
+        expectToAlwaysFind: true,
       ),
     ],
     throwOnPossibleLeak: true,
@@ -188,7 +124,7 @@ Future<void> main(List<String> args) async {
     "--output-dill",
     "$rootPath/flutter_server_tmp.dill",
     "--packages",
-    "$rootPath/gallery/.dart_tool/package_config.json",
+    packageConfig.path,
     "-Ddart.vm.profile=false",
     "-Ddart.vm.product=false",
     "--enable-asserts",
@@ -220,6 +156,7 @@ Future<void> main(List<String> args) async {
   Stopwatch stopwatch = new Stopwatch()..start();
   await sendAndWait(heapHelper.process, ['compile package:gallery/main.dart']);
   print("First compile took ${stopwatch.elapsedMilliseconds} ms");
+  await accept(heapHelper);
   await pauseAndWait(heapHelper);
 
   await recompileAndWait(heapHelper.process, "package:gallery/main.dart", []);
@@ -327,7 +264,11 @@ Future recompileAndWait(
 Future sendAndWait(Process _server, List<String> data) async {
   completer = new Completer();
   data.forEach(_server.stdin.writeln);
+  Timer timer = Timer(const Duration(minutes: 5), () {
+    throw "Timeout in sendAndWait with $data";
+  });
   await completer.future;
+  timer.cancel();
 }
 
 Future sendAndWaitDebugDidSendFirstFrameEvent(Process _server) async {
@@ -337,10 +278,17 @@ Future sendAndWaitDebugDidSendFirstFrameEvent(Process _server) async {
     /* expression */ 'WidgetsBinding.instance.debugDidSendFirstFrameEvent',
     /* no definitions */
     /* <boundarykey> */ inputKey,
+    /* no definition types */
+    /* <boundarykey> */ inputKey,
     /* no type-definitions */
+    /* <boundarykey> */ inputKey,
+    /* no type bounds */
+    /* <boundarykey> */ inputKey,
+    /* no type defaults */
     /* <boundarykey> */ inputKey,
     /* libraryUri */ 'package:flutter/src/widgets/binding.dart',
     /* class */ '',
+    /* method */ '',
     /* isStatic */ 'true'
   ]);
 }
@@ -353,10 +301,17 @@ Future sendAndWaitSetSelection(Process _server) async {
         'arg1, "dummy_68")',
     /* definition #1 */ 'arg1',
     /* <boundarykey> */ inputKey,
+    /* definition type #1 */ 'null' /* aka dynamic */,
+    /* <boundarykey> */ inputKey,
     /* no type-definitions */
+    /* <boundarykey> */ inputKey,
+    /* no type-bounds */
+    /* <boundarykey> */ inputKey,
+    /* no type-defaults */
     /* <boundarykey> */ inputKey,
     /* libraryUri */ 'package:flutter/src/widgets/widget_inspector.dart',
     /* class */ '',
+    /* method */ '',
     /* isStatic */ 'true'
   ]);
 }
@@ -369,10 +324,17 @@ Future sendAndWaitToObject(Process _server) async {
         '"inspector-836", "tree_112")',
     /* no definitions */
     /* <boundarykey> */ inputKey,
+    /* no definition types */
+    /* <boundarykey> */ inputKey,
     /* no type-definitions */
+    /* <boundarykey> */ inputKey,
+    /* no type bounds */
+    /* <boundarykey> */ inputKey,
+    /* no type defaults */
     /* <boundarykey> */ inputKey,
     /* libraryUri */ 'package:flutter/src/widgets/widget_inspector.dart',
     /* class */ '',
+    /* method */ '',
     /* isStatic */ 'true'
   ]);
 }
@@ -385,10 +347,17 @@ Future sendAndWaitToObjectForSourceLocation(Process _server) async {
         'toObjectForSourceLocation("inspector-607", "tree_112")',
     /* no definitions */
     /* <boundarykey> */ inputKey,
+    /* no definition types */
+    /* <boundarykey> */ inputKey,
     /* no type-definitions */
+    /* <boundarykey> */ inputKey,
+    /* no type bounds */
+    /* <boundarykey> */ inputKey,
+    /* no type defaults */
     /* <boundarykey> */ inputKey,
     /* libraryUri */ 'package:flutter/src/widgets/widget_inspector.dart',
     /* class */ '',
+    /* method */ '',
     /* isStatic */ 'true'
   ]);
 }

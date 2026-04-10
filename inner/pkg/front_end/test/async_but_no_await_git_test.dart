@@ -8,25 +8,23 @@ import 'package:_fe_analyzer_shared/src/messages/severity.dart';
 import 'package:front_end/src/api_prototype/compiler_options.dart' as api;
 import 'package:front_end/src/api_prototype/incremental_kernel_generator.dart'
     show IncrementalCompilerResult;
+import 'package:front_end/src/base/compiler_context.dart';
+import 'package:front_end/src/base/incremental_compiler.dart';
 import 'package:front_end/src/base/processed_options.dart';
 import 'package:front_end/src/compute_platform_binaries_location.dart'
     show computePlatformBinariesLocation;
-import 'package:front_end/src/fasta/compiler_context.dart';
-import 'package:front_end/src/fasta/incremental_compiler.dart';
 import 'package:kernel/class_hierarchy.dart';
 import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart';
 import 'package:kernel/reference_from_index.dart';
 import 'package:kernel/target/changed_structure_notifier.dart';
 import 'package:kernel/target/targets.dart';
-import "package:vm/target/vm.dart" show VmTarget;
+import "package:vm/modular/target/vm.dart" show VmTarget;
 
-import 'testing_utils.dart' show getGitFiles;
+import 'testing_utils.dart' show computeSourceFiles;
 import "utils/io_utils.dart";
 
 final Uri repoDir = computeRepoDirUri();
-
-Set<Uri> libUris = {};
 
 Future<void> main(List<String> args) async {
   api.CompilerOptions compilerOptions = getOptions();
@@ -39,22 +37,7 @@ Future<void> main(List<String> args) async {
 
   ProcessedOptions options = new ProcessedOptions(options: compilerOptions);
 
-  libUris.add(repoDir.resolve("pkg/front_end/lib/"));
-  libUris.add(repoDir.resolve("pkg/front_end/test/fasta/"));
-  libUris.add(repoDir.resolve("pkg/front_end/tool/"));
-
-  for (Uri uri in libUris) {
-    Set<Uri> gitFiles = await getGitFiles(uri);
-    List<FileSystemEntity> entities =
-        new Directory.fromUri(uri).listSync(recursive: true);
-    for (FileSystemEntity entity in entities) {
-      if (entity is File &&
-          entity.path.endsWith(".dart") &&
-          gitFiles.contains(entity.uri)) {
-        options.inputs.add(entity.uri);
-      }
-    }
-  }
+  options.inputs.addAll(await computeSourceFiles(repoDir));
 
   Stopwatch stopwatch = new Stopwatch()..start();
 

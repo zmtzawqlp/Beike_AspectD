@@ -4,17 +4,123 @@
 
 import 'serialization.dart';
 
-abstract class IndexedSource<E> {
-  E? read(E readValue());
+abstract class IndexedSource<E extends Object> {
+  Map<int, E> get cache;
 
-  /// Reshapes the cache to a [Map<E, int>] using [_getValue] if provided or
-  /// leaving the cache entry as is otherwise.
-  Map<T?, int> reshapeCacheAsMap<T>([T Function(E? value)? getValue]);
+  E? read(DataSourceReader source, E Function() readValue);
+  E? readWithoutCache(DataSourceReader source, E Function() readValue);
 }
 
-abstract class IndexedSink<E> {
-  void write(E value, void writeValue(E value));
+abstract class IndexedSink<E extends Object> {
+  Map<E, int> get cache;
+
+  void write(DataSinkWriter sink, E? value, void Function(E value) writeValue);
 }
+
+const int _dataInPlaceIndicator = 0;
+const int _nullIndicator = 1;
+const int _nonCompactOffsetIndicator = 2;
+const int _indicatorOffset = 3;
+
+/// Facilitates indexed reads and writes for [IndexedSource] and [IndexedSink].
+///
+/// Created and stores shared [IndexedSource] and [IndexedSink] instances for
+/// cached types. Copies indices from sources to sinks when a sink is requested
+/// so that the indices are shared across data files.
+///
+/// [DataSourceReader] instances must be registered so that contiguous start
+/// offsets can be set on each reader. This allows global offsets to be
+/// correctly calculated by the indices. See [UnorderedIndexedSource] for more
+/// info.
+class SerializationIndices {
+  final Map<Type, IndexedSource> _indexedSources = {};
+  final Map<Type, IndexedSink> _indexedSinks = {};
+  final List<DataSourceReader> _sources = [];
+  final bool testMode;
+
+  SerializationIndices({this.testMode = false});
+
+  int registerSource(DataSourceReader source) {
+    int startOffset;
+    if (_sources.isEmpty) {
+      startOffset = 0;
+    } else {
+      final lastSource = _sources.last;
+      startOffset = lastSource.startOffset + lastSource.length;
+    }
+    _sources.add(source);
+    return startOffset;
+  }
+
+  IndexedSource<E> getIndexedSource<E extends Object>() {
+    final source =
+        (_indexedSources[E] ??= UnorderedIndexedSource<E>(this))
+            as IndexedSource<E>;
+    if (testMode) {
+      /// In test mode we ensure that the values we read out are identical to
+      /// the values we write in. When copying the elements we turn the local
+      /// offsets to global offsets so that the source cache will hit.
+      /// Note: Mapped sinks will not get copied over since the mapped write
+      /// type will be different from the read type.
+      final sink = _indexedSinks[E] as IndexedSink<E>?;
+      sink?.cache.forEach((value, offset) {
+        // We convert local offsets to relative offsets because source caching
+        // uses the relative address space. We want to ensure objects that are
+        // serialized and immediately deserialized during testing share the same
+        // cached references.
+        source.cache[_localToGlobalForTesting(offset)] = value;
+      });
+    }
+    return source;
+  }
+
+  IndexedSink<E> getIndexedSink<E extends Object>({bool identity = false}) {
+    return _getIndexedSink<E, E>(null, identity: identity);
+  }
+
+  IndexedSink<T> getMappedIndexedSink<E extends Object, T extends Object>(
+    T Function(E value) f,
+  ) {
+    return _getIndexedSink<E, T>(f, identity: false);
+  }
+
+  IndexedSink<T> _getIndexedSink<E extends Object, T extends Object>(
+    T Function(E value)? f, {
+    required bool identity,
+  }) {
+    final sink =
+        (_indexedSinks[T] ??= UnorderedIndexedSink<T>(identity: identity))
+            as IndexedSink<T>;
+    final source = _indexedSources[E] as UnorderedIndexedSource<E>?;
+    source?.cache.forEach((offset, value) {
+      final key = (f != null ? f(value) : value) as T;
+      sink.cache[key] = offset;
+    });
+    return sink;
+  }
+}
+
+/// We use one bit to represent that an offset is local to the same data file.
+const int _numLocalityBits = 1;
+
+/// We can only compactly represent offsets up to the max supported by the
+/// [BinaryDataSink] minus the number of bits used to represent offset locality.
+const int _maxCompactOffset = BinaryDataSink.maxIntValue >> _numLocalityBits;
+
+// Real offsets are the offsets into the file the data is written in.
+// Local offsets are real offsets with an extra indicator bit set to 1.
+// Global offsets are offsets into the address space of all files with an
+// extra indicator bit set to 0.
+int _realToLocalOffset(int offset) => (offset << 1) | 1;
+int _realToGlobalOffset(int offset, DataSourceReader source) =>
+    (offset + source.startOffset) << 1;
+bool _isLocalOffset(int offset) => (offset & 1) == 1;
+int _offsetWithoutIndicator(int offset) => offset >> 1;
+int _globalToRealOffset(int offset, DataSourceReader source) =>
+    (offset >> 1) - source.startOffset;
+int _localToGlobalOffset(int offset, DataSourceReader source) =>
+    _realToGlobalOffset(offset >> 1, source);
+int _localToGlobalForTesting(int offset) => offset & ~1;
 
 /// Data sink helper that canonicalizes [E?] values using IDs.
 ///
@@ -23,36 +129,43 @@ abstract class IndexedSink<E> {
 /// read. The read and write order do not need to be the same because no matter
 /// what occurrence of the ID we encounter, we can always recover the value.
 ///
-/// We increment all written offsets by [_startOffset] in order to distinguish
-/// which source file the offset is from on deserialization.
+/// We increment all written offsets by an adjustment value in order to
+/// distinguish which source file the offset is from on deserialization.
 /// See [UnorderedIndexedSource] for more info.
-class UnorderedIndexedSink<E> implements IndexedSink<E> {
-  final DataSinkWriter _sinkWriter;
-  final Map<E?, int> _cache;
-  final int _startOffset;
+class UnorderedIndexedSink<E extends Object> implements IndexedSink<E> {
+  final Map<E, int> _cache;
 
-  UnorderedIndexedSink(this._sinkWriter,
-      {Map<E?, int>? cache, int? startOffset})
-      : // [cache] slot 1 is pre-allocated to `null`.
-        this._cache = cache ?? {null: 1},
-        this._startOffset = startOffset ?? 0;
+  UnorderedIndexedSink({bool identity = false})
+    : _cache = identity ? Map.identity() : {};
+
+  @override
+  Map<E, int> get cache => _cache;
 
   /// Write a reference to [value] to the data sink.
   ///
   /// If [value] has not been canonicalized yet, [writeValue] is called to
   /// serialize the [value] itself.
   @override
-  void write(E? value, void writeValue(E value)) {
+  void write(DataSinkWriter sink, E? value, void Function(E value) writeValue) {
+    if (value == null) {
+      // We reserve 1 as an indicator for `null`.
+      sink.writeInt(_nullIndicator);
+      return;
+    }
     final offset = _cache[value];
     if (offset == null) {
       // We reserve 0 as an indicator that the data is written 'here'.
-      _sinkWriter.writeInt(0);
-      final adjustedOffset = _sinkWriter.length + _startOffset;
-      _sinkWriter.writeInt(adjustedOffset);
-      _cache[value] = adjustedOffset;
-      writeValue(value!); // null would have been found in slot 1
+      sink.writeInt(_dataInPlaceIndicator);
+      _cache[value] = _realToLocalOffset(sink.length);
+      writeValue(value);
     } else {
-      _sinkWriter.writeInt(offset);
+      final writtenOffset = offset + _indicatorOffset;
+      if (writtenOffset >= _maxCompactOffset) {
+        sink.writeInt(_nonCompactOffsetIndicator);
+        sink.writeUint32(offset);
+      } else {
+        sink.writeInt(writtenOffset);
+      }
     }
   }
 }
@@ -71,166 +184,130 @@ class UnorderedIndexedSink<E> implements IndexedSink<E> {
 ///   offset K1 .. K2    --- source S2
 ///   offset K2 .. K3    --- source S3
 ///
-/// This effectively treats all the file as a contiguous address space with
-/// offsets being relative to the start of the first source.
+/// This effectively treats all the files as a contiguous address space with
+/// offsets being global to the start of the first source.
+///
+/// Offsets are written in one of two forms. Either as a local offset, an offset
+/// relative to the start of the same file, or as a global offset, an offset
+/// relative to the start of the concatenated address space of all sources. The
+/// two forms are indicated via the lowest bit, the former has that bit set,
+/// the latter does not. Local offsets are turned into global offsets when they
+/// are written into a later file.
 ///
 /// If an offset is encountered outside the block accessible to current source,
-/// [previousSource] provides a pointer to the next source to check (i.e. the
-/// previous block in the address space).
-class UnorderedIndexedSource<E> implements IndexedSource<E> {
-  final DataSourceReader _sourceReader;
-  final Map<int, E?> _cache;
-  final UnorderedIndexedSource<E>? previousSource;
+/// [SerializationIndices] provides pointers to the previous sources to check
+/// (i.e. previous blocks in the address space).
+class UnorderedIndexedSource<E extends Object> implements IndexedSource<E> {
+  final Map<int, E> _cache = {};
+  final SerializationIndices _indices;
 
-  UnorderedIndexedSource(this._sourceReader, {this.previousSource})
-      // [cache] slot 1 is pre-allocated to `null`.
-      : _cache =
-            previousSource != null ? {...previousSource._cache} : {1: null};
+  UnorderedIndexedSource(this._indices);
+
+  @override
+  Map<int, E> get cache => _cache;
+
+  /// Reads a reference to an [E?] value from the data source or the backing
+  /// cache if the index has already been read.
+  ///
+  /// If the value hasn't yet been read, [readValue] is called to deserialize
+  /// the value itself.
+  @override
+  E? read(DataSourceReader source, E Function() readValue) {
+    final markerOrOffset = source.readInt();
+
+    if (markerOrOffset == _dataInPlaceIndicator) {
+      final globalOffset = _realToGlobalOffset(source.currentOffset, source);
+      // We have to read the value regardless of whether or not it's cached to
+      // move the reader past it.
+      final value = readValue();
+      final cachedValue = _cache[globalOffset];
+      if (cachedValue != null) return cachedValue;
+      _cache[globalOffset] = value;
+      return value;
+    } else if (markerOrOffset == _nullIndicator) {
+      return null;
+    } else {
+      int offset;
+      if (markerOrOffset == _nonCompactOffsetIndicator) {
+        offset = source.readUint32();
+      } else {
+        offset = markerOrOffset - _indicatorOffset;
+      }
+      bool isLocal = _isLocalOffset(offset);
+      final globalOffset = isLocal
+          ? _localToGlobalOffset(offset, source)
+          : offset;
+      final cachedValue = _cache[globalOffset];
+      if (cachedValue != null) return cachedValue;
+      return _readAtOffset(
+        source,
+        readValue,
+        globalOffset,
+        isLocal,
+        isCached: true,
+      );
+    }
+  }
 
   /// Reads a reference to an [E?] value from the data source.
   ///
-  /// If the value hasn't yet been read, [readValue] is called to deserialize
-  /// the value itself.
+  /// Does not cache the read value so each call to [readWithoutCache] of the
+  /// associated index will create a new object.
   @override
-  E? read(E readValue()) {
-    final markerOrOffset = _sourceReader.readInt();
+  E? readWithoutCache(DataSourceReader source, E Function() readValue) {
+    final markerOrOffset = source.readInt();
 
-    // We reserve 0 as an indicator that the data is written 'here'.
-    if (markerOrOffset == 0) {
-      final offset = _sourceReader.readInt();
-      // We have to read the value regardless of whether or not it's cached to
-      // move the reader passed it.
-      final value = readValue();
-      final cachedValue = _cache[offset];
-      if (cachedValue != null) return cachedValue;
-      _cache[offset] = value;
-      return value;
-    }
-    if (markerOrOffset == 1) return null;
-    final cachedValue = _cache[markerOrOffset];
-    if (cachedValue != null) return cachedValue;
-    return _readAtOffset(readValue, markerOrOffset);
-  }
-
-  UnorderedIndexedSource<E> _findSource(int offset) {
-    return offset >= _sourceReader.startOffset
-        ? this
-        : previousSource!._findSource(offset);
-  }
-
-  E? _readAtOffset(E readValue(), int offset) {
-    final realSource = _findSource(offset);
-    var adjustedOffset = offset - realSource._sourceReader.startOffset;
-    final reader = () {
-      _sourceReader.readInt();
+    if (markerOrOffset == _dataInPlaceIndicator) {
       return readValue();
-    };
-
-    final value = realSource == this
-        ? _sourceReader.readWithOffset(adjustedOffset, reader)
-        : _sourceReader.readWithSource(realSource._sourceReader,
-            () => _sourceReader.readWithOffset(adjustedOffset, reader));
-    _cache[offset] = value;
-    return value;
-  }
-
-  @override
-  Map<T?, int> reshapeCacheAsMap<T>([T Function(E? value)? getValue]) {
-    return _cache.map((key, value) =>
-        MapEntry(getValue == null ? value as T? : getValue(value), key));
-  }
-}
-
-/// Data sink helper that canonicalizes [E?] values using indices.
-///
-/// Writes a list index in place of already indexed values. This list index
-/// is the order in which we discover the indexable elements. On deserialization
-/// the indexable elements but be visited in the same order they were seen here
-/// so that the indices are maintained. Since the read order is assumed to be
-/// consistent, the actual data is written at the first occurrence of the
-/// indexable element.
-class OrderedIndexedSink<E> implements IndexedSink<E> {
-  final DataSink _sink;
-  final Map<E?, int> cache;
-
-  OrderedIndexedSink._(this._sink, this.cache);
-
-  factory OrderedIndexedSink(DataSink sink, {Map<E?, int>? cache}) {
-    // [cache] slot 0 is pre-allocated to `null`.
-    cache ??= {null: 0};
-    return OrderedIndexedSink._(sink, cache);
-  }
-
-  /// Write a reference to [value] to the data sink.
-  ///
-  /// If [value] has not been canonicalized yet, [writeValue] is called to
-  /// serialize the [value] itself.
-  @override
-  void write(E? value, void writeValue(E value)) {
-    const int pending = -1;
-    int? index = cache[value];
-    if (index == null) {
-      index = cache.length;
-      _sink.writeInt(index);
-      cache[value] = pending; // Increments length to allocate slot.
-      writeValue(value!); // `null` would have been found in slot 0.
-      cache[value] = index;
-    } else if (index == pending) {
-      throw ArgumentError("Cyclic dependency on cached value: $value");
+    } else if (markerOrOffset == _nullIndicator) {
+      return null;
     } else {
-      _sink.writeInt(index);
-    }
-  }
-}
-
-/// Data source helper reads canonicalized [E?] values through indices.
-///
-/// Reads indexable elements treating their read order as their index. Since the
-/// read order is consistent with the write order, when a new index is
-/// discovered we assume the data is written immediately after. Subsequent
-/// occurrences of that index then refer to the same value. Indices will appear
-/// in ascending order.
-class OrderedIndexedSource<E> implements IndexedSource<E> {
-  final DataSource _source;
-  final List<E?> cache;
-
-  OrderedIndexedSource._(this._source, this.cache);
-
-  factory OrderedIndexedSource(DataSource source, {List<E?>? cache}) {
-    // [cache] slot 0 is pre-allocated to `null`.
-    cache ??= [null];
-    return OrderedIndexedSource._(source, cache);
-  }
-
-  /// Reads a reference to an [E] value from the data source.
-  ///
-  /// If the value hasn't yet been read, [readValue] is called to deserialize
-  /// the value itself.
-  @override
-  E? read(E readValue()) {
-    int index = _source.readInt();
-    if (index >= cache.length) {
-      assert(index == cache.length);
-      cache.add(null); // placeholder.
-      E value = readValue();
-      cache[index] = value;
-      return value;
-    } else {
-      E? value = cache[index];
-      if (value == null && index != 0) {
-        throw StateError('Unfilled index $index of $E');
+      int offset;
+      if (markerOrOffset == _nonCompactOffsetIndicator) {
+        offset = source.readUint32();
+      } else {
+        offset = markerOrOffset - _indicatorOffset;
       }
-      return value;
+      bool isLocal = _isLocalOffset(offset);
+      final globalOffset = isLocal
+          ? _localToGlobalOffset(offset, source)
+          : offset;
+      return _readAtOffset(
+        source,
+        readValue,
+        globalOffset,
+        isLocal,
+        isCached: false,
+      );
     }
   }
 
-  @override
-  Map<T?, int> reshapeCacheAsMap<T>([T Function(E? value)? getValue]) {
-    var newCache = <T?, int>{};
-    for (int i = 0; i < cache.length; i++) {
-      final newKey = getValue == null ? cache[i] as T? : getValue(cache[i]);
-      newCache[newKey] = i;
+  DataSourceReader findSource(int globalOffset) {
+    final offset = _offsetWithoutIndicator(globalOffset);
+    final sources = _indices._sources;
+    for (int i = sources.length - 1; i >= 0; i--) {
+      final source = sources[i];
+      if (source.startOffset <= offset) return source;
     }
-    return newCache;
+    throw StateError('Could not find source for $offset.');
+  }
+
+  E _readAtOffset(
+    DataSourceReader source,
+    E Function() readValue,
+    int globalOffset,
+    bool isLocal, {
+    required bool isCached,
+  }) {
+    final realSource = isLocal ? source : findSource(globalOffset);
+    final realOffset = _globalToRealOffset(globalOffset, realSource);
+    final value = isLocal
+        ? source.readWithOffset(realOffset, readValue)
+        : source.readWithSource(
+            realSource,
+            () => source.readWithOffset(realOffset, readValue),
+          );
+    if (isCached) _cache[globalOffset] = value;
+    return value;
   }
 }

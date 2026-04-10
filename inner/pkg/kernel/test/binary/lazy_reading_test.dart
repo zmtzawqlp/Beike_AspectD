@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:typed_data';
+
 import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/src/tool/find_referenced_libraries.dart';
 import 'utils.dart';
@@ -32,8 +34,8 @@ void main() {
     classA.addConstructor(classAConstructor);
   }
   Component c = new Component(libraries: [lib]);
-  c.setMainMethodAndMode(null, false, NonNullableByDefaultCompiledMode.Weak);
-  List<int> loadMe = serializeComponent(c);
+  c.setMainMethodAndMode(null, false);
+  Uint8List loadMe = serializeComponent(c);
 
   // Load and make sure we can get at class B from class A (i.e. that it's
   // loaded correctly!).

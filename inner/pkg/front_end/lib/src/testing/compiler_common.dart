@@ -5,6 +5,8 @@
 /// Common compiler options and helper functions used for testing.
 library front_end.testing.compiler_options_common;
 
+import 'dart:typed_data';
+
 import 'package:kernel/ast.dart' show Library, Component;
 
 import '../api_prototype/front_end.dart'
@@ -14,14 +16,11 @@ import '../api_prototype/front_end.dart'
         kernelForModule,
         kernelForProgramInternal,
         summaryFor;
-
 import '../api_prototype/memory_file_system.dart'
     show MemoryFileSystem, MemoryFileSystemEntity;
-
+import '../base/hybrid_file_system.dart' show HybridFileSystem;
 import '../compute_platform_binaries_location.dart'
     show computePlatformBinariesLocation;
-
-import '../fasta/hybrid_file_system.dart' show HybridFileSystem;
 
 /// Generate kernel for a script.
 ///
@@ -64,7 +63,7 @@ Future<Component?> compileUnit(
 /// Generate a summary for a modular compilation unit.
 ///
 /// Wraps [summaryFor] with some default testing options (see [setup]).
-Future<List<int>?> summarize(List<String> inputs, Map<String, dynamic> sources,
+Future<Uint8List?> summarize(List<String> inputs, Map<String, dynamic> sources,
     {List<String> additionalDills = const [],
     CompilerOptions? options,
     bool truncate = false}) async {

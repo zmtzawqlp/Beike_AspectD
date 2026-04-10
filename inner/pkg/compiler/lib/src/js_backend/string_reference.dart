@@ -58,7 +58,10 @@
 ///
 /// In minified mode, the properties (`A_very`) can be replaced by shorter
 /// names.
-library js_backend.string_reference;
+library;
+
+// ignore: implementation_imports
+import 'package:js_ast/src/precedence.dart' as js_precedence;
 
 import '../constants/values.dart' show StringConstantValue;
 import '../js/js.dart' as js;
@@ -131,11 +134,12 @@ class StringReference extends js.DeferredExpression implements js.AstContainer {
   // Precedence will be CALL or LEFT_HAND_SIDE depending on what expression the
   // reference is resolved to.
   @override
-  int get precedenceLevel => value.precedenceLevel;
+  js_precedence.Precedence get precedenceLevel => value.precedenceLevel;
 
   @override
   StringReference withSourceInformation(
-      js.JavaScriptNodeSourceInformation? newSourceInformation) {
+    js.JavaScriptNodeSourceInformation? newSourceInformation,
+  ) {
     if (newSourceInformation == sourceInformation) return this;
     if (newSourceInformation == null) return this;
     return StringReference._(constant, _value, newSourceInformation);
@@ -197,7 +201,8 @@ class StringReferenceResource extends js.DeferredStatement
 
   @override
   StringReferenceResource withSourceInformation(
-      js.JavaScriptNodeSourceInformation? newSourceInformation) {
+    js.JavaScriptNodeSourceInformation? newSourceInformation,
+  ) {
     if (newSourceInformation == sourceInformation) return this;
     if (newSourceInformation == null) return this;
     return StringReferenceResource._(_statement, newSourceInformation);
@@ -239,9 +244,10 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
   /// Much of the algorithm's state is stored in the _ReferenceSet objects.
   final Map<StringConstantValue, _ReferenceSet> _referencesByString = {};
 
-  StringReferenceFinalizerImpl(this._minify,
-      {this.shortestSharedLength =
-          StringReferencePolicy.shortestSharedLength}) {
+  StringReferenceFinalizerImpl(
+    this._minify, {
+    this.shortestSharedLength = StringReferencePolicy.shortestSharedLength,
+  }) {
     _visitor = _StringReferenceCollectorVisitor(this);
   }
 
@@ -260,8 +266,9 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
   // Called from collector visitor.
   void registerStringReference(StringReference node) {
     StringConstantValue constant = node.constant;
-    _ReferenceSet refs =
-        _referencesByString[constant] ??= _ReferenceSet(constant);
+    _ReferenceSet refs = _referencesByString[constant] ??= _ReferenceSet(
+      constant,
+    );
     refs.count++;
     refs._references.add(node);
   }
@@ -284,8 +291,10 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
       }
     }
 
-    List<_ReferenceSet> referenceSetsUsingProperties =
-        _referencesByString.values.where((ref) => !ref.generateAtUse).toList();
+    List<_ReferenceSet> referenceSetsUsingProperties = _referencesByString
+        .values
+        .where((ref) => !ref.generateAtUse)
+        .toList();
 
     // Sort by string (which is unique and stable) so that similar strings are
     // grouped together.
@@ -305,10 +314,14 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
     if (properties.isEmpty) {
       _resource!.statement = js.Block.empty();
     } else {
-      js.Expression initializer =
-          js.ObjectInitializer(properties, isOneLiner: false);
-      _resource!.statement = js.js.statement(
-          r'var # = #', [js.VariableDeclaration(holderLocalName), initializer]);
+      js.Expression initializer = js.ObjectInitializer(
+        properties,
+        isOneLiner: false,
+      );
+      _resource!.statement = js.js.statement(r'var # = #', [
+        js.VariableDeclaration(holderLocalName),
+        initializer,
+      ]);
     }
   }
 
@@ -335,7 +348,8 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
     if (referencesInTable.isEmpty) return;
 
     List<String> names = abbreviateToIdentifiers(
-        referencesInTable.map((r) => r.constant.stringValue));
+      referencesInTable.map((r) => r.constant.stringValue),
+    );
     assert(referencesInTable.length == names.length);
     for (int i = 0; i < referencesInTable.length; i++) {
       referencesInTable[i].name = names[i];
@@ -376,12 +390,17 @@ class StringReferenceFinalizerImpl implements StringReferenceFinalizer {
         referencesByFrequency[index].propertyName = name;
       } else {
         var refSet = referencesByFrequency[index];
-        refSet.propertyName = name + '_' + refSet.name!;
+        refSet.propertyName = '${name}_${refSet.name!}';
       }
     }
 
-    semistableFrequencyAssignment(referencesByFrequency.length,
-        generalMinifiedNameSequence(), hashOf, countOf, assign);
+    semistableFrequencyAssignment(
+      referencesByFrequency.length,
+      generalMinifiedNameSequence(),
+      hashOf,
+      countOf,
+      assign,
+    );
   }
 }
 
@@ -437,7 +456,14 @@ class _StringReferenceCollectorVisitor extends js.BaseVisitorVoid {
         element.accept(this);
       }
     } else {
-      super.visitNode(node);
+      final deferredExpressionData = js.getNodeDeferredExpressionData(node);
+      if (deferredExpressionData != null) {
+        deferredExpressionData.stringReferences.forEach(
+          _finalizer.registerStringReference,
+        );
+      } else {
+        super.visitNode(node);
+      }
     }
   }
 

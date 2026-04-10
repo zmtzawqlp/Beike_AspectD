@@ -42,7 +42,7 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
 
   @override
   void visitGraph(HGraph graph) {
-    this._graph = graph;
+    _graph = graph;
     visitDominatorTree(graph);
   }
 
@@ -68,9 +68,9 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
   bool visitInstruction(HInstruction instruction) => false;
 
   @override
-  bool visitInvoke(HInvoke invoke) {
-    if (!invoke.isInterceptedCall) return false;
-    dynamic interceptor = invoke.inputs[0];
+  bool visitInvoke(HInvoke node) {
+    if (!node.isInterceptedCall) return false;
+    dynamic interceptor = node.inputs[0];
     if (interceptor is! HInterceptor) return false;
 
     // TODO(sra): Move this per-call code to visitInterceptor.
@@ -82,15 +82,19 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
     // possible that all uses can be rewritten to use different constants.
 
     HInstruction? constant = tryComputeConstantInterceptor(
-        invoke.inputs[1], interceptor.interceptedClasses);
+      node.inputs[1],
+      interceptor.interceptedClasses,
+    );
     if (constant != null) {
-      invoke.changeUse(interceptor, constant);
+      node.changeUse(interceptor, constant);
     }
     return false;
   }
 
-  bool canUseSelfForInterceptor(HInstruction receiver,
-      {Set<ClassEntity>? interceptedClasses}) {
+  bool canUseSelfForInterceptor(
+    HInstruction receiver, {
+    Set<ClassEntity>? interceptedClasses,
+  }) {
     if (receiver.isNull(_abstractValueDomain).isPotentiallyTrue) {
       if (interceptedClasses == null ||
           interceptedClasses.contains(_commonElements.jsNullClass)) {
@@ -107,9 +111,13 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
   }
 
   HInstruction? tryComputeConstantInterceptor(
-      HInstruction input, Set<ClassEntity>? interceptedClasses) {
+    HInstruction input,
+    Set<ClassEntity>? interceptedClasses,
+  ) {
     ClassEntity? constantInterceptor = tryComputeConstantInterceptorFromType(
-        input.instructionType, interceptedClasses);
+      input.instructionType,
+      interceptedClasses,
+    );
 
     if (constantInterceptor == null) return null;
 
@@ -125,7 +133,9 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
   }
 
   ClassEntity? tryComputeConstantInterceptorFromType(
-      AbstractValue type, Set<ClassEntity>? interceptedClasses) {
+    AbstractValue type,
+    Set<ClassEntity>? interceptedClasses,
+  ) {
     if (_abstractValueDomain.isNull(type).isPotentiallyTrue) {
       if (_abstractValueDomain.isNull(type).isDefinitelyTrue) {
         return _commonElements.jsNullClass;
@@ -170,8 +180,10 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
   // such an instruction exists.  [dominator] is an optional hint of an
   // instruction that dominates all elements of [instructions], but that is not
   // one of [instructions].
-  HInstruction? findDominatingInstruction(List<HInstruction> instructions,
-      [HInstruction? dominator]) {
+  HInstruction? findDominatingInstruction(
+    List<HInstruction> instructions, [
+    HInstruction? dominator,
+  ]) {
     // If there is a single dominator instruction, it will be in a block which
     // dominates all the other instruction's blocks. This means that the
     // dominatorDfsIn..dominatorDfsOut range will include all the other ranges,
@@ -204,11 +216,15 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
     // If multiple instructions are present in bestBlock, we scan bestBlock from
     // the start to find first instruction. If the [dominator] hint is in the
     // same block, can start from there instead.
-    Set<HInstruction> set =
-        instructions.where((i) => i.block == bestBlock).toSet();
-    HInstruction? current =
-        (dominator?.block == bestBlock) ? dominator : bestBlock.first;
-    while (current != null && !set.contains(current)) current = current.next;
+    Set<HInstruction> set = instructions
+        .where((i) => i.block == bestBlock)
+        .toSet();
+    HInstruction? current = (dominator?.block == bestBlock)
+        ? dominator
+        : bestBlock.first;
+    while (current != null && !set.contains(current)) {
+      current = current.next;
+    }
     assert(current != null);
     return current;
   }
@@ -250,11 +266,13 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
     // If there is a call that dominates all other uses, we can use just the
     // selector of that instruction.
     if (dominator is HInvokeDynamic &&
-        dominator.isCallOnInterceptor(_closedWorld) &&
+        dominator.isCallOnInterceptor &&
         node == dominator.receiver &&
         useCount(dominator, node) == 1) {
       interceptedClasses = _interceptorData.getInterceptedClassesOn(
-          dominator.selector.name, _closedWorld);
+        dominator.selector.name,
+        _closedWorld,
+      );
       // If we found that we need number, we must still go through all
       // uses to check if they require int, or double.
       if (interceptedClasses.contains(_commonElements.jsNumberClass) &&
@@ -285,17 +303,25 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
       interceptedClasses = {};
       for (HInstruction user in node.usedBy) {
         if (user is HInvokeDynamic &&
-            user.isCallOnInterceptor(_closedWorld) &&
+            user.isCallOnInterceptor &&
             node == user.receiver &&
             useCount(user, node) == 1) {
-          interceptedClasses.addAll(_interceptorData.getInterceptedClassesOn(
-              user.selector.name, _closedWorld));
+          interceptedClasses.addAll(
+            _interceptorData.getInterceptedClassesOn(
+              user.selector.name,
+              _closedWorld,
+            ),
+          );
         } else if (user is HInvokeSuper &&
-            user.isCallOnInterceptor(_closedWorld) &&
+            user.isCallOnInterceptor &&
             node == user.receiver &&
             useCount(user, node) == 1) {
-          interceptedClasses.addAll(_interceptorData.getInterceptedClassesOn(
-              user.selector.name, _closedWorld));
+          interceptedClasses.addAll(
+            _interceptorData.getInterceptedClassesOn(
+              user.selector.name,
+              _closedWorld,
+            ),
+          );
         } else {
           // Use a most general interceptor for other instructions, example,
           // is-checks and escaping interceptors.
@@ -310,8 +336,10 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
     HInstruction receiver = node.receiver;
 
     // Try computing a constant interceptor.
-    HInstruction? constantInterceptor =
-        tryComputeConstantInterceptor(receiver, interceptedClasses);
+    HInstruction? constantInterceptor = tryComputeConstantInterceptor(
+      receiver,
+      interceptedClasses,
+    );
     if (constantInterceptor != null) {
       node.block!.rewrite(node, constantInterceptor);
       return false;
@@ -339,11 +367,14 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
                 .isPrimitiveString(_abstractValueDomain)
                 .isPotentiallyTrue)) {
           ClassEntity? interceptorClass = tryComputeConstantInterceptorFromType(
-              _abstractValueDomain.excludeNull(receiver.instructionType),
-              interceptedClasses);
+            _abstractValueDomain.excludeNull(receiver.instructionType),
+            interceptedClasses,
+          );
           if (interceptorClass != null) {
             HConstant constantInstruction = _graph.addConstant(
-                InterceptorConstantValue(interceptorClass), _closedWorld);
+              InterceptorConstantValue(interceptorClass),
+              _closedWorld,
+            );
             node.conditionalConstantInterceptor = constantInstruction;
             constantInstruction.usedBy.add(node);
             return false;
@@ -370,28 +401,31 @@ class SsaSimplifyInterceptors extends HBaseVisitor<bool>
     //       print(x.length);  //
     //     }
 
-    finishInvoke(HInvoke invoke, Selector selector) {
-      HInstruction callReceiver = invoke.getDartReceiver(_closedWorld)!;
+    void finishInvoke(HInvoke invoke, Selector selector) {
+      HInstruction callReceiver = invoke.getDartReceiver()!;
       if (receiver.nonCheck() == callReceiver.nonCheck()) {
         Set<ClassEntity> interceptedClasses = _interceptorData
             .getInterceptedClassesOn(selector.name, _closedWorld);
 
-        if (canUseSelfForInterceptor(callReceiver,
-            interceptedClasses: interceptedClasses)) {
+        if (canUseSelfForInterceptor(
+          callReceiver,
+          interceptedClasses: interceptedClasses,
+        )) {
           invoke.changeUse(node, callReceiver);
+          invoke.updateIsCallOnInterceptor();
         }
       }
     }
 
     for (HInstruction user in node.usedBy.toList()) {
       if (user is HInvokeDynamic) {
-        if (user.isCallOnInterceptor(_closedWorld) &&
+        if (user.isCallOnInterceptor &&
             node == user.inputs[0] &&
             useCount(user, node) == 1) {
           finishInvoke(user, user.selector);
         }
       } else if (user is HInvokeSuper) {
-        if (user.isCallOnInterceptor(_closedWorld) &&
+        if (user.isCallOnInterceptor &&
             node == user.inputs[0] &&
             useCount(user, node) == 1) {
           finishInvoke(user, user.selector);

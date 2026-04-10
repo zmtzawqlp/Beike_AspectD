@@ -5,14 +5,22 @@
 // NOTE: THIS FILE IS GENERATED. DO NOT EDIT.
 //
 // Instead modify 'tools/experimental_features.yaml' and run
-// 'dart pkg/front_end/tool/fasta.dart generate-experimental-flags' to update.
+// 'dart pkg/front_end/tool/cfe.dart generate-experimental-flags' to update.
+const Version defaultLanguageVersion = const Version(3, 9);
 
 /// Enum for experimental flags shared between the CFE and the analyzer.
 enum ExperimentalFlag {
+  augmentations(
+      name: 'augmentations',
+      isEnabledByDefault: false,
+      isExpired: false,
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: const Version(3, 6)),
+
   classModifiers(
       name: 'class-modifiers',
       isEnabledByDefault: true,
-      isExpired: false,
+      isExpired: true,
       experimentEnabledVersion: const Version(3, 0),
       experimentReleasedVersion: const Version(3, 0)),
 
@@ -20,8 +28,8 @@ enum ExperimentalFlag {
       name: 'const-functions',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
 
   constantUpdate2018(
       name: 'constant-update-2018',
@@ -44,12 +52,33 @@ enum ExperimentalFlag {
       experimentEnabledVersion: const Version(2, 0),
       experimentReleasedVersion: const Version(2, 0)),
 
+  digitSeparators(
+      name: 'digit-separators',
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 6),
+      experimentReleasedVersion: const Version(3, 6)),
+
+  dotShorthands(
+      name: 'dot-shorthands',
+      isEnabledByDefault: false,
+      isExpired: false,
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
+
   enhancedEnums(
       name: 'enhanced-enums',
       isEnabledByDefault: true,
       isExpired: true,
       experimentEnabledVersion: const Version(2, 17),
       experimentReleasedVersion: const Version(2, 17)),
+
+  enhancedParts(
+      name: 'enhanced-parts',
+      isEnabledByDefault: false,
+      isExpired: false,
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: const Version(3, 6)),
 
   extensionMethods(
       name: 'extension-methods',
@@ -58,19 +87,19 @@ enum ExperimentalFlag {
       experimentEnabledVersion: const Version(2, 6),
       experimentReleasedVersion: const Version(2, 6)),
 
-  extensionTypes(
-      name: 'extension-types',
-      isEnabledByDefault: false,
-      isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
-
   genericMetadata(
       name: 'generic-metadata',
       isEnabledByDefault: true,
       isExpired: true,
       experimentEnabledVersion: const Version(2, 14),
       experimentReleasedVersion: const Version(2, 14)),
+
+  getterSetterError(
+      name: 'getter-setter-error',
+      isEnabledByDefault: true,
+      isExpired: false,
+      experimentEnabledVersion: const Version(3, 9),
+      experimentReleasedVersion: const Version(3, 9)),
 
   inferenceUpdate1(
       name: 'inference-update-1',
@@ -81,24 +110,45 @@ enum ExperimentalFlag {
 
   inferenceUpdate2(
       name: 'inference-update-2',
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 2),
+      experimentReleasedVersion: const Version(3, 2)),
+
+  inferenceUpdate3(
+      name: 'inference-update-3',
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 4),
+      experimentReleasedVersion: const Version(3, 4)),
+
+  inferenceUpdate4(
+      name: 'inference-update-4',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
+
+  inferenceUsingBounds(
+      name: 'inference-using-bounds',
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 7),
+      experimentReleasedVersion: const Version(3, 7)),
 
   inlineClass(
       name: 'inline-class',
-      isEnabledByDefault: false,
-      isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 3),
+      experimentReleasedVersion: const Version(3, 3)),
 
   macros(
       name: 'macros',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: const Version(3, 3)),
 
   namedArgumentsAnywhere(
       name: 'named-arguments-anywhere',
@@ -106,6 +156,13 @@ enum ExperimentalFlag {
       isExpired: true,
       experimentEnabledVersion: const Version(2, 17),
       experimentReleasedVersion: const Version(2, 17)),
+
+  nativeAssets(
+      name: 'native-assets',
+      isEnabledByDefault: true,
+      isExpired: false,
+      experimentEnabledVersion: const Version(3, 9),
+      experimentReleasedVersion: const Version(3, 9)),
 
   nonNullable(
       name: 'non-nullable',
@@ -121,24 +178,38 @@ enum ExperimentalFlag {
       experimentEnabledVersion: const Version(2, 13),
       experimentReleasedVersion: const Version(2, 13)),
 
+  nullAwareElements(
+      name: 'null-aware-elements',
+      isEnabledByDefault: true,
+      isExpired: false,
+      experimentEnabledVersion: const Version(3, 8),
+      experimentReleasedVersion: const Version(3, 8)),
+
   patterns(
       name: 'patterns',
       isEnabledByDefault: true,
-      isExpired: false,
+      isExpired: true,
       experimentEnabledVersion: const Version(3, 0),
       experimentReleasedVersion: const Version(3, 0)),
+
+  recordUse(
+      name: 'record-use',
+      isEnabledByDefault: false,
+      isExpired: false,
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
 
   records(
       name: 'records',
       isEnabledByDefault: true,
-      isExpired: false,
+      isExpired: true,
       experimentEnabledVersion: const Version(3, 0),
       experimentReleasedVersion: const Version(3, 0)),
 
   sealedClass(
       name: 'sealed-class',
       isEnabledByDefault: true,
-      isExpired: false,
+      isExpired: true,
       experimentEnabledVersion: const Version(3, 0),
       experimentReleasedVersion: const Version(3, 0)),
 
@@ -148,6 +219,13 @@ enum ExperimentalFlag {
       isExpired: true,
       experimentEnabledVersion: const Version(2, 0),
       experimentReleasedVersion: const Version(2, 0)),
+
+  soundFlowAnalysis(
+      name: 'sound-flow-analysis',
+      isEnabledByDefault: true,
+      isExpired: false,
+      experimentEnabledVersion: const Version(3, 9),
+      experimentReleasedVersion: const Version(3, 9)),
 
   spreadCollections(
       name: 'spread-collections',
@@ -167,8 +245,8 @@ enum ExperimentalFlag {
       name: 'test-experiment',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
 
   tripleShift(
       name: 'triple-shift',
@@ -180,23 +258,30 @@ enum ExperimentalFlag {
   unnamedLibraries(
       name: 'unnamed-libraries',
       isEnabledByDefault: true,
-      isExpired: false,
+      isExpired: true,
       experimentEnabledVersion: const Version(2, 19),
       experimentReleasedVersion: const Version(2, 19)),
 
-  valueClass(
-      name: 'value-class',
+  unquotedImports(
+      name: 'unquoted-imports',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
 
   variance(
       name: 'variance',
       isEnabledByDefault: false,
       isExpired: false,
-      experimentEnabledVersion: const Version(3, 0),
-      experimentReleasedVersion: const Version(3, 0)),
+      experimentEnabledVersion: defaultLanguageVersion,
+      experimentReleasedVersion: defaultLanguageVersion),
+
+  wildcardVariables(
+      name: 'wildcard-variables',
+      isEnabledByDefault: true,
+      isExpired: true,
+      experimentEnabledVersion: const Version(3, 7),
+      experimentReleasedVersion: const Version(3, 7)),
   ;
 
   final String name;

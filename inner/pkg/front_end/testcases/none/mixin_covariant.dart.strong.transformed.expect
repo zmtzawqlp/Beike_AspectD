@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
@@ -25,23 +25,23 @@ abstract class Mixin extends core::Object /*isMixinDeclaration*/  {
   method method4(covariant-by-declaration core::int argument1, core::int argument2) → core::String
     return "Mixin";
 }
-abstract class _Class&Superclass&Mixin = self::Superclass with self::Mixin /*isAnonymousMixin*/  {
-  synthetic constructor •() → self::_Class&Superclass&Mixin
-    : super self::Superclass::•()
-    ;
-  mixin-super-stub method method1(core::num argument1, core::num argument2) → core::String
-    return super.{self::Mixin::method1}(argument1, argument2);
-  mixin-super-stub method method2(covariant-by-declaration core::int argument1, core::num argument2) → core::String
-    return super.{self::Mixin::method2}(argument1, argument2);
-  forwarding-stub method method3(core::num argument1, covariant-by-declaration core::num argument2) → core::String
-    return super.{self::Mixin::method3}(argument1, argument2);
-  forwarding-stub method method4(covariant-by-declaration core::int argument1, covariant-by-declaration core::int argument2) → core::String
-    return super.{self::Mixin::method4}(argument1, argument2);
-}
 class Class extends self::_Class&Superclass&Mixin {
   synthetic constructor •() → self::Class
     : super self::_Class&Superclass&Mixin::•()
     ;
+}
+abstract class _Class&Superclass&Mixin = self::Superclass with self::Mixin /*isAnonymousMixin*/  {
+  synthetic constructor •() → self::_Class&Superclass&Mixin
+    : super self::Superclass::•()
+    ;
+  synthetic mixin-super-stub method method1(core::num argument1, core::num argument2) → core::String
+    return super.{self::Mixin::method1}(argument1, argument2);
+  synthetic mixin-super-stub method method2(covariant-by-declaration core::int argument1, core::num argument2) → core::String
+    return super.{self::Mixin::method2}(argument1, argument2);
+  forwarding-stub synthetic method method3(core::num argument1, covariant-by-declaration core::num argument2) → core::String
+    return super.{self::Mixin::method3}(argument1, argument2);
+  forwarding-stub synthetic method method4(covariant-by-declaration core::int argument1, covariant-by-declaration core::int argument2) → core::String
+    return super.{self::Mixin::method4}(argument1, argument2);
 }
 static method main() → dynamic {
   self::Class c = new self::Class::•();
@@ -69,7 +69,7 @@ static method throws(() → void f) → void {
   try {
     f(){() → void};
   }
-  on core::Object catch(final core::Object _) {
+  on core::Object catch(final wildcard core::Object _#wc0#formal) {
     return;
   }
   throw "Expected exception";

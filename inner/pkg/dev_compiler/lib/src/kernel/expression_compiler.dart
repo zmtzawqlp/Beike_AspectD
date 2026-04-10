@@ -9,264 +9,27 @@ import 'package:_fe_analyzer_shared/src/messages/codes.dart'
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessage, DiagnosticMessageHandler;
 import 'package:front_end/src/api_unstable/ddc.dart';
-import 'package:kernel/ast.dart'
-    show
-        Block,
-        Class,
-        Component,
-        Constructor,
-        DartType,
-        Field,
-        FunctionNode,
-        Library,
-        Member,
-        Node,
-        Procedure,
-        RedirectingFactory,
-        TreeNode,
-        TypeParameter,
-        VariableDeclaration,
-        Visitor,
-        VisitorNullMixin,
-        VisitorVoidMixin;
+import 'package:kernel/ast.dart' show Component, Library;
+import 'package:kernel/dart_scope_calculator.dart';
 
 import '../compiler/js_names.dart' as js_ast;
 import '../compiler/module_builder.dart';
 import '../js_ast/js_ast.dart' as js_ast;
-import 'compiler.dart' show ProgramCompiler;
+import 'compiler.dart' show Compiler;
 
 DiagnosticMessage _createInternalError(Uri uri, int line, int col, String msg) {
-  return Message(Code<String>('Expression Compiler Internal error'),
-          problemMessage: msg)
+  return Message(
+        Code<String>('Expression Compiler Internal error'),
+        problemMessage: msg,
+      )
       .withLocation(uri, 0, 0)
-      .withFormatting(PlainAndColorizedString.plainOnly('Internal error: $msg'),
-          line, col, Severity.internalProblem, []);
-}
-
-/// Dart scope
-///
-/// Provides information about symbols available inside a dart scope.
-class DartScope {
-  final Library library;
-  final Class? cls;
-  final Member? member;
-  final bool isStatic;
-  final Map<String, DartType> definitions;
-  final List<TypeParameter> typeParameters;
-
-  DartScope(this.library, this.cls, this.member, this.definitions,
-      this.typeParameters)
-      : isStatic = member is Procedure ? member.isStatic : false;
-
-  @override
-  String toString() {
-    return '''DartScope {
-      Library: ${library.importUri},
-      Class: ${cls?.name},
-      Procedure: $member,
-      isStatic: $isStatic,
-      Scope: $definitions,
-      typeParameters: $typeParameters
-    }
-    ''';
-  }
-}
-
-/// DartScopeBuilder finds dart scope information for a location.
-///
-/// Find all definitions in scope at a given 1-based [line] and [column]:
-///
-/// - library
-/// - class
-/// - locals
-/// - formals
-/// - captured variables (for closures)
-class DartScopeBuilder extends Visitor<void> with VisitorVoidMixin {
-  final Component _component;
-  final int _line;
-  final int _column;
-
-  Library? _library;
-  Class? _cls;
-  Member? _member;
-  int _offset = -1;
-
-  DiagnosticMessageHandler? onDiagnostic;
-
-  final List<FunctionNode> _functions = [];
-  final Map<String, DartType> _definitions = {};
-  final List<TypeParameter> _typeParameters = [];
-
-  DartScopeBuilder._(this._component, this._line, this._column);
-
-  static DartScope? findScope(Component component, Library library, int line,
-      int column, DiagnosticMessageHandler onDiagnostic) {
-    var builder = DartScopeBuilder._(component, line, column)
-      ..onDiagnostic = onDiagnostic;
-    library.accept(builder);
-    return builder.build();
-  }
-
-  DartScope? build() {
-    if (_offset < 0 || _library == null) return null;
-
-    return DartScope(_library!, _cls, _member, _definitions, _typeParameters);
-  }
-
-  @override
-  void defaultTreeNode(Node node) {
-    node.visitChildren(this);
-  }
-
-  @override
-  void visitLibrary(Library library) {
-    _library = library;
-    _offset = 0;
-    if (_line > 0) {
-      _offset = _component.getOffset(_library!.fileUri, _line, _column);
-    }
-
-    // Exit early if the evaluation offset is not found.
-    // Note: the complete scope is not found in this case,
-    // so the expression compiler will report an error.
-    if (_offset >= 0) super.visitLibrary(library);
-  }
-
-  @override
-  void visitClass(Class cls) {
-    if (_scopeContainsOffset(cls.fileOffset, cls.fileEndOffset, _offset)) {
-      _cls = cls;
-      _typeParameters.addAll(cls.typeParameters);
-
-      super.visitClass(cls);
-    }
-  }
-
-  @override
-  void defaultMember(Member m) {
-    if (_scopeContainsOffset(m.fileOffset, m.fileEndOffset, _offset)) {
-      _member = m;
-
-      super.defaultMember(m);
-    }
-  }
-
-  @override
-  void visitFunctionNode(FunctionNode fun) {
-    if (_scopeContainsOffset(fun.fileOffset, fun.fileEndOffset, _offset)) {
-      _functions.add(fun);
-      _typeParameters.addAll(fun.typeParameters);
-
-      super.visitFunctionNode(fun);
-    }
-  }
-
-  @override
-  void visitVariableDeclaration(VariableDeclaration decl) {
-    var name = decl.name;
-    // Collect locals and formals appearing before current breakpoint.
-    // Note that we include variables with no offset because the offset
-    // is not set in many cases in generated code, so omitting them would
-    // make expression evaluation fail in too many cases.
-    // Issue: https://github.com/dart-lang/sdk/issues/43966
-    //
-    // A null name signals that the variable was synthetically introduced by the
-    // compiler so they are skipped.
-    if ((decl.fileOffset < 0 || decl.fileOffset < _offset) && name != null) {
-      _definitions[name] = decl.type;
-    }
-    super.visitVariableDeclaration(decl);
-  }
-
-  @override
-  void visitBlock(Block block) {
-    var fileEndOffset = FileEndOffsetCalculator.calculateEndOffset(block);
-    if (_scopeContainsOffset(block.fileOffset, fileEndOffset, _offset)) {
-      super.visitBlock(block);
-    }
-  }
-
-  bool _scopeContainsOffset(int startOffset, int endOffset, int offset) {
-    if (offset < 0 || startOffset < 0 || endOffset < 0) {
-      return false;
-    }
-    return startOffset <= offset && offset <= endOffset;
-  }
-}
-
-/// File end offset calculator.
-///
-/// Helps calculate file end offsets for nodes with internal scope
-/// that do not have .fileEndOffset field.
-///
-/// For example - [Block]
-class FileEndOffsetCalculator extends Visitor<int?> with VisitorNullMixin<int> {
-  static const int noOffset = -1;
-
-  final int _startOffset;
-  final TreeNode _root;
-  final TreeNode _original;
-
-  int _endOffset = noOffset;
-
-  /// Create calculator for a scoping node with no .fileEndOffset.
-  ///
-  /// [_root] is the parent of the scoping node.
-  /// [_startOffset] is the start offset of the scoping node.
-  FileEndOffsetCalculator._(this._root, this._original)
-      : _startOffset = _original.fileOffset;
-
-  /// Calculate file end offset for a scoping node.
-  ///
-  /// This calculator finds the first node in the ancestor chain that
-  /// can give such information for a given [node], i.e. satisfies one
-  /// of the following conditions:
-  ///
-  /// - a node with a greater start offset that is a child of the
-  ///   closest ancestor. The start offset of this child is used as a
-  ///   file end offset of the [node].
-  ///
-  /// - the closest ancestor with .fileEndOffset information. The file
-  ///   end offset of the ancestor is used as the file end offset of
-  ///   the [node.]
-  ///
-  /// If none found, return [noOffset].
-  static int calculateEndOffset(TreeNode node) {
-    for (var n = node.parent; n != null; n = n.parent) {
-      var calculator = FileEndOffsetCalculator._(n, node);
-      var offset = n.accept(calculator);
-      if (offset != noOffset) return offset!;
-    }
-    return noOffset;
-  }
-
-  @override
-  int defaultTreeNode(TreeNode node) {
-    if (node == _original) return _endOffset;
-    if (node == _root) {
-      node.visitChildren(this);
-      if (_endOffset != noOffset) return _endOffset;
-      return _endOffsetForNode(node);
-    }
-    // Skip synthesized variables as they could have offsets
-    // from later code (in case they are hoisted, for example).
-    if ((node is! VariableDeclaration || !node.isSynthesized) &&
-        _endOffset == noOffset &&
-        node.fileOffset > _startOffset) {
-      _endOffset = node.fileOffset;
-    }
-    return _endOffset;
-  }
-
-  static int _endOffsetForNode(TreeNode node) {
-    if (node is Class) return node.fileEndOffset;
-    if (node is Constructor) return node.fileEndOffset;
-    if (node is Procedure) return node.fileEndOffset;
-    if (node is Field) return node.fileEndOffset;
-    if (node is RedirectingFactory) return node.fileEndOffset;
-    if (node is FunctionNode) return node.fileEndOffset;
-    return noOffset;
-  }
+      .withFormatting(
+        PlainAndColorizedString.plainOnly('Internal error: $msg'),
+        line,
+        col,
+        Severity.internalProblem,
+        [],
+      );
 }
 
 class ExpressionCompiler {
@@ -276,7 +39,7 @@ class ExpressionCompiler {
   final CompilerOptions _options;
   final List<String> errors;
   final IncrementalCompiler _compiler;
-  final ProgramCompiler _kernel2jsCompiler;
+  final Compiler _kernel2jsCompiler;
   final Component _component;
   final ModuleFormat _moduleFormat;
 
@@ -295,13 +58,20 @@ class ExpressionCompiler {
     this._compiler,
     this._kernel2jsCompiler,
     this._component,
-  )   : onDiagnostic = _options.onDiagnostic!,
-        _context = _compiler.context;
+  ) : onDiagnostic = _options.onDiagnostic!,
+      _context = _compiler.context;
 
-  /// Compiles [expression] in [libraryUri] at [line]:[column] to JavaScript
-  /// in [moduleName].
+  /// Compiles [expression] in library [libraryUri] and file [scriptUri]
+  /// at [line]:[column] to JavaScript in [moduleName].
   ///
-  /// [line] and [column] are 1-based.
+  /// [libraryUri] and [scriptUri] can be the same, but if for instance
+  /// evaluating expressions in a part file the [libraryUri] will be the uri of
+  /// the "part of" file whereas [scriptUri] will be the uri of the part.
+  ///
+  /// [line] and [column] are 1-based. Library level expressions typically use
+  /// [line] and [column] 1 as an indicator that there is no relevant location.
+  /// For flexibility, a value of 0 is also accepted and recognized
+  /// in the same way.
   ///
   /// Values listed in [jsFrameValues] are substituted for their names in the
   /// [expression].
@@ -312,14 +82,25 @@ class ExpressionCompiler {
   /// [jsFrameValues] is a map from js variable name to its primitive value
   /// or another variable name, for example
   /// { 'x': '1', 'y': 'y', 'o': 'null' }
-  Future<String?> compileExpressionToJs(String libraryUri, int line, int column,
-      Map<String, String> jsScope, String expression) async {
+  Future<String?> compileExpressionToJs(
+    String libraryUri,
+    String? scriptUri,
+    int line,
+    int column,
+    Map<String, String> jsScope,
+    String expression,
+  ) async {
     try {
       // 1. find dart scope where debugger is paused
 
       _log('Compiling expression \n$expression');
 
-      var dartScope = _findScopeAt(Uri.parse(libraryUri), line, column);
+      var dartScope = _findScopeAt(
+        Uri.parse(libraryUri),
+        scriptUri == null ? null : Uri.parse(scriptUri),
+        line,
+        column,
+      );
       if (dartScope == null) {
         _log('Scope not found at $libraryUri:$line:$column');
         return null;
@@ -333,19 +114,155 @@ class ExpressionCompiler {
       // different from dart.
       // See [issue 40273](https://github.com/dart-lang/sdk/issues/40273)
 
-      // remove undefined js variables (this allows us to get a reference error
-      // from chrome on evaluation)
-      dartScope.definitions
-          .removeWhere((variable, type) => !jsScope.containsKey(variable));
+      // Work around mismatched names and lowered representation for late local
+      // variables.
+      // Replace the existing entries with a name that matches the named
+      // extracted from the lowering.
+      // See https://github.com/dart-lang/sdk/issues/55918
+      var dartLateLocals = [
+        for (var name in dartScope.definitions.keys)
+          if (isLateLoweredLocalName(name)) name,
+      ];
+      for (var localName in dartLateLocals) {
+        dartScope.definitions[extractLocalName(localName)] = dartScope
+            .definitions
+            .remove(localName)!;
+      }
 
-      dartScope.typeParameters
-          .removeWhere((parameter) => !jsScope.containsKey(parameter.name));
+      // Create a mapping from Dart variable names in scope to the corresponding
+      // JS values. The Dart variable may have had a suffix of the
+      // form '$N' added to it where N is either the empty string or an
+      // integer >= 0.
+      final dartNameToJsValue = <String, String>{};
+
+      int nameCompare(String a, String b) {
+        final lengthCmp = b.length.compareTo(a.length);
+        if (lengthCmp != 0) return lengthCmp;
+        return b.compareTo(a);
+      }
+
+      // Sort Dart names in case a user-defined name includes a '$'. The
+      // resulting normalized JS name might seem like a suffixed version of a
+      // shorter Dart name. Since longer Dart names can't incorrectly match a
+      // shorter JS name (JS names are always at least as long as the Dart
+      // name), we process them from longest to shortest.
+      final dartNames = [...dartScope.definitions.keys]..sort(nameCompare);
+
+      // Sort JS names so that the highest suffix value gets assigned to the
+      // corresponding Dart name first. Since names are suffixed in ascending
+      // order as inner scopes are visited, the highest suffix value will be
+      // the one that matches the visible Dart name in a given scope.
+      final jsNames = [...jsScope.keys]..sort(nameCompare);
+
+      const removedSentinel = '';
+      const thisJsName = r'$this';
+
+      // Get the available async scopes.
+      final asyncScopeRegexp = RegExp(r'^asyncScope(\$[0-9]*)?$');
+      final asyncScopes = [
+        ...jsNames.where((e) => asyncScopeRegexp.hasMatch(e)),
+      ];
+
+      for (final dartName in dartNames) {
+        if (isExtensionThisName(dartName)) {
+          if (jsScope.containsKey(thisJsName)) {
+            dartNameToJsValue[dartName] = jsScope[thisJsName]!;
+          }
+          continue;
+        }
+        // Any name containing a '$' symbol will have that symbol expanded to
+        // '$36' in JS. We do a similar expansion here to normalize the names.
+        final jsNamePrefix = js_ast
+            .toJSIdentifier(dartName)
+            .replaceAll('\$', '\\\$');
+        final regexp = RegExp(r'^' + jsNamePrefix + r'(\$[0-9]*)?$');
+        for (var i = 0; i < jsNames.length; i++) {
+          final jsName = jsNames[i];
+          if (jsName == removedSentinel) continue;
+          if (jsName.length < dartName.length) break;
+          if (regexp.hasMatch(jsName)) {
+            dartNameToJsValue[dartName] = jsScope[jsName]!;
+            jsNames[i] = removedSentinel;
+
+            // Remove any additional JS names that match this name as these will
+            // correspond to shadowed Dart variables that are not visible in the
+            // current scope.
+            //
+            // Note: In some extreme cases this can match the wrong variable.
+            // This would require a combination of 36 nested variables with the
+            // same name and a similarly named variable with a $ in its name.
+            for (var j = i; j < jsNames.length; j++) {
+              final jsName = jsNames[j];
+              if (jsName == removedSentinel) continue;
+              if (jsName.length < dartName.length) break;
+              if (regexp.hasMatch(jsNames[j])) {
+                jsNames[j] = removedSentinel;
+              }
+            }
+            break;
+          }
+        }
+
+        if (asyncScopes.isNotEmpty) {
+          // Look up the value in the available async scopes.
+          //
+          // Creates an expression of the form:
+          // "<dartName>" in asyncScope
+          //   ? asyncScope["<dartName>"]
+          //   : ("<dartName>" in asyncScope1
+          //        ? asyncScope1["<dartName>"]
+          //        : (...))
+          //
+          // Each 'asyncScope' variable represents a single Dart scope and the
+          // keys in it match the names of the available Dart variables.
+          // Each scope object is declared up front but values are not inserted
+          // into it until the Dart scope is actually entered. So only "live"
+          // scopes will contain keys.
+          //
+          // This expression will start at the innermost available scope and
+          // and work its way out until it finds the first live scope that has
+          // a value for the given Dart variable name.
+          //
+          // If the value is not found in any async scope then it defaults to
+          // the nearest matching js value calculated above (which may be
+          // captured from an outer scope).
+          //
+          // If there was no value found then this means that the variable does
+          // not exist in any scope. This can occur if the browser detects the
+          // JS variable is unused and so the browser doesn't capture it. In
+          // this case return a special sentinel value that we can detect and
+          // throw on.
+          final defaultValue = dartNameToJsValue[dartName] ?? 'sentinel';
+          dartNameToJsValue[dartName] = asyncScopes.fold(
+            defaultValue,
+            (p, e) => '"$dartName" in $e ? $e["$dartName"] : ($p)',
+          );
+        }
+      }
+
+      dartScope.definitions.removeWhere(
+        (variable, type) =>
+            // Remove undefined js variables (this allows us to get a reference
+            // error from chrome on evaluation).
+            !dartNameToJsValue.containsKey(variable) ||
+            // Remove wildcard method arguments which are lowered to have Dart
+            // names that are invalid for Dart compilations.
+            // Wildcard local variables are not appearing here at this time.
+            isWildcardLoweredFormalParameter(variable),
+      );
+
+      // Wildcard type parameters already matched by this existing test.
+      dartScope.typeParameters.removeWhere(
+        (parameter) => !jsScope.containsKey(parameter.name),
+      );
 
       // map from values from the stack when available (this allows to evaluate
       // captured variables optimized away in chrome)
       var localJsScope = [
         ...dartScope.typeParameters.map((parameter) => jsScope[parameter.name]),
-        ...dartScope.definitions.keys.map((variable) => jsScope[variable])
+        ...dartScope.definitions.keys.map(
+          (variable) => dartNameToJsValue[variable],
+        ),
       ];
 
       _log('Performed scope substitutions for expression');
@@ -381,43 +298,91 @@ class ExpressionCompiler {
 
       var args = localJsScope.join(',\n    ');
       jsExpression = jsExpression.split('\n').join('\n  ');
-      var callExpression = '\ntry {'
-          '\n  ($jsExpression('
-          '\n    $args'
-          '\n  ))'
-          '\n} catch (error) {'
-          '\n  error.name + ": " + error.message;'
-          '\n}';
+      // We check for '_boundMethod' in case tearoffs are returned.
+      var callExpression =
+          '((() => {var sentinel = {}; var output = $jsExpression($args); '
+          'if (output === sentinel) throw Error("Value not found in scope");'
+          'return output?._boundMethod || output;})())';
 
       _log('Compiled expression \n$expression to $callExpression');
       return callExpression;
     } catch (e, s) {
       onDiagnostic(
-          _createInternalError(Uri.parse(libraryUri), line, column, '$e:$s'));
+        _createInternalError(Uri.parse(libraryUri), line, column, '$e:$s'),
+      );
       return null;
     }
   }
 
-  DartScope? _findScopeAt(Uri libraryUri, int line, int column) {
+  DartScope? _findScopeAt(
+    Uri libraryUri,
+    Uri? scriptFileUri,
+    int line,
+    int column,
+  ) {
     if (line < 0) {
-      onDiagnostic(_createInternalError(
-          libraryUri, line, column, 'Invalid source location'));
+      onDiagnostic(
+        _createInternalError(
+          libraryUri,
+          line,
+          column,
+          'Invalid source location',
+        ),
+      );
       return null;
     }
 
     var library = _getLibrary(libraryUri);
     if (library == null) {
-      onDiagnostic(_createInternalError(
-          libraryUri, line, column, 'Dart library not found for location'));
+      onDiagnostic(
+        _createInternalError(
+          libraryUri,
+          line,
+          column,
+          'Dart library not found for location',
+        ),
+      );
       return null;
     }
 
-    var scope = DartScopeBuilder.findScope(
-        _component, library, line, column, onDiagnostic);
+    // TODO(jensj): Eventually make the scriptUri required and always use this,
+    // but for now use the old mechanism when no script is provided.
+    if (scriptFileUri != null) {
+      final offset = _component.getOffset(library.fileUri, line, column);
+      final scope2 = DartScopeBuilder2.findScopeFromOffset(
+        library,
+        scriptFileUri,
+        offset,
+      );
+      return scope2;
+    }
+
+    var scope = DartScopeBuilder.findScope(_component, library, line, column);
     if (scope == null) {
-      onDiagnostic(_createInternalError(
-          libraryUri, line, column, 'Dart scope not found for location'));
-      return null;
+      // Fallback mechanism to allow a evaluation of an expression at the
+      // library level within the Dart SDK.
+      //
+      // Currently we lack the full dill and metadata for the Dart SDK module to
+      // be able to use the same mechanism of expression evaluation as the rest
+      // of a program. Because of that, expression evaluation at arbitrary
+      // scopes is not supported in the Dart SDK. However, we can still support
+      // compiling expressions that will be evaluated at the library level. We
+      // determine if that's the case by recognizing that all such requests use
+      // line 1 and column 1.
+      if (line <= 1 && column <= 1 && library.importUri.isScheme('dart')) {
+        _log('Fallback: use library scope for the Dart SDK');
+        scope = DartScope(library, null, null, {}, []);
+      } else {
+        onDiagnostic(
+          _createInternalError(
+            libraryUri,
+            line,
+            column,
+            'Dart scope not found for location',
+          ),
+        );
+        return null;
+      }
     }
 
     _log('Detected expression compilation scope');
@@ -433,14 +398,23 @@ class ExpressionCompiler {
   /// [scope] current dart scope information.
   /// [expression] expression to compile in given [scope].
   Future<String?> _compileExpression(DartScope scope, String expression) async {
+    var methodName = scope.member?.name.text;
+    var member = scope.member;
+    if (member != null) {
+      if (member.isExtensionMember || member.isExtensionTypeMember) {
+        methodName = extractQualifiedNameFromExtensionMethodName(methodName);
+      }
+    }
     var procedure = await _compiler.compileExpression(
-        expression,
-        scope.definitions,
-        scope.typeParameters,
-        debugProcedureName,
-        scope.library.importUri,
-        className: scope.cls?.name,
-        isStatic: scope.isStatic);
+      expression,
+      scope.definitions,
+      scope.typeParameters,
+      debugProcedureName,
+      scope.library.importUri,
+      methodName: methodName,
+      className: scope.cls?.name,
+      isStatic: scope.isStatic,
+    );
 
     _log('Compiled expression to kernel');
 
@@ -451,19 +425,26 @@ class ExpressionCompiler {
     }
 
     var imports = <js_ast.ModuleItem>[];
-    var jsFun = _kernel2jsCompiler.emitFunctionIncremental(imports,
-        scope.library, scope.cls, procedure!.function, debugProcedureName);
+    var jsFun = _kernel2jsCompiler.emitFunctionIncremental(
+      imports,
+      scope.library,
+      scope.cls,
+      procedure!.function,
+      debugProcedureName,
+    );
 
     _log('Generated JavaScript for expression');
 
     // print JS ast to string for evaluation
     var context = js_ast.SimpleJavaScriptPrintingContext();
-    var opts =
-        js_ast.JavaScriptPrintingOptions(allowKeywordsInProperties: true);
+    var opts = js_ast.JavaScriptPrintingOptions(
+      allowKeywordsInProperties: true,
+    );
 
     var tree = transformFunctionModuleFormat(imports, jsFun, _moduleFormat);
     tree.accept(
-        js_ast.Printer(opts, context, localNamer: js_ast.TemporaryNamer(tree)));
+      js_ast.Printer(opts, context, localNamer: js_ast.ScopedNamer(tree)),
+    );
 
     _log('Added imports and renamed variables for expression');
 

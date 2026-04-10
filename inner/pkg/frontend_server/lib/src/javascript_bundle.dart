@@ -1,13 +1,18 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
 
 // ignore_for_file: implementation_imports
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:args/args.dart';
 import 'package:dev_compiler/dev_compiler.dart';
+import 'package:dev_compiler/src/command/command.dart';
+import 'package:dev_compiler/src/kernel/hot_reload_delta_inspector.dart';
+import 'package:dev_compiler/src/js_ast/nodes.dart';
 import 'package:front_end/src/api_unstable/vm.dart' show FileSystem;
 import 'package:kernel/ast.dart';
 import 'package:kernel/class_hierarchy.dart';
@@ -20,10 +25,12 @@ import 'strong_components.dart';
 /// Produce a special bundle format for compiled JavaScript.
 ///
 /// The bundle format consists of two files: One containing all produced
-/// JavaScript modules concatenated together, and a second containing the byte
-/// offsets by module name for each JavaScript module in JSON format.
+/// JavaScript library bundles concatenated together, and a second containing
+/// the byte offsets by the synthesized library bundle name for each JavaScript
+/// library bundle in JSON format. The library bundle name is based off of a
+/// library URI from the associated component.
 ///
-/// Ths format is analogous to the dill and .incremental.dill in that during
+/// The format is analogous to the dill and .incremental.dill in that during
 /// an incremental build, a different file is written for each which contains
 /// only the updated libraries.
 class IncrementalJavaScriptBundler {
@@ -34,24 +41,27 @@ class IncrementalJavaScriptBundler {
     this.useDebuggerModuleNames = false,
     this.emitDebugMetadata = false,
     this.emitDebugSymbols = false,
-    this.soundNullSafety = false,
+    this.canaryFeatures = false,
     String? moduleFormat,
+    this.extraDdcOptions = const [],
   }) : _moduleFormat = parseModuleFormat(moduleFormat ?? 'amd');
 
   final bool useDebuggerModuleNames;
   final bool emitDebugMetadata;
   final bool emitDebugSymbols;
   final ModuleFormat _moduleFormat;
-  final bool soundNullSafety;
+  final List<String> extraDdcOptions;
+  final bool canaryFeatures;
   final FileSystem? _fileSystem;
   final Set<Library> _loadedLibraries;
   final Map<Uri, Component> _uriToComponent = <Uri, Component>{};
-  final _importToSummary = Map<Library, Component>.identity();
-  final _summaryToModule = Map<Component, String>.identity();
-  final Map<Uri, String> _moduleImportForSummary = <Uri, String>{};
-  final Map<Uri, String> _moduleImportNameForSummary = <Uri, String>{};
+  final _libraryToSummary = new Map<Library, Component>.identity();
+  final _summaryToLibraryBundleName = new Map<Component, String>.identity();
+  final Map<Uri, String> _summaryToLibraryBundleJSPath = <Uri, String>{};
   final String _fileSystemScheme;
+  final HotReloadDeltaInspector _deltaInspector = new HotReloadDeltaInspector();
 
+  late HotReloadLibraryMetadataRepository _libraryMetadataRepository;
   late Component _lastFullComponent;
   late Component _currentComponent;
   late StrongComponents _strongComponents;
@@ -61,39 +71,58 @@ class IncrementalJavaScriptBundler {
       Component fullComponent, Uri mainUri, PackageConfig packageConfig) async {
     _lastFullComponent = fullComponent;
     _currentComponent = fullComponent;
-    _strongComponents = StrongComponents(
+    _strongComponents = new StrongComponents(
       fullComponent,
       _loadedLibraries,
       mainUri,
       _fileSystem,
     );
-    await _strongComponents.computeModules();
-    _updateSummaries(_strongComponents.modules.keys, packageConfig);
+    // Initialize fresh hot reload metadata for this compile and throw out all
+    // information collected from any previous series of hot reloads compiles.
+    _libraryMetadataRepository = new HotReloadLibraryMetadataRepository();
+    await _strongComponents.computeLibraryBundles();
+    _updateSummaries(
+        _strongComponents.libraryBundleImportToLibraries.keys, packageConfig);
   }
 
   /// Update the incremental bundler from a partial component and the last full
   /// component.
-  Future<void> invalidate(
-      Component partialComponent,
-      Component lastFullComponent,
-      Uri mainUri,
-      PackageConfig packageConfig) async {
+  Future<void> invalidate(Component partialComponent,
+      Component lastFullComponent, Uri mainUri, PackageConfig packageConfig,
+      {required bool recompileRestart}) async {
+    if (canaryFeatures &&
+        _moduleFormat == ModuleFormat.ddc &&
+        !recompileRestart) {
+      // Attach the global metadata to the last full component. The delta
+      // inspector will add to it while comparing the two components.
+      lastFullComponent.addMetadataRepository(_libraryMetadataRepository);
+      // Find any potential hot reload rejections before updating the strongly
+      // connected component graph.
+      final List<String> errors = _deltaInspector.compareGenerations(
+          lastFullComponent, partialComponent);
+      if (errors.isNotEmpty) {
+        throw new Exception(errors.join('/n') +
+            '\nHot reload rejected due to unsupported changes. '
+                'Try performing a hot restart instead.');
+      }
+    }
     _currentComponent = partialComponent;
     _updateFullComponent(lastFullComponent, partialComponent);
-    _strongComponents = StrongComponents(
+    _strongComponents = new StrongComponents(
       _lastFullComponent,
       _loadedLibraries,
       mainUri,
       _fileSystem,
     );
 
-    await _strongComponents.computeModules(<Uri, Library>{
+    await _strongComponents.computeLibraryBundles(<Uri, Library>{
       for (Library library in partialComponent.libraries)
         library.importUri: library,
     });
-    var invalidated = <Uri>{
+    Set<Uri> invalidated = <Uri>{
       for (Library library in partialComponent.libraries)
-        _strongComponents.moduleAssignment[library.importUri]!,
+        _strongComponents
+            .libraryImportToLibraryBundleImport[library.importUri]!,
     };
     _updateSummaries(invalidated, packageConfig);
   }
@@ -110,58 +139,71 @@ class IncrementalJavaScriptBundler {
     uriToSource.addAll(lastKnownGood.uriToSource);
     uriToSource.addAll(candidate.uriToSource);
 
-    _lastFullComponent = Component(
+    _lastFullComponent = new Component(
       libraries: combined.values.toList(),
       uriToSource: uriToSource,
-    )..setMainMethodAndMode(
-        candidate.mainMethod?.reference, true, candidate.mode);
-    for (final repo in candidate.metadata.values) {
+    )..setMainMethodAndMode(candidate.mainMethod?.reference, true);
+    for (final MetadataRepository repo in candidate.metadata.values) {
       _lastFullComponent.addMetadataRepository(repo);
     }
   }
 
-  /// Update the summaries [moduleKeys].
-  void _updateSummaries(Iterable<Uri> moduleKeys, PackageConfig packageConfig) {
-    for (Uri uri in moduleKeys) {
-      final List<Library> libraries = _strongComponents.modules[uri]!.toList();
-      final Component summaryComponent = Component(
+  /// Update the summaries using the [libraryBundleImports].
+  void _updateSummaries(
+      Iterable<Uri> libraryBundleImports, PackageConfig packageConfig) {
+    for (Uri uri in libraryBundleImports) {
+      final List<Library> libraries =
+          _strongComponents.libraryBundleImportToLibraries[uri]!.toList();
+      final Component summaryComponent = new Component(
         libraries: libraries,
         nameRoot: _lastFullComponent.root,
         uriToSource: _lastFullComponent.uriToSource,
       );
-      summaryComponent.setMainMethodAndMode(
-          null, false, _currentComponent.mode);
+      summaryComponent.setMainMethodAndMode(null, false);
 
-      var baseName = urlForComponentUri(uri, packageConfig);
-      _moduleImportForSummary[uri] = '$baseName.lib.js';
-      _moduleImportNameForSummary[uri] = makeModuleName(baseName);
+      String baseName = urlForComponentUri(uri, packageConfig);
+      _summaryToLibraryBundleJSPath[uri] = '$baseName.lib.js';
+      // Library bundle loaders loads bundles by bundle names, not paths
+      String libraryBundleName = makeLibraryBundleName(baseName);
 
       _uriToComponent[uri] = summaryComponent;
-      // module loaders loads modules by modules names, not paths
-      var moduleImport = _moduleImportNameForSummary[uri]!;
 
-      var oldSummaries = <Component>[];
-      for (Component summary in _summaryToModule.keys) {
-        if (_summaryToModule[summary] == moduleImport) {
+      List<Component> oldSummaries = [];
+      for (Component summary in _summaryToLibraryBundleName.keys) {
+        if (_summaryToLibraryBundleName[summary] == libraryBundleName) {
           oldSummaries.add(summary);
         }
       }
       for (Component summary in oldSummaries) {
-        _summaryToModule.remove(summary);
+        _summaryToLibraryBundleName.remove(summary);
       }
-      _importToSummary
+      _libraryToSummary
           .removeWhere((key, value) => oldSummaries.contains(value));
 
       for (Library library in summaryComponent.libraries) {
-        assert(!_importToSummary.containsKey(library));
-        _importToSummary[library] = summaryComponent;
-        _summaryToModule[summaryComponent] = moduleImport;
+        assert(!_libraryToSummary.containsKey(library));
+        _libraryToSummary[library] = summaryComponent;
+        _summaryToLibraryBundleName[summaryComponent] = libraryBundleName;
       }
     }
   }
 
-  /// Compile each component into a single JavaScript module.
-  Future<Map<String, ProgramCompiler>> compile(
+  /// Reports if [option] in [extraDdcOptions] was overridden or extended
+  /// to [newValue] before being passed to DDC.
+  void _checkOverriddenExtraDdcOption(
+      ArgResults extraDdcOptionsResults, String option, dynamic newValue) {
+    if (extraDdcOptionsResults.wasParsed(option)) {
+      if (newValue is List) {
+        if (listEquals(extraDdcOptionsResults[option], newValue)) return;
+      } else if (newValue == extraDdcOptionsResults[option]) {
+        return;
+      }
+      print("Warning: DDC option '$option' was overridden to '$newValue'.");
+    }
+  }
+
+  /// Compile each component into a single JavaScript library bundle.
+  Future<Map<String, Compiler>> compile(
     ClassHierarchy classHierarchy,
     CoreTypes coreTypes,
     PackageConfig packageConfig,
@@ -171,81 +213,126 @@ class IncrementalJavaScriptBundler {
     IOSink? metadataSink,
     IOSink? symbolsSink,
   ) async {
-    var codeOffset = 0;
-    var sourceMapOffset = 0;
-    var metadataOffset = 0;
-    var symbolsOffset = 0;
-    final manifest = <String, Map<String, List<int>>>{};
-    final Set<Uri> visited = <Uri>{};
-    final Map<String, ProgramCompiler> kernel2JsCompilers = {};
+    int codeOffset = 0;
+    int sourceMapOffset = 0;
+    int metadataOffset = 0;
+    int symbolsOffset = 0;
+    final Map<String, Map<String, List<int>>> manifest = {};
+    final Map<Uri, Compiler> visited = {};
+    final Map<String, Compiler> kernel2JsCompilers = {};
 
     for (Library library in _currentComponent.libraries) {
       if (_loadedLibraries.contains(library) ||
           library.importUri.isScheme('dart')) {
         continue;
       }
-      final Uri moduleUri =
-          _strongComponents.moduleAssignment[library.importUri]!;
-      if (visited.contains(moduleUri)) {
+      final Uri libraryBundleImport = _strongComponents
+          .libraryImportToLibraryBundleImport[library.importUri]!;
+      if (visited.containsKey(libraryBundleImport)) {
+        kernel2JsCompilers[library.importUri.toString()] =
+            visited[libraryBundleImport]!;
         continue;
       }
-      visited.add(moduleUri);
 
-      final summaryComponent = _uriToComponent[moduleUri]!;
+      final Component summaryComponent = _uriToComponent[libraryBundleImport]!;
 
-      // module name to use in trackLibraries
-      // use full path for tracking if module uri is not a package uri.
-      final moduleUrl = urlForComponentUri(moduleUri, packageConfig);
-      final moduleName = makeModuleName(moduleUrl);
-
-      var compiler = ProgramCompiler(
-        _currentComponent,
-        classHierarchy,
-        SharedCompilerOptions(
-          sourceMap: true,
-          summarizeApi: false,
-          emitDebugMetadata: emitDebugMetadata,
-          emitDebugSymbols: emitDebugSymbols,
-          moduleName: moduleName,
-          soundNullSafety: soundNullSafety,
-        ),
-        _importToSummary,
-        _summaryToModule,
-        coreTypes: coreTypes,
-      );
-
-      final jsModule = compiler.emitModule(summaryComponent);
+      final String componentUrl =
+          urlForComponentUri(libraryBundleImport, packageConfig);
+      // Library bundle name to use in trackLibraries. Use the full path for
+      // tracking if library bundle uri is not a package uri.
+      final String libraryBundleName = makeLibraryBundleName(componentUrl);
+      // Issue a warning when provided [extraDdcOptions] were overridden.
+      final ArgResults extraDdcOptionsResults =
+          Options.nonSdkArgParser().parse(extraDdcOptions);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'source-map', true);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'summarize', false);
+      _checkOverriddenExtraDdcOption(extraDdcOptionsResults,
+          'experimental-emit-debug-metadata', emitDebugMetadata);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'emit-debug-symbols', emitDebugSymbols);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'canary', canaryFeatures);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'module-name', libraryBundleName);
+      _checkOverriddenExtraDdcOption(
+          extraDdcOptionsResults, 'modules', [libraryBundleName]);
+      // Apply existing Frontend Server flags over options selected in
+      // [extraDdcOptions].
+      final List<String> ddcArgs = [
+        ...extraDdcOptions,
+        '--source-map',
+        '--no-summarize',
+        emitDebugMetadata
+            ? '--experimental-emit-debug-metadata'
+            : '--no-experimental-emit-debug-metadata',
+        emitDebugSymbols ? '--emit-debug-symbols' : '--no-emit-debug-symbols',
+        canaryFeatures ? '--canary' : '--no-canary',
+        '--module-name=$libraryBundleName',
+        '--modules=${_moduleFormat.flagName}',
+      ];
+      final Options ddcOptions =
+          new Options.fromArguments(Options.nonSdkArgParser().parse(ddcArgs));
+      Compiler compiler;
+      if (ddcOptions.emitLibraryBundle) {
+        compiler = new LibraryBundleCompiler(
+          _currentComponent,
+          classHierarchy,
+          ddcOptions,
+          _libraryToSummary,
+          _summaryToLibraryBundleName,
+          coreTypes: coreTypes,
+        );
+        // Attach all the hot reload metadata collected so far to the component
+        // that is about to be compiled.
+        summaryComponent.addMetadataRepository(_libraryMetadataRepository);
+      } else {
+        compiler = new ProgramCompiler(
+          _currentComponent,
+          classHierarchy,
+          ddcOptions,
+          _libraryToSummary,
+          _summaryToLibraryBundleName,
+          coreTypes: coreTypes,
+        );
+      }
+      final Program jsBundle = compiler.emitModule(summaryComponent);
 
       // Save program compiler to reuse for expression evaluation.
-      kernel2JsCompilers[moduleName] = compiler;
+      kernel2JsCompilers[library.importUri.toString()] = compiler;
+      visited[libraryBundleImport] = compiler;
 
       String? sourceMapBase;
-      if (moduleUri.isScheme('package')) {
+      if (libraryBundleImport.isScheme('package')) {
         // Source locations come through as absolute file uris. In order to
         // make relative paths in the source map we get the absolute uri for
-        // the module and make them relative to that.
-        sourceMapBase = p.dirname((packageConfig.resolve(moduleUri))!.path);
+        // the library bundle and make them relative to that.
+        sourceMapBase =
+            p.dirname((packageConfig.resolve(libraryBundleImport))!.path);
       }
 
-      final code = jsProgramToCode(
-        jsModule,
-        _moduleFormat,
+      final JSCode code = jsProgramToCode(
+        jsBundle,
+        ddcOptions.emitLibraryBundle
+            ? ModuleFormat.ddcLibraryBundle
+            : _moduleFormat,
         inlineSourceMap: true,
         buildSourceMap: true,
         emitDebugMetadata: emitDebugMetadata,
         emitDebugSymbols: emitDebugSymbols,
-        jsUrl: '$moduleUrl.lib.js',
-        mapUrl: '$moduleUrl.lib.js.map',
+        jsUrl: '$componentUrl.lib.js',
+        mapUrl: '$componentUrl.lib.js.map',
         sourceMapBase: sourceMapBase,
         customScheme: _fileSystemScheme,
         compiler: compiler,
         component: summaryComponent,
       );
-      final codeBytes = utf8.encode(code.code);
-      final sourceMapBytes = utf8.encode(json.encode(code.sourceMap));
-      final metadataBytes =
+      final Uint8List codeBytes = utf8.encode(code.code);
+      final Uint8List sourceMapBytes = utf8.encode(json.encode(code.sourceMap));
+      final Uint8List? metadataBytes =
           emitDebugMetadata ? utf8.encode(json.encode(code.metadata)) : null;
-      final symbolsBytes =
+      final Uint8List? symbolsBytes =
           emitDebugSymbols ? utf8.encode(json.encode(code.symbols)) : null;
 
       codeSink.add(codeBytes);
@@ -256,8 +343,9 @@ class IncrementalJavaScriptBundler {
       if (emitDebugSymbols) {
         symbolsSink!.add(symbolsBytes!);
       }
-      final String moduleKey = _moduleImportForSummary[moduleUri]!;
-      manifest[moduleKey] = {
+      final String libraryBundleJSPath =
+          _summaryToLibraryBundleJSPath[libraryBundleImport]!;
+      manifest[libraryBundleJSPath] = {
         'code': <int>[codeOffset, codeOffset += codeBytes.length],
         'sourcemap': <int>[
           sourceMapOffset,
@@ -280,22 +368,20 @@ class IncrementalJavaScriptBundler {
     return kernel2JsCompilers;
   }
 
-  /// Module name used in the browser to load modules.
+  /// Library bundle name used in the browser to load library bundles.
   ///
-  /// Module names are used to load modules using module
-  /// paths maps in RequireJS, which treats names with
-  /// leading '/' or '.js' extensions specially, and tries
-  /// to load them without mapping.
-  /// Skip the leading '/' to always load modules via module
-  /// path maps.
-  String makeModuleName(String name) {
+  /// Library bundle names are used to load library bundles using library bundle
+  /// path maps in RequireJS, which treats names with leading '/' or '.js'
+  /// extensions specially, and tries to load them without mapping. Skip the
+  /// leading '/' to always load library bundles via library bundle path maps.
+  String makeLibraryBundleName(String name) {
     return name.startsWith('/') ? name.substring(1) : name;
   }
 
   /// Create component url.
   ///
-  /// Used as a server path in the browser for the module created
-  /// from the component.
+  /// Used as a server path in the browser for the library bundle created from
+  /// the component.
   String urlForComponentUri(Uri componentUri, PackageConfig packageConfig) {
     if (!componentUri.isScheme('package')) {
       return componentUri.path;
@@ -306,12 +392,12 @@ class IncrementalJavaScriptBundler {
     // Match relative directory structure of server paths to the
     // actual directory structure, so the sourcemaps relative paths
     // can be resolved by the browser.
-    final resolvedUri = packageConfig.resolve(componentUri)!;
-    final package = packageConfig.packageOf(resolvedUri)!;
-    final root = package.root;
-    final relativeRoot =
+    final Uri resolvedUri = packageConfig.resolve(componentUri)!;
+    final Package package = packageConfig.packageOf(resolvedUri)!;
+    final Uri root = package.root;
+    final String relativeRoot =
         root.pathSegments.lastWhere((segment) => segment.isNotEmpty);
-    final relativeUrl = resolvedUri.toString().replaceFirst('$root', '');
+    final String relativeUrl = resolvedUri.toString().replaceFirst('$root', '');
 
     // Relative component url (used as server path in the browser):
     // `packages/<package directory>/<path to file.dart>`

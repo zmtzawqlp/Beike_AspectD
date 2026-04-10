@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+/// @docImport 'top_level_parser.dart';
 library _fe_analyzer_shared.parser.class_member_parser;
 
 import '../scanner/token.dart' show Token;
@@ -15,8 +16,12 @@ import 'parser_impl.dart' show Parser;
 class ClassMemberParser extends Parser {
   Parser? skipParser;
 
-  ClassMemberParser(super.listener,
-      {super.useImplicitCreationExpression, super.allowPatterns});
+  ClassMemberParser(
+    super.listener, {
+    super.useImplicitCreationExpression,
+    super.allowPatterns,
+    super.enableFeatureEnhancedParts,
+  });
 
   @override
   Token parseExpression(Token token) {
@@ -34,9 +39,12 @@ class ClassMemberParser extends Parser {
     // not triggered during the second parse.
     // When the parser supports not doing token stream rewriting, use that
     // feature together with a no-op listener instead.
-    this.skipParser ??= new Parser(new ErrorDelegationListener(listener),
-        useImplicitCreationExpression: useImplicitCreationExpression,
-        allowPatterns: allowPatterns);
+    this.skipParser ??= new Parser(
+      new ErrorDelegationListener(listener),
+      useImplicitCreationExpression: useImplicitCreationExpression,
+      allowPatterns: allowPatterns,
+      enableFeatureEnhancedParts: enableFeatureEnhancedParts,
+    );
     Parser skipParser = this.skipParser!;
     skipParser.mayParseFunctionExpressions = mayParseFunctionExpressions;
     skipParser.asyncState = asyncState;

@@ -1,18 +1,18 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 
 class E extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E> values = #C9;
+  enum-element static const field self::E one = #C5;
+  enum-element static const field self::E two = #C8;
   final field core::int foo;
   final field core::int bar = 42;
   static field self::E staticFoo = self::E::f();
-  enum-element static const field self::E one = #C5;
-  enum-element static const field self::E two = #C8;
+  static const field core::List<self::E> values = #C9;
   const constructor •(core::int #index, core::String #name, core::int foo) → self::E
     : self::E::foo = foo, super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E.${this.{core::_Enum::_name}{core::String}}";
   static factory f() → self::E
     return #C5;
@@ -22,16 +22,16 @@ class E extends core::_Enum /*isEnum*/  {
     return "${d}${b}";
 }
 class E2<X extends core::Object? = dynamic> extends core::_Enum /*isEnum*/  {
-  static const field core::List<self::E2<dynamic>> values = #C14;
+  enum-element static const field self::E2<core::num> one = #C11;
+  enum-element static const field self::E2<core::String> two = #C13;
   final field self::E2::X% foo;
   final field self::E2::X? bar = null;
   static field () → self::E2<dynamic> staticFoo = () → self::E2<dynamic> => self::E2::f<dynamic>();
-  enum-element static const field self::E2<core::num> one = #C11;
-  enum-element static const field self::E2<core::String> two = #C13;
+  static const field core::List<self::E2<dynamic>> values = #C14;
   const constructor •(core::int #index, core::String #name, self::E2::X% foo) → self::E2<self::E2::X%>
     : self::E2::foo = foo, super core::_Enum::•(#index, #name)
     ;
-  method _enumToString() → core::String
+  method core::_enumToString() → core::String
     return "E2.${this.{core::_Enum::_name}{core::String}}";
   static factory f<X extends core::Object? = dynamic>() → self::E2<self::E2::f::X%>
     return throw 42;

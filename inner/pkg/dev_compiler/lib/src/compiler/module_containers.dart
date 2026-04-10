@@ -75,8 +75,10 @@ abstract class ModuleItemContainer<K> {
   ModuleItemContainer._(this.name, this.containerId);
 
   /// Creates an automatically sharding container backed by JS Objects.
-  factory ModuleItemContainer.asObject(String name,
-      {required String Function(K) keyToString}) {
+  factory ModuleItemContainer.asObject(
+    String name, {
+    required String Function(K) keyToString,
+  }) {
     return ModuleItemObjectContainer<K>(name, keyToString);
   }
 
@@ -150,7 +152,7 @@ class ModuleItemObjectContainer<K> extends ModuleItemContainer<K> {
   String Function(K) keyToString;
 
   ModuleItemObjectContainer(String name, this.keyToString)
-      : super._(name, js_ast.TemporaryId(name));
+    : super._(name, js_ast.ScopedId(name));
 
   @override
   void operator []=(K key, js_ast.Expression value) {
@@ -160,19 +162,26 @@ class ModuleItemObjectContainer<K> extends ModuleItemContainer<K> {
     }
     // Create a unique name for K when emitted as a JS field.
     var fieldString = keyToString(key);
-    _nameFrequencies.update(fieldString, (v) {
-      fieldString += '\$${v + 1}';
-      return v + 1;
-    }, ifAbsent: () {
-      // Avoid shadowing common JS properties.
-      if (js_ast.objectProperties.contains(fieldString)) {
-        fieldString += '\$';
-      }
-      return 0;
-    });
+    _nameFrequencies.update(
+      fieldString,
+      (v) {
+        fieldString += '\$${v + 1}';
+        return v + 1;
+      },
+      ifAbsent: () {
+        // Avoid shadowing common JS properties.
+        if (js_ast.objectProperties.contains(fieldString)) {
+          fieldString += '\$';
+        }
+        return 0;
+      },
+    );
     moduleItems[key] = ModuleItemData(
-        containerId, js_ast.LiteralString("'$fieldString'"), value);
-    if (length % 500 == 0) containerId = js_ast.TemporaryId(name);
+      containerId,
+      js_ast.LiteralString("'$fieldString'"),
+      value,
+    );
+    if (length % 500 == 0) containerId = js_ast.ScopedId(name);
   }
 
   @override
@@ -191,16 +200,22 @@ class ModuleItemObjectContainer<K> extends ModuleItemContainer<K> {
       if (!containersToProperties.containsKey(v.id)) {
         containersToProperties[v.id] = <js_ast.Property>[];
       }
-      containersToProperties[v.id]!.add(js_ast.Property(
-          v.jsKey, emitValue == null ? v.jsValue : emitValue(k, v)));
+      containersToProperties[v.id]!.add(
+        js_ast.Property(
+          v.jsKey,
+          emitValue == null ? v.jsValue : emitValue(k, v),
+        ),
+      );
     });
 
     if (containersToProperties.isEmpty) return [];
 
     var statements = <js_ast.Statement>[];
     containersToProperties.forEach((containerId, properties) {
-      var containerObject = js_ast.ObjectInitializer(properties,
-          multiline: properties.length > 1);
+      var containerObject = js_ast.ObjectInitializer(
+        properties,
+        multiline: properties.length > 1,
+      );
       statements.add(js.statement('var # = #', [containerId, containerObject]));
     });
 
@@ -218,8 +233,7 @@ class ModuleItemObjectContainer<K> extends ModuleItemContainer<K> {
 /// ];
 /// ```
 class ModuleItemArrayContainer<K> extends ModuleItemContainer<K> {
-  ModuleItemArrayContainer(String name)
-      : super._(name, js_ast.TemporaryId(name));
+  ModuleItemArrayContainer(String name) : super._(name, js_ast.ScopedId(name));
 
   @override
   void operator []=(K key, js_ast.Expression value) {
@@ -227,8 +241,11 @@ class ModuleItemArrayContainer<K> extends ModuleItemContainer<K> {
       moduleItems[key]!.jsValue = value;
       return;
     }
-    moduleItems[key] =
-        ModuleItemData(containerId, js_ast.LiteralNumber('$length'), value);
+    moduleItems[key] = ModuleItemData(
+      containerId,
+      js_ast.LiteralNumber('$length'),
+      value,
+    );
   }
 
   @override
@@ -239,7 +256,7 @@ class ModuleItemArrayContainer<K> extends ModuleItemContainer<K> {
 
   @override
   List<js_ast.Statement> emit({EmitValue<K>? emitValue}) {
-    var dummyExpression = js_ast.TemporaryId('dummyExpression');
+    var dummyExpression = js_ast.ScopedId('dummyExpression');
     var properties = List<js_ast.Expression>.filled(length, dummyExpression);
 
     // If the entire array holds just one value, generate a short initializer.
@@ -259,8 +276,8 @@ class ModuleItemArrayContainer<K> extends ModuleItemContainer<K> {
         js.statement('var # = Array(#).fill(#)', [
           containerId,
           js_ast.LiteralNumber('${properties.length}'),
-          valueSet.first
-        ])
+          valueSet.first,
+        ]),
       ];
     }
     // Array containers are not sharded, as we do not expect to hit V8's
@@ -268,8 +285,8 @@ class ModuleItemArrayContainer<K> extends ModuleItemContainer<K> {
     return [
       js.statement('var # = #', [
         containerId,
-        js_ast.ArrayInitializer(properties, multiline: properties.length > 1)
-      ])
+        js_ast.ArrayInitializer(properties, multiline: properties.length > 1),
+      ]),
     ];
   }
 }

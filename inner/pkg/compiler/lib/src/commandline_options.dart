@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.cmdline.options;
+library;
 
 /// Commandline flags used in `dart2js.dart` and/or `apiimpl.dart`.
 class Flags {
@@ -24,7 +24,9 @@ class Flags {
   static const String disableTypeInference = '--disable-type-inference';
   static const String disableRtiOptimization = '--disable-rti-optimization';
   static const String dumpInfo = '--dump-info';
+  static const String dumpInfoDataUri = '--dump-info-data';
   static const String dumpDeferredGraph = '--dump-deferred-graph';
+  static const String deferredLoadIdMapUri = '--deferred-load-ids';
   static const String dumpSsa = '--dump-ssa';
   static const String enableAssertMessage = '--assert-message';
   static const String enableCheckedMode = '--enable-checked-mode';
@@ -33,9 +35,6 @@ class Flags {
   static const String enableDiagnosticColors = '--enable-diagnostic-colors';
   static const String experimentalTrackAllocations =
       '--experimental-track-allocations';
-
-  static const String experimentalWrapped = '--experimental-wrapped';
-  static const String experimentalPowersets = '--experimental-powersets';
 
   // Temporary experiment for code generation of locals for frequently used
   // 'this' and constants.
@@ -56,8 +55,6 @@ class Flags {
   static const String experimentCallInstrumentation =
       '--experiment-call-instrumentation';
 
-  static const String experimentNewRti = '--experiment-new-rti';
-
   static const String enableLanguageExperiments = '--enable-experiment';
 
   static const String fastStartup = '--fast-startup';
@@ -71,6 +68,9 @@ class Flags {
   static const String omitAsCasts = '--omit-as-casts';
   static const String laxRuntimeTypeToString = '--lax-runtime-type-to-string';
 
+  static const String enableProtoShaking = '--enable-proto-shaking';
+  static const String enableProtoMixinShaking = '--enable-proto-mixin-shaking';
+
   static const String platformBinaries = '--platform-binaries=.+';
 
   static const String minify = '--minify';
@@ -82,55 +82,51 @@ class Flags {
   static const String nativeNullAssertions = '--native-null-assertions';
   static const String noNativeNullAssertions = '--no-native-null-assertions';
 
+  static const String interopNullAssertions = '--interop-null-assertions';
+  static const String noInteropNullAssertions = '--no-interop-null-assertions';
+
   static const String noSourceMaps = '--no-source-maps';
 
   static const String omitLateNames = '--omit-late-names';
   static const String noOmitLateNames = '--no-omit-late-names';
 
   static const String preserveUris = '--preserve-uris';
-  static const String printLegacyStars = '--debug-print-legacy-stars';
   static const String showPackageWarnings = '--show-package-warnings';
   static const String suppressHints = '--suppress-hints';
   static const String suppressWarnings = '--suppress-warnings';
   static const String terse = '--terse';
   static const String testMode = '--test-mode';
-  static const String experimentalInferrer = '--experimental-inferrer';
   static const String trustPrimitives = '--trust-primitives';
   static const String trustTypeAnnotations = '--trust-type-annotations';
   static const String trustJSInteropTypeAnnotations =
       '--experimental-trust-js-interop-type-annotations';
   static const String useMultiSourceInfo = '--use-multi-source-info';
   static const String useNewSourceInfo = '--use-new-source-info';
-  static const String useOldRti = '--use-old-rti';
   static const String useSimpleLoadIds = '--simple-load-ids';
   static const String verbose = '--verbose';
   static const String verbosity = '--verbosity';
   static const String progress = '--show-internal-progress';
   static const String version = '--version';
+  static const String omitMemorySummary = '--omit-memory-summary';
   static const String reportMetrics = '--report-metrics';
   static const String reportAllMetrics = '--report-all-metrics';
 
   static const String dillDependencies = '--dill-dependencies';
   static const String sources = '--sources';
-  static const String readData = '--read-data';
-  static const String writeData = '--write-data';
+  static const String globalInferenceUri = '--global-inference-data';
   static const String memoryMappedFiles = '--memory-map-files';
-  static const String noClosedWorldInData = '--no-closed-world-in-data';
-  static const String writeClosedWorld = '--write-closed-world';
-  static const String readClosedWorld = '--read-closed-world';
-  static const String readCodegen = '--read-codegen';
-  static const String writeCodegen = '--write-codegen';
-  static const String readModularAnalysis = '--read-modular-analysis';
-  static const String writeModularAnalysis = '--write-modular-analysis';
+  static const String closedWorldUri = '--closed-world-data';
+  static const String codegenUri = '--codegen-data';
   static const String codegenShard = '--codegen-shard';
   static const String codegenShards = '--codegen-shards';
   static const String cfeOnly = '--cfe-only';
+  static const String stage = '--stage';
   static const String debugGlobalInference = '--debug-global-inference';
 
   static const String serverMode = '--server-mode';
 
   static const String soundNullSafety = '--sound-null-safety';
-  static const String noSoundNullSafety = '--no-sound-null-safety';
+
   static const String mergeFragmentsThreshold = '--merge-fragments-threshold';
 
   static const String writeResources = '--write-resources';
@@ -189,6 +185,11 @@ class Flags {
   static const String resolveOnly = '--resolve-only';
 
   static const String cfeConstants = '--cfe-constants';
+
+  static const String disableDiagnosticByteCache =
+      '--disable-diagnostic-byte-cache';
+
+  static const enableDeferredLoadingEventLog = '--log-deferred-loading-events';
 
   // `--no-shipping` and `--canary` control sets of flags. For simplicity, these
   // flags live in options.dart.

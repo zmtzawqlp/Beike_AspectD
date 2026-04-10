@@ -1,18 +1,23 @@
 // Copyright (c) 2016, the Dart project authors. Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE.md file.
+// BSD-style license that can be found in the LICENSE file.
 
 library _fe_analyzer_shared.scanner.main;
+
+import 'dart:typed_data' show Uint8List;
 
 import 'io.dart' show readBytesFromFileSync;
 
 import 'scanner.dart' show ErrorToken, Token, scan;
 
-scanAll(Map<Uri, List<int>> files,
-    {bool verbose = false, bool verify = false}) {
+void scanAll(
+  Map<Uri, Uint8List> files, {
+  bool verbose = false,
+  bool verify = false,
+}) {
   Stopwatch sw = new Stopwatch()..start();
   int byteCount = 0;
-  files.forEach((Uri uri, List<int> bytes) {
+  files.forEach((Uri uri, Uint8List bytes) {
     Token token = scan(bytes).tokens;
     if (verbose) printTokens(token);
     if (verify) verifyErrorTokens(token, uri);
@@ -30,7 +35,7 @@ void printTokens(Token token) {
   }
 }
 
-/// Verify that the fasta scanner recovery has moved all of the ErrorTokens
+/// Verify that the scanner recovery has moved all of the ErrorTokens
 /// to the beginning of the stream. If an out-of-order ErrorToken is
 /// found, then print some diagnostic information and throw an exception.
 void verifyErrorTokens(Token firstToken, Uri uri) {
@@ -72,8 +77,8 @@ void verifyErrorTokens(Token firstToken, Uri uri) {
   }
 }
 
-mainEntryPoint(List<String> arguments) {
-  Map<Uri, List<int>> files = <Uri, List<int>>{};
+void mainEntryPoint(List<String> arguments) {
+  Map<Uri, Uint8List> files = <Uri, Uint8List>{};
   Stopwatch sw = new Stopwatch()..start();
   bool verbose = const bool.fromEnvironment("printTokens");
   bool verify = const bool.fromEnvironment('verifyErrorTokens');
@@ -90,7 +95,7 @@ mainEntryPoint(List<String> arguments) {
     }
 
     Uri uri = Uri.base.resolve(arg);
-    List<int> bytes = readBytesFromFileSync(uri);
+    Uint8List bytes = readBytesFromFileSync(uri);
     files[uri] = bytes;
   }
   sw.stop();

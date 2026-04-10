@@ -6,19 +6,24 @@ name: front_end
 publish_to: none
 
 environment:
-  sdk: '>=2.17.0 <3.0.0'
+  sdk: ^3.5.0
+
+workspace:
+  - testcases
+
+resolution: workspace
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
 dependencies:
   _fe_analyzer_shared: any
   kernel: any
   package_config: any
+  yaml: any
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
 dev_dependencies:
   analyzer: any
   args: any
-  async_helper: any
   build_integration: any
   compiler: any
   dart_style: any
@@ -30,7 +35,6 @@ dev_dependencies:
   test_reflective_loader: any
   test: any
   testing: any
-  vm_service: any
   vm: any
+  vm_service: any
   web_socket_channel: any
-  yaml: any

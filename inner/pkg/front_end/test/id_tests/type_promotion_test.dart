@@ -3,12 +3,13 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, Platform;
+
 import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualData, Id;
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, runTests;
 import 'package:front_end/src/testing/id_testing_helper.dart';
 import 'package:front_end/src/testing/id_testing_utils.dart';
-import 'package:kernel/ast.dart' hide Variance;
+import 'package:kernel/ast.dart';
 
 Future<void> main(List<String> args) async {
   Directory dataDir = new Directory.fromUri(Platform.script
@@ -18,11 +19,11 @@ Future<void> main(List<String> args) async {
       args: args,
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
-      runTest: runTestFor(
-          const TypePromotionDataComputer(), [cfeNonNullableOnlyConfig]));
+      runTest:
+          runTestFor(const TypePromotionDataComputer(), [defaultCfeConfig]));
 }
 
-class TypePromotionDataComputer extends DataComputer<DartType> {
+class TypePromotionDataComputer extends CfeDataComputer<DartType> {
   const TypePromotionDataComputer();
 
   @override
@@ -33,7 +34,7 @@ class TypePromotionDataComputer extends DataComputer<DartType> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<DartType>> actualMap,
       {bool? verbose}) {
     member.accept(new TypePromotionDataExtractor(

@@ -1,78 +1,87 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 import "dart:async" as asy;
 
-static method method(core::Iterable<core::int> iterable) → core::Iterable<core::int> sync* {
+static method method(final core::Iterable<core::int> iterable) → core::Iterable<core::int> sync* /* emittedValueType= core::int */ {
   yield 1;
   yield 2;
   yield* iterable;
 }
-static method asyncMethod(asy::Stream<core::int> stream) → asy::Stream<core::int> {
-  synthesized asy::StreamController<core::Object?> #controller = asy::StreamController::•<core::Object?>();
-  synthesized () → asy::Future<void> #body = () → asy::Future<void> async /* futureValueType= void */ {
-    synthesized asy::Completer<core::bool> #completer = asy::Completer::•<core::bool>();
-    #controller.{asy::StreamController::add}(#completer){(core::Object?) → void};
-    await #completer.{asy::Completer::future}{() → asy::Future<core::bool>};
+static method asyncMethod(final asy::Stream<core::int> stream) → asy::Stream<core::int> {
+  final synthesized asy::StreamController<core::int> #controller = asy::StreamController::•<core::int>(sync: #C1);
+  final synthesized () → asy::Future<void> #body = () → asy::Future<void> async /* emittedValueType= void */ {
+    void :async_temporary_0;
+    void :async_temporary_1;
+    dynamic :async_temporary_2;
+    synthesized asy::Completer<void>? #paused;
+    final dynamic #onCancelCallback = () → void {
+      if(#paused == null) {
+      }
+      else {
+        #paused.{asy::Completer::complete}(#C2){([FutureOr<void>?]) → void};
+        #paused = #C2;
+      }
+    };
+    #controller.{asy::StreamController::onResume} = #onCancelCallback;
+    #controller.{asy::StreamController::onCancel} = #onCancelCallback;
     {
-      {
-        #controller.{asy::StreamController::add}(1){(core::Object?) → void};
-        #completer = asy::Completer::•<core::bool>();
-        #controller.{asy::StreamController::add}(#completer){(core::Object?) → void};
-        await #completer.{asy::Completer::future}{() → asy::Future<core::bool>};
-      }
-      {
-        #controller.{asy::StreamController::add}(2){(core::Object?) → void};
-        #completer = asy::Completer::•<core::bool>();
-        #controller.{asy::StreamController::add}(#completer){(core::Object?) → void};
-        await #completer.{asy::Completer::future}{() → asy::Future<core::bool>};
-      }
-      {
-        synthesized asy::_StreamIterator<core::int> #forIterator = new asy::_StreamIterator::•<core::int>(stream);
-        synthesized core::bool #jumpSentinel = #C1;
+      core::int #t1 = 0;
+      core::Object #t2;
+      core::StackTrace #t3;
+      try
         try {
-          for (; #jumpSentinel = await #forIterator.{asy::_StreamIterator::moveNext}(){() → asy::Future<core::bool>}; ) {
-            synthesized core::int #awaitForVar = #forIterator.{asy::_StreamIterator::current}{core::int};
-            {
-              #controller.{asy::StreamController::add}(#awaitForVar){(core::Object?) → void};
-              #completer = asy::Completer::•<core::bool>();
-              #controller.{asy::StreamController::add}(#completer){(core::Object?) → void};
-              await #completer.{asy::Completer::future}{() → asy::Future<core::bool>};
+          {
+            #controller.{asy::StreamController::add}(1){(core::Object?) → void};
+            if(#controller.{asy::StreamController::isPaused}{core::bool}) {
+              :async_temporary_0 = await(#paused = asy::Completer::•<void>()).{asy::Completer::future}{asy::Future<void>};
+              :async_temporary_0 as dynamic;
             }
+            if(#controller.{asy::StreamController::hasListener}{core::bool}) {
+            }
+            else
+              return;
+          }
+          {
+            #controller.{asy::StreamController::add}(2){(core::Object?) → void};
+            if(#controller.{asy::StreamController::isPaused}{core::bool}) {
+              :async_temporary_1 = await(#paused = asy::Completer::•<void>()).{asy::Completer::future}{asy::Future<void>};
+              :async_temporary_1 as dynamic;
+            }
+            if(#controller.{asy::StreamController::hasListener}{core::bool}) {
+            }
+            else
+              return;
+          }
+          {
+            :async_temporary_2 = await #controller.{asy::StreamController::addStream}(stream){(asy::Stream<core::int>, {cancelOnError: core::bool?}) → asy::Future<dynamic>};
+            :async_temporary_2;
+            if(#controller.{asy::StreamController::hasListener}{core::bool}) {
+            }
+            else
+              return;
           }
         }
-        finally {
-          if(#jumpSentinel)
-            await #forIterator.{asy::_StreamIterator::cancel}(){() → asy::Future<dynamic>};
+        on dynamic catch(final dynamic #t4, final core::StackTrace #t5) {
+          #controller.{asy::StreamController::addError}(#t4, #t5){(core::Object, [core::StackTrace?]) → void};
+          #t4;
+          #t5;
         }
+      finally {
+        #controller.{asy::StreamController::close}(){() → asy::Future<dynamic>};
+        #t1;
+        #t2;
+        #t3;
       }
     }
-    #controller.{asy::StreamController::close}(){() → asy::Future<dynamic>};
   };
-  synthesized core::bool #isFirst = #C2;
-  synthesized core::bool #isEven = #C1;
-  #controller.{asy::StreamController::add}(#C3){(core::Object?) → void};
-  return #controller.{asy::StreamController::stream}{() → asy::Stream<core::Object?>}.{asy::Stream::asyncMap}<core::Object?>((synthesized core::Object? value) → FutureOr<core::Object?> async /* futureValueType= core::Object? */ {
-    if(#isFirst) {
-      #body(){() → asy::Future<void>};
-      return #C3;
-    }
-    if(value is asy::Completer<core::bool>)
-      value.{asy::Completer::complete}(#C2){([FutureOr<core::bool>?]) → void};
-    return value;
-  }){((core::Object?) → FutureOr<core::Object?>) → asy::Stream<core::Object?>}.{asy::Stream::where}((synthesized core::Object? value) → core::Object? {
-    if(#isFirst) {
-      #isFirst = #C1;
-      return #C1;
-    }
-    synthesized core::bool keep = #isEven;
-    #isEven = !#isEven;
-    return keep;
-  }){((core::Object?) → core::bool) → asy::Stream<core::Object?>}.{asy::Stream::cast}<core::int>(){() → asy::Stream<core::int>};
+  #controller.{asy::StreamController::onListen} = () → dynamic
+    asy::scheduleMicrotask(#body);
+;
+  return #controller.{asy::StreamController::stream}{asy::Stream<core::int>};
 }
 
 constants  {
-  #C1 = false
-  #C2 = true
-  #C3 = null
+  #C1 = true
+  #C2 = null
 }

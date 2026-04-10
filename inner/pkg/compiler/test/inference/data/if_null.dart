@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   ifNull();
   ifNotNullInvoke();
@@ -15,10 +13,10 @@ main() {
 // If-null on parameter.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _ifNull:[exact=JSUInt31]*/
-_ifNull(/*[null|exact=JSUInt31]*/ o) => o ?? 0;
+/*member: _ifNull:[exact=JSUInt31|powerset={I}{O}{N}]*/
+_ifNull(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) => o ?? 0;
 
-/*member: ifNull:[null]*/
+/*member: ifNull:[null|powerset={null}]*/
 ifNull() {
   _ifNull(null);
   _ifNull(0);
@@ -28,14 +26,15 @@ ifNull() {
 // If-not-null access on parameter.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _ifNotNullInvoke:[null|exact=JSBool]*/
-_ifNotNullInvoke(/*[null|exact=JSUInt31]*/ o) {
-  return o?.
-      /*[exact=JSUInt31]*/
+/*member: _ifNotNullInvoke:[null|exact=JSBool|powerset={null}{I}{O}{N}]*/
+_ifNotNullInvoke(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) {
+  return o
+      ?.
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/
       isEven;
 }
 
-/*member: ifNotNullInvoke:[null]*/
+/*member: ifNotNullInvoke:[null|powerset={null}]*/
 ifNotNullInvoke() {
   _ifNotNullInvoke(null);
   _ifNotNullInvoke(0);
@@ -45,12 +44,12 @@ ifNotNullInvoke() {
 // As above but unconditional access.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _notIfNotNullInvoke:[exact=JSBool]*/
-_notIfNotNullInvoke(/*[null|exact=JSUInt31]*/ o) {
-  return o. /*[null|exact=JSUInt31]*/ isEven;
+/*member: _notIfNotNullInvoke:[exact=JSBool|powerset={I}{O}{N}]*/
+_notIfNotNullInvoke(/*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ o) {
+  return o. /*[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/ isEven;
 }
 
-/*member: notIfNotNullInvoke:[null]*/
+/*member: notIfNotNullInvoke:[null|powerset={null}]*/
 notIfNotNullInvoke() {
   _notIfNotNullInvoke(null);
   _notIfNotNullInvoke(0);

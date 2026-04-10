@@ -15,8 +15,8 @@ main() async {
 
   // inferred return-type in closures:
   // lib.B f1() => lib.B(); // Compile time error(see tests/web)
-  var f2 = /*closure_unit=main{}*/
-      () => lib.B(); // no compile error, but f1 has inferred type: () -> d.B
+  var f2 = /*closure_unit=main{}*/ () =>
+      lib.B(); // no compile error, but f1 has inferred type: () -> d.B
 
   // inferred type-arguments
   // lib.list = <lib.B>[]; // Compile time error(see tests/web)

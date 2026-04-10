@@ -8,7 +8,7 @@ import 'package:kernel/core_types.dart';
 import 'package:kernel/kernel.dart';
 import 'package:kernel/type_environment.dart';
 
-import '../compiler/shared_command.dart' show SharedCompilerOptions;
+import '../command/options.dart' show Options;
 import 'js_typerep.dart';
 import 'kernel_helpers.dart';
 
@@ -16,7 +16,8 @@ import 'kernel_helpers.dart';
 ///
 /// This class can also analyze the nullability of local variables, if
 /// [enterFunction] and [exitFunction] are used.
-class NullableInference extends ExpressionVisitor<bool> {
+class NullableInference extends ExpressionVisitor<bool>
+    with ExpressionVisitorDefaultMixin<bool> {
   final StaticTypeContext _staticTypeContext;
   final JSTypeRep jsTypeRep;
   final CoreTypes coreTypes;
@@ -41,12 +42,8 @@ class NullableInference extends ExpressionVisitor<bool> {
 
   final _variableInference = _NullableVariableInference();
 
-  final bool _soundNullSafety;
-
-  NullableInference(this.jsTypeRep, this._staticTypeContext,
-      {SharedCompilerOptions? options})
-      : coreTypes = jsTypeRep.coreTypes,
-        _soundNullSafety = options?.soundNullSafety ?? true {
+  NullableInference(this.jsTypeRep, this._staticTypeContext, {Options? options})
+    : coreTypes = jsTypeRep.coreTypes {
     _variableInference._nullInference = this;
   }
 
@@ -129,12 +126,20 @@ class NullableInference extends ExpressionVisitor<bool> {
   @override
   bool visitInstanceInvocation(InstanceInvocation node) =>
       _invocationIsNullable(
-          node.interfaceTarget, node.name.text, node, node.receiver);
+        node.interfaceTarget,
+        node.name.text,
+        node,
+        node.receiver,
+      );
 
   @override
   bool visitInstanceGetterInvocation(InstanceGetterInvocation node) =>
       _invocationIsNullable(
-          node.interfaceTarget, node.name.text, node, node.receiver);
+        node.interfaceTarget,
+        node.name.text,
+        node,
+        node.receiver,
+      );
 
   @override
   bool visitDynamicInvocation(DynamicInvocation node) =>
@@ -159,8 +164,11 @@ class NullableInference extends ExpressionVisitor<bool> {
       _invocationIsNullable(node.interfaceTarget, node.name.text, node);
 
   bool _invocationIsNullable(
-      Member? target, String name, InvocationExpression node,
-      [Expression? receiver]) {
+    Member? target,
+    String name,
+    InvocationExpression node, [
+    Expression? receiver,
+  ]) {
     // TODO(jmesserly): this is not a valid assumption for user-defined equality
     // but it is added to match the behavior of the Analyzer backend.
     // https://github.com/dart-lang/sdk/issues/31854
@@ -170,16 +178,6 @@ class NullableInference extends ExpressionVisitor<bool> {
     }
     // Dynamic call.
     if (target == null) return true;
-    if (target.name.text == 'toString' &&
-        receiver != null &&
-        receiver.getStaticType(_staticTypeContext) ==
-            coreTypes.stringLegacyRawType) {
-      // TODO(jmesserly): `class String` in dart:core does not explicitly
-      // declare `toString`, which results in a target of `Object.toString` even
-      // when the receiver type is known to be `String`. So we work around it.
-      // (The Analyzer backend of DDC probably has the same issue.)
-      return false;
-    }
     return _returnValueIsNullable(target);
   }
 
@@ -195,7 +193,7 @@ class NullableInference extends ExpressionVisitor<bool> {
   }
 
   bool _staticallyNonNullable(DartType type) =>
-      _soundNullSafety && type.nullability == Nullability.nonNullable;
+      type.nullability == Nullability.nonNullable;
 
   bool _returnValueIsNullable(Member target) {
     var targetClass = target.enclosingClass;
@@ -204,11 +202,14 @@ class NullableInference extends ExpressionVisitor<bool> {
       // implementation class in dart:_interceptors, for example `JSString`.
       //
       // This allows us to find the `@notNull` annotation if it exists.
-      var implClass = jsTypeRep
-          .getImplementationClass(coreTypes.legacyRawType(targetClass));
+      var implClass = jsTypeRep.getImplementationClass(
+        coreTypes.nonNullableRawType(targetClass),
+      );
       if (implClass != null) {
-        var member =
-            jsTypeRep.hierarchy.getDispatchTarget(implClass, target.name);
+        var member = jsTypeRep.hierarchy.getDispatchTarget(
+          implClass,
+          target.name,
+        );
         if (member != null) target = member;
       }
     }
@@ -263,8 +264,8 @@ class NullableInference extends ExpressionVisitor<bool> {
   @override
   bool visitAsExpression(AsExpression node) =>
       _staticallyNonNullable(node.getStaticType(_staticTypeContext))
-          ? false
-          : isNullable(node.operand);
+      ? false
+      : isNullable(node.operand);
 
   @override
   bool visitSymbolLiteral(SymbolLiteral node) => false;
@@ -318,7 +319,10 @@ class NullableInference extends ExpressionVisitor<bool> {
       _isInternalAnnotationField(value, 'nullCheck', '_NullCheck');
 
   bool _isInternalAnnotationField(
-      Expression node, String fieldName, String className) {
+    Expression node,
+    String fieldName,
+    String className,
+  ) {
     if (node is ConstantExpression) {
       var constant = node.constant;
       return constant is InstanceConstant &&
@@ -399,11 +403,8 @@ class _NullableVariableInference extends RecursiveVisitor {
   @override
   void visitFunctionNode(FunctionNode node) {
     _functions.add(node);
-    if (_nullInference.allowNotNullDeclarations ||
-        _nullInference._soundNullSafety) {
-      visitList(node.positionalParameters, this);
-      visitList(node.namedParameters, this);
-    }
+    visitList(node.positionalParameters, this);
+    visitList(node.namedParameters, this);
     node.body?.accept(this);
   }
 
@@ -426,8 +427,7 @@ class _NullableVariableInference extends RecursiveVisitor {
       }
     }
     var initializer = node.initializer;
-    if (_nullInference._soundNullSafety &&
-        node.type.nullability == Nullability.nonNullable) {
+    if (node.type.nullability == Nullability.nonNullable) {
       // Avoid null checks for variables when the type system guarantees they
       // can never be null.
       _notNullLocals.add(node);

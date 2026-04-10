@@ -18,28 +18,46 @@ Future<void> main() async {
   // Expect to work with both absolute and relative package specification
   // if the file specified exists and is valid.
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, absolutePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    absolutePackageConfig,
+  );
   expect(result, kernel_service.Status.ok);
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, relativePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    relativePackageConfig,
+  );
   expect(result, kernel_service.Status.ok);
 
   // Expect an error with both absolute and relative package specification
   // if the file specified does not exist.
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, nonExistentAbsolutePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    nonExistentAbsolutePackageConfig,
+  );
   expect(result, kernel_service.Status.error);
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, nonExistentRelativePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    nonExistentRelativePackageConfig,
+  );
   expect(result, kernel_service.Status.error);
 
   // Expect an error with both absolute and relative package specification
   // if the file specified does exist but is invalid.
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, invalidAbsolutePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    invalidAbsolutePackageConfig,
+  );
   expect(result, kernel_service.Status.error);
   result = await singleShotCompile(
-      relativeEntry, fooSourceFiles, invalidRelativePackageConfig);
+    relativeEntry,
+    fooSourceFiles,
+    invalidRelativePackageConfig,
+  );
   expect(result, kernel_service.Status.error);
 }
 
@@ -105,7 +123,10 @@ List fooSourceFiles = [
 ];
 
 Future<kernel_service.Status> singleShotCompile(
-    String entryFile, List sourceFiles, String? packageConfig) async {
+  String entryFile,
+  List sourceFiles,
+  String? packageConfig,
+) async {
   final RawReceivePort kernelServicePort = kernel_service.main();
   final SendPort sendPort = kernelServicePort.sendPort;
   final ReceivePort myReceivePort = new ReceivePort();
@@ -116,8 +137,8 @@ Future<kernel_service.Status> singleShotCompile(
     /* [2] = String? = inputFileUri = */ entryFile,
     /* [3] = various = platformKernel = */ null,
     /* [4] = bool = incremental = */ false,
-    /* [5] = bool = snapshot = */ false,
-    /* [6] = bool = nullSafety = */ true,
+    /* [5] = bool = for_snapshot = */ false,
+    /* [6] = bool = embed_sources = */ true,
     /* [7] = int = isolateGroupId = */ 42,
     /* [8] = List = sourceFiles = */ sourceFiles,
     /* [9] = bool = enableAsserts = */ true,
@@ -125,9 +146,9 @@ Future<kernel_service.Status> singleShotCompile(
     /* [11] = String? = packageConfig = */ packageConfig,
     /* [12] = String? = multirootFilepaths = */ null,
     /* [13] = String? = multirootScheme = */ null,
-    /* [14] = String? = workingDirectory = */ null,
-    /* [15] = String = verbosityLevel = */ Verbosity.all.name,
-    /* [16] = bool = enableMirrors = */ false,
+    /* [14] = String = verbosityLevel = */ Verbosity.all.name,
+    /* [15] = bool = enableMirrors = */ false,
+    /* [16] = bool = generateBytecode = */ false,
   ]);
 
   // Wait for kernel-service response.
@@ -149,11 +170,10 @@ Future<kernel_service.Status> singleShotCompile(
     }
     return kernel_service.Status.ok;
   } else if (status == kernel_service.Status.error.index) {
-    expectLength(m, 3);
+    expectLength(m, 2);
     final String errors = m[1];
-    final List<int> bytes = m[2];
     if (verbose) {
-      print("Compiled with errors --- $errors and ${bytes.length} bytes dill");
+      print("Compiled with errors --- $errors");
     }
     return kernel_service.Status.error;
   } else if (status == kernel_service.Status.crash.index) {

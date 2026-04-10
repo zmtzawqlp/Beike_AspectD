@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library tracer;
+library;
 
 import 'package:kernel/text/indentation.dart' show Indentation;
 
@@ -12,11 +12,11 @@ import 'options.dart' show CompilerOptions;
 import 'ssa/nodes.dart' as ssa show HGraph;
 import 'ssa/tracer.dart' show HTracer;
 
-String? TRACE_FILTER_PATTERN_FOR_TEST;
+String? traceFilterPatternForTest;
 
 /// Dumps the intermediate representation after each phase in a format
 /// readable by IR Hydra.
-class Tracer extends TracerUtil {
+class Tracer with TracerUtil {
   final JClosedWorld closedWorld;
   bool traceActive = false;
   @override
@@ -25,13 +25,19 @@ class Tracer extends TracerUtil {
 
   Tracer._(this.closedWorld, this.traceFilter, this.output);
 
-  factory Tracer(JClosedWorld closedWorld, CompilerOptions options,
-      api.CompilerOutput compilerOutput) {
-    String? pattern = options.dumpSsaPattern ?? TRACE_FILTER_PATTERN_FOR_TEST;
+  factory Tracer(
+    JClosedWorld closedWorld,
+    CompilerOptions options,
+    api.CompilerOutput compilerOutput,
+  ) {
+    String? pattern = options.dumpSsaPattern ?? traceFilterPatternForTest;
     if (pattern == null) return Tracer._(closedWorld, null, null);
     var traceFilter = RegExp(pattern);
-    var output =
-        compilerOutput.createOutputSink('', 'cfg', api.OutputType.debug);
+    var output = compilerOutput.createOutputSink(
+      '',
+      'cfg',
+      api.OutputType.debug,
+    );
     return Tracer._(closedWorld, traceFilter, output);
   }
 
@@ -48,11 +54,9 @@ class Tracer extends TracerUtil {
     });
   }
 
-  void traceGraph(String name, var irObject) {
+  void traceGraph(String name, ssa.HGraph graph) {
     if (!traceActive) return;
-    if (irObject is ssa.HGraph) {
-      HTracer(output!, closedWorld).traceGraph(name, irObject);
-    }
+    HTracer(output!, closedWorld).traceGraph(name, graph);
   }
 
   void traceJavaScriptText(String name, String Function() getText) {
@@ -67,7 +71,7 @@ class Tracer extends TracerUtil {
   }
 }
 
-abstract class TracerUtil {
+mixin TracerUtil {
   api.OutputSink? get output;
   final Indentation _ind = Indentation();
 
@@ -87,19 +91,19 @@ abstract class TracerUtil {
     println(propertyName);
   }
 
-  String formatPrty(x) {
+  String formatPrty(Object? x) {
     if (x is num) {
-      return '${x}';
+      return '$x';
     } else if (x is String) {
-      return '"${x}"';
+      return '"$x"';
     } else if (x is Iterable) {
       return x.map((s) => formatPrty(s)).join(' ');
     } else {
-      throw "invalid property type: ${x}";
+      throw "invalid property type: $x";
     }
   }
 
-  void printProperty(String propertyName, value) {
+  void printProperty(String propertyName, Object? value) {
     println("$propertyName ${formatPrty(value)}");
   }
 

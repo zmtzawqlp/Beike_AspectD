@@ -2,8 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
-import 'package:async_helper/async_helper.dart';
 import '../helpers/compiler_helper.dart';
 
 const String TEST_ONE = r"""
@@ -20,8 +20,8 @@ void foo(bar) {
 const String TEST_TWO = r"""
 void foo(a) {
   var list = <int>[];
-  list[0] = list[0 % a];
-  list[1] = list[1 % a];
+  list[0] = list[0 % a as int];
+  list[1] = list[1 % a as int];
 }
 """;
 
@@ -53,7 +53,7 @@ class A {
 class B {}
 
 main() {
-  helper([new A(32), A(21), B(), null][0]);
+  helper([new A(32), A(21), B(), null][0] as A);
 }
 
 helper(A a) {
@@ -106,30 +106,54 @@ class A {
 main() {
   dynamic a = A();
   dynamic b = A.bar();
-  for (int i = 0; i < a.field; i++) { a.field = 42; b.field = 42; }
+  for (int i = 0; i < a.field!; i++) { a.field = 42; b.field = 42; }
 }
 """;
 
 main() {
   asyncTest(() async {
-    await compile(TEST_ONE, entry: 'foo', check: (String generated) {
-      RegExp regexp = RegExp(r"1 \+ [a-z]+");
-      checkNumberOfMatches(regexp.allMatches(generated).iterator, 1);
-    });
-    await compile(TEST_TWO, entry: 'foo', check: (String generated) {
-      checkNumberOfMatches(RegExp("length").allMatches(generated).iterator, 1);
-    });
-    await compile(TEST_THREE, entry: 'foo', check: (String generated) {
-      checkNumberOfMatches(RegExp("number").allMatches(generated).iterator, 1);
-    });
-    await compile(TEST_FOUR, entry: 'foo', check: (String generated) {
-      checkNumberOfMatches(RegExp("shr").allMatches(generated).iterator, 1);
-    });
+    await compile(
+      TEST_ONE,
+      entry: 'foo',
+      check: (String generated) {
+        RegExp regexp = RegExp(r"1 \+ [a-z]+");
+        checkNumberOfMatches(regexp.allMatches(generated).iterator, 1);
+      },
+    );
+    await compile(
+      TEST_TWO,
+      entry: 'foo',
+      check: (String generated) {
+        checkNumberOfMatches(
+          RegExp("length").allMatches(generated).iterator,
+          1,
+        );
+      },
+    );
+    await compile(
+      TEST_THREE,
+      entry: 'foo',
+      check: (String generated) {
+        checkNumberOfMatches(
+          RegExp("number").allMatches(generated).iterator,
+          1,
+        );
+      },
+    );
+    await compile(
+      TEST_FOUR,
+      entry: 'foo',
+      check: (String generated) {
+        checkNumberOfMatches(RegExp("shr").allMatches(generated).iterator, 1);
+      },
+    );
 
     await compileAll(TEST_FIVE).then((generated) {
       checkNumberOfMatches(RegExp(r"\.foo;").allMatches(generated).iterator, 1);
       checkNumberOfMatches(
-          RegExp(r"get\$foo\(").allMatches(generated).iterator, 0);
+        RegExp(r"get\$foo\(").allMatches(generated).iterator,
+        0,
+      );
     });
     await compileAll(TEST_SIX).then((generated) {
       Expect.isTrue(generated.contains('for (t1 = a.field === 54; t1;)'));

@@ -2,35 +2,40 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.15
-
 abstract class B {
   call<T>();
 }
 
-/*member: C.:[exact=C]*/
+/*member: C.:[exact=C|powerset={N}{O}{N}]*/
 class C implements B {
-  /*member: C.call:[null]*/
+  /*member: C.call:[null|powerset={null}]*/
   call<T>() => print(T);
 }
 
 abstract class A {}
 
 class Wrapper {
-  /*member: Wrapper.:[exact=Wrapper]*/
-  Wrapper(this. /*[exact=C]*/ b, this. /*[exact=C]*/ call);
-  /*member: Wrapper.b:[exact=C]*/
+  /*member: Wrapper.:[exact=Wrapper|powerset={N}{O}{N}]*/
+  Wrapper(
+    this. /*[exact=C|powerset={N}{O}{N}]*/ b,
+    this. /*[exact=C|powerset={N}{O}{N}]*/ call,
+  );
+  /*member: Wrapper.b:[exact=C|powerset={N}{O}{N}]*/
   final B b;
-  /*member: Wrapper.call:[exact=C]*/
+  /*member: Wrapper.call:[exact=C|powerset={N}{O}{N}]*/
   final B call;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 void main() {
   B b = C();
-  b/*invoke: [exact=C]*/ <A>();
-  Wrapper(b, b).b<A> /*invoke: [exact=Wrapper]*/ ();
-  (Wrapper(b, b). /*[exact=Wrapper]*/ b)<A> /*invoke: [exact=C]*/ ();
-  Wrapper(b, b).call<A> /*invoke: [exact=Wrapper]*/ ();
-  (Wrapper(b, b). /*[exact=Wrapper]*/ call)<A> /*invoke: [exact=C]*/ ();
+  b/*invoke: [exact=C|powerset={N}{O}{N}]*/ <A>();
+  Wrapper(b, b).b<A> /*invoke: [exact=Wrapper|powerset={N}{O}{N}]*/ ();
+  (Wrapper(b, b). /*[exact=Wrapper|powerset={N}{O}{N}]*/ b)<
+    A
+  > /*invoke: [exact=C|powerset={N}{O}{N}]*/ ();
+  Wrapper(b, b).call<A> /*invoke: [exact=Wrapper|powerset={N}{O}{N}]*/ ();
+  (Wrapper(b, b). /*[exact=Wrapper|powerset={N}{O}{N}]*/ call)<
+    A
+  > /*invoke: [exact=C|powerset={N}{O}{N}]*/ ();
 }

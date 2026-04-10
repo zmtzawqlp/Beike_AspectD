@@ -45,30 +45,26 @@ void run() {
   // Top types.
   areEqual("dynamic", "dynamic");
   notEqual("dynamic", "Object?");
-  notEqual("dynamic", "Object*");
+  notEqual("dynamic", "Object");
   notEqual("dynamic", "void");
   areEqual("Object?", "Object?");
-  notEqual("Object?", "Object*");
+  notEqual("Object?", "Object");
   notEqual("Object?", "void");
-  areEqual("Object*", "Object*");
-  notEqual("Object*", "void");
+  areEqual("Object", "Object");
+  notEqual("Object", "void");
   areEqual("void", "void");
   notEqual("FutureOr<dynamic>", "void");
-  notEqual("FutureOr<FutureOr<Object?>>", "Object*");
-  notEqual("FutureOr<FutureOr<FutureOr<Object*>?>>?", "dynamic");
+  notEqual("FutureOr<FutureOr<Object?>>", "Object");
+  notEqual("FutureOr<FutureOr<FutureOr<Object>?>>?", "dynamic");
   notEqual("FutureOr<Object?>", "FutureOr<Object?>?");
   notEqual("FutureOr<FutureOr<Object?>>", "FutureOr<FutureOr<Object?>?>?");
   notEqual("FutureOr<FutureOr<Object?>>", "FutureOr<FutureOr<dynamic>?>?");
 
   areEqual("dynamic", "Object?", equateTopTypes: true);
-  areEqual("dynamic", "Object*", equateTopTypes: true);
   areEqual("dynamic", "void", equateTopTypes: true);
-  areEqual("Object?", "Object*", equateTopTypes: true);
   areEqual("Object?", "void", equateTopTypes: true);
-  areEqual("Object*", "void", equateTopTypes: true);
   areEqual("FutureOr<dynamic>", "void", equateTopTypes: true);
-  areEqual("FutureOr<FutureOr<Object?>>", "Object*", equateTopTypes: true);
-  areEqual("FutureOr<FutureOr<FutureOr<Object*>?>>?", "dynamic",
+  areEqual("FutureOr<FutureOr<FutureOr<Object>?>>?", "dynamic",
       equateTopTypes: true);
   areEqual("FutureOr<Object?>", "FutureOr<Object?>?", equateTopTypes: true);
   areEqual("FutureOr<FutureOr<Object?>>", "FutureOr<FutureOr<Object?>?>?",
@@ -76,7 +72,6 @@ void run() {
   areEqual("FutureOr<FutureOr<Object?>>", "FutureOr<FutureOr<dynamic>?>?",
       equateTopTypes: true);
 
-  areEqual("Object?", "Object*", ignoreAllNullabilities: true);
   areEqual("FutureOr<Object?>", "FutureOr<Object?>?",
       ignoreAllNullabilities: true);
   areEqual("FutureOr<FutureOr<Object?>>", "FutureOr<FutureOr<Object?>?>?",
@@ -162,6 +157,22 @@ void run() {
   notEqual("Typedef<Object?>?", "Typedef<dynamic>", equateTopTypes: true);
   areEqual("Typedef<Object?>?", "Typedef<dynamic>",
       equateTopTypes: true, ignoreTopLevelNullability: true);
+
+  // Record types.
+  areEqual("(int, bool)", "(int, bool)");
+  notEqual("(int, bool)", "(int?, bool)");
+  notEqual("(int, bool)", "(int, bool?)");
+  notEqual("(int, bool)", "({int i, bool b})");
+  areEqual("({int i, bool b})", "({int i, bool b})");
+  areEqual("({int i, bool b})", "({bool b ,int i})");
+  notEqual("({int i, bool b})", "({int? i, bool b})");
+  notEqual("({int i, bool b})", "({int i, bool? b})");
+  notEqual("({int i, bool b})", "({int n, bool b})");
+  notEqual("({int i, bool b})", "({int i, bool t})");
+  areEqual("(int, {bool b})", "(int, {bool b})");
+  notEqual("(int, {bool b})", "(int?, {bool b})");
+  notEqual("(int, {bool b})", "(int, {bool? b})");
+  notEqual("(int, {bool b})", "(int, {bool t})");
 }
 
 void areEqual(String type1, String type2,
@@ -169,9 +180,8 @@ void areEqual(String type1, String type2,
     bool equateTopTypes = false,
     bool ignoreAllNullabilities = false,
     bool ignoreTopLevelNullability = false}) {
-  Env env =
-      new Env("typedef Typedef<T> () -> T;\n", isNonNullableByDefault: true)
-        ..extendWithTypeParameters(typeParameters);
+  Env env = new Env("typedef Typedef<T> () -> T;\n")
+    ..extendWithTypeParameters(typeParameters);
   DartType t1 = env.parseType(type1);
   DartType t2 = env.parseType(type2);
 
@@ -209,9 +219,8 @@ void notEqual(String type1, String type2,
     bool equateTopTypes = false,
     bool ignoreAllNullabilities = false,
     bool ignoreTopLevelNullability = false}) {
-  Env env =
-      new Env("typedef Typedef<T> () -> T;\n", isNonNullableByDefault: true)
-        ..extendWithTypeParameters(typeParameters);
+  Env env = new Env("typedef Typedef<T> () -> T;\n")
+    ..extendWithTypeParameters(typeParameters);
   DartType t1 = env.parseType(type1);
   DartType t2 = env.parseType(type2);
 

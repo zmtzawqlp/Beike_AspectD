@@ -38,6 +38,13 @@ enum MemberKind {
   /// A static method in an extension.
   ExtensionStaticMethod,
 
+  /// A non-static method or constructor in an extension type.
+  // TODO(johnniwinther): Can we separate constructors from instance methods?
+  ExtensionTypeNonStaticMethod,
+
+  /// A static method in an extension type.
+  ExtensionTypeStaticMethod,
+
   /// An instance field in a class.
   NonStaticField,
 
@@ -46,4 +53,7 @@ enum MemberKind {
 
   /// A top-level field.
   TopLevelField,
+
+  /// Primary constructor.
+  PrimaryConstructor,
 }

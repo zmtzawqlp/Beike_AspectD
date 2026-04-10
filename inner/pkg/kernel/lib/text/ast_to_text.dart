@@ -11,7 +11,7 @@ import '../ast.dart';
 import '../import_table.dart';
 import '../src/text_util.dart';
 
-abstract class Namer<T> {
+abstract mixin class Namer<T> {
   int index = 0;
   final Map<T, String> map = <T, String>{};
 
@@ -52,10 +52,10 @@ class ConstantNamer extends RecursiveVisitor with Namer<Constant> {
           // Name everything in post-order visit of DAG.
           getName(value);
         }
-      } else if (constant is StaticTearOffConstant) {
-        // We only care about naming the constants themselves. [TearOffConstant]
-        // has no Constant children.
-        // Avoid visiting `TearOffConstant.procedureReference`.
+      } else if (constant is TearOffConstant) {
+        // We only care about naming the constants themselves.
+        // [TearOffConstant]s has no Constant children.
+        // Avoid visiting `TearOffConstant.targetReference`.
       } else {
         // Name everything in post-order visit of DAG.
         constant.visitChildren(this);
@@ -108,62 +108,10 @@ class Disambiguator<T, U> {
 
 NameSystem globalDebuggingNames = new NameSystem();
 
-String debugLibraryName(Library? node) {
-  return node == null
-      ? 'null'
-      : node.name ?? globalDebuggingNames.nameLibrary(node);
-}
-
-String debugClassName(Class? node) {
-  return node == null ? 'null' : node.name;
-}
-
-String debugQualifiedClassName(Class node) {
-  return debugLibraryName(node.enclosingLibrary) + '::' + debugClassName(node);
-}
-
-String debugMemberName(Member node) {
-  return node.name.text;
-}
-
-String debugQualifiedMemberName(Member node) {
-  if (node.enclosingClass != null) {
-    return debugQualifiedClassName(node.enclosingClass!) +
-        '::' +
-        debugMemberName(node);
-  } else {
-    return debugLibraryName(node.enclosingLibrary) +
-        '::' +
-        debugMemberName(node);
-  }
-}
-
-String debugTypeParameterName(TypeParameter node) {
-  return node.name ?? globalDebuggingNames.nameTypeParameter(node);
-}
-
-String debugQualifiedTypeParameterName(TypeParameter node) {
-  TreeNode? parent = node.parent;
-  if (parent is Class) {
-    return debugQualifiedClassName(parent) +
-        '::' +
-        debugTypeParameterName(node);
-  }
-  if (parent is Member) {
-    return debugQualifiedMemberName(parent) +
-        '::' +
-        debugTypeParameterName(node);
-  }
-  return debugTypeParameterName(node);
-}
-
-String debugVariableDeclarationName(VariableDeclaration node) {
-  return node.name ?? globalDebuggingNames.nameVariable(node);
-}
-
 String debugNodeToString(Node node) {
   StringBuffer buffer = new StringBuffer();
-  new Printer(buffer, syntheticNames: globalDebuggingNames).writeNode(node);
+  new Printer(buffer, showOffsets: true, syntheticNames: globalDebuggingNames)
+      .writeNode(node);
   return '$buffer';
 }
 
@@ -191,41 +139,38 @@ String componentToString(Component node) {
 class NameSystem {
   final Namer<VariableDeclaration> variables =
       new NormalNamer<VariableDeclaration>('#t');
-  final Namer<Member> members = new NormalNamer<Member>('#m');
-  final Namer<Class> classes = new NormalNamer<Class>('#class');
-  final Namer<Extension> extensions = new NormalNamer<Extension>('#extension');
-  final Namer<Library> libraries = new NormalNamer<Library>('#lib');
+  final Namer<Reference> libraries = new NormalNamer<Reference>('#lib');
   final Namer<TypeParameter> typeParameters =
       new NormalNamer<TypeParameter>('#T');
+  final Namer<StructuralParameter> structuralParameters =
+      new NormalNamer<StructuralParameter>('#T');
   final Namer<TreeNode> labels = new NormalNamer<TreeNode>('#L');
   final Namer<Constant> constants = new ConstantNamer('#C');
   final Disambiguator<Reference, CanonicalName> prefixes =
       new Disambiguator<Reference, CanonicalName>();
 
   String nameVariable(VariableDeclaration node) => variables.getName(node);
-  String nameMember(Member node) => members.getName(node);
-  String nameClass(Class node) => classes.getName(node);
-  String nameExtension(Extension node) => extensions.getName(node);
-  String nameLibrary(Library node) => libraries.getName(node);
+  String nameLibrary(Reference node) => libraries.getName(node);
   String nameTypeParameter(TypeParameter node) => typeParameters.getName(node);
+  String nameStructuralParameter(StructuralParameter node) =>
+      structuralParameters.getName(node);
   String nameSwitchCase(SwitchCase node) => labels.getName(node);
   String nameLabeledStatement(LabeledStatement node) => labels.getName(node);
   String nameConstant(Constant node) => constants.getName(node);
 
   final RegExp pathSeparator = new RegExp('[\\/]');
 
-  String nameLibraryPrefix(Library node, {String? proposedName}) {
-    return prefixes.disambiguate(node.reference, node.reference.canonicalName,
-        () {
+  String nameLibraryPrefix(Reference reference, {String? proposedName}) {
+    return prefixes.disambiguate(reference, reference.canonicalName, () {
       if (proposedName != null) {
         return proposedName;
       }
-      String? name = node.name;
-      if (name != null) {
-        return abbreviateName(name);
-      }
-      // ignore: unnecessary_null_comparison
-      if (node.importUri != null) {
+      NamedNode? node = reference.node;
+      if (node is Library) {
+        String? name = node.name;
+        if (name != null) {
+          return abbreviateName(name);
+        }
         String path = node.importUri.hasEmptyPath
             ? '${node.importUri}'
             : node.importUri.pathSegments.last;
@@ -233,28 +178,34 @@ class NameSystem {
           path = path.substring(0, path.length - '.dart'.length);
         }
         return abbreviateName(path);
+      } else {
+        return _nameFromLibraryCanonicalName(
+            reference, reference.canonicalName);
       }
-      return 'L';
     });
+  }
+
+  String _nameFromLibraryCanonicalName(Reference? node, CanonicalName? name) {
+    CanonicalName? canonicalName = name ?? node?.canonicalName;
+    if (canonicalName?.name != null) {
+      String path = canonicalName!.name;
+      int slash = path.lastIndexOf(pathSeparator);
+      if (slash >= 0) {
+        path = path.substring(slash + 1);
+      }
+      if (path.endsWith('.dart')) {
+        path = path.substring(0, path.length - '.dart'.length);
+      }
+      return abbreviateName(path);
+    }
+    return 'L';
   }
 
   String nameCanonicalNameAsLibraryPrefix(Reference? node, CanonicalName? name,
       {String? proposedName}) {
     return prefixes.disambiguate(node, name, () {
       if (proposedName != null) return proposedName;
-      CanonicalName? canonicalName = name ?? node?.canonicalName;
-      if (canonicalName?.name != null) {
-        String path = canonicalName!.name;
-        int slash = path.lastIndexOf(pathSeparator);
-        if (slash >= 0) {
-          path = path.substring(slash + 1);
-        }
-        if (path.endsWith('.dart')) {
-          path = path.substring(0, path.length - '.dart'.length);
-        }
-        return abbreviateName(path);
-      }
-      return 'L';
+      return _nameFromLibraryCanonicalName(node, name);
     });
   }
 
@@ -279,7 +230,7 @@ abstract class Annotator {
 }
 
 /// A quick and dirty ambiguous text printer.
-class Printer extends Visitor<void> with VisitorVoidMixin {
+class Printer extends VisitorDefault<void> with VisitorVoidMixin {
   final NameSystem syntheticNames;
   final StringSink sink;
   final Annotator? annotator;
@@ -289,10 +240,11 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   int column = 0;
   bool showOffsets;
   bool showMetadata;
+  Library? _currentLibrary;
 
-  static int SPACE = 0;
-  static int WORD = 1;
-  static int SYMBOL = 2;
+  static final int SPACE = 0;
+  static final int WORD = 1;
+  static final int SYMBOL = 2;
   int state = SPACE;
 
   Printer(this.sink,
@@ -322,17 +274,19 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   void startHighlight(Node node) {}
   void endHighlight(Node node) {}
 
-  String getLibraryName(Library node) {
-    return node.name ?? syntheticNames.nameLibrary(node);
+  String getLibraryName(Reference reference) {
+    Node? node = reference.node;
+    return (node is Library ? node.name : null) ??
+        syntheticNames.nameLibrary(reference);
   }
 
-  String getLibraryReference(Library node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No Library>';
-    if (importTable != null && importTable?.getImportIndex(node) != -1) {
-      return syntheticNames.nameLibraryPrefix(node);
+  String getLibraryReference(Reference reference) {
+    Node? node = reference.node;
+    if (importTable != null &&
+        (node is! Library || importTable?.getImportIndex(node) != -1)) {
+      return syntheticNames.nameLibraryPrefix(reference);
     }
-    return getLibraryName(node);
+    return getLibraryName(reference);
   }
 
   String getClassName(Class node) {
@@ -343,38 +297,24 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     return node.name;
   }
 
-  String getInlineClassName(InlineClass node) {
+  String getExtensionTypeDeclarationName(ExtensionTypeDeclaration node) {
     return node.name;
   }
 
   String getClassReference(Class node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No Class>';
     String name = getClassName(node);
-    String library = getLibraryReference(node.enclosingLibrary);
+    String library = getLibraryReference(node.enclosingLibrary.reference);
     return '$library::$name';
   }
 
-  String getExtensionReference(Extension node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No Extension>';
-    String name = getExtensionName(node);
-    String library = getLibraryReference(node.enclosingLibrary);
-    return '$library::$name';
-  }
-
-  String getInlineClassReference(InlineClass node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No InlineClass>';
-    String name = getInlineClassName(node);
-    String library = getLibraryReference(node.enclosingLibrary);
+  String getExtensionTypeDeclarationReference(ExtensionTypeDeclaration node) {
+    String name = getExtensionTypeDeclarationName(node);
+    String library = getLibraryReference(node.enclosingLibrary.reference);
     return '$library::$name';
   }
 
   String getTypedefReference(Typedef node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No Typedef>';
-    String library = getLibraryReference(node.enclosingLibrary);
+    String library = getLibraryReference(node.enclosingLibrary.reference);
     return '$library::${node.name}';
   }
 
@@ -383,21 +323,21 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   Name getMemberName(Member node) {
     if (node.name.text == '') return emptyName;
-    // ignore: unnecessary_null_comparison
-    if (node.name != null) return node.name;
-    return new Name(syntheticNames.nameMember(node));
+    return node.name;
   }
 
   String getMemberReference(Member node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No Member>';
     String name = getMemberName(node).text;
-    Class? enclosingClass = node.enclosingClass;
-    if (enclosingClass != null) {
-      String className = getClassReference(enclosingClass);
-      return '$className::$name';
+    GenericDeclaration? enclosingDeclaration = node.enclosingTypeDeclaration;
+    if (enclosingDeclaration is Class) {
+      String declarationName = getClassReference(enclosingDeclaration);
+      return '$declarationName::$name';
+    } else if (enclosingDeclaration is ExtensionTypeDeclaration) {
+      String declarationName =
+          getExtensionTypeDeclarationReference(enclosingDeclaration);
+      return '$declarationName::$name';
     } else {
-      String library = getLibraryReference(node.enclosingLibrary);
+      String library = getLibraryReference(node.enclosingLibrary.reference);
       return '$library::$name';
     }
   }
@@ -407,8 +347,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   String getVariableReference(VariableDeclaration node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No VariableDeclaration>';
     return getVariableName(node);
   }
 
@@ -416,20 +354,32 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     return node.name ?? syntheticNames.nameTypeParameter(node);
   }
 
+  String getStructuralParameterName(StructuralParameter node) {
+    return node.name ?? syntheticNames.nameStructuralParameter(node);
+  }
+
   String getTypeParameterReference(TypeParameter node) {
-    // ignore: unnecessary_null_comparison
-    if (node == null) return '<No TypeParameter>';
     String name = getTypeParameterName(node);
-    TreeNode? parent = node.parent;
-    if (parent is FunctionNode && parent.parent is Member) {
-      String member = getMemberReference(parent.parent as Member);
-      return '$member::$name';
-    } else if (parent is Class) {
-      String className = getClassReference(parent);
-      return '$className::$name';
-    } else {
-      return name; // Bound inside a function type.
+    GenericDeclaration? declaration = node.declaration;
+    switch (declaration) {
+      case Class():
+        String className = getClassReference(declaration);
+        return '$className::$name';
+      case Procedure():
+        String member = getMemberReference(declaration);
+        return '$member::$name';
+      case Typedef():
+      case Extension():
+      case ExtensionTypeDeclaration():
+      case LocalFunction():
+      // TODO(johnniwinther): Support these cases correctly.
+      case null:
+        return name; // Bound inside a function type.
     }
+  }
+
+  String getStructuralParameterReference(StructuralParameter node) {
+    return getStructuralParameterName(node);
   }
 
   void writeComponentProblems(Component component) {
@@ -470,9 +420,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     if (library.isUnsupported) {
       flags.add('isUnsupported');
     }
-    if (library.isNonNullableByDefault) {
-      flags.add('isNonNullableByDefault');
-    }
     if (flags.isNotEmpty) {
       writeWord('/*${flags.join(',')}*/');
     }
@@ -488,11 +435,11 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     for (Library library in imports.importedLibraries) {
       String importPath = imports.getImportPath(library);
       if (importPath == "") {
-        String prefix =
-            syntheticNames.nameLibraryPrefix(library, proposedName: 'self');
+        String prefix = syntheticNames.nameLibraryPrefix(library.reference,
+            proposedName: 'self');
         endLine('import self as $prefix;');
       } else {
-        String prefix = syntheticNames.nameLibraryPrefix(library);
+        String prefix = syntheticNames.nameLibraryPrefix(library.reference);
         endLine('import "$importPath" as $prefix;');
       }
     }
@@ -500,6 +447,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   void writeStandardLibraryContent(Library library,
       {Printer? outerPrinter, LibraryImportTable? importsToPrint}) {
+    _currentLibrary = library;
     outerPrinter ??= this;
     outerPrinter.writeProblemsAsJson(
         "Problems in library", library.problemsAsJson);
@@ -516,9 +464,10 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     library.typedefs.forEach(writeNode);
     library.classes.forEach(writeNode);
     library.extensions.forEach(writeNode);
-    library.inlineClasses.forEach(writeNode);
+    library.extensionTypeDeclarations.forEach(writeNode);
     library.fields.forEach(writeNode);
     library.procedures.forEach(writeNode);
+    _currentLibrary = null;
   }
 
   void writeAdditionalExports(List<Reference> additionalExports) {
@@ -529,27 +478,27 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       NamedNode? node = reference.node;
       if (node is Class) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name);
       } else if (node is Extension) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name);
       } else if (node is Field) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name.text);
-      } else if (node is InlineClass) {
+      } else if (node is ExtensionTypeDeclaration) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name);
       } else if (node is Procedure) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name.text);
       } else if (node is Typedef) {
         Library nodeLibrary = node.enclosingLibrary;
-        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary);
+        String prefix = syntheticNames.nameLibraryPrefix(nodeLibrary.reference);
         write(prefix + '::' + node.name);
       } else if (reference.canonicalName != null) {
         write(reference.canonicalName.toString());
@@ -579,7 +528,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeComponentProblems(component);
     for (Library library in component.libraries) {
       if (showMetadata) {
-        inner.writeMetadata(library);
+        inner.writeMetadata(library, separateLines: true);
       }
       writeAnnotationList(library.annotations);
       writeWord('library');
@@ -587,12 +536,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       if (name != null) {
         writeWord(name);
       }
-      // ignore: unnecessary_null_comparison
-      if (library.importUri != null) {
-        writeSpaced('from');
-        writeWord('"${library.importUri}"');
-      }
-      String prefix = syntheticNames.nameLibraryPrefix(library);
+      writeSpaced('from');
+      writeWord('"${library.importUri}"');
+      String prefix = syntheticNames.nameLibraryPrefix(library.reference);
       writeSpaced('as');
       writeWord(prefix);
       endLine(' {');
@@ -683,8 +629,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       if (showOffsets && node is TreeNode) {
         writeWord("[${node.fileOffset}]");
       }
-      if (showMetadata && node is TreeNode) {
-        writeMetadata(node);
+      if (showMetadata && node is TreeNode && node is! VariableDeclaration) {
+        writeMetadata(node,
+            separateLines: node is Member || node is FunctionDeclaration);
       }
 
       node.accept(this);
@@ -695,12 +642,23 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     }
   }
 
-  void writeMetadata(TreeNode node) {
+  void writeMetadata(TreeNode node, {bool separateLines = false}) {
     if (metadata != null) {
+      bool needsLeadingNewLine = separateLines;
       for (MetadataRepository<dynamic> md in metadata!.values) {
         final dynamic nodeMetadata = md.mapping[node];
         if (nodeMetadata != null) {
+          if (needsLeadingNewLine) {
+            endLine();
+            needsLeadingNewLine = false;
+          }
+          if (separateLines) {
+            writeIndentation();
+          }
           writeWord("[@${md.tag}=${nodeMetadata}]");
+          if (separateLines) {
+            endLine();
+          }
         }
       }
     }
@@ -716,33 +674,16 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   void writeType(DartType type) {
-    // ignore: unnecessary_null_comparison
-    if (type == null) {
-      write('<No DartType>');
-    } else {
-      type.accept(this);
-    }
-  }
-
-  void writeOptionalType(DartType type) {
-    // ignore: unnecessary_null_comparison
-    if (type != null) {
-      type.accept(this);
-    }
+    type.accept(this);
   }
 
   @override
   void visitSupertype(Supertype type) {
-    // ignore: unnecessary_null_comparison
-    if (type == null) {
-      write('<No Supertype>');
-    } else {
-      writeClassReferenceFromReference(type.className);
-      if (type.typeArguments.isNotEmpty) {
-        writeSymbol('<');
-        writeList(type.typeArguments, writeType);
-        writeSymbol('>');
-      }
+    writeClassReferenceFromReference(type.className);
+    if (type.typeArguments.isNotEmpty) {
+      writeSymbol('<');
+      writeList(type.typeArguments, writeType);
+      writeSymbol('>');
     }
   }
 
@@ -762,11 +703,15 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     }
   }
 
-  void writeName(Name name) {
-    if (name.text == '') {
+  void writeName(Name name, {bool showLibrary = false}) {
+    if (showLibrary &&
+        name.isPrivate &&
+        name.libraryReference != _currentLibrary?.reference) {
+      writeWord('${getLibraryReference(name.libraryReference!)}::${name.text}');
+    } else if (name.text == '') {
       writeWord(emptyNameString);
     } else {
-      writeWord(name.text); // TODO: write library name
+      writeWord(name.text);
     }
   }
 
@@ -784,7 +729,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     if (name is String) {
       writeWord(name);
     } else if (name is Name) {
-      writeName(name);
+      writeName(name, showLibrary: true);
     } else {
       assert(name == null);
     }
@@ -804,9 +749,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     if (function.asyncMarker != AsyncMarker.Sync) {
       writeSpaced(getAsyncMarkerKeyword(function.asyncMarker));
     }
-    if (function.futureValueType != null) {
-      writeSpaced("/* futureValueType=");
-      writeNode(function.futureValueType);
+    if (function.emittedValueType != null) {
+      writeSpaced("/* emittedValueType=");
+      writeNode(function.emittedValueType);
       writeSpaced("*/");
     }
     if (function.dartAsyncMarker != AsyncMarker.Sync &&
@@ -814,6 +759,20 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       writeSpaced("/* originally");
       writeSpaced(getAsyncMarkerKeyword(function.dartAsyncMarker));
       writeSpaced("*/");
+    }
+    RedirectingFactoryTarget? redirectingFactoryTarget =
+        function.redirectingFactoryTarget;
+    if (redirectingFactoryTarget != null &&
+        redirectingFactoryTarget.target != null) {
+      writeWord('/* redirection-target:');
+      writeMemberReferenceFromReference(
+          redirectingFactoryTarget.targetReference);
+      if (redirectingFactoryTarget.typeArguments!.isNotEmpty) {
+        writeSymbol('<');
+        writeList(redirectingFactoryTarget.typeArguments!, writeType);
+        writeSymbol('>');
+      }
+      writeWord('*/');
     }
     Statement? body = function.body;
     if (body != null) {
@@ -835,8 +794,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
         return 'async';
       case AsyncMarker.AsyncStar:
         return 'async*';
-      default:
-        return '<Invalid async marker: $marker>';
     }
   }
 
@@ -872,7 +829,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     if (state == WORD) {
       ensureSpace();
     }
-    writeTypeParameterList(node.typeParameters);
+    writeStructuralParameterList(node.typeParameters);
     writeSymbol('(');
     List<DartType> positional = node.positionalParameters;
 
@@ -919,13 +876,19 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   void writeReturnType(DartType type, String? annotation) {
-    // ignore: unnecessary_null_comparison
-    if (type == null) return;
     writeSpaced('→');
     writeAnnotatedType(type, annotation);
   }
 
   void writeTypeParameterList(List<TypeParameter> typeParameters) {
+    if (typeParameters.isEmpty) return;
+    writeSymbol('<');
+    writeList(typeParameters, writeNode);
+    writeSymbol('>');
+    state = WORD; // Ensure space if not followed by another symbol.
+  }
+
+  void writeStructuralParameterList(List<StructuralParameter> typeParameters) {
     if (typeParameters.isEmpty) return;
     writeSymbol('<');
     writeList(typeParameters, writeNode);
@@ -976,8 +939,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   String getClassReferenceFromReference(Reference reference) {
-    // ignore: unnecessary_null_comparison
-    if (reference == null) return '<No Class>';
     if (reference.node != null) return getClassReference(reference.asClass);
     if (reference.canonicalName != null) {
       return getCanonicalNameString(reference.canonicalName!);
@@ -985,31 +946,16 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     throw "Neither node nor canonical name found";
   }
 
-  void writeExtensionReferenceFromReference(Reference reference) {
-    writeWord(getExtensionReferenceFromReference(reference));
+  void writeExtensionTypeDeclarationReferenceFromReference(
+      Reference reference) {
+    writeWord(getExtensionTypeDeclarationReferenceFromReference(reference));
   }
 
-  String getExtensionReferenceFromReference(Reference reference) {
-    // ignore: unnecessary_null_comparison
-    if (reference == null) return '<No Extension>';
+  String getExtensionTypeDeclarationReferenceFromReference(
+      Reference reference) {
     if (reference.node != null) {
-      return getExtensionReference(reference.asExtension);
-    }
-    if (reference.canonicalName != null) {
-      return getCanonicalNameString(reference.canonicalName!);
-    }
-    throw "Neither node nor canonical name found";
-  }
-
-  void writeInlineClassReferenceFromReference(Reference reference) {
-    writeWord(getInlineClassReferenceFromReference(reference));
-  }
-
-  String getInlineClassReferenceFromReference(Reference reference) {
-    // ignore: unnecessary_null_comparison
-    if (reference == null) return '<No Extension>';
-    if (reference.node != null) {
-      return getInlineClassReference(reference.asInlineClass);
+      return getExtensionTypeDeclarationReference(
+          reference.asExtensionTypeDeclaration);
     }
     if (reference.canonicalName != null) {
       return getCanonicalNameString(reference.canonicalName!);
@@ -1036,7 +982,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
     String libraryString(CanonicalName lib) {
       if (lib.reference.node != null) {
-        return getLibraryReference(lib.reference.asLibrary);
+        return getLibraryReference(lib.reference);
       }
       return syntheticNames.nameCanonicalNameAsLibraryPrefix(
           lib.reference, lib);
@@ -1081,6 +1027,10 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   void writeTypeParameterReference(TypeParameter node) {
     writeWord(getTypeParameterReference(node));
+  }
+
+  void writeStructuralParameterReference(StructuralParameter node) {
+    writeWord(getStructuralParameterReference(node));
   }
 
   void writeExpression(Expression node, [int? minimumPrecedence]) {
@@ -1142,6 +1092,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeModifier(node.isCovariantByClass, 'covariant-by-class');
     writeModifier(node.isFinal, 'final');
     writeModifier(node.isConst, 'const');
+    writeModifier(node.isErroneous, 'erroneous');
     // Only show implicit getter/setter modifiers in cases where they are
     // out of the ordinary.
     if (node.isFinal) {
@@ -1150,21 +1101,13 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeWord('field');
     writeSpace();
     writeAnnotatedType(node.type, annotator?.annotateField(this, node));
-    writeName(getMemberName(node));
+    writeName(getMemberName(node), showLibrary: true);
     Expression? initializer = node.initializer;
     if (initializer != null) {
       writeSpaced('=');
       writeExpression(initializer);
     }
     List<String> features = <String>[];
-    if (node.enclosingLibrary.isNonNullableByDefault !=
-        node.isNonNullableByDefault) {
-      if (node.isNonNullableByDefault) {
-        features.add("isNonNullableByDefault");
-      } else {
-        features.add("isLegacy");
-      }
-    }
     Class? enclosingClass = node.enclosingClass;
     if ((enclosingClass == null &&
             node.enclosingLibrary.fileUri != node.fileUri) ||
@@ -1186,6 +1129,10 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeModifier(node.isAbstract, 'abstract');
     writeModifier(node.isForwardingStub, 'forwarding-stub');
     writeModifier(node.isForwardingSemiStub, 'forwarding-semi-stub');
+    writeModifier(node.isExtensionMember, 'extension-member');
+    writeModifier(node.isExtensionTypeMember, 'extension-type-member');
+    writeModifier(node.isSynthetic, 'synthetic');
+    writeModifier(node.isErroneous, 'erroneous');
     switch (node.stubKind) {
       case ProcedureStubKind.Regular:
       case ProcedureStubKind.AbstractForwardingStub:
@@ -1203,17 +1150,12 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       case ProcedureStubKind.ConcreteMixinStub:
         writeWord('mixin-super-stub');
         break;
+      case ProcedureStubKind.RepresentationField:
+        writeWord('representation-field');
+        break;
     }
     writeWord(procedureKindToString(node.kind));
     List<String> features = <String>[];
-    if (node.enclosingLibrary.isNonNullableByDefault !=
-        node.isNonNullableByDefault) {
-      if (node.isNonNullableByDefault) {
-        features.add("isNonNullableByDefault");
-      } else {
-        features.add("isLegacy");
-      }
-    }
     Class? enclosingClass = node.enclosingClass;
     if ((enclosingClass == null &&
             node.enclosingLibrary.fileUri != node.fileUri) ||
@@ -1234,6 +1176,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       case ProcedureStubKind.ConcreteForwardingStub:
       case ProcedureStubKind.NoSuchMethodForwarder:
       case ProcedureStubKind.ConcreteMixinStub:
+      case ProcedureStubKind.RepresentationField:
         writeFunction(node.function, name: getMemberName(node));
         break;
       case ProcedureStubKind.MemberSignature:
@@ -1257,51 +1200,17 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeModifier(node.isExternal, 'external');
     writeModifier(node.isConst, 'const');
     writeModifier(node.isSynthetic, 'synthetic');
+    writeModifier(node.isErroneous, 'erroneous');
     writeWord('constructor');
     List<String> features = <String>[];
-    if (node.enclosingLibrary.isNonNullableByDefault !=
-        node.isNonNullableByDefault) {
-      if (node.isNonNullableByDefault) {
-        features.add("isNonNullableByDefault");
-      } else {
-        features.add("isLegacy");
-      }
+    if (node.enclosingClass.fileUri != node.fileUri) {
+      features.add(" from ${node.fileUri} ");
     }
     if (features.isNotEmpty) {
       writeWord("/*${features.join(',')}*/");
     }
     writeFunction(node.function,
         name: node.name, initializers: node.initializers);
-  }
-
-  @override
-  void visitRedirectingFactory(RedirectingFactory node) {
-    writeAnnotationList(node.annotations);
-    writeIndentation();
-    writeModifier(node.isExternal, 'external');
-    writeModifier(node.isConst, 'const');
-    writeWord('redirecting_factory');
-    writeFunction(node.function, name: node.name);
-    writeSpaced('=');
-    writeMemberReferenceFromReference(node.targetReference!);
-    if (node.typeArguments.isNotEmpty) {
-      writeSymbol('<');
-      writeList(node.typeArguments, writeType);
-      writeSymbol('>');
-    }
-    List<String> features = <String>[];
-    if (node.enclosingLibrary.isNonNullableByDefault !=
-        node.isNonNullableByDefault) {
-      if (node.isNonNullableByDefault) {
-        features.add("isNonNullableByDefault");
-      } else {
-        features.add("isLegacy");
-      }
-    }
-    if (features.isNotEmpty) {
-      writeWord("/*${features.join(',')}*/");
-    }
-    endLine(';');
   }
 
   @override
@@ -1359,7 +1268,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     node.fields.forEach(writeNode);
     node.constructors.forEach(writeNode);
     node.procedures.forEach(writeNode);
-    node.redirectingFactories.forEach(writeNode);
     --indentation;
     writeIndentation();
     endLine('}');
@@ -1370,9 +1278,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeAnnotationList(node.annotations);
     writeIndentation();
     writeWord('extension');
-    if (node.isExtensionTypeDeclaration) {
-      writeWord('type');
-    }
     if (node.isUnnamedExtension) {
       writeWord('/* unnamed */');
     }
@@ -1381,61 +1286,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeSpaced('on');
     writeType(node.onType);
 
-    ExtensionTypeShowHideClause? showHideClause = node.showHideClause;
-    if (showHideClause != null) {
-      // 'Show' clause elements.
-      if (showHideClause.shownSupertypes.isNotEmpty) {
-        writeSpaced('show-types');
-        writeList(showHideClause.shownSupertypes, visitSupertype);
-      }
-      if (showHideClause.shownMethods.isNotEmpty) {
-        writeSpaced('show-methods');
-        writeList(
-            showHideClause.shownMethods, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.shownGetters.isNotEmpty) {
-        writeSpaced('show-getters');
-        writeList(
-            showHideClause.shownGetters, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.shownSetters.isNotEmpty) {
-        writeSpaced('show-setters');
-        writeList(
-            showHideClause.shownSetters, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.shownOperators.isNotEmpty) {
-        writeSpaced('show-operators');
-        writeList(
-            showHideClause.shownOperators, writeMemberReferenceFromReference);
-      }
-
-      // 'Hide' clause elements.
-      if (showHideClause.hiddenSupertypes.isNotEmpty) {
-        writeSpaced('hide-types');
-        writeList(showHideClause.hiddenSupertypes, visitSupertype);
-      }
-      if (showHideClause.hiddenMethods.isNotEmpty) {
-        writeSpaced('hide-methods');
-        writeList(
-            showHideClause.hiddenMethods, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.hiddenGetters.isNotEmpty) {
-        writeSpaced('hide-getters');
-        writeList(
-            showHideClause.hiddenGetters, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.hiddenSetters.isNotEmpty) {
-        writeSpaced('hide-setters');
-        writeList(
-            showHideClause.hiddenSetters, writeMemberReferenceFromReference);
-      }
-      if (showHideClause.hiddenOperators.isNotEmpty) {
-        writeSpaced('hide-operators');
-        writeList(
-            showHideClause.hiddenOperators, writeMemberReferenceFromReference);
-      }
-    }
-
     String endLineString = ' {';
     if (node.enclosingLibrary.fileUri != node.fileUri) {
       endLineString += ' // from ${node.fileUri}';
@@ -1443,41 +1293,53 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
     endLine(endLineString);
     ++indentation;
-    node.members.forEach((ExtensionMemberDescriptor descriptor) {
-      writeIndentation();
-      writeModifier(descriptor.isStatic, 'static');
-      switch (descriptor.kind) {
-        case ExtensionMemberKind.Method:
-          writeWord('method');
-          break;
-        case ExtensionMemberKind.Getter:
-          writeWord('get');
-          break;
-        case ExtensionMemberKind.Setter:
-          writeWord('set');
-          break;
-        case ExtensionMemberKind.Operator:
-          writeWord('operator');
-          break;
-        case ExtensionMemberKind.Field:
-          writeWord('field');
-          break;
-        case ExtensionMemberKind.TearOff:
-          writeWord('tearoff');
-          break;
-      }
-      writeName(descriptor.name);
-      writeSpaced('=');
-      Member member = descriptor.member.asMember;
-      if (member is Procedure) {
-        if (member.isGetter) {
-          writeWord('get');
-        } else if (member.isSetter) {
-          writeWord('set');
+    node.memberDescriptors.forEach((ExtensionMemberDescriptor descriptor) {
+      void writeReference(Reference reference, {required bool isTearOff}) {
+        writeIndentation();
+        writeModifier(descriptor.isStatic, 'static');
+        writeModifier(descriptor.isInternalImplementation, 'impl');
+        switch (descriptor.kind) {
+          case ExtensionMemberKind.Method:
+            writeWord('method');
+            break;
+          case ExtensionMemberKind.Getter:
+            writeWord('get');
+            break;
+          case ExtensionMemberKind.Setter:
+            writeWord('set');
+            break;
+          case ExtensionMemberKind.Operator:
+            writeWord('operator');
+            break;
+          case ExtensionMemberKind.Field:
+            writeWord('field');
+            break;
         }
+        if (isTearOff) {
+          writeWord('tearoff');
+        }
+        writeName(descriptor.name);
+        writeSpaced('=');
+        Member member = reference.asMember;
+        if (member is Procedure) {
+          if (member.isGetter) {
+            writeWord('get');
+          } else if (member.isSetter) {
+            writeWord('set');
+          }
+        }
+        writeMemberReferenceFromReference(reference);
+        endLine(';');
       }
-      writeMemberReferenceFromReference(descriptor.member);
-      endLine(';');
+
+      final Reference? memberReference = descriptor.memberReference;
+      if (memberReference != null) {
+        writeReference(memberReference, isTearOff: false);
+      }
+      final Reference? tearOffReference = descriptor.tearOffReference;
+      if (tearOffReference != null) {
+        writeReference(tearOffReference, isTearOff: true);
+      }
     });
     --indentation;
     writeIndentation();
@@ -1485,15 +1347,16 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   @override
-  void visitInlineClass(InlineClass node) {
+  void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
     writeAnnotationList(node.annotations);
     writeIndentation();
-    writeWord('inline class');
-    writeWord(getInlineClassName(node));
+    writeWord('extension type');
+    writeWord(getExtensionTypeDeclarationName(node));
     writeTypeParameterList(node.typeParameters);
-    writeWord('/* declaredRepresentationType =');
+    writeSymbol('(');
     writeType(node.declaredRepresentationType);
-    writeWord('*/');
+    writeWord(node.representationName);
+    writeSymbol(')');
     if (node.implements.isNotEmpty) {
       writeSpaced('implements');
       writeList(node.implements, writeType);
@@ -1505,47 +1368,63 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
     endLine(endLineString);
     ++indentation;
-    node.members.forEach((InlineClassMemberDescriptor descriptor) {
-      writeIndentation();
-      writeModifier(descriptor.isStatic, 'static');
-      switch (descriptor.kind) {
-        case InlineClassMemberKind.Constructor:
-          writeWord('constructor');
-          break;
-        case InlineClassMemberKind.Factory:
-          writeWord('factory');
-          break;
-        case InlineClassMemberKind.Method:
-          writeWord('method');
-          break;
-        case InlineClassMemberKind.Getter:
-          writeWord('get');
-          break;
-        case InlineClassMemberKind.Setter:
-          writeWord('set');
-          break;
-        case InlineClassMemberKind.Operator:
-          writeWord('operator');
-          break;
-        case InlineClassMemberKind.Field:
-          writeWord('field');
-          break;
-        case InlineClassMemberKind.TearOff:
-          writeWord('tearoff');
-          break;
-      }
-      writeName(descriptor.name);
-      writeSpaced('=');
-      Member member = descriptor.member.asMember;
-      if (member is Procedure) {
-        if (member.isGetter) {
-          writeWord('get');
-        } else if (member.isSetter) {
-          writeWord('set');
+    node.procedures.forEach(writeNode);
+    node.memberDescriptors.forEach((ExtensionTypeMemberDescriptor descriptor) {
+      void writeReference(Reference reference, {required bool isTearOff}) {
+        writeIndentation();
+        writeModifier(descriptor.isStatic, 'static');
+        writeModifier(descriptor.isInternalImplementation, 'impl');
+        switch (descriptor.kind) {
+          case ExtensionTypeMemberKind.Constructor:
+            writeWord('constructor');
+            break;
+          case ExtensionTypeMemberKind.Factory:
+            writeWord('factory');
+            break;
+          case ExtensionTypeMemberKind.RedirectingFactory:
+            writeWord('redirecting-factory');
+            break;
+          case ExtensionTypeMemberKind.Method:
+            writeWord('method');
+            break;
+          case ExtensionTypeMemberKind.Getter:
+            writeWord('get');
+            break;
+          case ExtensionTypeMemberKind.Setter:
+            writeWord('set');
+            break;
+          case ExtensionTypeMemberKind.Operator:
+            writeWord('operator');
+            break;
+          case ExtensionTypeMemberKind.Field:
+            writeWord('field');
+            break;
         }
+        if (isTearOff) {
+          writeWord('tearoff');
+        }
+        writeName(descriptor.name);
+        writeSpaced('=');
+        Member member = reference.asMember;
+        if (member is Procedure) {
+          if (member.isGetter) {
+            writeWord('get');
+          } else if (member.isSetter) {
+            writeWord('set');
+          }
+        }
+        writeMemberReferenceFromReference(reference);
+        endLine(';');
       }
-      writeMemberReferenceFromReference(descriptor.member);
-      endLine(';');
+
+      final Reference? memberReference = descriptor.memberReference;
+      if (memberReference != null) {
+        writeReference(memberReference, isTearOff: false);
+      }
+      final Reference? tearOffReference = descriptor.tearOffReference;
+      if (tearOffReference != null) {
+        writeReference(tearOffReference, isTearOff: true);
+      }
     });
     --indentation;
     writeIndentation();
@@ -1557,6 +1436,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeAnnotationList(node.annotations);
     writeIndentation();
     writeWord('typedef');
+    if (node.enclosingLibrary.fileUri != node.fileUri) {
+      writeWord("/* from ${node.fileUri} */");
+    }
     writeWord(node.name);
     writeTypeParameterList(node.typeParameters);
     writeSpaced('=');
@@ -1584,16 +1466,16 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   void _writeDynamicAccessKind(DynamicAccessKind kind) {
     switch (kind) {
       case DynamicAccessKind.Dynamic:
-        writeSymbol('{dynamic}.');
+        writeSymbol('{dynamic}');
         break;
       case DynamicAccessKind.Never:
-        writeSymbol('{Never}.');
+        writeSymbol('{Never}');
         break;
       case DynamicAccessKind.Invalid:
-        writeSymbol('{<invalid>}.');
+        writeSymbol('{<invalid>}');
         break;
       case DynamicAccessKind.Unresolved:
-        writeSymbol('{<unresolved>}.');
+        writeSymbol('{<unresolved>}');
         break;
     }
   }
@@ -1602,9 +1484,12 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   void visitDynamicInvocation(DynamicInvocation node) {
     writeExpression(node.receiver, Precedence.PRIMARY);
     _writeDynamicAccessKind(node.kind);
-    writeName(
-      node.name,
-    );
+    if (!node.isImplicitCall) {
+      writeSymbol('.');
+      writeName(
+        node.name,
+      );
+    }
     writeNode(node.arguments);
   }
 
@@ -1646,7 +1531,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   void _writeInstanceAccessKind(InstanceAccessKind kind) {
     switch (kind) {
       case InstanceAccessKind.Instance:
+        break;
       case InstanceAccessKind.Object:
+        writeSymbol('{<object>}.');
         break;
       case InstanceAccessKind.Inapplicable:
         writeSymbol('{<inapplicable>}.');
@@ -1865,14 +1752,14 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitFileUriExpression(FileUriExpression node) {
+    writeWord('/* from ${node.fileUri} */');
     writeExpression(node.expression);
   }
 
   @override
   void visitIsExpression(IsExpression node) {
     writeExpression(node.operand, Precedence.BITWISE_OR);
-    writeSpaced(
-        node.isForNonNullableByDefault ? 'is{ForNonNullableByDefault}' : 'is');
+    writeSpaced('is');
     writeType(node.type);
   }
 
@@ -1889,8 +1776,8 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     if (node.isForDynamic) {
       flags.add('ForDynamic');
     }
-    if (node.isForNonNullableByDefault) {
-      flags.add('ForNonNullableByDefault');
+    if (node.isUnchecked) {
+      flags.add('Unchecked');
     }
     writeSpaced(flags.isNotEmpty ? 'as{${flags.join(',')}}' : 'as');
     writeType(node.type);
@@ -1919,7 +1806,11 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitThrow(Throw node) {
-    writeWord('throw');
+    if (node.forErrorHandling) {
+      writeWord('throw{for-error-handling}');
+    } else {
+      writeWord('throw');
+    }
     writeSpace();
     writeExpression(node.expression);
   }
@@ -1930,12 +1821,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       writeWord('const');
       writeSpace();
     }
-    // ignore: unnecessary_null_comparison
-    if (node.typeArgument != null) {
-      writeSymbol('<');
-      writeType(node.typeArgument);
-      writeSymbol('>');
-    }
+    writeSymbol('<');
+    writeType(node.typeArgument);
+    writeSymbol('>');
     writeSymbol('[');
     writeList(node.expressions, writeNode);
     writeSymbol(']');
@@ -1947,12 +1835,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       writeWord('const');
       writeSpace();
     }
-    // ignore: unnecessary_null_comparison
-    if (node.typeArgument != null) {
-      writeSymbol('<');
-      writeType(node.typeArgument);
-      writeSymbol('>');
-    }
+    writeSymbol('<');
+    writeType(node.typeArgument);
+    writeSymbol('>');
     writeSymbol('{');
     writeList(node.expressions, writeNode);
     writeSymbol('}');
@@ -1964,12 +1849,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
       writeWord('const');
       writeSpace();
     }
-    // ignore: unnecessary_null_comparison
-    if (node.keyType != null) {
-      writeSymbol('<');
-      writeList([node.keyType, node.valueType], writeType);
-      writeSymbol('>');
-    }
+    writeSymbol('<');
+    writeList([node.keyType, node.valueType], writeType);
+    writeSymbol('>');
     writeSymbol('{');
     writeList(node.entries, writeNode);
     writeSymbol('}');
@@ -2170,18 +2052,16 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   void writeStaticType(DartType type) {
-    // ignore: unnecessary_null_comparison
-    if (type != null) {
-      writeSymbol('{');
-      writeType(type);
-      writeSymbol('}');
-    }
+    writeSymbol('{');
+    writeType(type);
+    writeSymbol('}');
   }
 
   @override
   void visitDynamicGet(DynamicGet node) {
     writeExpression(node.receiver, Precedence.PRIMARY);
     _writeDynamicAccessKind(node.kind);
+    writeSymbol('.');
     writeName(node.name);
   }
 
@@ -2217,6 +2097,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   @override
   void visitDynamicSet(DynamicSet node) {
     writeExpression(node.receiver, Precedence.PRIMARY);
+    writeSymbol('.');
     _writeDynamicAccessKind(node.kind);
     writeName(node.name);
     writeSpaced('=');
@@ -2278,7 +2159,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitTypedefTearOff(TypedefTearOff node) {
-    writeTypeParameterList(node.typeParameters);
+    writeStructuralParameterList(node.structuralParameters);
     state = SYMBOL;
     writeSymbol('.(');
     writeNode(node.expression);
@@ -2448,9 +2329,12 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeSymbol('(');
     writeExpression(node.expression);
     writeSymbol(')');
+    writeWord(" /*");
     if (node.isExplicitlyExhaustive) {
-      writeWord(" /*isExplicitlyExhaustive*/");
+      writeWord("isExplicitlyExhaustive,");
     }
+    writeNode(node.expressionTypeInternal);
+    writeWord("*/");
     endLine(' {');
     ++indentation;
     node.cases.forEach(writeNode);
@@ -2528,12 +2412,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   @override
   void visitCatch(Catch node) {
     writeIndentation();
-    // ignore: unnecessary_null_comparison
-    if (node.guard != null) {
-      writeWord('on');
-      writeType(node.guard);
-      writeSpace();
-    }
+    writeWord('on');
+    writeType(node.guard);
+    writeSpace();
     writeWord('catch');
     writeSymbol('(');
     VariableDeclaration? exception = node.exception;
@@ -2585,13 +2466,8 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeAnnotationList(node.variable.annotations);
     writeIndentation();
     writeWord('function');
-    // ignore: unnecessary_null_comparison
-    if (node.function != null) {
-      writeFunction(node.function, name: getVariableName(node.variable));
-    } else {
-      writeWord(getVariableName(node.variable));
-      endLine('...;');
-    }
+    writeModifier(node.variable.isWildcard, 'wildcard');
+    writeFunction(node.function, name: getVariableName(node.variable));
   }
 
   void writeVariableDeclaration(VariableDeclaration node,
@@ -2608,6 +2484,8 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeModifier(node.isConst, 'const');
     writeModifier(node.isSynthesized && node.name != null, 'synthesized');
     writeModifier(node.isHoisted, 'hoisted');
+    writeModifier(node.isWildcard, 'wildcard');
+    writeModifier(node.isErroneouslyInitialized, 'erroneously-initialized');
     bool hasImplicitInitializer = node.initializer is NullLiteral ||
         (node.initializer is ConstantExpression &&
             (node.initializer as ConstantExpression).constant is NullConstant);
@@ -2619,14 +2497,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
         !node.hasDeclaredInitializer) {
       writeModifier(node.hasDeclaredInitializer, 'has-no-declared-initializer');
     }
-    // ignore: unnecessary_null_comparison
-    if (node.type != null) {
-      writeAnnotatedType(node.type, annotator?.annotateVariable(this, node));
-    }
-    // ignore: unnecessary_null_comparison
-    if (useVarKeyword && !node.isFinal && !node.isConst && node.type == null) {
-      writeWord('var');
-    }
+    writeAnnotatedType(node.type, annotator?.annotateVariable(this, node));
     writeWord(getVariableName(node));
     Expression? initializer = node.initializer;
     if (initializer != null) {
@@ -2706,12 +2577,6 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   void writeNullability(Nullability nullability, {bool inComment = false}) {
     switch (nullability) {
-      case Nullability.legacy:
-        writeSymbol('*');
-        if (!inComment) {
-          state = WORD; // Disallow a word immediately after the '*'.
-        }
-        break;
       case Nullability.nullable:
         writeSymbol('?');
         if (!inComment) {
@@ -2768,7 +2633,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitInterfaceType(InterfaceType node) {
-    writeClassReferenceFromReference(node.className);
+    writeClassReferenceFromReference(node.classReference);
     if (node.typeArguments.isNotEmpty) {
       writeSymbol('<');
       writeList(node.typeArguments, writeType);
@@ -2780,26 +2645,40 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitExtensionType(ExtensionType node) {
-    writeExtensionReferenceFromReference(node.extensionReference);
+    writeExtensionTypeDeclarationReferenceFromReference(
+        node.extensionTypeDeclarationReference);
     if (node.typeArguments.isNotEmpty) {
       writeSymbol('<');
       writeList(node.typeArguments, writeType);
       writeSymbol('>');
       state = Printer.WORD;
     }
-    writeNullability(node.declaredNullability);
-  }
+    writeNullability(node.nullability);
 
-  @override
-  void visitInlineType(InlineType node) {
-    writeInlineClassReferenceFromReference(node.inlineClassReference);
-    if (node.typeArguments.isNotEmpty) {
-      writeSymbol('<');
-      writeList(node.typeArguments, writeType);
-      writeSymbol('>');
-      state = Printer.WORD;
+    writeSpace();
+    write("/* erasure=");
+    writeType(node.extensionTypeErasure);
+
+    if (node.nullability != node.declaredNullability) {
+      // The following line prints the nullability of the extension type derived
+      // from its supertypes. If the extension type declaration implements
+      // `Object` directly or indirectly, such nullability is
+      // `Nullability.nonNullable`, otherwise it's `Nullability.undetermined`.
+      //
+      // The nullability derived from the supertypes will be combined with the
+      // nullability of the type declared by the programmer (by appending or
+      // omitting `?`) to compute the overall nullability of the type, which is
+      // returned by the `nullability` getter.
+      //
+      // Since the getter for computing the nullability derived from the
+      // supertypes isn't exposed publicly, we compute it as the overall
+      // nullability of the current type taken as if the programmer omitted the
+      // nullability marker `?` on the type.
+      write(", declared=");
+      writeNullability(node.declaredNullability, inComment: true);
+      writeSpace();
     }
-    writeNullability(node.declaredNullability);
+    writeWord("*/");
   }
 
   @override
@@ -2850,12 +2729,18 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
   }
 
   @override
+  void visitStructuralParameterType(StructuralParameterType node) {
+    writeStructuralParameterReference(node.parameter);
+    writeNullability(node.declaredNullability);
+  }
+
+  @override
   void visitIntersectionType(IntersectionType node) {
     writeType(node.left);
     writeSpaced('&');
     writeType(node.right);
-    writeWord("/* '");
 
+    writeWord("/* '");
     writeDartTypeNullability(node.left, inComment: true);
     writeWord("' & '");
     writeDartTypeNullability(node.right, inComment: true);
@@ -2869,14 +2754,23 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeModifier(node.isCovariantByClass, 'covariant-by-class');
     writeAnnotationList(node.annotations, separateLines: false);
     if (node.variance != Variance.covariant) {
-      writeWord(const <String>[
-        "unrelated",
-        "covariant",
-        "contravariant",
-        "invariant"
-      ][node.variance]);
+      writeWord(node.variance.name);
     }
     writeWord(getTypeParameterName(node));
+    writeSpaced('extends');
+    writeType(node.bound);
+    if (node.defaultType != node.bound) {
+      writeSpaced('=');
+      writeType(node.defaultType);
+    }
+  }
+
+  @override
+  void visitStructuralParameter(StructuralParameter node) {
+    if (node.variance != Variance.covariant) {
+      writeWord(node.variance.name);
+    }
+    writeWord(getStructuralParameterName(node));
     writeSpaced('extends');
     writeType(node.bound);
     if (node.defaultType != node.bound) {
@@ -2891,6 +2785,9 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
 
   @override
   void visitConstantExpression(ConstantExpression node) {
+    if (node is FileUriConstantExpression) {
+      writeWord('/* from ${node.fileUri} */');
+    }
     writeConstantReference(node.constant);
   }
 
@@ -3084,7 +2981,7 @@ class Printer extends Visitor<void> with VisitorVoidMixin {
     writeSpaced('=');
     writeWord('typedef-tearoff');
     writeSpace();
-    writeTypeParameterList(node.parameters);
+    writeStructuralParameterList(node.parameters);
     state = SYMBOL;
     writeSymbol('.(');
     writeConstantReference(node.tearOffConstant);
@@ -3186,12 +3083,8 @@ class Precedence implements ExpressionVisitor<int> {
     null: EXPRESSION,
   };
 
-  static bool isAssociativeBinaryOperator(int precedence) {
-    return precedence != EQUALITY && precedence != RELATIONAL;
-  }
-
   @override
-  int defaultExpression(Expression node) => EXPRESSION;
+  int visitAuxiliaryExpression(AuxiliaryExpression node) => EXPRESSION;
 
   @override
   int visitInvalidExpression(InvalidExpression node) => CALLEE;
@@ -3357,9 +3250,6 @@ class Precedence implements ExpressionVisitor<int> {
 
   @override
   int visitLet(Let node) => EXPRESSION;
-
-  @override
-  int defaultBasicLiteral(BasicLiteral node) => CALLEE;
 
   @override
   int visitBlockExpression(BlockExpression node) => EXPRESSION;

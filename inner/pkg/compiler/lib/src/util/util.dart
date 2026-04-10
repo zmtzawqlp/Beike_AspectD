@@ -2,8 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.util;
+library;
 
+// ignore: implementation_imports
 import 'package:front_end/src/api_unstable/dart2js.dart'
     show $BACKSLASH, $CR, $DEL, $DQ, $LF, $LS, $PS, $TAB;
 
@@ -14,7 +15,7 @@ export 'setlet.dart';
 class Hashing {
   /// If an integer is masked by this constant, the result is guaranteed to be
   /// in Smi range.
-  static const int SMI_MASK = 0x3fffffff;
+  static const int smiMask = 0x3fffffff;
 
   /// Mix the bits of [value] and merge them with [existing].
   static int mixHashCodeBits(int existing, int value) {
@@ -30,7 +31,7 @@ class Hashing {
     // Combine the two hash values.
     int high = existing >> 15;
     int low = existing & 0x7fff;
-    return ((high * 13) ^ (low * 997) ^ h) & SMI_MASK;
+    return ((high * 13) ^ (low * 997) ^ h) & smiMask;
   }
 
   /// Returns a hash value computed from all the characters in the string.
@@ -48,8 +49,13 @@ class Hashing {
   }
 
   /// Mix the bits of `.hashCode` all non-null objects.
-  static int objectsHash(Object? obj1,
-      [Object? obj2, Object? obj3, Object? obj4, Object? obj5]) {
+  static int objectsHash(
+    Object? obj1, [
+    Object? obj2,
+    Object? obj3,
+    Object? obj4,
+    Object? obj5,
+  ]) {
     int hash = 0;
     if (obj5 != null) hash = objectHash(obj5, hash);
     if (obj4 != null) hash = objectHash(obj4, hash);
@@ -59,12 +65,12 @@ class Hashing {
   }
 
   /// Mix the bits of the element hash codes of [list] with [existing].
-  static int listHash(List? list, [int existing = 0]) {
+  static int listHash(List<Object?>? list, [int existing = 0]) {
     int h = existing;
     if (list != null) {
       int length = list.length;
       for (int i = 0; i < length; i++) {
-        h = mixHashCodeBits(h, (list[i] as Object?).hashCode);
+        h = mixHashCodeBits(h, list[i].hashCode);
       }
     }
     return h;
@@ -78,13 +84,13 @@ class Hashing {
         h += objectsHash(e);
       }
     }
-    return h & SMI_MASK;
+    return h & smiMask;
   }
 
   /// Mix the bits of the hash codes of the unordered key/value from [map] with
   /// [existing].
-  static int unorderedMapHash(Map map, [int existing = 0]) {
-    if (map.length == 0) return existing;
+  static int unorderedMapHash(Map<Object?, Object?> map, [int existing = 0]) {
+    if (map.isEmpty) return existing;
     List<int> hashCodes = List.filled(map.length, 0);
     int i = 0;
     for (var entry in map.entries) {
@@ -99,11 +105,11 @@ class Hashing {
   }
 
   /// Mix the bits of the key/value hash codes from [map] with [existing].
-  static int mapHash(Map map, [int existing = 0]) {
+  static int mapHash(Map<Object?, Object?> map, [int existing = 0]) {
     int h = existing;
     for (var key in map.keys) {
       h = mixHashCodeBits(h, key.hashCode);
-      h = mixHashCodeBits(h, (map[key] as Object?).hashCode);
+      h = mixHashCodeBits(h, map[key].hashCode);
     }
     return h;
   }
@@ -151,15 +157,15 @@ bool equalMaps<K, V>(Map<K, V>? a, Map<K, V>? b) {
 
 /// File name prefix used to shorten the file name in stack traces printed by
 /// [trace].
-String? stackTraceFilePrefix = null;
+String? stackTraceFilePrefix;
 
 /// Writes the characters of [string] on [buffer].  The characters
 /// are escaped as suitable for JavaScript and JSON.  [buffer] is
 /// anything which supports [:write:] and [:writeCharCode:], for example,
-/// [StringBuffer].  Note that JS supports \xnn and \unnnn whereas JSON only
+/// [StringSink].  Note that JS supports \xnn and \unnnn whereas JSON only
 /// supports the \unnnn notation.  Therefore we use the \unnnn notation.
-void writeJsonEscapedCharsOn(String string, StringBuffer buffer) {
-  void addCodeUnitEscaped(StringBuffer buffer, int code) {
+void writeJsonEscapedCharsOn(String string, StringSink buffer) {
+  void addCodeUnitEscaped(StringSink buffer, int code) {
     assert(code < 0x10000);
     buffer.write(r'\u');
     if (code < 0x1000) {
@@ -174,7 +180,7 @@ void writeJsonEscapedCharsOn(String string, StringBuffer buffer) {
     buffer.write(code.toRadixString(16));
   }
 
-  void writeEscapedOn(String string, StringBuffer buffer) {
+  void writeEscapedOn(String string, StringSink buffer) {
     for (int i = 0; i < string.length; i++) {
       int code = string.codeUnitAt(i);
       if (code == $DQ) {
@@ -231,27 +237,7 @@ void writeJsonEscapedCharsOn(String string, StringBuffer buffer) {
   buffer.write(string);
 }
 
-class Pair<A, B> {
-  final A a;
-  final B b;
-
-  Pair(this.a, this.b);
-
-  @override
-  int get hashCode => 13 * a.hashCode + 17 * b.hashCode;
-
-  @override
-  bool operator ==(var other) {
-    if (identical(this, other)) return true;
-    if (other is! Pair) return false;
-    return a == other.a && b == other.b;
-  }
-
-  @override
-  String toString() => '($a,$b)';
-}
-
-int longestCommonPrefixLength(List a, List b) {
+int longestCommonPrefixLength(List<Object?> a, List<Object?> b) {
   int index = 0;
   for (; index < a.length && index < b.length; index++) {
     if (a[index] != b[index]) {
@@ -265,8 +251,11 @@ int longestCommonPrefixLength(List a, List b) {
 /// the smallest number that makes it not appear in [usedNames].
 ///
 /// Adds the result to [usedNames].
-String makeUnique(String suggestedName, Set<String> usedNames,
-    [String separator = '']) {
+String makeUnique(
+  String suggestedName,
+  Set<String> usedNames, [
+  String separator = '',
+]) {
   String result = suggestedName;
   if (usedNames.contains(suggestedName)) {
     int counter = 0;

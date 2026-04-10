@@ -4,7 +4,8 @@
 
 import '../messages/codes.dart' as codes;
 
-import '../scanner/token.dart' show Token;
+import '../scanner/token.dart'
+    show Keyword, Token, TokenIsAExtension, TokenType;
 
 import '../scanner/token_constants.dart' show IDENTIFIER_TOKEN, STRING_TOKEN;
 
@@ -14,7 +15,7 @@ import 'parser_impl.dart' show Parser;
 
 import 'type_info.dart' show isValidNonRecordTypeReference;
 
-import 'util.dart' show isOneOf, isOneOfOrEof, optional;
+import 'util.dart' show isAnyOf;
 
 /// See [IdentifierContext.catchParameter].
 class CatchParameterIdentifierContext extends IdentifierContext {
@@ -32,7 +33,9 @@ class CatchParameterIdentifierContext extends IdentifierContext {
     // Recovery
     parser.reportRecoverableError(identifier, codes.messageCatchSyntax);
     if (looksLikeStatementStart(identifier) ||
-        isOneOfOrEof(identifier, const [',', ')'])) {
+        identifier.isA(TokenType.COMMA) ||
+        identifier.isA(TokenType.CLOSE_PAREN) ||
+        identifier.isA(TokenType.EOF)) {
       return parser.rewriter.insertSyntheticIdentifier(token);
     } else if (!identifier.isKeywordOrIdentifier) {
       // When in doubt, consume the token to ensure we make progress
@@ -46,8 +49,24 @@ class CatchParameterIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.classOrMixinOrExtensionDeclaration].
 class ClassOrMixinOrExtensionIdentifierContext extends IdentifierContext {
   const ClassOrMixinOrExtensionIdentifierContext()
-      : super('classOrMixinDeclaration',
-            inDeclaration: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'classOrMixinDeclaration',
+        inDeclaration: true,
+        isBuiltInIdentifierAllowed: false,
+      );
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.LT) ||
+        token.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        token.isA(Keyword.EXTENDS) ||
+        token.isA(Keyword.WITH) ||
+        token.isA(Keyword.IMPLEMENTS) ||
+        token.isA(Keyword.ON) ||
+        token.isA(TokenType.EQ) ||
+        token.isA(TokenType.OPEN_PAREN) ||
+        token.isA(TokenType.PERIOD) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -58,38 +77,38 @@ class ClassOrMixinOrExtensionIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    const List<String> afterIdentifier = const [
-      '<',
-      '{',
-      'extends',
-      'with',
-      'implements',
-      'on',
-      '=',
-    ];
     if (identifier.isEof ||
         (looksLikeStartOfNextTopLevelDeclaration(identifier) &&
             (identifier.next == null ||
-                !isOneOfOrEof(identifier.next!, afterIdentifier))) ||
-        (isOneOfOrEof(identifier, afterIdentifier) &&
+                !_isOneOfFollowingValues(identifier.next!))) ||
+        (_isOneOfFollowingValues(identifier) &&
             (identifier.next == null ||
-                !isOneOfOrEof(identifier.next!, afterIdentifier)))) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+                !_isOneOfFollowingValues(identifier.next!)))) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else if (identifier.type.isBuiltIn) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -100,22 +119,24 @@ class ClassOrMixinOrExtensionIdentifierContext extends IdentifierContext {
 class CombinatorIdentifierContext extends IdentifierContext {
   const CombinatorIdentifierContext() : super('combinator');
 
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.SEMICOLON) ||
+        token.isA(TokenType.COMMA) ||
+        token.isA(Keyword.IF) ||
+        token.isA(Keyword.AS) ||
+        token.isA(Keyword.SHOW) ||
+        token.isA(Keyword.HIDE) ||
+        token.isA(TokenType.EOF);
+  }
+
   @override
   Token ensureIdentifier(Token token, Parser parser) {
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
-    const List<String> followingValues = const [
-      ';',
-      ',',
-      'if',
-      'as',
-      'show',
-      'hide'
-    ];
 
     if (identifier.isIdentifier) {
       if (!looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-          isOneOfOrEof(identifier.next!, followingValues)) {
+          _isOneOfFollowingValues(identifier.next!)) {
         return identifier;
       }
       // Although this is a valid identifier name, the import declaration
@@ -124,25 +145,35 @@ class CombinatorIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+    if (_isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else if (looksLikeStartOfNextTopLevelDeclaration(identifier) &&
         (identifier.next == null ||
-            !isOneOfOrEof(identifier.next!, followingValues))) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+            !_isOneOfFollowingValues(identifier.next!))) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -154,14 +185,16 @@ class CombinatorIdentifierContext extends IdentifierContext {
 /// and [IdentifierContext.constructorReferenceContinuationAfterTypeArguments].
 class ConstructorReferenceIdentifierContext extends IdentifierContext {
   const ConstructorReferenceIdentifierContext()
-      : super('constructorReference', isScopeReference: true);
+    : super('constructorReference', isScopeReference: true);
 
   const ConstructorReferenceIdentifierContext.continuation()
-      : super('constructorReferenceContinuation', isContinuation: true);
+    : super('constructorReferenceContinuation', isContinuation: true);
 
   const ConstructorReferenceIdentifierContext.continuationAfterTypeArguments()
-      : super('constructorReferenceContinuationAfterTypeArguments',
-            isContinuation: true);
+    : super(
+        'constructorReferenceContinuationAfterTypeArguments',
+        isContinuation: true,
+      );
 
   @override
   bool get allowsNewAsIdentifier => isContinuation;
@@ -177,12 +210,17 @@ class ConstructorReferenceIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (!identifier.isKeywordOrIdentifier) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       // Use the keyword as the identifier.
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
     }
     return identifier;
   }
@@ -193,13 +231,19 @@ class DottedNameIdentifierContext extends IdentifierContext {
   const DottedNameIdentifierContext() : super('dottedName');
 
   const DottedNameIdentifierContext.continuation()
-      : super('dottedNameContinuation', isContinuation: true);
+    : super('dottedNameContinuation', isContinuation: true);
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.PERIOD) ||
+        token.isA(TokenType.EQ_EQ) ||
+        token.isA(TokenType.CLOSE_PAREN) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
-    const List<String> followingValues = const ['.', '==', ')'];
 
     if (identifier.isIdentifier) {
       // DottedNameIdentifierContext are only used in conditional import
@@ -207,27 +251,34 @@ class DottedNameIdentifierContext extends IdentifierContext {
       // used as identifiers, they are more likely the start of the next
       // directive or declaration.
       if (!identifier.isTopLevelKeyword ||
-          isOneOfOrEof(identifier.next!, followingValues)) {
+          _isOneOfFollowingValues(identifier.next!)) {
         return identifier;
       }
     }
 
     // Recovery
     if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-        isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+        _isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -237,8 +288,11 @@ class DottedNameIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.enumDeclaration].
 class EnumDeclarationIdentifierContext extends IdentifierContext {
   const EnumDeclarationIdentifierContext()
-      : super('enumDeclaration',
-            inDeclaration: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'enumDeclaration',
+        inDeclaration: true,
+        isBuiltInIdentifierAllowed: false,
+      );
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -250,23 +304,33 @@ class EnumDeclarationIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-        isOneOfOrEof(identifier, const ['{'])) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+        identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else if (identifier.type.isBuiltIn) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -276,7 +340,7 @@ class EnumDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.enumValueDeclaration].
 class EnumValueDeclarationIdentifierContext extends IdentifierContext {
   const EnumValueDeclarationIdentifierContext()
-      : super('enumValueDeclaration', inDeclaration: true);
+    : super('enumValueDeclaration', inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -288,20 +352,28 @@ class EnumValueDeclarationIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-        isOneOfOrEof(identifier, const [',', '}'])) {
+        identifier.isA(TokenType.COMMA) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF)) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifier);
+        identifier,
+        codes.templateExpectedIdentifier,
+      );
       return parser.rewriter.insertSyntheticIdentifier(token);
     } else if (!identifier.isKeywordOrIdentifier) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifier);
+        identifier,
+        codes.templateExpectedIdentifier,
+      );
       // When in doubt, consume the token to ensure we make progress
       // but insert a synthetic identifier to satisfy listeners.
       return parser.rewriter.insertSyntheticIdentifier(identifier);
     } else {
       // Use the keyword as the identifier.
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
     }
     return identifier;
   }
@@ -310,10 +382,10 @@ class EnumValueDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.expression].
 class ExpressionIdentifierContext extends IdentifierContext {
   const ExpressionIdentifierContext()
-      : super('expression', isScopeReference: true);
+    : super('expression', isScopeReference: true);
 
   const ExpressionIdentifierContext.continuation()
-      : super('expressionContinuation', isContinuation: true);
+    : super('expressionContinuation', isContinuation: true);
 
   @override
   bool get allowsNewAsIdentifier => isContinuation;
@@ -323,13 +395,15 @@ class ExpressionIdentifierContext extends IdentifierContext {
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
     if (identifier.isIdentifier) {
-      if (optional('await', identifier) && identifier.next!.isIdentifier) {
+      if (identifier.isA(Keyword.AWAIT) && identifier.next!.isIdentifier) {
         // Although the `await` can be used in an expression,
         // it is followed by another identifier which does not form
         // a valid expression. Report an error on the `await` token
         // rather than the token following it.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateUnexpectedToken);
+          identifier,
+          codes.templateUnexpectedToken,
+        );
 
         // TODO(danrubel) Consider a new listener event so that analyzer
         // can represent this as an await expression in a context that does
@@ -343,24 +417,41 @@ class ExpressionIdentifierContext extends IdentifierContext {
 
     // Recovery
     Token reportErrorAt = identifier;
-    if (optional(r'$', token) &&
+    if (token.isA(TokenType.STRING_INTERPOLATION_IDENTIFIER) &&
         identifier.isKeyword &&
         identifier.next!.kind == STRING_TOKEN) {
       // Keyword used as identifier in string interpolation
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
       return identifier;
     } else if (!looksLikeStatementStart(identifier)) {
       if (identifier.isKeywordOrIdentifier) {
-        if (isContinuation || !isOneOfOrEof(identifier, const ['as', 'is'])) {
+        if (isContinuation ||
+            !(identifier.isA(Keyword.AS) ||
+                identifier.isA(Keyword.IS) ||
+                identifier.isA(TokenType.EOF))) {
           // Use the keyword as the identifier.
           parser.reportRecoverableErrorWithToken(
-              identifier, codes.templateExpectedIdentifierButGotKeyword);
+            identifier,
+            codes.templateExpectedIdentifierButGotKeyword,
+          );
           return identifier;
         }
       } else if (!identifier.isOperator &&
-          !isOneOfOrEof(identifier,
-              const ['.', ',', '(', ')', '[', ']', '{', '}', '?', ':', ';'])) {
+          !(identifier.isA(TokenType.PERIOD) ||
+              identifier.isA(TokenType.COMMA) ||
+              identifier.isA(TokenType.OPEN_PAREN) ||
+              identifier.isA(TokenType.CLOSE_PAREN) ||
+              identifier.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+              identifier.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+              identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+              identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+              identifier.isA(TokenType.QUESTION) ||
+              identifier.isA(TokenType.COLON) ||
+              identifier.isA(TokenType.SEMICOLON) ||
+              identifier.isA(TokenType.EOF))) {
         // When in doubt, consume the token to ensure we make progress
         token = identifier;
         identifier = token.next!;
@@ -368,95 +459,19 @@ class ExpressionIdentifierContext extends IdentifierContext {
     }
 
     parser.reportRecoverableErrorWithToken(
-        reportErrorAt, codes.templateExpectedIdentifier);
+      reportErrorAt,
+      codes.templateExpectedIdentifier,
+    );
 
     // Insert a synthetic identifier to satisfy listeners.
     return parser.rewriter.insertSyntheticIdentifier(token);
   }
 }
 
-/// See [IdentifierContext.extensionShowHideElementGetter],
-/// [IdentifierContext.extensionShowHideElementMemberOrType],
-/// [IdentifierContext.extensionShowHideElementOperator],
-/// [IdentifierContext.extensionShowHideElementSetter].
-class ExtensionShowHideElementIdentifierContext extends IdentifierContext {
-  static const int _getterKind = 0;
-  static const int _memberOrTypeKind = 1;
-  static const int _operator = 2;
-  static const int _setterKind = 3;
-
-  final int _kind;
-
-  const ExtensionShowHideElementIdentifierContext.getter()
-      : _kind = _getterKind,
-        super('extensionShowHideElementGetter', inDeclaration: true);
-
-  const ExtensionShowHideElementIdentifierContext.memberOrType()
-      : _kind = _memberOrTypeKind,
-        super('extensionShowHideElementMemberOrType', inDeclaration: true);
-
-  const ExtensionShowHideElementIdentifierContext.operator()
-      : _kind = _operator,
-        super('extensionShowHideElementOperator', inDeclaration: true);
-
-  const ExtensionShowHideElementIdentifierContext.setter()
-      : _kind = _setterKind,
-        super('extensionShowHideElementSetter', inDeclaration: true);
-
-  @override
-  Token ensureIdentifier(Token token, Parser parser) {
-    Token identifier = token.next!;
-    if (identifier.isIdentifier ||
-        _kind == _operator && identifier.isOperator) {
-      return identifier;
-    }
-
-    // Recovery
-    const List<String> afterIdentifier = const [
-      '<',
-      '{',
-      'extends',
-      'with',
-      'implements',
-      'on',
-      '=',
-    ];
-    if (identifier.isEof ||
-        (looksLikeStartOfNextTopLevelDeclaration(identifier) &&
-            (identifier.next == null ||
-                !isOneOfOrEof(identifier.next!, afterIdentifier))) ||
-        (isOneOfOrEof(identifier, afterIdentifier) &&
-            (identifier.next == null ||
-                !isOneOfOrEof(identifier.next!, afterIdentifier)))) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
-    } else {
-      if (!identifier.isKeywordOrIdentifier) {
-        parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
-        // When in doubt, consume the token to ensure we make progress
-        // but insert a synthetic identifier to satisfy listeners.
-        identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
-      } else {
-        // Use the keyword as the identifier.
-        parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
-      }
-    }
-    return identifier;
-  }
-
-  @override
-  bool operator ==(dynamic other) {
-    return other is ExtensionShowHideElementIdentifierContext &&
-        _kind == other._kind;
-  }
-}
-
 /// See [IdentifierContext.fieldDeclaration].
 class FieldDeclarationIdentifierContext extends IdentifierContext {
   const FieldDeclarationIdentifierContext()
-      : super('fieldDeclaration', inDeclaration: true);
+    : super('fieldDeclaration', inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -467,27 +482,39 @@ class FieldDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [';', '=', ',', '}']) ||
+    if (identifier.isA(TokenType.SEMICOLON) ||
+        identifier.isA(TokenType.EQ) ||
+        identifier.isA(TokenType.COMMA) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStartOfNextClassMember(identifier)) {
       // TODO(jensj): Why aren't an error reported here?
       return parser.insertSyntheticIdentifier(token, this);
     } else if (!identifier.isKeywordOrIdentifier) {
       // When in doubt, consume the token to ensure we make progress
       // but insert a synthetic identifier to satisfy listeners.
-      return parser.insertSyntheticIdentifier(identifier, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier),
-          messageOnToken: identifier);
+      return parser.insertSyntheticIdentifier(
+        identifier,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+        messageOnToken: identifier,
+      );
     } else {
       // Use the keyword as the identifier.
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
       return identifier;
     }
   }
 
   @override
   Token ensureIdentifierPotentiallyRecovered(
-      Token token, Parser parser, bool isRecovered) {
+    Token token,
+    Parser parser,
+    bool isRecovered,
+  ) {
     // Fast path good case.
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
@@ -501,7 +528,9 @@ class FieldDeclarationIdentifierContext extends IdentifierContext {
 
     // If already recovered, use the given token.
     parser.reportRecoverableErrorWithToken(
-        identifier, codes.templateExpectedIdentifierButGotKeyword);
+      identifier,
+      codes.templateExpectedIdentifierButGotKeyword,
+    );
     return identifier;
   }
 }
@@ -509,14 +538,14 @@ class FieldDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.fieldInitializer].
 class FieldInitializerIdentifierContext extends IdentifierContext {
   const FieldInitializerIdentifierContext()
-      : super('fieldInitializer', inDeclaration: true, isContinuation: true);
+    : super('fieldInitializer', inDeclaration: true, isContinuation: true);
 
   @override
   bool get allowsNewAsIdentifier => true;
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
-    assert(optional('.', token));
+    assert(token.isA(TokenType.PERIOD));
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
     if (identifier.isIdentifier) {
@@ -525,7 +554,9 @@ class FieldInitializerIdentifierContext extends IdentifierContext {
 
     // Recovery
     parser.reportRecoverableErrorWithToken(
-        identifier, codes.templateExpectedIdentifier);
+      identifier,
+      codes.templateExpectedIdentifier,
+    );
     // Insert a synthetic identifier to satisfy listeners.
     return parser.rewriter.insertSyntheticIdentifier(token);
   }
@@ -534,7 +565,20 @@ class FieldInitializerIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.formalParameterDeclaration].
 class FormalParameterDeclarationIdentifierContext extends IdentifierContext {
   const FormalParameterDeclarationIdentifierContext()
-      : super('formalParameterDeclaration', inDeclaration: true);
+    : super('formalParameterDeclaration', inDeclaration: true);
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.COLON) ||
+        token.isA(TokenType.EQ) ||
+        token.isA(TokenType.COMMA) ||
+        token.isA(TokenType.OPEN_PAREN) ||
+        token.isA(TokenType.CLOSE_PAREN) ||
+        token.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+        token.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+        token.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        token.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -546,35 +590,31 @@ class FormalParameterDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    const List<String> followingValues = const [
-      ':',
-      '=',
-      ',',
-      '(',
-      ')',
-      '[',
-      ']',
-      '{',
-      '}',
-    ];
     if (((looksLikeStartOfNextTopLevelDeclaration(identifier) ||
                 looksLikeStartOfNextClassMember(identifier) ||
                 looksLikeStatementStart(identifier)) &&
-            !isOneOf(identifier.next!, okNextValueInFormalParameter)) ||
-        isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+            !isOkNextValueInFormalParameter(identifier.next!)) ||
+        _isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -587,7 +627,7 @@ class FormalParameterDeclarationIdentifierContext extends IdentifierContext {
 /// to better fit the specific use case.
 class RecordFieldDeclarationIdentifierContext extends IdentifierContext {
   const RecordFieldDeclarationIdentifierContext()
-      : super('recordFieldDeclaration', inDeclaration: true);
+    : super('recordFieldDeclaration', inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -599,35 +639,40 @@ class RecordFieldDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    const List<String> followingValues = const [
-      ':',
-      '=',
-      ',',
-      '(',
-      ')',
-      '[',
-      ']',
-      '{',
-      '}',
-    ];
     if (((looksLikeStartOfNextTopLevelDeclaration(identifier) ||
                 looksLikeStartOfNextClassMember(identifier) ||
                 looksLikeStatementStart(identifier)) &&
-            !isOneOf(identifier.next!, okNextValueInFormalParameter)) ||
-        isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+            !isOkNextValueInFormalParameter(identifier.next!)) ||
+        identifier.isA(TokenType.COLON) ||
+        identifier.isA(TokenType.EQ) ||
+        identifier.isA(TokenType.COMMA) ||
+        identifier.isA(TokenType.OPEN_PAREN) ||
+        identifier.isA(TokenType.CLOSE_PAREN) ||
+        identifier.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+        identifier.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+        identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -637,8 +682,21 @@ class RecordFieldDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.importPrefixDeclaration].
 class ImportPrefixIdentifierContext extends IdentifierContext {
   const ImportPrefixIdentifierContext()
-      : super('importPrefixDeclaration',
-            inDeclaration: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'importPrefixDeclaration',
+        inDeclaration: true,
+        isBuiltInIdentifierAllowed: false,
+      );
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.SEMICOLON) ||
+        token.isA(Keyword.IF) ||
+        token.isA(Keyword.SHOW) ||
+        token.isA(Keyword.HIDE) ||
+        token.isA(Keyword.DEFERRED) ||
+        token.isA(Keyword.AS) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -649,37 +707,41 @@ class ImportPrefixIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    const List<String> followingValues = const [
-      ';',
-      'if',
-      'show',
-      'hide',
-      'deferred',
-      'as'
-    ];
     if (identifier.type.isBuiltIn &&
-        isOneOfOrEof(identifier.next!, followingValues)) {
+        _isOneOfFollowingValues(identifier.next!)) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else if (looksLikeStartOfNextTopLevelDeclaration(identifier) &&
         (identifier.next == null ||
-            !isOneOfOrEof(identifier.next!, followingValues))) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
-    } else if (isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+            !_isOneOfFollowingValues(identifier.next!))) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
+    } else if (_isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -688,11 +750,10 @@ class ImportPrefixIdentifierContext extends IdentifierContext {
 
 class LiteralSymbolIdentifierContext extends IdentifierContext {
   const LiteralSymbolIdentifierContext()
-      : super('literalSymbol', inSymbol: true);
+    : super('literalSymbol', inSymbol: true);
 
   const LiteralSymbolIdentifierContext.continuation()
-      : super('literalSymbolContinuation',
-            inSymbol: true, isContinuation: true);
+    : super('literalSymbolContinuation', inSymbol: true, isContinuation: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -704,12 +765,17 @@ class LiteralSymbolIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (!identifier.isKeywordOrIdentifier) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       // Use the keyword as the identifier.
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
     }
 
     return identifier;
@@ -720,11 +786,14 @@ class LiteralSymbolIdentifierContext extends IdentifierContext {
 /// and [IdentifierContext.localFunctionDeclarationContinuation].
 class LocalFunctionDeclarationIdentifierContext extends IdentifierContext {
   const LocalFunctionDeclarationIdentifierContext()
-      : super('localFunctionDeclaration', inDeclaration: true);
+    : super('localFunctionDeclaration', inDeclaration: true);
 
   const LocalFunctionDeclarationIdentifierContext.continuation()
-      : super('localFunctionDeclarationContinuation',
-            inDeclaration: true, isContinuation: true);
+    : super(
+        'localFunctionDeclarationContinuation',
+        inDeclaration: true,
+        isContinuation: true,
+      );
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -736,21 +805,32 @@ class LocalFunctionDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const ['.', '(', '{', '=>']) ||
+    if (identifier.isA(TokenType.PERIOD) ||
+        identifier.isA(TokenType.OPEN_PAREN) ||
+        identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.FUNCTION) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStatementStart(identifier)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -760,7 +840,7 @@ class LocalFunctionDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.labelDeclaration].
 class LabelDeclarationIdentifierContext extends IdentifierContext {
   const LabelDeclarationIdentifierContext()
-      : super('labelDeclaration', inDeclaration: true);
+    : super('labelDeclaration', inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -772,21 +852,29 @@ class LabelDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [':']) ||
+    if (identifier.isA(TokenType.COLON) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStatementStart(identifier)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -807,20 +895,27 @@ class LabelReferenceIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [';'])) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+    if (identifier.isA(TokenType.SEMICOLON) || identifier.isA(TokenType.EOF)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -833,29 +928,40 @@ class LabelReferenceIdentifierContext extends IdentifierContext {
 /// and [IdentifierContext.partNameContinuation].
 class LibraryIdentifierContext extends IdentifierContext {
   const LibraryIdentifierContext()
-      : super('libraryName', inLibraryOrPartOfDeclaration: true);
+    : super('libraryName', inLibraryOrPartOfDeclaration: true);
 
   const LibraryIdentifierContext.continuation()
-      : super('libraryNameContinuation',
-            inLibraryOrPartOfDeclaration: true, isContinuation: true);
+    : super(
+        'libraryNameContinuation',
+        inLibraryOrPartOfDeclaration: true,
+        isContinuation: true,
+      );
 
   const LibraryIdentifierContext.partName()
-      : super('partName', inLibraryOrPartOfDeclaration: true);
+    : super('partName', inLibraryOrPartOfDeclaration: true);
 
   const LibraryIdentifierContext.partNameContinuation()
-      : super('partNameContinuation',
-            inLibraryOrPartOfDeclaration: true, isContinuation: true);
+    : super(
+        'partNameContinuation',
+        inLibraryOrPartOfDeclaration: true,
+        isContinuation: true,
+      );
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.PERIOD) ||
+        token.isA(TokenType.SEMICOLON) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
-    const List<String> followingValues = const ['.', ';'];
 
     if (identifier.isIdentifier) {
       Token next = identifier.next!;
       if (!looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-          isOneOfOrEof(next, followingValues)) {
+          _isOneOfFollowingValues(next)) {
         return identifier;
       }
       // Although this is a valid library name, the library declaration
@@ -864,25 +970,35 @@ class LibraryIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+    if (_isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else if (looksLikeStartOfNextTopLevelDeclaration(identifier) &&
         (identifier.next == null ||
-            !isOneOfOrEof(identifier.next!, followingValues))) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+            !_isOneOfFollowingValues(identifier.next!))) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -892,7 +1008,7 @@ class LibraryIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.localVariableDeclaration].
 class LocalVariableDeclarationIdentifierContext extends IdentifierContext {
   const LocalVariableDeclarationIdentifierContext()
-      : super('localVariableDeclaration', inDeclaration: true);
+    : super('localVariableDeclaration', inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -904,22 +1020,34 @@ class LocalVariableDeclarationIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [';', '=', ',', '{', '}']) ||
+    if (identifier.isA(TokenType.SEMICOLON) ||
+        identifier.isA(TokenType.EQ) ||
+        identifier.isA(TokenType.COMMA) ||
+        identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStatementStart(identifier) ||
         identifier.kind == STRING_TOKEN) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -931,13 +1059,13 @@ class LocalVariableDeclarationIdentifierContext extends IdentifierContext {
 /// and [IdentifierContext.metadataContinuationAfterTypeArguments].
 class MetadataReferenceIdentifierContext extends IdentifierContext {
   const MetadataReferenceIdentifierContext()
-      : super('metadataReference', isScopeReference: true);
+    : super('metadataReference', isScopeReference: true);
 
   const MetadataReferenceIdentifierContext.continuation()
-      : super('metadataContinuation', isContinuation: true);
+    : super('metadataContinuation', isContinuation: true);
 
   const MetadataReferenceIdentifierContext.continuationAfterTypeArguments()
-      : super('metadataContinuationAfterTypeArguments', isContinuation: true);
+    : super('metadataContinuationAfterTypeArguments', isContinuation: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -949,42 +1077,68 @@ class MetadataReferenceIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const ['{', '}', '(', ')', ']']) ||
+    if (identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.OPEN_PAREN) ||
+        identifier.isA(TokenType.CLOSE_PAREN) ||
+        identifier.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStartOfNextTopLevelDeclaration(identifier) ||
         looksLikeStartOfNextClassMember(identifier) ||
         looksLikeStatementStart(identifier)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
   }
+
+  @override
+  bool get allowsNewAsIdentifier => isContinuation;
 }
 
 /// See [IdentifierContext.methodDeclaration],
 /// and [IdentifierContext.methodDeclarationContinuation],
-/// and [IdentifierContext.operatorName].
+/// and [IdentifierContext.operatorName],
+/// and [IdentifierContext.primaryConstructorDeclaration].
 class MethodDeclarationIdentifierContext extends IdentifierContext {
   const MethodDeclarationIdentifierContext()
-      : super('methodDeclaration', inDeclaration: true);
+    : super('methodDeclaration', inDeclaration: true);
 
   const MethodDeclarationIdentifierContext.continuation()
-      : super('methodDeclarationContinuation',
-            inDeclaration: true, isContinuation: true);
+    : super(
+        'methodDeclarationContinuation',
+        inDeclaration: true,
+        isContinuation: true,
+      );
+
+  const MethodDeclarationIdentifierContext.primaryConstructor()
+    : super(
+        'primaryConstructorDeclaration',
+        inDeclaration: true,
+        isContinuation: true,
+      );
 
   const MethodDeclarationIdentifierContext.operatorName()
-      : super('operatorName', inDeclaration: true);
+    : super('operatorName', inDeclaration: true);
 
   @override
   bool get allowsNewAsIdentifier => isContinuation;
@@ -999,29 +1153,45 @@ class MethodDeclarationIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (identifier.isUserDefinableOperator && !isContinuation) {
-      return parser.insertSyntheticIdentifier(identifier, this,
-          message: codes.messageMissingOperatorKeyword,
-          messageOnToken: identifier);
-    } else if (isOneOfOrEof(identifier, const ['.', '(', '{', '=>', '}']) ||
+      return parser.insertSyntheticIdentifier(
+        identifier,
+        this,
+        message: codes.messageMissingOperatorKeyword,
+        messageOnToken: identifier,
+      );
+    } else if (identifier.isA(TokenType.PERIOD) ||
+        identifier.isA(TokenType.OPEN_PAREN) ||
+        identifier.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        identifier.isA(TokenType.FUNCTION) ||
+        identifier.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        identifier.isA(TokenType.EOF) ||
         looksLikeStartOfNextClassMember(identifier)) {
       return parser.insertSyntheticIdentifier(token, this);
     } else if (!identifier.isKeywordOrIdentifier) {
       // When in doubt, consume the token to ensure we make progress
       // but insert a synthetic identifier to satisfy listeners.
-      return parser.insertSyntheticIdentifier(identifier, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier),
-          messageOnToken: identifier);
+      return parser.insertSyntheticIdentifier(
+        identifier,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+        messageOnToken: identifier,
+      );
     } else {
       // Use the keyword as the identifier.
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifierButGotKeyword);
+        identifier,
+        codes.templateExpectedIdentifierButGotKeyword,
+      );
       return identifier;
     }
   }
 
   @override
   Token ensureIdentifierPotentiallyRecovered(
-      Token token, Parser parser, bool isRecovered) {
+    Token token,
+    Parser parser,
+    bool isRecovered,
+  ) {
     // Fast path good case.
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
@@ -1035,7 +1205,9 @@ class MethodDeclarationIdentifierContext extends IdentifierContext {
 
     // If already recovered, use the given token.
     parser.reportRecoverableErrorWithToken(
-        identifier, codes.templateExpectedIdentifierButGotKeyword);
+      identifier,
+      codes.templateExpectedIdentifierButGotKeyword,
+    );
     return identifier;
   }
 }
@@ -1043,7 +1215,7 @@ class MethodDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.namedArgumentReference].
 class NamedArgumentReferenceIdentifierContext extends IdentifierContext {
   const NamedArgumentReferenceIdentifierContext()
-      : super('namedArgumentReference', allowedInConstantExpression: true);
+    : super('namedArgumentReference', allowedInConstantExpression: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -1055,20 +1227,27 @@ class NamedArgumentReferenceIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [':'])) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+    if (identifier.isA(TokenType.COLON) || identifier.isA(TokenType.EOF)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -1081,7 +1260,7 @@ class NamedArgumentReferenceIdentifierContext extends IdentifierContext {
 /// to better fit the specific use case.
 class NamedRecordFieldReferenceIdentifierContext extends IdentifierContext {
   const NamedRecordFieldReferenceIdentifierContext()
-      : super('namedRecordFieldReference', allowedInConstantExpression: true);
+    : super('namedRecordFieldReference', allowedInConstantExpression: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -1093,20 +1272,27 @@ class NamedRecordFieldReferenceIdentifierContext extends IdentifierContext {
     }
 
     // Recovery
-    if (isOneOfOrEof(identifier, const [':'])) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+    if (identifier.isA(TokenType.COLON) || identifier.isA(TokenType.EOF)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -1116,10 +1302,10 @@ class NamedRecordFieldReferenceIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.topLevelFunctionDeclaration]
 /// and [IdentifierContext.topLevelVariableDeclaration].
 class TopLevelDeclarationIdentifierContext extends IdentifierContext {
-  final List<String> followingValues;
+  final List<TokenType> followingValues;
 
   const TopLevelDeclarationIdentifierContext(super.name, this.followingValues)
-      : super(inDeclaration: true);
+    : super(inDeclaration: true);
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -1129,7 +1315,7 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
     if (identifier.isIdentifier) {
       Token next = identifier.next!;
       if (!looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-          isOneOfOrEof(next, followingValues)) {
+          isAnyOf(next, followingValues)) {
         return identifier;
       }
       // Although this is a valid top level name, the declaration
@@ -1139,23 +1325,32 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
 
     // Recovery
     if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-        isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+        isAnyOf(identifier, followingValues)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else if (identifier.type.isBuiltIn) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -1163,7 +1358,10 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
 
   @override
   Token ensureIdentifierPotentiallyRecovered(
-      Token token, Parser parser, bool isRecovered) {
+    Token token,
+    Parser parser,
+    bool isRecovered,
+  ) {
     // Fast path good case.
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
@@ -1171,7 +1369,7 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
     if (identifier.isIdentifier) {
       Token next = identifier.next!;
       if (!looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-          isOneOfOrEof(next, followingValues)) {
+          isAnyOf(next, followingValues)) {
         return identifier;
       }
     }
@@ -1182,7 +1380,9 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
 
     // If already recovered, use the given token.
     parser.reportRecoverableErrorWithToken(
-        identifier, codes.templateExpectedIdentifierButGotKeyword);
+      identifier,
+      codes.templateExpectedIdentifierButGotKeyword,
+    );
     return identifier;
   }
 }
@@ -1190,42 +1390,63 @@ class TopLevelDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.typedefDeclaration].
 class TypedefDeclarationIdentifierContext extends IdentifierContext {
   const TypedefDeclarationIdentifierContext()
-      : super('typedefDeclaration',
-            inDeclaration: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'typedefDeclaration',
+        inDeclaration: true,
+        isBuiltInIdentifierAllowed: false,
+      );
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.OPEN_PAREN) ||
+        token.isA(TokenType.LT) ||
+        token.isA(TokenType.EQ) ||
+        token.isA(TokenType.SEMICOLON) ||
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
     if (identifier.type.isPseudo) {
-      if (optional('Function', identifier)) {
+      if (identifier.isA(Keyword.FUNCTION)) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
       return identifier;
     }
 
     // Recovery
-    const List<String> followingValues = const ['(', '<', '=', ';'];
     if (identifier.type.isBuiltIn &&
-        isOneOfOrEof(identifier.next!, followingValues)) {
+        _isOneOfFollowingValues(identifier.next!)) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
-        isOneOfOrEof(identifier, followingValues)) {
-      identifier = parser.insertSyntheticIdentifier(token, this,
-          message: codes.templateExpectedIdentifier.withArguments(identifier));
+        _isOneOfFollowingValues(identifier)) {
+      identifier = parser.insertSyntheticIdentifier(
+        token,
+        this,
+        message: codes.templateExpectedIdentifier.withArguments(identifier),
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -1233,14 +1454,19 @@ class TypedefDeclarationIdentifierContext extends IdentifierContext {
 
   @override
   Token ensureIdentifierPotentiallyRecovered(
-      Token token, Parser parser, bool isRecovered) {
+    Token token,
+    Parser parser,
+    bool isRecovered,
+  ) {
     // Fast path good case.
     Token identifier = token.next!;
     assert(identifier.kind != IDENTIFIER_TOKEN);
     if (identifier.type.isPseudo) {
-      if (optional('Function', identifier)) {
+      if (identifier.isA(Keyword.FUNCTION)) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
       return identifier;
     }
@@ -1252,7 +1478,9 @@ class TypedefDeclarationIdentifierContext extends IdentifierContext {
 
     // If already recovered, use the given token.
     parser.reportRecoverableErrorWithToken(
-        identifier, codes.templateExpectedIdentifierButGotKeyword);
+      identifier,
+      codes.templateExpectedIdentifierButGotKeyword,
+    );
     return identifier;
   }
 }
@@ -1260,20 +1488,27 @@ class TypedefDeclarationIdentifierContext extends IdentifierContext {
 /// See [IdentifierContext.typeReference].
 class TypeReferenceIdentifierContext extends IdentifierContext {
   const TypeReferenceIdentifierContext()
-      : super('typeReference',
-            isScopeReference: true,
-            isBuiltInIdentifierAllowed: false,
-            recoveryTemplate: codes.templateExpectedType);
+    : super(
+        'typeReference',
+        isScopeReference: true,
+        isBuiltInIdentifierAllowed: false,
+        recoveryTemplate: codes.templateExpectedType,
+      );
 
   const TypeReferenceIdentifierContext.continuation()
-      : super('typeReferenceContinuation',
-            isContinuation: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'typeReferenceContinuation',
+        isContinuation: true,
+        isBuiltInIdentifierAllowed: false,
+      );
 
   const TypeReferenceIdentifierContext.prefixed()
-      : super('prefixedTypeReference',
-            isScopeReference: true,
-            isBuiltInIdentifierAllowed: true,
-            recoveryTemplate: codes.templateExpectedType);
+    : super(
+        'prefixedTypeReference',
+        isScopeReference: true,
+        isBuiltInIdentifierAllowed: true,
+        recoveryTemplate: codes.templateExpectedType,
+      );
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -1282,36 +1517,39 @@ class TypeReferenceIdentifierContext extends IdentifierContext {
     if (isValidNonRecordTypeReference(next)) {
       return next;
     } else if (next.isKeywordOrIdentifier) {
-      if (optional("void", next)) {
+      if (next.isA(Keyword.VOID)) {
         parser.reportRecoverableError(next, codes.messageInvalidVoid);
       } else if (next.type.isBuiltIn) {
         if (!isBuiltInIdentifierAllowed) {
           parser.reportRecoverableErrorWithToken(
-              next, codes.templateBuiltInIdentifierAsType);
+            next,
+            codes.templateBuiltInIdentifierAsType,
+          );
         }
-      } else if (optional('var', next)) {
+      } else if (next.isA(Keyword.VAR)) {
         parser.reportRecoverableError(next, codes.messageVarAsTypeName);
       } else {
         parser.reportRecoverableErrorWithToken(
-            next, codes.templateExpectedType);
+          next,
+          codes.templateExpectedType,
+        );
       }
       return next;
     }
     parser.reportRecoverableErrorWithToken(next, codes.templateExpectedType);
-    if (!isOneOfOrEof(next, const [
-      '<',
-      '>',
-      '>>',
-      '>>>',
-      ')',
-      '[',
-      ']',
-      '[]',
-      '{',
-      '}',
-      ',',
-      ';'
-    ])) {
+    if (!(next.isA(TokenType.LT) ||
+        next.isA(TokenType.GT) ||
+        next.isA(TokenType.GT_GT) ||
+        next.isA(TokenType.GT_GT_GT) ||
+        next.isA(TokenType.CLOSE_PAREN) ||
+        next.isA(TokenType.OPEN_SQUARE_BRACKET) ||
+        next.isA(TokenType.CLOSE_SQUARE_BRACKET) ||
+        next.isA(TokenType.INDEX) ||
+        next.isA(TokenType.OPEN_CURLY_BRACKET) ||
+        next.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        next.isA(TokenType.COMMA) ||
+        next.isA(TokenType.SEMICOLON) ||
+        next.isA(TokenType.EOF))) {
       // When in doubt, consume the token to ensure we make progress
       token = next;
       next = token.next!;
@@ -1324,8 +1562,28 @@ class TypeReferenceIdentifierContext extends IdentifierContext {
 // See [IdentifierContext.typeVariableDeclaration].
 class TypeVariableDeclarationIdentifierContext extends IdentifierContext {
   const TypeVariableDeclarationIdentifierContext()
-      : super('typeVariableDeclaration',
-            inDeclaration: true, isBuiltInIdentifierAllowed: false);
+    : super(
+        'typeVariableDeclaration',
+        inDeclaration: true,
+        isBuiltInIdentifierAllowed: false,
+      );
+
+  bool _isOneOfFollowingValues(Token token) {
+    return token.isA(TokenType.LT) ||
+        token.isA(TokenType.GT) ||
+        token.isA(TokenType.GT_GT) ||
+        token.isA(TokenType.GT_GT_GT) ||
+        token.isA(TokenType.SEMICOLON) ||
+        token.isA(TokenType.CLOSE_CURLY_BRACKET) ||
+        token.isA(Keyword.EXTENDS) ||
+        token.isA(Keyword.SUPER) ||
+        // If currently adding type variables to a typedef this could easily
+        // occur and we don't want to 'eat' the equal sign.
+        token.isA(TokenType.EQ) ||
+        token.isA(TokenType.GT_EQ) ||
+        // Also EOF.
+        token.isA(TokenType.EOF);
+  }
 
   @override
   Token ensureIdentifier(Token token, Parser parser) {
@@ -1341,41 +1599,35 @@ class TypeVariableDeclarationIdentifierContext extends IdentifierContext {
     // token. Otherwise such a token would be consumed: an identifier would be
     // inserted after "token.next" and that would be returned as the last
     // consumed token, effectively skipping the token.
-    const List<String> followingValues = const [
-      '<',
-      '>',
-      '>>',
-      '>>>',
-      ';',
-      '}',
-      'extends',
-      'super',
-      // If currently adding type variables to a typedef this could easily
-      // occur and we don't want to 'eat' the equal sign.
-      '=',
-      '>=',
-    ];
     if (looksLikeStartOfNextTopLevelDeclaration(identifier) ||
         looksLikeStartOfNextClassMember(identifier) ||
         looksLikeStatementStart(identifier) ||
-        isOneOfOrEof(identifier, followingValues)) {
+        _isOneOfFollowingValues(identifier)) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateExpectedIdentifier);
+        identifier,
+        codes.templateExpectedIdentifier,
+      );
       identifier = parser.rewriter.insertSyntheticIdentifier(token);
     } else if (identifier.type.isBuiltIn) {
       parser.reportRecoverableErrorWithToken(
-          identifier, codes.templateBuiltInIdentifierInDeclaration);
+        identifier,
+        codes.templateBuiltInIdentifierInDeclaration,
+      );
     } else {
       if (!identifier.isKeywordOrIdentifier) {
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifier);
+          identifier,
+          codes.templateExpectedIdentifier,
+        );
         // When in doubt, consume the token to ensure we make progress
         // but insert a synthetic identifier to satisfy listeners.
         identifier = parser.rewriter.insertSyntheticIdentifier(identifier);
       } else {
         // Use the keyword as the identifier.
         parser.reportRecoverableErrorWithToken(
-            identifier, codes.templateExpectedIdentifierButGotKeyword);
+          identifier,
+          codes.templateExpectedIdentifierButGotKeyword,
+        );
       }
     }
     return identifier;
@@ -1384,17 +1636,28 @@ class TypeVariableDeclarationIdentifierContext extends IdentifierContext {
 
 void checkAsyncAwaitYieldAsIdentifier(Token identifier, Parser parser) {
   if (!parser.inPlainSync && identifier.type.isPseudo) {
-    if (optional('await', identifier)) {
+    if (identifier.isA(Keyword.AWAIT)) {
       parser.reportRecoverableError(identifier, codes.messageAwaitAsIdentifier);
-    } else if (optional('yield', identifier)) {
+    } else if (identifier.isA(Keyword.YIELD)) {
       parser.reportRecoverableError(identifier, codes.messageYieldAsIdentifier);
     }
   }
 }
 
 bool looksLikeStartOfNextClassMember(Token token) =>
-    token.isModifier || isOneOfOrEof(token, const ['@', 'get', 'set', 'void']);
+    token.isModifier ||
+    token.isA(TokenType.AT) ||
+    token.isA(Keyword.GET) ||
+    token.isA(Keyword.SET) ||
+    token.isA(Keyword.VOID) ||
+    token.isA(TokenType.EOF);
 
 bool looksLikeStartOfNextTopLevelDeclaration(Token token) =>
     token.isTopLevelKeyword ||
-    isOneOfOrEof(token, const ['const', 'get', 'final', 'set', 'var', 'void']);
+    token.isA(Keyword.CONST) ||
+    token.isA(Keyword.GET) ||
+    token.isA(Keyword.FINAL) ||
+    token.isA(Keyword.SET) ||
+    token.isA(Keyword.VAR) ||
+    token.isA(Keyword.VOID) ||
+    token.isA(TokenType.EOF);

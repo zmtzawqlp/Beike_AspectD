@@ -2,21 +2,21 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.js_model.locals;
+library;
 
 import 'package:kernel/ast.dart' as ir;
 
 import '../closure.dart';
 import '../common.dart';
 import '../elements/entities.dart';
-import '../elements/indexed.dart';
+import '../elements/entity_map.dart';
 import '../elements/jumps.dart';
 import '../elements/types.dart';
 import '../serialization/deferrable.dart';
 import '../serialization/serialization.dart';
 
 import 'element_map.dart';
-import 'elements.dart' show JGeneratorBody;
+import 'elements.dart' show JGeneratorBody, JParameterStub;
 
 class GlobalLocalsMap {
   /// Tag used for identifying serialized [GlobalLocalsMap] objects in a
@@ -38,22 +38,26 @@ class GlobalLocalsMap {
 
   /// Deserializes a [GlobalLocalsMap] object from [source].
   factory GlobalLocalsMap.readFromDataSource(
-      MemberEntity Function(MemberEntity) localMapKeyLookup,
-      DataSourceReader source) {
+    MemberEntity Function(MemberEntity) localMapKeyLookup,
+    DataSourceReader source,
+  ) {
     source.begin(tag);
-    Map<MemberEntity, Deferrable<KernelToLocalsMap>> _localsMaps = {};
+    Map<MemberEntity, Deferrable<KernelToLocalsMap>> localsMaps = {};
     int mapCount = source.readInt();
     for (int i = 0; i < mapCount; i++) {
       Deferrable<KernelToLocalsMap> localsMap = source.readDeferrable(
-          () => KernelToLocalsMapImpl.readFromDataSource(source));
+        KernelToLocalsMapImpl.readFromDataSource,
+      );
       List<MemberEntity> members = source.readMembers();
       for (MemberEntity member in members) {
-        _localsMaps[member] = localsMap;
+        localsMaps[member] = localsMap;
       }
     }
     source.end(tag);
     return GlobalLocalsMap.internal(
-        localMapKeyLookup, DeferrableValueMap(_localsMaps));
+      localMapKeyLookup,
+      DeferrableValueMap(localsMaps),
+    );
   }
 
   /// Serializes this [GlobalLocalsMap] to [sink].
@@ -69,8 +73,10 @@ class GlobalLocalsMap {
       reverseMap.putIfAbsent(localsMap, () => []).add(member);
     });
     sink.writeInt(reverseMap.length);
-    reverseMap
-        .forEach((KernelToLocalsMap localsMap, List<MemberEntity> members) {
+    reverseMap.forEach((
+      KernelToLocalsMap localsMap,
+      List<MemberEntity> members,
+    ) {
       sink.writeDeferrable(() => localsMap.writeToDataSink(sink));
       sink.writeMembers(members);
     });
@@ -89,8 +95,11 @@ class GlobalLocalsMap {
     // have the concept of an initializer list, so the constructor (initializer
     // list) and the constructor body are implemented as two separate
     // constructor steps.
-    MemberEntity entity = key;
-    if (entity is ConstructorBodyEntity) key = entity.constructor;
+    if (key is ConstructorBodyEntity) {
+      key = key.constructor;
+    } else if (key is JParameterStub) {
+      key = key.target;
+    }
     return _localsMaps.putIfAbsent(key, () => KernelToLocalsMapImpl(key));
   }
 }
@@ -116,14 +125,10 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
     if (localsCount > 0) {
       final variableMap = _variableMap = {};
       for (int i = 0; i < localsCount; i++) {
-        int index = source.readInt();
-        final name = source.readStringOrNull();
-        bool isRegularParameter = source.readBool();
+        final local = source.readLocal() as JLocal;
         final node = source.readTreeNode() as ir.VariableDeclaration;
-        JLocal local =
-            JLocal(name, currentMember, isRegularParameter: isRegularParameter);
         LocalData data = LocalData(node);
-        _locals.registerByIndex(index, local, data);
+        _locals.register<JLocal, LocalData>(local, data);
         variableMap[node] = local;
       }
     }
@@ -147,12 +152,10 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
   void writeToDataSink(DataSinkWriter sink) {
     sink.begin(tag);
     sink.writeMember(currentMember);
-    sink.writeInt(_locals.size);
+    sink.writeInt(_locals.length);
     _locals.forEach((JLocal local, LocalData data) {
       assert(local.memberContext == currentMember);
-      sink.writeInt(local.localIndex);
-      sink.writeStringOrNull(local.name);
-      sink.writeBool(local.isRegularParameter);
+      sink.writeLocal(local);
       sink.writeTreeNode(data.node);
     });
     if (_jumpTargetMap != null) {
@@ -173,7 +176,7 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
     } else {
       sink.writeInt(0);
     }
-    sink.writeTreeNodes(_breaksAsContinue, allowNull: true);
+    sink.writeTreeNodesOrNull(_breaksAsContinue);
     sink.end(tag);
   }
 
@@ -197,16 +200,13 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
   MemberEntity get currentMember => _currentMember;
 
   @override
-  Local getLocalByIndex(int index) {
-    return _locals.getEntity(index)!;
-  }
-
-  @override
   JumpTarget getJumpTargetForBreak(ir.BreakStatement node) {
     _ensureJumpMap(node.target);
     return _jumpTargetMap![node] ??
         failedAt(
-            currentMember, 'Could not find target for break statement: $node');
+          currentMember,
+          'Could not find target for break statement: $node',
+        );
   }
 
   @override
@@ -267,8 +267,11 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
   Local getLocalVariable(ir.VariableDeclaration node) {
     final variableMap = _variableMap ??= {};
     return variableMap.putIfAbsent(node, () {
-      JLocal local = JLocal(node.name, currentMember,
-          isRegularParameter: node.parent is ir.FunctionNode);
+      JLocal local = JLocal(
+        node.name,
+        currentMember,
+        isRegularParameter: node.parent is ir.FunctionNode,
+      );
       _locals.register<JLocal, LocalData>(local, LocalData(node));
       return local;
     });
@@ -293,7 +296,7 @@ class KernelToLocalsMapImpl implements KernelToLocalsMap {
   }
 }
 
-class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
+class JumpVisitor extends ir.VisitorDefault<void> with ir.VisitorVoidMixin {
   int jumpIndex = 0;
   int labelIndex = 0;
   final MemberEntity member;
@@ -304,9 +307,12 @@ class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
 
   JJumpTarget _getJumpTarget(ir.TreeNode node) {
     return jumpTargetMap.putIfAbsent(node, () {
-      return JJumpTarget(member, jumpIndex++,
-          isSwitch: node is ir.SwitchStatement,
-          isSwitchCase: node is ir.SwitchCase);
+      return JJumpTarget(
+        member,
+        jumpIndex++,
+        isSwitch: node is ir.SwitchStatement,
+        isSwitchCase: node is ir.SwitchCase,
+      );
     });
   }
 
@@ -319,7 +325,7 @@ class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
   }
 
   @override
-  defaultNode(ir.Node node) => node.visitChildren(this);
+  void defaultNode(ir.Node node) => node.visitChildren(this);
 
   static bool canBeBreakTarget(ir.TreeNode node) {
     return node is ir.ForStatement ||
@@ -358,7 +364,7 @@ class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
   }
 
   @override
-  visitBreakStatement(ir.BreakStatement node) {
+  void visitBreakStatement(ir.BreakStatement node) {
     JJumpTarget target;
     ir.TreeNode body = node.target.body;
     ir.TreeNode parent = node.target.parent!;
@@ -450,7 +456,7 @@ class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
   }
 
   @override
-  visitContinueSwitchStatement(ir.ContinueSwitchStatement node) {
+  void visitContinueSwitchStatement(ir.ContinueSwitchStatement node) {
     JJumpTarget target = _getJumpTarget(node.target);
     target.isContinueTarget = true;
     jumpTargetMap[node] = target;
@@ -460,7 +466,7 @@ class JumpVisitor extends ir.Visitor<void> with ir.VisitorVoidMixin {
   }
 
   @override
-  visitSwitchStatement(ir.SwitchStatement node) {
+  void visitSwitchStatement(ir.SwitchStatement node) {
     node.expression.accept(this);
     if (node.cases.isNotEmpty) {
       // Ensure that [node] has a corresponding target. We generate a break if:
@@ -490,11 +496,14 @@ class JJumpTarget extends JumpTarget {
   @override
   bool isContinueTarget;
 
-  JJumpTarget(this.memberContext, this.nestingLevel,
-      {this.isSwitch = false,
-      this.isSwitchCase = false,
-      this.isBreakTarget = false,
-      this.isContinueTarget = false});
+  JJumpTarget(
+    this.memberContext,
+    this.nestingLevel, {
+    this.isSwitch = false,
+    this.isSwitchCase = false,
+    this.isBreakTarget = false,
+    this.isContinueTarget = false,
+  });
 
   /// Deserializes a [JJumpTarget] object from [source].
   factory JJumpTarget.readFromDataSource(DataSourceReader source) {
@@ -505,18 +514,24 @@ class JJumpTarget extends JumpTarget {
     bool isSwitchCase = source.readBool();
     bool isBreakTarget = source.readBool();
     bool isContinueTarget = source.readBool();
-    JJumpTarget target = JJumpTarget(memberContext, nestingLevel,
-        isSwitch: isSwitch,
-        isSwitchCase: isSwitchCase,
-        isBreakTarget: isBreakTarget,
-        isContinueTarget: isContinueTarget);
+    JJumpTarget target = JJumpTarget(
+      memberContext,
+      nestingLevel,
+      isSwitch: isSwitch,
+      isSwitchCase: isSwitchCase,
+      isBreakTarget: isBreakTarget,
+      isContinueTarget: isContinueTarget,
+    );
     int labelCount = source.readInt();
     for (int i = 0; i < labelCount; i++) {
       String labelName = source.readString();
       bool isBreakTarget = source.readBool();
       bool isContinueTarget = source.readBool();
-      target.addLabel(labelName,
-          isBreakTarget: isBreakTarget, isContinueTarget: isContinueTarget);
+      target.addLabel(
+        labelName,
+        isBreakTarget: isBreakTarget,
+        isContinueTarget: isContinueTarget,
+      );
     }
     source.end(tag);
     return target;
@@ -546,11 +561,18 @@ class JJumpTarget extends JumpTarget {
   }
 
   @override
-  JLabelDefinition addLabel(String labelName,
-      {bool isBreakTarget = false, bool isContinueTarget = false}) {
+  JLabelDefinition addLabel(
+    String labelName, {
+    bool isBreakTarget = false,
+    bool isContinueTarget = false,
+  }) {
     _labels ??= <JLabelDefinition>[];
-    final labelDefinition = JLabelDefinition(this, labelName,
-        isBreakTarget: isBreakTarget, isContinueTarget: isContinueTarget);
+    final labelDefinition = JLabelDefinition(
+      this,
+      labelName,
+      isBreakTarget: isBreakTarget,
+      isContinueTarget: isContinueTarget,
+    );
     _labels!.add(labelDefinition);
     return labelDefinition;
   }
@@ -591,8 +613,12 @@ class JLabelDefinition extends LabelDefinition {
   @override
   bool isContinueTarget;
 
-  JLabelDefinition(this.target, this.labelName,
-      {this.isBreakTarget = false, this.isContinueTarget = false});
+  JLabelDefinition(
+    this.target,
+    this.labelName, {
+    this.isBreakTarget = false,
+    this.isContinueTarget = false,
+  });
 
   @override
   String get name => labelName;
@@ -611,7 +637,8 @@ class JLabelDefinition extends LabelDefinition {
   }
 }
 
-class JLocal extends IndexedLocal {
+class JLocal with EntityMapKey implements Local {
+  static const String tag = 'jlocal';
   @override
   final String? name;
   final MemberEntity memberContext;
@@ -621,6 +648,23 @@ class JLocal extends IndexedLocal {
 
   JLocal(this.name, this.memberContext, {this.isRegularParameter = false}) {
     assert(memberContext is! JGeneratorBody);
+  }
+
+  factory JLocal.readFromDataSource(DataSourceReader source) {
+    source.begin(tag);
+    final name = source.readStringOrNull();
+    final memberContext = source.readMember();
+    final isRegularParameter = source.readBool();
+    source.end(tag);
+    return JLocal(name, memberContext, isRegularParameter: isRegularParameter);
+  }
+
+  void writeToDataSink(DataSinkWriter sink) {
+    sink.begin(tag);
+    sink.writeStringOrNull(name);
+    sink.writeMember(memberContext);
+    sink.writeBool(isRegularParameter);
+    sink.end(tag);
   }
 
   String get _kind => 'local';
@@ -658,13 +702,16 @@ class LocalData {
 /// Calls [f] for each parameter in [function] in the canonical order:
 /// Positional parameters by index, then named parameters lexicographically.
 void forEachOrderedParameterAsLocal(
-    GlobalLocalsMap globalLocalsMap,
-    JsToElementMap elementMap,
-    FunctionEntity function,
-    void f(Local parameter, {required bool isElided})) {
+  GlobalLocalsMap globalLocalsMap,
+  JsToElementMap elementMap,
+  FunctionEntity function,
+  void Function(Local parameter, {required bool isElided}) f,
+) {
   KernelToLocalsMap localsMap = globalLocalsMap.getLocalsMap(function);
-  forEachOrderedParameter(elementMap, function,
-      (ir.VariableDeclaration variable, {required bool isElided}) {
+  forEachOrderedParameter(elementMap, function, (
+    ir.VariableDeclaration variable, {
+    required bool isElided,
+  }) {
     f(localsMap.getLocalVariable(variable), isElided: isElided);
   });
 }

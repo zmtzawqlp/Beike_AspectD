@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 main() {
   directCall();
   indirectCall();
@@ -50,7 +48,8 @@ instanceTearOff() {
 }
 
 localCall() {
-  /*apply*/ local1() {}
+  /*apply*/
+  local1() {}
   local2() {}
   local3() {}
 
@@ -60,7 +59,8 @@ localCall() {
 }
 
 instantiatedCall() {
-  /*apply*/ local1<T>(T t) {}
+  /*apply*/
+  local1<T>(T t) {}
   local2<T>(T t) {}
   local3<T>(T t) {}
 

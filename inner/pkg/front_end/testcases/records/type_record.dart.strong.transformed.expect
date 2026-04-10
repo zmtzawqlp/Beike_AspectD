@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -30,11 +30,6 @@ abstract class A2 extends core::Object implements self::A<core::Record> {
     : super core::Object::•()
     ;
 }
-abstract class _A3&Object&A extends core::Object implements self::A<core::Record> /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
-  const synthetic constructor •() → self::_A3&Object&A
-    : super core::Object::•()
-    ;
-}
 abstract class A3 extends self::_A3&Object&A {
   synthetic constructor •() → self::A3
     : super self::_A3&Object&A::•()
@@ -60,6 +55,11 @@ abstract class A7 extends self::A<self::A<core::Record>> {
     : super self::A::•()
     ;
 }
+abstract class _A3&Object&A extends core::Object implements self::A<core::Record> /*isAnonymousMixin,isEliminatedMixin,hasConstConstructor*/  {
+  const synthetic constructor •() → self::_A3&Object&A
+    : super core::Object::•()
+    ;
+}
 static method foo1() → core::Record
   return throw "";
 static method foo2() → dynamic
@@ -70,7 +70,7 @@ static method foo4() → dynamic
   return #C2;
 static method foo5(core::Record r) → dynamic
   return null;
-static method foo6({required core::Record r = #C3}) → dynamic
+static method foo6({required core::Record r}) → dynamic
   return null;
 static method foo7() → core::List<core::Record>
   return throw "";
@@ -94,12 +94,11 @@ static method foo((core::int, core::String) record) → dynamic {
 static method bar(core::Record record) → dynamic {
   self::foo(invalid-expression "pkg/front_end/testcases/records/type_record.dart:66:7: Error: The argument type 'Record' can't be assigned to the parameter type '(int, String)'.
   foo(record); // Error.
-      ^" in record as{TypeError,ForNonNullableByDefault} (core::int, core::String));
+      ^" in record as{TypeError} (core::int, core::String));
 }
 static method main() → dynamic {}
 
 constants  {
   #C1 = TypeLiteralConstant(core::Record)
   #C2 = TypeLiteralConstant(core::List<core::Record>)
-  #C3 = null
 }

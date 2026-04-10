@@ -2,11 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library js_ast.string_escape_test;
-
+import 'package:expect/legacy/minitest.dart'; // ignore: deprecated_member_use
 import 'package:js_ast/js_ast.dart';
 import 'package:js_ast/src/characters.dart';
-import 'package:test/test.dart';
 
 const int $LCURLY = $OPEN_CURLY_BRACKET;
 const int $RCURLY = $CLOSE_CURLY_BRACKET;
@@ -82,24 +80,25 @@ void main() {
     //check([0x12345],
     //      [$DQ, $BACKSLASH, $u, $LCURLY, $1, $2, $3, $4, $5, $RCURLY, $DQ]);
     check([0x12345], r'''"\ud808\udf45"''');
-    check([
-      0x12345
-    ], [
-      $DQ,
-      $BACKSLASH,
-      $u,
-      $d,
-      $8,
-      $0,
-      $8,
-      $BACKSLASH,
-      $u,
-      $d,
-      $f,
-      $4,
-      $5,
-      $DQ
-    ]);
+    check(
+      [0x12345],
+      [
+        $DQ,
+        $BACKSLASH,
+        $u,
+        $d,
+        $8,
+        $0,
+        $8,
+        $BACKSLASH,
+        $u,
+        $d,
+        $f,
+        $4,
+        $5,
+        $DQ,
+      ],
+    );
     check([0x12345], [$DQ, 55304, 57157, $DQ], utf8: true);
   });
 
@@ -114,28 +113,31 @@ void main() {
     check([0xDD1E], [$DQ, $BACKSLASH, $u, $d, $d, $1, $e, $DQ], utf8: true);
 
     check([0xD834, $A], [$DQ, $BACKSLASH, $u, $d, $8, $3, $4, $A, $DQ]);
-    check([0xD834, $A], [$DQ, $BACKSLASH, $u, $d, $8, $3, $4, $A, $DQ],
-        utf8: true);
+    check(
+      [0xD834, $A],
+      [$DQ, $BACKSLASH, $u, $d, $8, $3, $4, $A, $DQ],
+      utf8: true,
+    );
 
-    check([
-      0xD834,
-      0xDD1E
-    ], [
-      $DQ,
-      $BACKSLASH,
-      $u,
-      $d,
-      $8,
-      $3,
-      $4,
-      $BACKSLASH,
-      $u,
-      $d,
-      $d,
-      $1,
-      $e,
-      $DQ
-    ]);
+    check(
+      [0xD834, 0xDD1E],
+      [
+        $DQ,
+        $BACKSLASH,
+        $u,
+        $d,
+        $8,
+        $3,
+        $4,
+        $BACKSLASH,
+        $u,
+        $d,
+        $d,
+        $1,
+        $e,
+        $DQ,
+      ],
+    );
     check([0xD834, 0xDD1E], r'''"\ud834\udd1e"''');
     check([0xD834, 0xDD1E], [$DQ, 0xD834, 0xDD1E, $DQ], utf8: true);
   });

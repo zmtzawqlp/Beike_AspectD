@@ -2,17 +2,18 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/compiler.dart' as dart2js;
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 
 import 'package:compiler/src/util/memory_compiler.dart';
 
 void main() {
   runTest() async {
-    CompilationResult result =
-        await runCompiler(memorySourceFiles: MEMORY_SOURCE_FILES);
-    dart2js.Compiler compiler = result.compiler;
+    CompilationResult result = await runCompiler(
+      memorySourceFiles: MEMORY_SOURCE_FILES,
+    );
+    dart2js.Compiler compiler = result.compiler!;
     var closedWorld = compiler.backendClosedWorldForTesting!;
     var elementEnvironment = closedWorld.elementEnvironment;
 
@@ -84,7 +85,7 @@ class A2 extends A {
   A2();
 }
 
-class C1 {}
+mixin C1 {}
 
 class C2 {
   C2() {
@@ -102,7 +103,7 @@ class C3 extends C2 with C1 {
   // Implicit redirecting "super" call via mixin.
 }
 
-class D1 {
+mixin D1 {
 }
 
 class D2 {

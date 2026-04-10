@@ -30,7 +30,7 @@ TreeNode? computeTreeNodeWithOffset(TreeNode? node) {
 
 /// Abstract visitor for computing data corresponding to a node or element,
 /// and record it with a generic [Id]
-abstract class DataExtractor<T> extends Visitor<void>
+abstract class DataExtractor<T> extends VisitorDefault<void>
     with VisitorVoidMixin, DataRegistry<T> {
   @override
   final Map<Id, ActualData<T>> actualMap;
@@ -44,6 +44,14 @@ abstract class DataExtractor<T> extends Visitor<void>
   ///
   /// If `null` is returned, [cls] has no associated data.
   T? computeClassValue(Id id, Class cls) => null;
+
+  /// Implement this to compute the data corresponding to
+  /// [extensionTypeDeclaration].
+  ///
+  /// If `null` is returned, [extensionTypeDeclaration] has no associated data.
+  T? computeExtensionTypeDeclarationValue(
+          Id id, ExtensionTypeDeclaration extensionTypeDeclaration) =>
+      null;
 
   /// Implement this to compute the data corresponding to [extension].
   ///
@@ -81,10 +89,21 @@ abstract class DataExtractor<T> extends Visitor<void>
         extension.fileUri, extension.fileOffset, id, value, extension);
   }
 
+  void computeForExtensionTypeDeclaration(
+      ExtensionTypeDeclaration extensionTypeDeclaration) {
+    ClassId id = new ClassId(extensionTypeDeclaration.name);
+    T? value =
+        computeExtensionTypeDeclarationValue(id, extensionTypeDeclaration);
+    registerValue(
+        extensionTypeDeclaration.fileUri,
+        extensionTypeDeclaration.fileOffset,
+        id,
+        value,
+        extensionTypeDeclaration);
+  }
+
   void computeForMember(Member member) {
     MemberId id = computeMemberId(member);
-    // ignore: unnecessary_null_comparison
-    if (id == null) return;
     T? value = computeMemberValue(id, member);
     registerValue(member.fileUri, member.fileOffset, id, value, member);
   }
@@ -220,7 +239,8 @@ abstract class DataExtractor<T> extends Visitor<void>
 
   @override
   void visitLocalFunctionInvocation(LocalFunctionInvocation node) {
-    computeForNode(node, createInvokeId(node));
+    computeForNode(node,
+        node.fileOffset == TreeNode.noOffset ? null : createInvokeId(node));
     super.visitLocalFunctionInvocation(node);
   }
 
@@ -407,7 +427,8 @@ abstract class DataExtractor<T> extends Visitor<void>
 
   @override
   void visitBreakStatement(BreakStatement node) {
-    computeForNode(node, createGotoId(node));
+    computeForNode(
+        node, node.fileOffset == TreeNode.noOffset ? null : createGotoId(node));
     super.visitBreakStatement(node);
   }
 
@@ -452,7 +473,10 @@ abstract class DataExtractor<T> extends Visitor<void>
 
   @override
   void visitBoolLiteral(BoolLiteral node) {
-    computeForNode(node, computeDefaultNodeId(node));
+    // Some synthetic bool literals, for instance inside some lets,
+    // have no offset.
+    computeForNode(
+        node, computeDefaultNodeId(node, skipNodeWithNoOffset: true));
     super.visitBoolLiteral(node);
   }
 
@@ -574,7 +598,8 @@ abstract class DataExtractor<T> extends Visitor<void>
     if (node.isTypeError) {
       computeForNode(node, createImplicitAsId(node));
     } else {
-      computeForNode(node, computeDefaultNodeId(node));
+      computeForNode(
+          node, computeDefaultNodeId(node, skipNodeWithNoOffset: true));
     }
     return super.visitAsExpression(node);
   }
@@ -608,7 +633,8 @@ abstract class DataExtractor<T> extends Visitor<void>
 
   @override
   void visitLogicalExpression(LogicalExpression node) {
-    computeForNode(node, computeDefaultNodeId(node));
+    computeForNode(
+        node, computeDefaultNodeId(node, skipNodeWithNoOffset: true));
     return super.visitLogicalExpression(node);
   }
 

@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart_template_buffer.dart';
 import 'key.dart';
 import 'shared.dart';
 import 'space.dart';
@@ -29,8 +30,12 @@ class TypeBasedStaticType<Type extends Object> extends NonNullableStaticType {
   @override
   final bool isImplicitlyNullable;
 
-  TypeBasedStaticType(this._typeOperations, this._fieldLookup, this._type,
-      {required this.isImplicitlyNullable});
+  TypeBasedStaticType(
+    this._typeOperations,
+    this._fieldLookup,
+    this._type, {
+    required this.isImplicitlyNullable,
+  });
 
   @override
   Map<Key, StaticType> get fields => _fieldLookup.getFieldTypes(_type);
@@ -70,9 +75,12 @@ class TypeBasedStaticType<Type extends Object> extends NonNullableStaticType {
   Type get typeForTesting => _type;
 
   @override
-  void witnessToText(StringBuffer buffer, PropertyWitness witness,
-      Map<Key, PropertyWitness> witnessFields,
-      {required bool forCorrection}) {
+  void witnessToDart(
+    DartTemplateBuffer buffer,
+    PropertyWitness witness,
+    Map<Key, PropertyWitness> witnessFields, {
+    required bool forCorrection,
+  }) {
     if (!_typeOperations.hasSimpleName(_type)) {
       buffer.write(name);
       buffer.write(' _');
@@ -93,42 +101,89 @@ class TypeBasedStaticType<Type extends Object> extends NonNullableStaticType {
           buffer.write(key.name);
           buffer.write(': ');
           PropertyWitness field = entry.value;
-          field.witnessToText(buffer, forCorrection: forCorrection);
+          field.witnessToDart(buffer, forCorrection: forCorrection);
         }
       }
       buffer.write(additionalEnd);
     } else {
-      super.witnessToText(buffer, witness, witnessFields,
-          forCorrection: forCorrection);
+      super.witnessToDart(
+        buffer,
+        witness,
+        witnessFields,
+        forCorrection: forCorrection,
+      );
     }
+  }
+
+  @override
+  void typeToDart(DartTemplateBuffer buffer) {
+    buffer.writeGeneralType(_type, name);
   }
 }
 
 /// [StaticType] for an object restricted by its [restriction].
-abstract class RestrictedStaticType<Type extends Object,
-    Identity extends Restriction> extends TypeBasedStaticType<Type> {
+abstract class RestrictedStaticType<
+  Type extends Object,
+  Identity extends Restriction
+>
+    extends TypeBasedStaticType<Type> {
   @override
   final Identity restriction;
 
   @override
   final String name;
 
-  RestrictedStaticType(super.typeOperations, super.fieldLookup, super.type,
-      this.restriction, this.name)
-      : super(isImplicitlyNullable: false);
+  RestrictedStaticType(
+    super.typeOperations,
+    super.fieldLookup,
+    super.type,
+    this.restriction,
+    this.name,
+  ) : super(isImplicitlyNullable: false);
+}
+
+/// [StaticType] for an object restricted to a single value, where that value is
+/// a general-purpose value (not a boolean or an enum).
+class GeneralValueStaticType<Type extends Object, T extends Object>
+    extends ValueStaticType<Type, T> {
+  final T _value;
+
+  @override
+  void valueToDart(DartTemplateBuffer buffer) {
+    buffer.writeGeneralConstantValue(_value, name);
+  }
+
+  GeneralValueStaticType(
+    super.typeOperations,
+    super.fieldLookup,
+    super.type,
+    super.restriction,
+    super.name,
+    this._value,
+  );
 }
 
 /// [StaticType] for an object restricted to a single value.
-class ValueStaticType<Type extends Object, T extends Object>
+abstract class ValueStaticType<Type extends Object, T extends Object>
     extends RestrictedStaticType<Type, IdentityRestriction<T>> {
-  ValueStaticType(super.typeOperations, super.fieldLookup, super.type,
-      super.restriction, super.name);
+  void valueToDart(DartTemplateBuffer buffer);
+
+  ValueStaticType(
+    super.typeOperations,
+    super.fieldLookup,
+    super.type,
+    super.restriction,
+    super.name,
+  );
 
   @override
-  void witnessToText(StringBuffer buffer, PropertyWitness witness,
-      Map<Key, PropertyWitness> witnessFields,
-      {required bool forCorrection}) {
-    buffer.write(name);
+  void witnessToDart(
+    DartTemplateBuffer buffer,
+    PropertyWitness witness,
+    Map<Key, PropertyWitness> witnessFields, {
+    required bool forCorrection,
+  }) {
+    valueToDart(buffer);
 
     // If we have restrictions on the value we create an and pattern.
     String additionalStart = ' && Object(';
@@ -146,7 +201,7 @@ class ValueStaticType<Type extends Object, T extends Object>
         buffer.write(key.name);
         buffer.write(': ');
         PropertyWitness field = entry.value;
-        field.witnessToText(buffer, forCorrection: forCorrection);
+        field.witnessToDart(buffer, forCorrection: forCorrection);
       }
     }
     buffer.write(additionalEnd);

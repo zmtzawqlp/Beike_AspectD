@@ -4,10 +4,10 @@
 
 import '../common.dart';
 import '../common/elements.dart' show CommonElements;
-import '../common/names.dart' show Identifiers, Selectors;
+import '../common/names.dart' show Identifiers;
 import '../elements/entities.dart';
 import '../inferrer/types.dart' show GlobalTypeInferenceResults;
-import '../kernel/kelements.dart' show KFunction;
+import '../js_model/elements.dart' show JFunction;
 import '../kernel/no_such_method_resolver.dart';
 import '../serialization/serialization.dart';
 
@@ -30,12 +30,7 @@ import '../serialization/serialization.dart';
 ///
 ///     noSuchMethod(x) => throw 'not implemented'
 ///
-/// Implementations in category C are not applicable, for example:
-///
-///     noSuchMethod() { /* missing parameter */ }
-///     noSuchMethod(a, b) { /* too many parameters */ }
-///
-/// Implementations that do not fall into category A, B or C are in category D.
+/// Implementations that do not fall into category A or B are in category C.
 /// They are the only category of implementation that are considered during type
 /// inference.
 ///
@@ -49,7 +44,7 @@ import '../serialization/serialization.dart';
 /// implementations to avoid warnings.
 
 /// Registry for collecting `noSuchMethod` implementations and categorizing them
-/// into categories `A`, `B`, `C`, `D`.
+/// into categories `A`, `B`, `C`.
 class NoSuchMethodRegistry {
   /// The implementations that fall into category A, described above.
   final Set<FunctionEntity> _defaultImpls = {};
@@ -58,11 +53,6 @@ class NoSuchMethodRegistry {
   final Set<FunctionEntity> _throwingImpls = {};
 
   /// The implementations that fall into category C, described above.
-  // TODO(johnniwinther): Remove this category when Dart 1 is no longer
-  // supported.
-  final Set<FunctionEntity> _notApplicableImpls = {};
-
-  /// The implementations that fall into category D, described above.
   final Set<FunctionEntity> _otherImpls = {};
 
   /// The implementations that have not yet been categorized.
@@ -82,7 +72,7 @@ class NoSuchMethodRegistry {
   /// `true` if a category `B` method has been seen so far.
   bool get hasThrowingNoSuchMethod => _throwingImpls.isNotEmpty;
 
-  /// `true` if a category `D` method has been seen so far.
+  /// `true` if a category `C` method has been seen so far.
   bool get hasComplexNoSuchMethod => _otherImpls.isNotEmpty;
 
   Iterable<FunctionEntity> get defaultImpls => _defaultImpls;
@@ -106,68 +96,58 @@ class NoSuchMethodRegistry {
     assert(element.name == Identifiers.noSuchMethod_);
     assert(!element.isAbstract);
     if (_defaultImpls.contains(element)) {
-      return NsmCategory.DEFAULT;
+      return NsmCategory.default_;
     }
     if (_throwingImpls.contains(element)) {
-      return NsmCategory.THROWING;
+      return NsmCategory.throwing;
     }
     if (_otherImpls.contains(element)) {
-      return NsmCategory.OTHER;
-    }
-    if (_notApplicableImpls.contains(element)) {
-      return NsmCategory.NOT_APPLICABLE;
-    }
-    if (!Selectors.noSuchMethod_.signatureApplies(element)) {
-      _notApplicableImpls.add(element);
-      return NsmCategory.NOT_APPLICABLE;
+      return NsmCategory.other;
     }
     if (_commonElements.isDefaultNoSuchMethodImplementation(element)) {
       _defaultImpls.add(element);
-      return NsmCategory.DEFAULT;
-    } else if (_resolver.hasForwardingSyntax(element as KFunction)) {
+      return NsmCategory.default_;
+    } else if (_resolver.hasForwardingSyntax(element as JFunction)) {
       _forwardingSyntaxImpls.add(element);
       // If the implementation is 'noSuchMethod(x) => super.noSuchMethod(x);'
       // then it is in the same category as the super call.
       FunctionEntity superCall = _resolver.getSuperNoSuchMethod(element);
       NsmCategory category = _categorizeImpl(superCall);
       switch (category) {
-        case NsmCategory.DEFAULT:
+        case NsmCategory.default_:
           _defaultImpls.add(element);
           break;
-        case NsmCategory.THROWING:
+        case NsmCategory.throwing:
           _throwingImpls.add(element);
           break;
-        case NsmCategory.OTHER:
+        case NsmCategory.other:
           _otherImpls.add(element);
-          break;
-        case NsmCategory.NOT_APPLICABLE:
-          // If the super method is not applicable, the call is redirected to
-          // `Object.noSuchMethod`.
-          _defaultImpls.add(element);
-          category = NsmCategory.DEFAULT;
           break;
       }
       return category;
     } else if (_resolver.hasThrowingSyntax(element)) {
       _throwingImpls.add(element);
-      return NsmCategory.THROWING;
+      return NsmCategory.throwing;
     } else {
       _otherImpls.add(element);
-      return NsmCategory.OTHER;
+      return NsmCategory.other;
     }
   }
 
   /// Closes the registry and returns data object used during type inference.
   NoSuchMethodData close() {
     return NoSuchMethodData(
-        _throwingImpls, _otherImpls, _forwardingSyntaxImpls);
+      _throwingImpls,
+      _otherImpls,
+      _forwardingSyntaxImpls,
+    );
   }
 }
 
 /// Data object used during type inference.
 ///
-/// Post inference collected category `D` methods are into subcategories `D1`
-/// and `D2`.
+/// Post inference collected category `C` methods are into subcategories `C1`
+/// and `C2`.
 class NoSuchMethodData {
   /// Tag used for identifying serialized [NoSuchMethodData] objects in a
   /// debugging data stream.
@@ -176,33 +156,39 @@ class NoSuchMethodData {
   /// The implementations that fall into category B, described above.
   final Set<FunctionEntity> _throwingImpls;
 
-  /// The implementations that fall into category D, described above.
+  /// The implementations that fall into category C, described above.
   final Set<FunctionEntity> _otherImpls;
 
-  /// The implementations that fall into category D1
+  /// The implementations that fall into category C1
   final Set<FunctionEntity> _complexNoReturnImpls = {};
 
-  /// The implementations that fall into category D2
+  /// The implementations that fall into category C2
   final Set<FunctionEntity> _complexReturningImpls = {};
 
   final Set<FunctionEntity> _forwardingSyntaxImpls;
 
   NoSuchMethodData(
-      this._throwingImpls, this._otherImpls, this._forwardingSyntaxImpls);
+    this._throwingImpls,
+    this._otherImpls,
+    this._forwardingSyntaxImpls,
+  );
 
   /// Deserializes a [NoSuchMethodData] object from [source].
   factory NoSuchMethodData.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
-    Set<FunctionEntity> throwingImpls =
-        source.readMembers<FunctionEntity>().toSet();
-    Set<FunctionEntity> otherImpls =
-        source.readMembers<FunctionEntity>().toSet();
-    Set<FunctionEntity> forwardingSyntaxImpls =
-        source.readMembers<FunctionEntity>().toSet();
-    List<FunctionEntity> complexNoReturnImpls =
-        source.readMembers<FunctionEntity>();
-    List<FunctionEntity> complexReturningImpls =
-        source.readMembers<FunctionEntity>();
+    Set<FunctionEntity> throwingImpls = source
+        .readMembers<FunctionEntity>()
+        .toSet();
+    Set<FunctionEntity> otherImpls = source
+        .readMembers<FunctionEntity>()
+        .toSet();
+    Set<FunctionEntity> forwardingSyntaxImpls = source
+        .readMembers<FunctionEntity>()
+        .toSet();
+    List<FunctionEntity> complexNoReturnImpls = source
+        .readMembers<FunctionEntity>();
+    List<FunctionEntity> complexReturningImpls = source
+        .readMembers<FunctionEntity>();
     source.end(tag);
     return NoSuchMethodData(throwingImpls, otherImpls, forwardingSyntaxImpls)
       .._complexNoReturnImpls.addAll(complexNoReturnImpls)
@@ -230,50 +216,45 @@ class NoSuchMethodData {
 
   Iterable<FunctionEntity> get complexReturningImpls => _complexReturningImpls;
 
-  /// Now that type inference is complete, split category D into two
-  /// subcategories: D1, those that have no return type, and D2, those
+  /// Now that type inference is complete, split category C into two
+  /// subcategories: C1, those that have no return type, and C2, those
   /// that have a return type.
   void categorizeComplexImplementations(GlobalTypeInferenceResults results) {
-    _otherImpls.forEach((FunctionEntity element) {
+    for (var element in _otherImpls) {
       if (results.resultOfMember(element).throwsAlways) {
         _complexNoReturnImpls.add(element);
       } else {
         _complexReturningImpls.add(element);
       }
-    });
+    }
   }
 
-  /// Emits a diagnostic about methods in categories `B`, `D1` and `D2`.
+  /// Emits a diagnostic about methods in categories `B`, `C1` and `C2`.
   void emitDiagnostic(DiagnosticReporter reporter) {
-    _throwingImpls.forEach((e) {
+    for (var e in _throwingImpls) {
       if (!_forwardingSyntaxImpls.contains(e)) {
-        reporter.reportHintMessage(e, MessageKind.DIRECTLY_THROWING_NSM);
+        reporter.reportHintMessage(e, MessageKind.directlyThrowingNsm);
       }
-    });
-    _complexNoReturnImpls.forEach((e) {
+    }
+    for (var e in _complexNoReturnImpls) {
       if (!_forwardingSyntaxImpls.contains(e)) {
-        reporter.reportHintMessage(e, MessageKind.COMPLEX_THROWING_NSM);
+        reporter.reportHintMessage(e, MessageKind.complexThrowingNsm);
       }
-    });
-    _complexReturningImpls.forEach((e) {
+    }
+    for (var e in _complexReturningImpls) {
       if (!_forwardingSyntaxImpls.contains(e)) {
-        reporter.reportHintMessage(e, MessageKind.COMPLEX_RETURNING_NSM);
+        reporter.reportHintMessage(e, MessageKind.complexReturningNsm);
       }
-    });
+    }
   }
 
   /// Returns [true] if the given element is a complex [noSuchMethod]
   /// implementation. An implementation is complex if it falls into
-  /// category D, as described above.
+  /// category C, as described above.
   bool isComplex(FunctionEntity element) {
     assert(element.name == Identifiers.noSuchMethod_);
     return _otherImpls.contains(element);
   }
 }
 
-enum NsmCategory {
-  DEFAULT,
-  THROWING,
-  NOT_APPLICABLE,
-  OTHER,
-}
+enum NsmCategory { default_, throwing, other }

@@ -10,104 +10,58 @@ import 'package:kernel/testing/type_parser_environment.dart';
 
 const Map<String, dynamic> data = {
   'Object? vs Object?': 'Object?',
-  'Object* vs Object?': 'Object?',
   'Object vs Object?': null,
-  'Object* vs Object': 'Object',
-  'Object* vs Object*': 'Object*',
   'Object vs Object': 'Object',
   'dynamic vs dynamic': 'dynamic',
   'void vs void': 'void',
   'Object? vs void': 'Object?',
-  'Object* vs void': 'Object?',
   'Object vs void': null,
   'dynamic vs void': 'Object?',
   'Object? vs dynamic': 'Object?',
-  'Object* vs dynamic': 'Object?',
   'Object vs dynamic': null,
   'Never? vs Null': null,
-  'Never* vs Null': 'Null',
   'Never vs Null': null,
   'int? vs int?': 'int?',
-  'int? vs int*': 'int?',
-  'int* vs int*': 'int*',
-  'int* vs int': 'int',
   'int vs int': 'int',
   'int? vs int': null,
   'List<Object?> vs List<Object?>': 'List<Object?>',
-  'List<Object*> vs List<Object?>': 'List<Object?>',
-  'List<Object*> vs List<Object*>': 'List<Object*>',
   'List<Object> vs List<Object?>': null,
-  'List<Object*> vs List<Object>': 'List<Object>',
   'List<Object> vs List<Object>': 'List<Object>',
   'List<dynamic> vs List<dynamic>': 'List<dynamic>',
   'List<void> vs List<void>': 'List<void>',
   'List<Object?> vs List<void>': 'List<Object?>',
-  'List<Object*> vs List<void>': 'List<Object?>',
   'List<Object> vs List<void>': null,
   'List<dynamic> vs List<void>': 'List<Object?>',
   'List<Object?> vs List<dynamic>': 'List<Object?>',
-  'List<Object*> vs List<dynamic>': 'List<Object?>',
   'List<Object> vs List<dynamic>': null,
   'List<Never?> vs List<Null>': null,
-  'List<Never*> vs List<Null>': 'List<Null>',
   'List<Never> vs List<Null>': null,
   'List<int?> vs List<int?>': 'List<int?>',
-  'List<int?> vs List<int*>': 'List<int?>',
-  'List<int*> vs List<int*>': 'List<int*>',
-  'List<int*> vs List<int>': 'List<int>',
   'List<int> vs List<int>': 'List<int>',
   'List<int?> vs List<int>': null,
   '() ->? void vs () ->? void': '() ->? void',
-  '() ->? void vs () ->* void': '() ->? void',
-  '() ->* void vs () ->* void': '() ->* void',
-  '() ->* void vs () -> void': '() -> void',
   '() -> void vs () -> void': '() -> void',
   '() ->? void vs () -> void': null,
   '(int?) -> void vs (int?) -> void': '(int?) -> void',
-  '(int?) -> void vs (int*) -> void': '(int?) -> void',
-  '(int*) -> void vs (int*) -> void': '(int*) -> void',
-  '(int*) -> void vs (int) -> void': '(int) -> void',
   '(int) -> void vs (int) -> void': '(int) -> void',
   '(int?) -> void vs (int) -> void': null,
   '([int?]) -> void vs ([int?]) -> void': '([int?]) -> void',
-  '([int?]) -> void vs ([int*]) -> void': '([int?]) -> void',
-  '([int*]) -> void vs ([int*]) -> void': '([int*]) -> void',
-  '([int*]) -> void vs ([int]) -> void': '([int]) -> void',
   '([int]) -> void vs ([int]) -> void': '([int]) -> void',
   '([int?]) -> void vs ([int]) -> void': null,
   '({int? a}) -> void vs ({int? a}) -> void': '({int? a}) -> void',
-  '({int? a}) -> void vs ({int* a}) -> void': '({int? a}) -> void',
-  '({int* a}) -> void vs ({int* a}) -> void': '({int* a}) -> void',
-  '({int* a}) -> void vs ({int a}) -> void': '({int a}) -> void',
   '({int a}) -> void vs ({int a}) -> void': '({int a}) -> void',
   '({int? a}) -> void vs ({int a}) -> void': null,
   '({required int? a}) -> void vs ({required int? a}) -> void':
       '({required int? a}) -> void',
-  '({required int? a}) -> void vs ({required int* a}) -> void':
-      '({required int? a}) -> void',
-  '({required int* a}) -> void vs ({required int* a}) -> void':
-      '({required int* a}) -> void',
-  '({required int* a}) -> void vs ({required int a}) -> void':
-      '({required int a}) -> void',
   '({required int? a}) -> void vs ({required int a}) -> void': null,
   '({int a, bool b}) -> void vs ({int a, bool b}) -> void':
       '({int a, bool b}) -> void',
   '({int a, bool b}) -> void vs ({bool b, int a}) -> void':
       '({int a, bool b}) -> void',
-  '({int a, bool b}) ->* void vs ({bool b, int a}) ->? void':
-      '({int a, bool b}) ->? void',
   '({int a, bool b}) -> void vs ({int a, required bool b}) -> void': null,
   '<E>(E) -> void vs <F>(F) -> void': '<E>(E) -> void',
-  '<E extends int>(E) -> void vs <F extends int*>(F) -> void': [
-    '<E extends int>(E) -> void',
-    '<F extends int>(F) -> void'
-  ],
   '<E extends List<E>>(E) -> void vs <F extends List<F>>(F) -> void':
       '<E extends List<E>>(E) -> void',
-  '<E extends List<E>>(E) -> void vs <F extends List<F>*>(F) -> void': [
-    '<E extends List<E>>(E) -> void',
-    '<F extends List<F>>(F) -> void'
-  ],
   'invalid vs invalid': 'invalid',
   'invalid vs Object': 'invalid',
   'invalid vs Object?': 'invalid',
@@ -122,7 +76,7 @@ const Map<String, dynamic> data = {
 };
 
 void main() {
-  Env env = new Env('', isNonNullableByDefault: true);
+  Env env = new Env('');
   data.forEach((String input, dynamic output) {
     List<String> parts = input.split(' vs ');
     DartType aType = env.parseType(parts[0]);

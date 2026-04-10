@@ -9,7 +9,7 @@ class Foo<T extends Pattern> {
   U method<U extends T>(U u) => u;
 }
 
-main() {
+test() {
 /*!!!
   String s;
   var a = new Foo().method<String>("str");
@@ -22,7 +22,5 @@ main() {
   s = c;
   */
 
-  new Foo<String>()
-      . /*error:COULD_NOT_INFER*/ /*@typeArgs=int*/ /*@target=Foo.method*/ method(
-          42);
+  new Foo<String>(). /*@typeArgs=String*/ /*@target=Foo.method*/ method(42);
 }

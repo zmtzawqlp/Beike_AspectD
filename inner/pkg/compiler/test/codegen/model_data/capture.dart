@@ -2,11 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: method1:params=0*/
 @pragma('dart2js:noInline')
-method1([a]) => /*access=[a],params=0*/ () => a;
+method1([a]) => /*access=[a],params=0*/
+    () => a;
 
 class Class {
   /*member: Class.f:emitted*/
@@ -15,16 +14,16 @@ class Class {
 
   /*member: Class.capture:params=0*/
   @pragma('dart2js:noInline')
-  Class.capture([a]) : f = (/*access=[a],params=0*/ () => a);
+  Class.capture([a]) : f = ( /*access=[a],params=0*/ () => a);
 
   // TODO(johnniwinther): Remove the redundant assignment of elided boxed
   // parameters.
   /*member: Class.box:assign=[a,a],params=0*/
   @pragma('dart2js:noInline')
   Class.box([a])
-      : f = (/*access=[_box_0],assign=[a],params=0*/ () {
-          a = 42;
-        });
+    : f = ( /*access=[_box_0],assign=[a],params=0*/ () {
+        a = 42;
+      });
 
   Class.internal(this.f);
 }
@@ -37,9 +36,9 @@ class Subclass extends Class {
   /*member: Subclass.box:assign=[a,a],params=0*/
   @pragma('dart2js:noInline')
   Subclass.box([a])
-      : super.internal(/*access=[_box_0],assign=[a],params=0*/ () {
-          a = 42;
-        });
+    : super.internal(/*access=[_box_0],assign=[a],params=0*/ () {
+        a = 42;
+      });
 }
 
 /*member: main:calls=*,params=0*/

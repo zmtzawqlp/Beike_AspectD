@@ -35,8 +35,6 @@ abstract class BackendUsage {
 
   Iterable<ClassEntity> get globalClassDependencies;
 
-  Iterable<ClassEntity> get helperClassesUsed;
-
   Iterable<RuntimeTypeUse> get runtimeTypeUses;
 
   /// `true` if a core-library function requires the preamble file to function.
@@ -48,62 +46,14 @@ abstract class BackendUsage {
   /// `true` if `Function.apply` is used.
   bool get isFunctionApplyUsed;
 
-  /// `true` if 'dart:mirrors' features are used.
-  bool get isMirrorsUsed;
-
   /// `true` if startup timestamps are used.
   bool get requiresStartupMetrics;
 
   /// `true` if `noSuchMethod` is used.
   bool get isNoSuchMethodUsed;
-
-  /// `true` if the `dart:html` is loaded.
-  // TODO(johnniwinther): This is always `true` with the CFE.
-  bool get isHtmlLoaded;
 }
 
-abstract class BackendUsageBuilder {
-  /// The backend must *always* call this method when enqueuing an function
-  /// element. Calls done by the backend are not seen by global
-  /// optimizations, so they would make these optimizations unsound.
-  /// Therefore we need to collect the list of methods the backend may
-  /// call.
-  // TODO(johnniwinther): Replace this with a more precise modelling; type
-  // inference of parameters of these functions is disabled.
-  void registerBackendFunctionUse(FunctionEntity element);
-
-  /// The backend must *always* call this method when instantiating a class.
-  /// Instantiations done by the backend are not seen by global optimizations,
-  /// so they would make these optimizations unsound. Therefore we need to
-  /// collect the list of classes the backend may instantiate.
-  // TODO(johnniwinther): Replace this with a more precise modelling; type
-  // inference of the instance fields of these classes is disabled.
-  void registerBackendClassUse(ClassEntity element);
-
-  void registerGlobalFunctionDependency(FunctionEntity element);
-  void registerGlobalClassDependency(ClassEntity element);
-
-  /// Collect backend use from [backendImpact].
-  void processBackendImpact(BackendImpact backendImpact);
-
-  void registerUsedMember(MemberEntity member);
-
-  /// Register use of `runtimeType`.
-  void registerRuntimeTypeUse(RuntimeTypeUse runtimeTypeUse);
-
-  /// `true` if `Function.apply` is used.
-  abstract bool isFunctionApplyUsed;
-
-  /// `true` if `noSuchMethod` is used.
-  abstract bool isNoSuchMethodUsed;
-
-  /// Register that `dart:html` is loaded.
-  void registerHtmlIsLoaded();
-
-  BackendUsage close();
-}
-
-class BackendUsageBuilderImpl implements BackendUsageBuilder {
+class BackendUsageBuilder {
   final KernelFrontendStrategy _frontendStrategy;
   // TODO(johnniwinther): Remove the need for these.
   Setlet<FunctionEntity>? _globalFunctionDependencies;
@@ -121,37 +71,47 @@ class BackendUsageBuilderImpl implements BackendUsageBuilder {
   bool _needToInitializeDispatchProperty = false;
 
   /// `true` if a core-library function requires the preamble file to function.
-  bool requiresPreamble = false;
+  bool _requiresPreamble = false;
 
   /// `true` if a core-library function accesses startup timestamps.
-  bool requiresStartupMetrics = false;
+  bool _requiresStartupMetrics = false;
 
-  @override
-  bool isFunctionApplyUsed = false;
+  /// `true` if `Function.apply` is used.
+  bool _isFunctionApplyUsed = false;
 
-  /// `true` if 'dart:mirrors' features are used.
-  bool isMirrorsUsed = false;
-
-  @override
+  /// `true` if `noSuchMethod` is used.
   bool isNoSuchMethodUsed = false;
 
-  bool isHtmlLoaded = false;
-
-  BackendUsageBuilderImpl(this._frontendStrategy);
+  BackendUsageBuilder(this._frontendStrategy);
 
   KCommonElements get _commonElements => _frontendStrategy.commonElements;
 
-  @override
+  /// The backend must *always* call this method when enqueuing an function
+  /// element. Calls done by the backend are not seen by global
+  /// optimizations, so they would make these optimizations unsound.
+  /// Therefore we need to collect the list of methods the backend may
+  /// call.
+  // TODO(johnniwinther): Replace this with a more precise modelling; type
+  // inference of parameters of these functions is disabled.
   void registerBackendFunctionUse(FunctionEntity element) {
-    assert(_isValidBackendUse(element, element.library),
-        failedAt(element, "Backend use of $element is not allowed."));
+    assert(
+      _isValidBackendUse(element, element.library),
+      failedAt(element, "Backend use of $element is not allowed."),
+    );
     _helperFunctionsUsed.add(element);
   }
 
-  @override
+  /// The backend must *always* call this method when instantiating a class.
+  /// Instantiations done by the backend are not seen by global optimizations,
+  /// so they would make these optimizations unsound. Therefore we need to
+  /// collect the list of classes the backend may instantiate.
+  // TODO(johnniwinther): Replace this with a more precise modelling; type
+  // inference of the instance fields of these classes is disabled.
   void registerBackendClassUse(ClassEntity element) {
-    assert(_isValidBackendUse(element, element.library),
-        failedAt(element, "Backend use of $element is not allowed."));
+    assert(
+      _isValidBackendUse(element, element.library),
+      failedAt(element, "Backend use of $element is not allowed."),
+    );
     _helperClassesUsed.add(element);
   }
 
@@ -190,8 +150,10 @@ class BackendUsageBuilderImpl implements BackendUsageBuilder {
     return false;
   }
 
-  void _processBackendStaticUse(FunctionEntity element,
-      {bool isGlobal = false}) {
+  void _processBackendStaticUse(
+    FunctionEntity element, {
+    bool isGlobal = false,
+  }) {
     registerBackendFunctionUse(element);
     if (isGlobal) {
       registerGlobalFunctionDependency(element);
@@ -205,7 +167,7 @@ class BackendUsageBuilderImpl implements BackendUsageBuilder {
     }
   }
 
-  @override
+  /// Collect backend use from [backendImpact].
   void processBackendImpact(BackendImpact backendImpact) {
     for (FunctionEntity staticUse in backendImpact.staticUses) {
       _processBackendStaticUse(staticUse);
@@ -237,59 +199,47 @@ class BackendUsageBuilderImpl implements BackendUsageBuilder {
     }
   }
 
-  @override
   void registerUsedMember(MemberEntity member) {
     if (member == _commonElements.getIsolateAffinityTagMarker) {
       _needToInitializeIsolateAffinityTag = true;
     } else if (member == _commonElements.requiresPreambleMarker) {
-      requiresPreamble = true;
+      _requiresPreamble = true;
     } else if (_commonElements.isFunctionApplyMethod(member)) {
-      isFunctionApplyUsed = true;
-    } else if (member.library == _commonElements.mirrorsLibrary) {
-      isMirrorsUsed = true;
+      _isFunctionApplyUsed = true;
     } else if (member == _commonElements.rawStartupMetrics) {
-      requiresStartupMetrics = true;
+      _requiresStartupMetrics = true;
     }
   }
 
-  @override
   void registerGlobalFunctionDependency(FunctionEntity element) {
     _globalFunctionDependencies ??= Setlet();
     _globalFunctionDependencies!.add(element);
   }
 
-  @override
   void registerGlobalClassDependency(ClassEntity element) {
     _globalClassDependencies ??= Setlet();
     _globalClassDependencies!.add(element);
   }
 
-  @override
+  /// Register use of `runtimeType`.
   void registerRuntimeTypeUse(RuntimeTypeUse runtimeTypeUse) {
     _runtimeTypeUses.add(runtimeTypeUse);
   }
 
-  @override
-  void registerHtmlIsLoaded() {
-    isHtmlLoaded = true;
-  }
-
-  @override
   BackendUsage close() {
     return BackendUsageImpl(
-        globalFunctionDependencies: _globalFunctionDependencies,
-        globalClassDependencies: _globalClassDependencies,
-        helperFunctionsUsed: _helperFunctionsUsed,
-        helperClassesUsed: _helperClassesUsed,
-        needToInitializeIsolateAffinityTag: _needToInitializeIsolateAffinityTag,
-        needToInitializeDispatchProperty: _needToInitializeDispatchProperty,
-        requiresPreamble: requiresPreamble,
-        requiresStartupMetrics: requiresStartupMetrics,
-        runtimeTypeUses: _runtimeTypeUses,
-        isFunctionApplyUsed: isFunctionApplyUsed,
-        isMirrorsUsed: isMirrorsUsed,
-        isNoSuchMethodUsed: isNoSuchMethodUsed,
-        isHtmlLoaded: isHtmlLoaded);
+      globalFunctionDependencies: _globalFunctionDependencies,
+      globalClassDependencies: _globalClassDependencies,
+      helperFunctionsUsed: _helperFunctionsUsed,
+      helperClassesUsed: _helperClassesUsed,
+      needToInitializeIsolateAffinityTag: _needToInitializeIsolateAffinityTag,
+      needToInitializeDispatchProperty: _needToInitializeDispatchProperty,
+      requiresPreamble: _requiresPreamble,
+      requiresStartupMetrics: _requiresStartupMetrics,
+      runtimeTypeUses: _runtimeTypeUses,
+      isFunctionApplyUsed: _isFunctionApplyUsed,
+      isNoSuchMethodUsed: isNoSuchMethodUsed,
+    );
   }
 }
 
@@ -325,41 +275,35 @@ class BackendUsageImpl implements BackendUsage {
   final bool isFunctionApplyUsed;
 
   @override
-  final bool isMirrorsUsed;
-
-  @override
   final bool isNoSuchMethodUsed;
 
-  @override
-  final bool isHtmlLoaded;
-
-  BackendUsageImpl(
-      {required Set<FunctionEntity>? globalFunctionDependencies,
-      required Set<ClassEntity>? globalClassDependencies,
-      required Set<FunctionEntity> helperFunctionsUsed,
-      required Set<ClassEntity> helperClassesUsed,
-      required this.needToInitializeIsolateAffinityTag,
-      required this.needToInitializeDispatchProperty,
-      required this.requiresPreamble,
-      required this.requiresStartupMetrics,
-      required Set<RuntimeTypeUse> runtimeTypeUses,
-      required this.isFunctionApplyUsed,
-      required this.isMirrorsUsed,
-      required this.isNoSuchMethodUsed,
-      required this.isHtmlLoaded})
-      : this._globalFunctionDependencies = globalFunctionDependencies,
-        this._globalClassDependencies = globalClassDependencies,
-        this._helperFunctionsUsed = helperFunctionsUsed,
-        this._helperClassesUsed = helperClassesUsed,
-        this._runtimeTypeUses = runtimeTypeUses;
+  BackendUsageImpl({
+    required Set<FunctionEntity>? globalFunctionDependencies,
+    required Set<ClassEntity>? globalClassDependencies,
+    required Set<FunctionEntity> helperFunctionsUsed,
+    required Set<ClassEntity> helperClassesUsed,
+    required this.needToInitializeIsolateAffinityTag,
+    required this.needToInitializeDispatchProperty,
+    required this.requiresPreamble,
+    required this.requiresStartupMetrics,
+    required Set<RuntimeTypeUse> runtimeTypeUses,
+    required this.isFunctionApplyUsed,
+    required this.isNoSuchMethodUsed,
+  }) : _globalFunctionDependencies = globalFunctionDependencies,
+       _globalClassDependencies = globalClassDependencies,
+       _helperFunctionsUsed = helperFunctionsUsed,
+       _helperClassesUsed = helperClassesUsed,
+       _runtimeTypeUses = runtimeTypeUses;
 
   factory BackendUsageImpl.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
-    Set<FunctionEntity> globalFunctionDependencies =
-        source.readMembers<FunctionEntity>().toSet();
+    Set<FunctionEntity> globalFunctionDependencies = source
+        .readMembers<FunctionEntity>()
+        .toSet();
     Set<ClassEntity> globalClassDependencies = source.readClasses().toSet();
-    Set<FunctionEntity> helperFunctionsUsed =
-        source.readMembers<FunctionEntity>().toSet();
+    Set<FunctionEntity> helperFunctionsUsed = source
+        .readMembers<FunctionEntity>()
+        .toSet();
     Set<ClassEntity> helperClassesUsed = source.readClasses().toSet();
     Set<RuntimeTypeUse> runtimeTypeUses = source.readList(() {
       RuntimeTypeUseKind kind = source.readEnum(RuntimeTypeUseKind.values);
@@ -372,31 +316,28 @@ class BackendUsageImpl implements BackendUsage {
     bool requiresPreamble = source.readBool();
     bool requiresStartupMetrics = source.readBool();
     bool isFunctionApplyUsed = source.readBool();
-    bool isMirrorsUsed = source.readBool();
     bool isNoSuchMethodUsed = source.readBool();
-    bool isHtmlLoaded = source.readBool();
     source.end(tag);
     return BackendUsageImpl(
-        globalFunctionDependencies: globalFunctionDependencies,
-        globalClassDependencies: globalClassDependencies,
-        helperFunctionsUsed: helperFunctionsUsed,
-        helperClassesUsed: helperClassesUsed,
-        runtimeTypeUses: runtimeTypeUses,
-        needToInitializeIsolateAffinityTag: needToInitializeIsolateAffinityTag,
-        needToInitializeDispatchProperty: needToInitializeDispatchProperty,
-        requiresPreamble: requiresPreamble,
-        requiresStartupMetrics: requiresStartupMetrics,
-        isFunctionApplyUsed: isFunctionApplyUsed,
-        isMirrorsUsed: isMirrorsUsed,
-        isNoSuchMethodUsed: isNoSuchMethodUsed,
-        isHtmlLoaded: isHtmlLoaded);
+      globalFunctionDependencies: globalFunctionDependencies,
+      globalClassDependencies: globalClassDependencies,
+      helperFunctionsUsed: helperFunctionsUsed,
+      helperClassesUsed: helperClassesUsed,
+      runtimeTypeUses: runtimeTypeUses,
+      needToInitializeIsolateAffinityTag: needToInitializeIsolateAffinityTag,
+      needToInitializeDispatchProperty: needToInitializeDispatchProperty,
+      requiresPreamble: requiresPreamble,
+      requiresStartupMetrics: requiresStartupMetrics,
+      isFunctionApplyUsed: isFunctionApplyUsed,
+      isNoSuchMethodUsed: isNoSuchMethodUsed,
+    );
   }
 
   @override
   void writeToDataSink(DataSinkWriter sink) {
     sink.begin(tag);
-    sink.writeMembers(_globalFunctionDependencies, allowNull: true);
-    sink.writeClasses(_globalClassDependencies, allowNull: true);
+    sink.writeMembersOrNull(_globalFunctionDependencies);
+    sink.writeClassesOrNull(_globalClassDependencies);
     sink.writeMembers(_helperFunctionsUsed);
     sink.writeClasses(_helperClassesUsed);
     sink.writeList(runtimeTypeUses, (RuntimeTypeUse runtimeTypeUse) {
@@ -409,9 +350,7 @@ class BackendUsageImpl implements BackendUsage {
     sink.writeBool(requiresPreamble);
     sink.writeBool(requiresStartupMetrics);
     sink.writeBool(isFunctionApplyUsed);
-    sink.writeBool(isMirrorsUsed);
     sink.writeBool(isNoSuchMethodUsed);
-    sink.writeBool(isHtmlLoaded);
     sink.end(tag);
   }
 
@@ -435,7 +374,6 @@ class BackendUsageImpl implements BackendUsage {
 
   Iterable<FunctionEntity> get helperFunctionsUsed => _helperFunctionsUsed;
 
-  @override
   Iterable<ClassEntity> get helperClassesUsed => _helperClassesUsed;
 
   @override

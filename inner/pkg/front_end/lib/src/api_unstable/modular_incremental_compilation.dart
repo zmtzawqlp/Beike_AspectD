@@ -2,27 +2,19 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:kernel/kernel.dart' show Component, CanonicalName, Library;
+import 'dart:typed_data';
 
+import 'package:kernel/kernel.dart' show Component, CanonicalName, Library;
 import 'package:kernel/target/targets.dart' show Target;
 
 import '../api_prototype/compiler_options.dart' show CompilerOptions;
-
 import '../api_prototype/experimental_flags.dart' show ExperimentalFlag;
-
 import '../api_prototype/file_system.dart' show FileSystem;
-
-import '../base/nnbd_mode.dart' show NnbdMode;
-
+import '../base/compiler_context.dart' show CompilerContext;
+import '../base/incremental_compiler.dart' show IncrementalCompiler;
 import '../base/processed_options.dart' show ProcessedOptions;
-
-import '../fasta/compiler_context.dart' show CompilerContext;
-
-import '../fasta/incremental_compiler.dart' show IncrementalCompiler;
-
 import 'compiler_state.dart'
     show InitializedCompilerState, WorkerInputComponent, digestsEqual;
-
 import 'util.dart' show equalMaps, equalSets;
 
 /// Initializes the compiler for a modular build.
@@ -54,8 +46,7 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
     bool? outlineOnly,
     bool omitPlatform = false,
     bool trackNeededDillLibraries = false,
-    bool verbose = false,
-    NnbdMode nnbdMode = NnbdMode.Weak}) async {
+    bool verbose = false}) async {
   bool isRetry = false;
   while (true) {
     try {
@@ -81,7 +72,6 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
           oldState.incrementalCompiler == null ||
           oldState.options.compileSdk != compileSdk ||
           oldState.incrementalCompiler!.outlineOnly != outlineOnly ||
-          oldState.options.nnbdMode != nnbdMode ||
           !equalMaps(oldState.options.explicitExperimentalFlags,
               explicitExperimentalFlags) ||
           !equalMaps(oldState.options.environmentDefines, environmentDefines) ||
@@ -106,8 +96,7 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
           ..omitPlatform = omitPlatform
           ..environmentDefines = environmentDefines
           ..explicitExperimentalFlags = explicitExperimentalFlags
-          ..verbose = verbose
-          ..nnbdMode = nnbdMode;
+          ..verbose = verbose;
 
         processedOpts = new ProcessedOptions(options: options);
         if (sdkSummary != null && sdkDigest != null) {
@@ -208,7 +197,7 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
           throw new StateError("Expected to get digest for $additionalDillUri");
         }
 
-        List<int> bytes =
+        Uint8List bytes =
             await fileSystem.entityForUri(additionalDillUri).readAsBytes();
         WorkerInputComponent cachedInput = new WorkerInputComponent(
             digest,

@@ -6,7 +6,6 @@ import 'package:kernel/ast.dart' as ir;
 import 'package:kernel/core_types.dart' as ir;
 import 'package:kernel/type_environment.dart' as ir;
 
-import '../ir/constants.dart';
 import 'closure.dart';
 import 'scope.dart';
 
@@ -14,12 +13,9 @@ import 'scope.dart';
 /// assigned/captured/free at various points to build a [ClosureScopeModel] and
 /// a [VariableScopeModel] that can respond to queries about how a particular
 /// variable is being used at any point in the code.
-class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
+class ScopeModelBuilder extends ir.VisitorDefault<EvaluationComplexity>
     with VariableCollectorMixin, ir.VisitorThrowingMixin<EvaluationComplexity> {
-  final Dart2jsConstantEvaluator _constantEvaluator;
-  late final ir.StaticTypeContext _staticTypeContext;
-
-  ir.TypeEnvironment get _typeEnvironment => _constantEvaluator.typeEnvironment;
+  final ir.TypeEnvironment _typeEnvironment;
   ir.CoreTypes get _coreTypes => _typeEnvironment.coreTypes;
 
   final ClosureScopeModel _model = ClosureScopeModel();
@@ -40,8 +36,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// The local variables that have been declared in the current scope.
   // Initialized to a const value since it should be assigned in `enterNewScope`
   // before collecting variables.
-  List<ir.Node /* ir.VariableDeclaration | TypeParameterTypeWithContext */ >
-      _scopeVariables = const [];
+  List<ir.Node /* ir.VariableDeclaration | TypeParameterTypeWithContext */>
+  _scopeVariables = const [];
 
   /// Pointer to the context in which this closure is executed.
   /// For example, in the expression `var foo = () => 3 + i;`, the executable
@@ -61,9 +57,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   /// The set of variables that are accessed in some form, whether they are
   /// mutated or not.
-  final Set<
-          ir.Node /* ir.VariableDeclaration | TypeParameterTypeWithContext */ >
-      _capturedVariables = Set<ir.Node>();
+  final Set<ir.Node /* ir.VariableDeclaration | TypeParameterTypeWithContext */>
+  _capturedVariables = <ir.Node>{};
 
   /// If true, the visitor is currently traversing some nodes that are inside a
   /// try block.
@@ -86,15 +81,15 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// type variable usage, such as type argument in method invocations.
   VariableUse? _currentTypeUsage;
 
-  ScopeModelBuilder(this._constantEvaluator);
+  ScopeModelBuilder(this._typeEnvironment);
 
   ScopeModel computeModel(ir.Member node) {
     if (node.isAbstract && !node.isExternal) {
       return const ScopeModel(
-          initializerComplexity: EvaluationComplexity.lazy());
+        initializerComplexity: EvaluationComplexity.lazy(),
+      );
     }
 
-    _staticTypeContext = ir.StaticTypeContext(node, _typeEnvironment);
     if (node is ir.Constructor) {
       _hasThisLocal = true;
     } else if (node is ir.Procedure && node.kind == ir.ProcedureKind.Factory) {
@@ -123,9 +118,10 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       }
     }
     return ScopeModel(
-        closureScopeModel: _model,
-        variableScopeModel: variableScopeModel,
-        initializerComplexity: initializerComplexity);
+      closureScopeModel: _model,
+      variableScopeModel: variableScopeModel,
+      initializerComplexity: initializerComplexity,
+    );
   }
 
   @override
@@ -136,64 +132,22 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     return node.accept(this);
   }
 
-  /// Tries to evaluate [node] as a constant expression.
+  /// Tries to extract the constant expression from a node.
   ///
-  /// If [node] it succeeds, an [EvaluationComplexity] containing the new
+  /// If it succeeds, an [EvaluationComplexity] containing the new
   /// constant is returned. Otherwise a 'lazy' [EvaluationComplexity] is
   /// returned, signaling that [node] is not a constant expression.
   ///
   /// This method should be called in the visit methods of all expressions that
   /// could potentially be constant to bubble up the constness of expressions.
-  ///
-  /// For instance in `var a = 1 + 2` [visitIntLiteral] calls this method
-  /// for `1` and `2` to convert these from int literals to int constants, and
-  /// [visitMethodInvocation] call this method, when seeing that all of its
-  /// subexpressions are constant, and it itself therefore is potentially
-  /// constant, thus computing that `1 + 2` can be replaced by the int constant
-  /// `3`.
-  ///
-  /// Note that [node] is _not_ replaced with a new constant expression. It is
-  /// the responsibility of the caller to do so. This is needed for performance
-  /// reasons since calling `TreeNode.replaceChild` searches linearly through
-  /// the children of the parent node, which lead to a O(n^2) complexity that
-  /// is severe and observable for instance for large list literals.
   EvaluationComplexity _evaluateImplicitConstant(ir.Expression node) {
-    ir.Constant? constant = _constantEvaluator
-        .evaluateOrNull(_staticTypeContext, node, requireConstant: false);
+    ir.Constant? constant = (node is ir.ConstantExpression)
+        ? node.constant
+        : null;
     if (constant != null) {
       return EvaluationComplexity.constant(constant);
     }
     return const EvaluationComplexity.lazy();
-  }
-
-  /// The evaluation complexity of the last visited expression.
-  // TODO(48820): Pre-NNBD we gained some benefit from the `null` default
-  // value. It is too painful to add `!` after every access so this is
-  // initialized to a 'harmless' value.  Should we add an invalid value
-  // 'ExpressionComplexity.invalid()` and check in the combiner and other
-  // use-sites that the value is not 'invalid'?
-  EvaluationComplexity _lastExpressionComplexity =
-      const EvaluationComplexity.constant();
-
-  /// Visit [node] and returns the corresponding `ConstantExpression` if [node]
-  /// evaluated to a constant.
-  ///
-  /// This method stores the complexity of [node] in [_lastExpressionComplexity]
-  /// and sets the parent of the created `ConstantExpression` to the parent
-  /// of [node]. The caller must replace [node] within the parent node. This
-  /// is done to avoid calling `Node.replaceChild` which searches linearly
-  /// through the children nodes `node.parent` in order to replace `node` which
-  /// results in O(n^2) complexity of replacing elements in for instance a list
-  /// of `n` elements.
-  ir.Expression _handleExpression(ir.Expression node) {
-    _lastExpressionComplexity = visitNode(node);
-    if (_lastExpressionComplexity.isFreshConstant) {
-      return ir.ConstantExpression(_lastExpressionComplexity.constant!,
-          node.getStaticType(_staticTypeContext))
-        ..fileOffset = node.fileOffset
-        ..parent = node.parent;
-    }
-    return node;
   }
 
   /// Visit all [nodes] returning the combined complexity.
@@ -207,25 +161,25 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   /// Visit all [nodes] returning the combined complexity.
   ///
-  /// If subexpressions can be evaluated as constants, they are replaced by
-  /// constant expressions in [nodes].
+  /// Assumes that the Kernel AST already contains simplified constant and
+  /// constant-like expressions.
   EvaluationComplexity visitExpressions(List<ir.Expression> nodes) {
     EvaluationComplexity combinedComplexity =
         const EvaluationComplexity.constant();
     for (int i = 0; i < nodes.length; i++) {
-      nodes[i] = _handleExpression(nodes[i]);
-      combinedComplexity =
-          combinedComplexity.combine(_lastExpressionComplexity);
+      final complexity = visitNode(nodes[i]);
+      combinedComplexity = combinedComplexity.combine(complexity);
     }
     return combinedComplexity;
   }
 
   EvaluationComplexity visitNamedExpressions(
-      List<ir.NamedExpression> named, EvaluationComplexity combinedComplexity) {
+    List<ir.NamedExpression> named,
+    EvaluationComplexity combinedComplexity,
+  ) {
     for (int i = 0; i < named.length; i++) {
-      named[i].value = _handleExpression(named[i].value);
-      combinedComplexity =
-          combinedComplexity.combine(_lastExpressionComplexity);
+      final complexity = visitNode(named[i].value);
+      combinedComplexity = combinedComplexity.combine(complexity);
     }
     return combinedComplexity;
   }
@@ -234,7 +188,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// this node if any variables are captured.
   void attachCapturedScopeVariables(ir.TreeNode node) {
     Set<ir.VariableDeclaration> capturedVariablesForScope =
-        Set<ir.VariableDeclaration>();
+        <ir.VariableDeclaration>{};
 
     for (ir.Node variable in _scopeVariables) {
       // No need to box non-assignable elements.
@@ -246,36 +200,35 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
         }
       }
     }
-    if (!capturedVariablesForScope.isEmpty) {
+    if (capturedVariablesForScope.isNotEmpty) {
       assert(_model.scopeInfo != null);
       KernelScopeInfo from = _model.scopeInfo!;
 
       KernelCapturedScope capturedScope;
       var nodeBox = NodeBox(getBoxName(), _executableContext!);
-      if (node is ir.ForStatement ||
-          node is ir.ForInStatement ||
-          node is ir.WhileStatement ||
-          node is ir.DoStatement) {
+      if (node is ir.LoopStatement) {
         capturedScope = KernelCapturedLoopScope(
-            capturedVariablesForScope,
-            nodeBox,
-            [],
-            from.localsUsedInTryOrSync,
-            from.freeVariables,
-            from.freeVariablesForRti,
-            from.thisUsedAsFreeVariable,
-            from.thisUsedAsFreeVariableIfNeedsRti,
-            _hasThisLocal);
+          capturedVariablesForScope,
+          nodeBox,
+          [],
+          from.localsUsedInTryOrSync,
+          from.freeVariables,
+          from.freeVariablesForRti,
+          from.thisUsedAsFreeVariable,
+          from.thisUsedAsFreeVariableIfNeedsRti,
+          _hasThisLocal,
+        );
       } else {
         capturedScope = KernelCapturedScope(
-            capturedVariablesForScope,
-            nodeBox,
-            from.localsUsedInTryOrSync,
-            from.freeVariables,
-            from.freeVariablesForRti,
-            from.thisUsedAsFreeVariable,
-            from.thisUsedAsFreeVariableIfNeedsRti,
-            _hasThisLocal);
+          capturedVariablesForScope,
+          nodeBox,
+          from.localsUsedInTryOrSync,
+          from.freeVariables,
+          from.freeVariablesForRti,
+          from.thisUsedAsFreeVariable,
+          from.thisUsedAsFreeVariableIfNeedsRti,
+          _hasThisLocal,
+        );
       }
       _model.scopeInfo = _scopesCapturedInClosureMap[node] = capturedScope;
     }
@@ -297,7 +250,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   /// Perform book-keeping with the current set of local variables that have
   /// been seen thus far before entering this new scope.
-  void enterNewScope(ir.TreeNode node, void visitNewScope()) {
+  void enterNewScope(ir.TreeNode node, void Function() visitNewScope) {
     List<ir.Node> oldScopeVariables = _scopeVariables;
     _scopeVariables = <ir.Node>[];
     visitNewScope();
@@ -309,7 +262,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitNamedExpression(ir.NamedExpression node) {
     throw UnsupportedError(
-        'NamedExpression should be handled through visitArguments');
+      'NamedExpression should be handled through visitArguments',
+    );
   }
 
   @override
@@ -338,7 +292,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitVariableGet(ir.VariableGet node) {
-    _markVariableAsUsed(node.variable, VariableUse.explicit);
+    _markVariableAsUsed(node.variable, SimpleVariableUse.explicit);
     // Don't visit `node.promotedType`.
     return const EvaluationComplexity.lazy();
   }
@@ -346,28 +300,30 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitVariableSet(ir.VariableSet node) {
     _mutatedVariables.add(node.variable);
-    _markVariableAsUsed(node.variable, VariableUse.explicit);
-    visitInContext(node.variable.type, VariableUse.localType);
-    node.value = _handleExpression(node.value);
+    _markVariableAsUsed(node.variable, SimpleVariableUse.explicit);
+    visitInContext(node.variable.type, SimpleVariableUse.localType);
+    visitNode(node.value);
     registerAssignedVariable(node.variable);
     return const EvaluationComplexity.lazy();
   }
 
   void _handleVariableDeclaration(
-      ir.VariableDeclaration node, VariableUse usage) {
+    ir.VariableDeclaration node,
+    VariableUse usage,
+  ) {
     if (!node.isInitializingFormal) {
       _scopeVariables.add(node);
     }
 
     visitInContext(node.type, usage);
     if (node.initializer != null) {
-      node.initializer = _handleExpression(node.initializer!);
+      visitNode(node.initializer!);
     }
   }
 
   @override
   EvaluationComplexity visitVariableDeclaration(ir.VariableDeclaration node) {
-    _handleVariableDeclaration(node, VariableUse.localType);
+    _handleVariableDeclaration(node, SimpleVariableUse.localType);
     return const EvaluationComplexity.lazy();
   }
 
@@ -377,10 +333,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// of freeVariables as we will only use it if runtime type information is
   /// checked.
   void _markVariableAsUsed(
-      ir.Node /* VariableDeclaration | TypeParameterTypeWithContext */ variable,
-      VariableUse usage) {
-    assert(variable is ir.VariableDeclaration ||
-        variable is TypeVariableTypeWithContext);
+    ir.Node /* VariableDeclaration | TypeParameterTypeWithContext */ variable,
+    VariableUse usage,
+  ) {
+    assert(
+      variable is ir.VariableDeclaration ||
+          variable is TypeVariableTypeWithContext,
+    );
     if (_isInsideClosure && !_inCurrentContext(variable)) {
       // If the element is not declared in the current function and the element
       // is not the closure itself we need to mark the element as free variable.
@@ -388,12 +347,14 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       // optimization: factories have type parameters as function
       // parameters, and type parameters are declared in the class, not
       // the factory.
-      if (usage == VariableUse.explicit) {
+      if (usage == SimpleVariableUse.explicit) {
         _currentScopeInfo.freeVariables.add(variable);
       } else {
         _currentScopeInfo.freeVariablesForRti
-            .putIfAbsent(variable as TypeVariableTypeWithContext,
-                () => Set<VariableUse>())
+            .putIfAbsent(
+              variable as TypeVariableTypeWithContext,
+              () => <VariableUse>{},
+            )
             .add(usage);
       }
     }
@@ -403,23 +364,23 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   }
 
   @override
-  EvaluationComplexity visitThisExpression(ir.ThisExpression thisExpression) {
+  EvaluationComplexity visitThisExpression(ir.ThisExpression node) {
     if (_hasThisLocal) {
-      _registerNeedsThis(VariableUse.explicit);
+      _registerNeedsThis(SimpleVariableUse.explicit);
     }
     return const EvaluationComplexity.lazy();
   }
 
   @override
-  EvaluationComplexity visitTypeParameter(ir.TypeParameter typeParameter) {
+  EvaluationComplexity visitTypeParameter(ir.TypeParameter node) {
     TypeVariableTypeWithContext typeVariable(ir.Library library) =>
         TypeVariableTypeWithContext(
-            ir.TypeParameterType.withDefaultNullabilityForLibrary(
-                typeParameter, library),
-            // If this typeParameter is part of a typedef then its parent is
-            // null because it has no context. Just pass in null for the
-            // context in that case.
-            typeParameter.parent?.parent);
+          ir.TypeParameterType.withDefaultNullability(node),
+          // If this typeParameter is part of a function type then its
+          // declaration is null because it has no context. Just pass in null
+          // for the context in that case.
+          node.declaration,
+        );
 
     ir.TreeNode? context = _executableContext;
     if (_isInsideClosure && context is ir.Procedure && context.isFactory) {
@@ -427,7 +388,9 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       // [:this:], we have to mark the type arguments as free variables to
       // capture them in the closure.
       _useTypeVariableAsLocal(
-          typeVariable(context.enclosingLibrary), _currentTypeUsage!);
+        typeVariable(context.enclosingLibrary),
+        _currentTypeUsage!,
+      );
     }
 
     if (context is ir.Member && context is! ir.Field) {
@@ -441,12 +404,22 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
         _registerNeedsThis(_currentTypeUsage!);
       } else {
         _useTypeVariableAsLocal(
-            typeVariable(context.enclosingLibrary), _currentTypeUsage!);
+          typeVariable(context.enclosingLibrary),
+          _currentTypeUsage!,
+        );
       }
     }
 
-    visitNode(typeParameter.bound);
+    visitNode(node.bound);
 
+    return const EvaluationComplexity.constant();
+  }
+
+  @override
+  EvaluationComplexity visitStructuralParameter(ir.StructuralParameter node) {
+    // Visit the default type to register any necessary type parameters that RTI
+    // might need if the associated function is used as a generic tear off.
+    visitNode(node.defaultType);
     return const EvaluationComplexity.constant();
   }
 
@@ -457,7 +430,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// type information is checked.
   void _registerNeedsThis(VariableUse usage) {
     if (_isInsideClosure) {
-      if (usage == VariableUse.explicit) {
+      if (usage == SimpleVariableUse.explicit) {
         _currentScopeInfo.thisUsedAsFreeVariable = true;
       } else {
         _currentScopeInfo.thisUsedAsFreeVariableIfNeedsRti.add(usage);
@@ -475,8 +448,18 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     }
     enterNewScope(node, () {
       visitNode(node.variable);
+      if (node.isAsync) {
+        // If this is async then the type is explicitly used to instantiate
+        // the underlying StreamIterator.
+        visitInContext(
+          node.variable.type,
+          ConstructorTypeArgumentVariableUse(
+            _coreTypes.streamIteratorDefaultConstructor,
+          ),
+        );
+      }
       visitInVariableScope(node, () {
-        node.iterable = _handleExpression(node.iterable);
+        visitNode(node.iterable);
         visitNode(node.body);
       });
     });
@@ -490,7 +473,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   EvaluationComplexity visitWhileStatement(ir.WhileStatement node) {
     enterNewScope(node, () {
       visitInVariableScope(node, () {
-        node.condition = _handleExpression(node.condition);
+        visitNode(node.condition);
         visitNode(node.body);
       });
     });
@@ -502,7 +485,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     enterNewScope(node, () {
       visitInVariableScope(node, () {
         visitNode(node.body);
-        node.condition = _handleExpression(node.condition);
+        visitNode(node.condition);
       });
     });
     return const EvaluationComplexity.lazy();
@@ -533,7 +516,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       // condition or body are indeed flagged as mutated.
       visitInVariableScope(node, () {
         if (node.condition != null) {
-          node.condition = _handleExpression(node.condition!);
+          visitNode(node.condition!);
         }
         visitNode(node.body);
       });
@@ -551,28 +534,32 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     KernelCapturedScope? scope = _scopesCapturedInClosureMap[node];
     if (scope != null) {
       _scopesCapturedInClosureMap[node] = KernelCapturedLoopScope(
-          scope.boxedVariables,
-          scope.capturedVariablesAccessor,
-          boxedLoopVariables,
-          scope.localsUsedInTryOrSync,
-          scope.freeVariables,
-          scope.freeVariablesForRti,
-          scope.thisUsedAsFreeVariable,
-          scope.thisUsedAsFreeVariableIfNeedsRti,
-          scope.hasThisLocal);
+        scope.boxedVariables,
+        scope.capturedVariablesAccessor,
+        boxedLoopVariables,
+        scope.localsUsedInTryOrSync,
+        scope.freeVariables,
+        scope.freeVariablesForRti,
+        scope.thisUsedAsFreeVariable,
+        scope.thisUsedAsFreeVariableIfNeedsRti,
+        scope.hasThisLocal,
+      );
     }
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitSuperMethodInvocation(
-      ir.SuperMethodInvocation node) {
+    ir.SuperMethodInvocation node,
+  ) {
     if (_hasThisLocal) {
-      _registerNeedsThis(VariableUse.explicit);
+      _registerNeedsThis(SimpleVariableUse.explicit);
     }
     if (node.arguments.types.isNotEmpty) {
-      visitNodesInContext(node.arguments.types,
-          VariableUse.staticTypeArgument(node.interfaceTarget));
+      visitNodesInContext(
+        node.arguments.types,
+        StaticTypeArgumentVariableUse(node.interfaceTarget),
+      );
     }
     visitArguments(node.arguments);
     return const EvaluationComplexity.lazy();
@@ -581,21 +568,21 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitSuperPropertySet(ir.SuperPropertySet node) {
     if (_hasThisLocal) {
-      _registerNeedsThis(VariableUse.explicit);
+      _registerNeedsThis(SimpleVariableUse.explicit);
     }
-    node.value = _handleExpression(node.value);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitSuperPropertyGet(ir.SuperPropertyGet node) {
     if (_hasThisLocal) {
-      _registerNeedsThis(VariableUse.explicit);
+      _registerNeedsThis(SimpleVariableUse.explicit);
     }
     return const EvaluationComplexity.lazy();
   }
 
-  void visitInvokable(ir.TreeNode node, void f()) {
+  void visitInvokable(ir.TreeNode node, void Function() f) {
     assert(node is ir.Member || node is ir.LocalFunction);
     bool oldIsInsideClosure = _isInsideClosure;
     ir.TreeNode? oldExecutableContext = _executableContext;
@@ -631,11 +618,12 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     assert(freeVariables.isEmpty || savedIsInsideClosure);
     for (ir.Node freeVariable in freeVariables) {
       _capturedVariables.add(freeVariable);
-      _markVariableAsUsed(freeVariable, VariableUse.explicit);
+      _markVariableAsUsed(freeVariable, SimpleVariableUse.explicit);
     }
-    savedScopeInfo.freeVariablesForRti.forEach(
-        (TypeVariableTypeWithContext freeVariableForRti,
-            Set<VariableUse> useSet) {
+    savedScopeInfo.freeVariablesForRti.forEach((
+      TypeVariableTypeWithContext freeVariableForRti,
+      Set<VariableUse> useSet,
+    ) {
       for (VariableUse usage in useSet) {
         _markVariableAsUsed(freeVariableForRti, usage);
       }
@@ -644,16 +632,19 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       _currentScopeInfo.thisUsedAsFreeVariable = true;
     }
     if (_isInsideClosure) {
-      _currentScopeInfo.thisUsedAsFreeVariableIfNeedsRti
-          .addAll(savedScopeInfo.thisUsedAsFreeVariableIfNeedsRti);
+      _currentScopeInfo.thisUsedAsFreeVariableIfNeedsRti.addAll(
+        savedScopeInfo.thisUsedAsFreeVariableIfNeedsRti,
+      );
     }
   }
 
   /// Return true if [variable]'s context is the same as the current executable
   /// context.
   bool _inCurrentContext(ir.Node variable) {
-    assert(variable is ir.VariableDeclaration ||
-        variable is TypeVariableTypeWithContext);
+    assert(
+      variable is ir.VariableDeclaration ||
+          variable is TypeVariableTypeWithContext,
+    );
     if (variable is TypeVariableTypeWithContext) {
       return variable.context == _executableContext;
     }
@@ -666,12 +657,11 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitField(ir.Field node) {
-    _currentTypeUsage = VariableUse.fieldType;
+    _currentTypeUsage = SimpleVariableUse.fieldType;
     late final EvaluationComplexity complexity;
     visitInvokable(node, () {
       assert(node.initializer != null);
-      node.initializer = _handleExpression(node.initializer!);
-      complexity = _lastExpressionComplexity;
+      complexity = visitNode(node.initializer!);
     });
     _currentTypeUsage = null;
     return complexity;
@@ -770,14 +760,26 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   }
 
   @override
+  EvaluationComplexity visitStructuralParameterType(
+    ir.StructuralParameterType node,
+  ) {
+    // The type variable is a function type variable, like `T` in
+    //
+    //     List<void Function<T>(T)> list;
+    //
+    // which doesn't correspond to a captured local variable.
+    return const EvaluationComplexity.lazy();
+  }
+
+  @override
   EvaluationComplexity visitIntersectionType(ir.IntersectionType node) {
     _analyzeTypeVariable(node.left, _currentTypeUsage!);
     return const EvaluationComplexity.lazy();
   }
 
   @override
-  EvaluationComplexity visitInlineType(ir.InlineType type) {
-    return visitNode(type.instantiatedRepresentationType);
+  EvaluationComplexity visitExtensionType(ir.ExtensionType node) {
+    return visitNode(node.extensionTypeErasure);
   }
 
   EvaluationComplexity visitInContext(ir.Node node, VariableUse use) {
@@ -789,7 +791,9 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   }
 
   EvaluationComplexity visitNodesInContext(
-      List<ir.Node> nodes, VariableUse use) {
+    List<ir.Node> nodes,
+    VariableUse use,
+  ) {
     VariableUse? oldCurrentTypeUsage = _currentTypeUsage;
     _currentTypeUsage = use;
     EvaluationComplexity complexity = visitNodes(nodes);
@@ -799,15 +803,14 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitTypeLiteral(ir.TypeLiteral node) {
-    visitInContext(node.type, VariableUse.explicit);
+    visitInContext(node.type, SimpleVariableUse.explicit);
     return _evaluateImplicitConstant(node);
   }
 
   @override
   EvaluationComplexity visitIsExpression(ir.IsExpression node) {
-    node.operand = _handleExpression(node.operand);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
-    visitInContext(node.type, VariableUse.explicit);
+    EvaluationComplexity complexity = visitNode(node.operand);
+    visitInContext(node.type, SimpleVariableUse.explicit);
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -816,10 +819,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitAsExpression(ir.AsExpression node) {
-    node.operand = _handleExpression(node.operand);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
-    visitInContext(node.type,
-        node.isTypeError ? VariableUse.implicitCast : VariableUse.explicit);
+    EvaluationComplexity complexity = visitNode(node.operand);
+    visitInContext(
+      node.type,
+      node.isTypeError
+          ? SimpleVariableUse.implicitCast
+          : SimpleVariableUse.explicit,
+    );
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -828,8 +834,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitNullCheck(ir.NullCheck node) {
-    node.operand = _handleExpression(node.operand);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
+    EvaluationComplexity complexity = visitNode(node.operand);
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -838,13 +843,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitAwaitExpression(ir.AwaitExpression node) {
-    node.operand = _handleExpression(node.operand);
+    visitNode(node.operand);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitYieldStatement(ir.YieldStatement node) {
-    node.expression = _handleExpression(node.expression);
+    visitNode(node.expression);
     return const EvaluationComplexity.lazy();
   }
 
@@ -862,8 +867,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   EvaluationComplexity visitFunctionNode(ir.FunctionNode node) {
     final parent = node.parent;
     VariableUse parameterUsage = parent is ir.Member
-        ? VariableUse.memberParameter(parent)
-        : VariableUse.localParameter(parent as ir.LocalFunction?);
+        ? MemberParameterVariableUse(parent)
+        : LocalParameterVariableUse(parent as ir.LocalFunction);
     visitNodesInContext(node.typeParameters, parameterUsage);
     for (ir.VariableDeclaration declaration in node.positionalParameters) {
       _handleVariableDeclaration(declaration, parameterUsage);
@@ -872,10 +877,11 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
       _handleVariableDeclaration(declaration, parameterUsage);
     }
     visitInContext(
-        node.returnType,
-        parent is ir.Member
-            ? VariableUse.memberReturnType(parent)
-            : VariableUse.localReturnType(parent as ir.LocalFunction));
+      node.returnType,
+      parent is ir.Member
+          ? MemberReturnTypeVariableUse(parent)
+          : LocalReturnTypeVariableUse(parent as ir.LocalFunction),
+    );
     if (node.body != null) {
       visitNode(node.body!);
     }
@@ -884,8 +890,10 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitListLiteral(ir.ListLiteral node) {
-    EvaluationComplexity complexity =
-        visitInContext(node.typeArgument, VariableUse.listLiteral);
+    EvaluationComplexity complexity = visitInContext(
+      node.typeArgument,
+      SimpleVariableUse.listLiteral,
+    );
     complexity = complexity.combine(visitExpressions(node.expressions));
     if (node.isConst) {
       return const EvaluationComplexity.constant();
@@ -900,8 +908,10 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitSetLiteral(ir.SetLiteral node) {
-    EvaluationComplexity complexity =
-        visitInContext(node.typeArgument, VariableUse.setLiteral);
+    EvaluationComplexity complexity = visitInContext(
+      node.typeArgument,
+      SimpleVariableUse.setLiteral,
+    );
     complexity = complexity.combine(visitExpressions(node.expressions));
     if (node.isConst) {
       return const EvaluationComplexity.constant();
@@ -918,10 +928,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitMapLiteral(ir.MapLiteral node) {
-    EvaluationComplexity complexity =
-        visitInContext(node.keyType, VariableUse.mapLiteral);
-    complexity = complexity
-        .combine(visitInContext(node.valueType, VariableUse.mapLiteral));
+    EvaluationComplexity complexity = visitInContext(
+      node.keyType,
+      SimpleVariableUse.mapLiteral,
+    );
+    complexity = complexity.combine(
+      visitInContext(node.valueType, SimpleVariableUse.mapLiteral),
+    );
     complexity = complexity.combine(visitNodes(node.entries));
     if (node.isConst) {
       return const EvaluationComplexity.constant();
@@ -958,11 +971,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitMapLiteralEntry(ir.MapLiteralEntry node) {
-    node.key = _handleExpression(node.key);
-    EvaluationComplexity keyComplexity = _lastExpressionComplexity;
-
-    node.value = _handleExpression(node.value);
-    EvaluationComplexity valueComplexity = _lastExpressionComplexity;
+    EvaluationComplexity keyComplexity = visitNode(node.key);
+    EvaluationComplexity valueComplexity = visitNode(node.value);
 
     return keyComplexity.combine(valueComplexity);
   }
@@ -1029,7 +1039,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitStaticSet(ir.StaticSet node) {
-    node.value = _handleExpression(node.value);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
@@ -1038,9 +1048,9 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
     if (node.arguments.types.isNotEmpty) {
       VariableUse usage;
       if (node.target.kind == ir.ProcedureKind.Factory) {
-        usage = VariableUse.constructorTypeArgument(node.target);
+        usage = ConstructorTypeArgumentVariableUse(node.target);
       } else {
-        usage = VariableUse.staticTypeArgument(node.target);
+        usage = StaticTypeArgumentVariableUse(node.target);
       }
 
       visitNodesInContext(node.arguments.types, usage);
@@ -1064,7 +1074,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitConstructorInvocation(
-      ir.ConstructorInvocation node) {
+    ir.ConstructorInvocation node,
+  ) {
     ir.Constructor target = node.target;
     ir.Class enclosingClass = target.enclosingClass;
 
@@ -1078,7 +1089,9 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
     if (node.arguments.types.isNotEmpty) {
       visitNodesInContext(
-          node.arguments.types, VariableUse.constructorTypeArgument(target));
+        node.arguments.types,
+        ConstructorTypeArgumentVariableUse(target),
+      );
     }
     visitArguments(node.arguments);
     return node.isConst
@@ -1088,18 +1101,17 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitConditionalExpression(
-      ir.ConditionalExpression node) {
-    node.condition = _handleExpression(node.condition);
-    EvaluationComplexity conditionComplexity = _lastExpressionComplexity;
+    ir.ConditionalExpression node,
+  ) {
+    EvaluationComplexity conditionComplexity = visitNode(node.condition);
 
-    node.then = _handleExpression(node.then);
-    EvaluationComplexity thenComplexity = _lastExpressionComplexity;
+    EvaluationComplexity thenComplexity = visitNode(node.then);
 
-    node.otherwise = _handleExpression(node.otherwise);
-    EvaluationComplexity elseComplexity = _lastExpressionComplexity;
+    EvaluationComplexity elseComplexity = visitNode(node.otherwise);
 
-    EvaluationComplexity complexity =
-        conditionComplexity.combine(thenComplexity).combine(elseComplexity);
+    EvaluationComplexity complexity = conditionComplexity
+        .combine(thenComplexity)
+        .combine(elseComplexity);
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -1109,16 +1121,16 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitInstanceInvocation(ir.InstanceInvocation node) {
-    node.receiver = _handleExpression(node.receiver);
-    EvaluationComplexity receiverComplexity = _lastExpressionComplexity;
+    EvaluationComplexity receiverComplexity = visitNode(node.receiver);
     if (node.arguments.types.isNotEmpty) {
       ir.TreeNode receiver = node.receiver;
       assert(
-          !(receiver is ir.VariableGet &&
-              receiver.variable.parent is ir.LocalFunction),
-          "Unexpected local function invocation ${node} "
-          "(${node.runtimeType}).");
-      VariableUse usage = VariableUse.instanceTypeArgument(node);
+        !(receiver is ir.VariableGet &&
+            receiver.variable.parent is ir.LocalFunction),
+        "Unexpected local function invocation $node "
+        "(${node.runtimeType}).",
+      );
+      final usage = InstanceTypeArgumentVariableUse(node);
       visitNodesInContext(node.arguments.types, usage);
     }
     EvaluationComplexity complexity = visitArguments(node.arguments);
@@ -1136,16 +1148,18 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitInstanceGetterInvocation(
-      ir.InstanceGetterInvocation node) {
-    node.receiver = _handleExpression(node.receiver);
+    ir.InstanceGetterInvocation node,
+  ) {
+    visitNode(node.receiver);
     if (node.arguments.types.isNotEmpty) {
       ir.TreeNode receiver = node.receiver;
       assert(
-          !(receiver is ir.VariableGet &&
-              receiver.variable.parent is ir.LocalFunction),
-          "Unexpected local function invocation ${node} "
-          "(${node.runtimeType}).");
-      VariableUse usage = VariableUse.instanceTypeArgument(node);
+        !(receiver is ir.VariableGet &&
+            receiver.variable.parent is ir.LocalFunction),
+        "Unexpected local function invocation $node "
+        "(${node.runtimeType}).",
+      );
+      final usage = InstanceTypeArgumentVariableUse(node);
       visitNodesInContext(node.arguments.types, usage);
     }
     visitArguments(node.arguments);
@@ -1154,15 +1168,16 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitDynamicInvocation(ir.DynamicInvocation node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     if (node.arguments.types.isNotEmpty) {
       ir.TreeNode receiver = node.receiver;
       assert(
-          !(receiver is ir.VariableGet &&
-              receiver.variable.parent is ir.LocalFunction),
-          "Unexpected local function invocation ${node} "
-          "(${node.runtimeType}).");
-      VariableUse usage = VariableUse.instanceTypeArgument(node);
+        !(receiver is ir.VariableGet &&
+            receiver.variable.parent is ir.LocalFunction),
+        "Unexpected local function invocation $node "
+        "(${node.runtimeType}).",
+      );
+      final usage = InstanceTypeArgumentVariableUse(node);
       visitNodesInContext(node.arguments.types, usage);
     }
     visitArguments(node.arguments);
@@ -1171,15 +1186,16 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitFunctionInvocation(ir.FunctionInvocation node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     if (node.arguments.types.isNotEmpty) {
       assert(
-          !(node.receiver is ir.VariableGet &&
-              ((node.receiver as ir.VariableGet).variable.parent
-                  is ir.LocalFunction)),
-          "Unexpected local function invocation ${node} "
-          "(${node.runtimeType}).");
-      VariableUse usage = VariableUse.instanceTypeArgument(node);
+        !(node.receiver is ir.VariableGet &&
+            ((node.receiver as ir.VariableGet).variable.parent
+                is ir.LocalFunction)),
+        "Unexpected local function invocation $node "
+        "(${node.runtimeType}).",
+      );
+      final usage = InstanceTypeArgumentVariableUse(node);
       visitNodesInContext(node.arguments.types, usage);
     }
     visitArguments(node.arguments);
@@ -1188,11 +1204,11 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitLocalFunctionInvocation(
-      ir.LocalFunctionInvocation node) {
-    _markVariableAsUsed(node.variable, VariableUse.explicit);
+    ir.LocalFunctionInvocation node,
+  ) {
+    _markVariableAsUsed(node.variable, SimpleVariableUse.explicit);
     if (node.arguments.types.isNotEmpty) {
-      VariableUse usage =
-          VariableUse.localTypeArgument(node.localFunction, node);
+      final usage = LocalTypeArgumentVariableUse(node.localFunction, node);
       visitNodesInContext(node.arguments.types, usage);
     }
     visitArguments(node.arguments);
@@ -1201,8 +1217,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitEqualsNull(ir.EqualsNull node) {
-    node.expression = _handleExpression(node.expression);
-    EvaluationComplexity receiverComplexity = _lastExpressionComplexity;
+    EvaluationComplexity receiverComplexity = visitNode(node.expression);
     if (receiverComplexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -1211,10 +1226,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitEqualsCall(ir.EqualsCall node) {
-    node.left = _handleExpression(node.left);
-    EvaluationComplexity leftComplexity = _lastExpressionComplexity;
-    node.right = _handleExpression(node.right);
-    EvaluationComplexity rightComplexity = _lastExpressionComplexity;
+    EvaluationComplexity leftComplexity = visitNode(node.left);
+    EvaluationComplexity rightComplexity = visitNode(node.right);
     if (leftComplexity.combine(rightComplexity).isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -1223,8 +1236,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitInstanceGet(ir.InstanceGet node) {
-    node.receiver = _handleExpression(node.receiver);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
+    EvaluationComplexity complexity = visitNode(node.receiver);
     if (complexity.isConstant && node.name.text == 'length') {
       return _evaluateImplicitConstant(node);
     }
@@ -1233,26 +1245,25 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitInstanceTearOff(ir.InstanceTearOff node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitRecordIndexGet(ir.RecordIndexGet node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitRecordNameGet(ir.RecordNameGet node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitDynamicGet(ir.DynamicGet node) {
-    node.receiver = _handleExpression(node.receiver);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
+    EvaluationComplexity complexity = visitNode(node.receiver);
     if (complexity.isConstant && node.name.text == 'length') {
       return _evaluateImplicitConstant(node);
     }
@@ -1261,28 +1272,27 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitFunctionTearOff(ir.FunctionTearOff node) {
-    node.receiver = _handleExpression(node.receiver);
+    visitNode(node.receiver);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitInstanceSet(ir.InstanceSet node) {
-    node.receiver = _handleExpression(node.receiver);
-    node.value = _handleExpression(node.value);
+    visitNode(node.receiver);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitDynamicSet(ir.DynamicSet node) {
-    node.receiver = _handleExpression(node.receiver);
-    node.value = _handleExpression(node.value);
+    visitNode(node.receiver);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitNot(ir.Not node) {
-    node.operand = _handleExpression(node.operand);
-    EvaluationComplexity complexity = _lastExpressionComplexity;
+    EvaluationComplexity complexity = visitNode(node.operand);
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -1291,11 +1301,9 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitLogicalExpression(ir.LogicalExpression node) {
-    node.left = _handleExpression(node.left);
-    EvaluationComplexity leftComplexity = _lastExpressionComplexity;
+    EvaluationComplexity leftComplexity = visitNode(node.left);
 
-    node.right = _handleExpression(node.right);
-    EvaluationComplexity rightComplexity = _lastExpressionComplexity;
+    EvaluationComplexity rightComplexity = visitNode(node.right);
 
     EvaluationComplexity complexity = leftComplexity.combine(rightComplexity);
     if (complexity.isConstant) {
@@ -1307,20 +1315,20 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitLet(ir.Let node) {
     visitNode(node.variable);
-    node.body = _handleExpression(node.body);
+    visitNode(node.body);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitBlockExpression(ir.BlockExpression node) {
     visitNode(node.body);
-    node.value = _handleExpression(node.value);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitCatch(ir.Catch node) {
-    visitInContext(node.guard, VariableUse.explicit);
+    visitInContext(node.guard, SimpleVariableUse.explicit);
     if (node.exception != null) {
       visitNode(node.exception!);
     }
@@ -1336,12 +1344,14 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitInstantiation(ir.Instantiation node) {
     EvaluationComplexity typeArgumentsComplexity = visitNodesInContext(
-        node.typeArguments, VariableUse.instantiationTypeArgument(node));
-    node.expression = _handleExpression(node.expression);
-    EvaluationComplexity expressionComplexity = _lastExpressionComplexity;
+      node.typeArguments,
+      InstantiationTypeArgumentVariableUse(node),
+    );
+    EvaluationComplexity expressionComplexity = visitNode(node.expression);
 
-    EvaluationComplexity complexity =
-        typeArgumentsComplexity.combine(expressionComplexity);
+    EvaluationComplexity complexity = typeArgumentsComplexity.combine(
+      expressionComplexity,
+    );
     if (complexity.isConstant) {
       return _evaluateImplicitConstant(node);
     }
@@ -1350,7 +1360,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitThrow(ir.Throw node) {
-    node.expression = _handleExpression(node.expression);
+    visitNode(node.expression);
     return const EvaluationComplexity.lazy();
   }
 
@@ -1360,16 +1370,26 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitBlock(ir.Block node) {
-    visitNodes(node.statements);
+    final parent = node.parent;
+    if (parent is ir.FunctionNode || parent is ir.LoopStatement) {
+      // Scoping for these blocks are handled by their parent nodes.
+      visitNodes(node.statements);
+    } else {
+      enterNewScope(node, () {
+        visitInVariableScope(node, () {
+          visitNodes(node.statements);
+        });
+      });
+    }
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitAssertStatement(ir.AssertStatement node) {
     visitInVariableScope(node, () {
-      node.condition = _handleExpression(node.condition);
+      visitNode(node.condition);
       if (node.message != null) {
-        node.message = _handleExpression(node.message!);
+        visitNode(node.message!);
       }
     });
     return const EvaluationComplexity.lazy();
@@ -1378,7 +1398,7 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitReturnStatement(ir.ReturnStatement node) {
     if (node.expression != null) {
-      node.expression = _handleExpression(node.expression!);
+      visitNode(node.expression!);
     }
     return const EvaluationComplexity.lazy();
   }
@@ -1390,13 +1410,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitExpressionStatement(ir.ExpressionStatement node) {
-    node.expression = _handleExpression(node.expression);
+    visitNode(node.expression);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitSwitchStatement(ir.SwitchStatement node) {
-    node.expression = _handleExpression(node.expression);
+    visitNode(node.expression);
     visitInVariableScope(node, () {
       visitNodes(node.cases);
     });
@@ -1411,7 +1431,8 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitContinueSwitchStatement(
-      ir.ContinueSwitchStatement node) {
+    ir.ContinueSwitchStatement node,
+  ) {
     registerContinueSwitch();
     return const EvaluationComplexity.lazy();
   }
@@ -1429,14 +1450,14 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitFieldInitializer(ir.FieldInitializer node) {
-    node.value = _handleExpression(node.value);
+    visitNode(node.value);
     return const EvaluationComplexity.lazy();
   }
 
   @override
   EvaluationComplexity visitLocalInitializer(ir.LocalInitializer node) {
     if (node.variable.initializer != null) {
-      node.variable.initializer = _handleExpression(node.variable.initializer!);
+      visitNode(node.variable.initializer!);
     }
     return const EvaluationComplexity.lazy();
   }
@@ -1444,8 +1465,10 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   @override
   EvaluationComplexity visitSuperInitializer(ir.SuperInitializer node) {
     if (node.arguments.types.isNotEmpty) {
-      visitNodesInContext(node.arguments.types,
-          VariableUse.constructorTypeArgument(node.target));
+      visitNodesInContext(
+        node.arguments.types,
+        ConstructorTypeArgumentVariableUse(node.target),
+      );
     }
     visitArguments(node.arguments);
     return const EvaluationComplexity.lazy();
@@ -1453,10 +1476,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitRedirectingInitializer(
-      ir.RedirectingInitializer node) {
+    ir.RedirectingInitializer node,
+  ) {
     if (node.arguments.types.isNotEmpty) {
-      visitNodesInContext(node.arguments.types,
-          VariableUse.constructorTypeArgument(node.target));
+      visitNodesInContext(
+        node.arguments.types,
+        ConstructorTypeArgumentVariableUse(node.target),
+      );
     }
     visitArguments(node.arguments);
     return const EvaluationComplexity.lazy();
@@ -1481,10 +1507,13 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
 
   @override
   EvaluationComplexity visitConstantExpression(ir.ConstantExpression node) {
-    if (node.constant is ir.UnevaluatedConstant) {
-      node.constant = _constantEvaluator.evaluate(_staticTypeContext, node);
-    }
+    assert(node.constant is! ir.UnevaluatedConstant);
     return const EvaluationComplexity.constant();
+  }
+
+  @override
+  EvaluationComplexity visitFileUriExpression(ir.FileUriExpression node) {
+    return visitNode(node.expression);
   }
 
   /// Returns true if the node is a field, or a constructor (factory or
@@ -1497,8 +1526,10 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   void _analyzeTypeVariable(ir.TypeParameterType type, VariableUse usage) {
     final outermost = _outermostNode;
     if (outermost is ir.Member) {
-      TypeVariableTypeWithContext typeVariable =
-          TypeVariableTypeWithContext(type, outermost);
+      TypeVariableTypeWithContext typeVariable = TypeVariableTypeWithContext(
+        type,
+        outermost,
+      );
       switch (typeVariable.kind) {
         case TypeVariableKind.cls:
           if (_isFieldOrConstructor(outermost)) {
@@ -1513,12 +1544,6 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
         case TypeVariableKind.local:
           _useTypeVariableAsLocal(typeVariable, usage);
           break;
-        case TypeVariableKind.function:
-        // The type variable is a function type variable, like `T` in
-        //
-        //     List<void Function<T>(T)> list;
-        //
-        // which doesn't correspond to a captured local variable.
       }
     }
   }
@@ -1526,16 +1551,14 @@ class ScopeModelBuilder extends ir.Visitor<EvaluationComplexity>
   /// If [onlyForRtiChecks] is true, the variable will be added to a list
   /// indicating it *may* be used only if runtime type information is checked.
   void _useTypeVariableAsLocal(
-      TypeVariableTypeWithContext typeVariable, VariableUse usage) {
+    TypeVariableTypeWithContext typeVariable,
+    VariableUse usage,
+  ) {
     _markVariableAsUsed(typeVariable, usage);
   }
 }
 
-enum ComplexityLevel {
-  constant,
-  potentiallyEager,
-  definitelyLazy,
-}
+enum ComplexityLevel { constant, potentiallyEager, definitelyLazy }
 
 class EvaluationComplexity {
   final ComplexityLevel level;
@@ -1543,19 +1566,19 @@ class EvaluationComplexity {
   final ir.Constant? constant;
 
   const EvaluationComplexity.constant([this.constant])
-      : level = ComplexityLevel.constant,
-        fields = null;
+    : level = ComplexityLevel.constant,
+      fields = null;
 
   // TODO(johnniwinther): Use this to collect data on the size of the
   //  initializer.
   EvaluationComplexity.eager({this.fields})
-      : level = ComplexityLevel.potentiallyEager,
-        constant = null;
+    : level = ComplexityLevel.potentiallyEager,
+      constant = null;
 
   const EvaluationComplexity.lazy()
-      : level = ComplexityLevel.definitelyLazy,
-        fields = null,
-        constant = null;
+    : level = ComplexityLevel.definitelyLazy,
+      fields = null,
+      constant = null;
 
   EvaluationComplexity combine(EvaluationComplexity other) {
     if (identical(this, other)) {
@@ -1618,8 +1641,6 @@ class EvaluationComplexity {
       case ComplexityLevel.definitelyLazy:
         sb.write('lazy');
         break;
-      default:
-        throw UnsupportedError("Unexpected complexity level $level");
     }
     return sb.toString();
   }

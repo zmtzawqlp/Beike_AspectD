@@ -2,11 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:ffi';
 import 'dart:io';
 
 import "utils/io_utils.dart";
 
-Future<void> main(List<String> args) async {
+void main(List<String> args) {
   Uri dart = repoDir.resolve(
       "tools/sdks/dart-sdk/bin/dart${Platform.isWindows ? ".exe" : ""}");
   if (!new File.fromUri(dart).existsSync()) {
@@ -59,12 +60,13 @@ Future<void> main(List<String> args) async {
 final Uri repoDir = computeRepoDirUri();
 
 String get _d8executable {
+  final arch = Abi.current().toString().split('_')[1];
   if (Platform.isWindows) {
-    return 'third_party/d8/windows/d8.exe';
+    return 'third_party/d8/windows/$arch/d8.exe';
   } else if (Platform.isLinux) {
-    return 'third_party/d8/linux/d8';
+    return 'third_party/d8/linux/$arch/d8';
   } else if (Platform.isMacOS) {
-    return 'third_party/d8/macos/d8';
+    return 'third_party/d8/macos/$arch/d8';
   }
   throw UnsupportedError('Unsupported platform.');
 }

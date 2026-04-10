@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 @JS()
 library jsinterop;
 
@@ -21,18 +19,19 @@ main() {
   testJsInteropClass();
 }
 
-/*member: testJsInteropMethod:*/
+/*member: testJsInteropMethod:type=[native:LegacyJavaScriptObject]*/
 @JS()
 external int testJsInteropMethod();
 
 @JS()
 class JsInteropClass {
-  /*member: JsInteropClass.:*/
+  /*member: JsInteropClass.:type=[native:LegacyJavaScriptObject]*/
   external JsInteropClass();
 
   /*member: JsInteropClass.method:type=[
     native:GenericClass<dynamic>,
-    native:JsInteropClass]*/
+    native:JsInteropClass,
+    native:LegacyJavaScriptObject]*/
   @JS()
   external double method();
 }
@@ -55,20 +54,15 @@ class GenericClass<T> {
     _arrayInstanceType(1),
     _asBool(1),
     _asBoolQ(1),
-    _asBoolS(1),
     _asDouble(1),
     _asDoubleQ(1),
-    _asDoubleS(1),
     _asInt(1),
     _asIntQ(1),
-    _asIntS(1),
     _asNum(1),
     _asNumQ(1),
-    _asNumS(1),
     _asObject(1),
     _asString(1),
     _asStringQ(1),
-    _asStringS(1),
     _asTop(1),
     _generalAsCheckImplementation(1),
     _generalIsTestImplementation(1),
@@ -95,7 +89,9 @@ class GenericClass<T> {
     inst:JSMutableArray<dynamic>,
     inst:JSNull,
     inst:JSUnmodifiableArray<dynamic>,
-    param:void Function(GenericClass.T*)*]
+    native:GenericClass<dynamic>,
+    native:LegacyJavaScriptObject,
+    param:void Function(GenericClass.T)]
   */
   external GenericClass method([Callback<T> callback]);
 }

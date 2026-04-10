@@ -2,16 +2,16 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js_info.src.util;
-
 import 'package:dart2js_info/info.dart';
 
 import 'graph.dart';
 
 /// Computes a graph of dependencies from [info].
 Graph<Info> graphFromInfo(AllInfo info) {
-  print('  info: dependency graph information is work in progress and'
-      ' might be incomplete');
+  print(
+    '  info: dependency graph information is work in progress and'
+    ' might be incomplete',
+  );
   // Note: we are combining dependency information that is computed in two ways
   // (functionInfo.uses vs allInfo.dependencies).
   // TODO(sigmund): fix inconsistencies between these two ways, stick with one
@@ -149,7 +149,7 @@ String? libraryGroupName(Info info) {
 }
 
 /// Produce a string containing [value] padded with white space up to [n] chars.
-String pad(value, n, {bool right = false}) {
+String pad(Object value, int n, {bool right = false}) {
   var s = '$value';
   if (s.length >= n) return s;
   // ignore: avoid_dynamic_calls

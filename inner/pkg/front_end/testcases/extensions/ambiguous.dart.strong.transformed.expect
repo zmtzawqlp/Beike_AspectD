@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -156,50 +156,50 @@ class C extends core::Object {
 }
 extension A on self::C {
   method method = self::A|method;
-  tearoff method = self::A|get#method;
+  method tearoff method = self::A|get#method;
   get getter = self::A|get#getter;
+  set setter = self::A|set#setter;
   get property = self::A|get#property;
   operator + = self::A|+;
   operator unary- = self::A|unary-;
   operator [] = self::A|[];
-  set setter = self::A|set#setter;
 }
 extension B on self::C {
   method method = self::B|method;
-  tearoff method = self::B|get#method;
+  method tearoff method = self::B|get#method;
   get getter = self::B|get#getter;
+  set setter = self::B|set#setter;
+  set property = self::B|set#property;
   operator + = self::B|+;
   operator unary- = self::B|unary-;
   operator []= = self::B|[]=;
-  set setter = self::B|set#setter;
-  set property = self::B|set#property;
 }
-static method A|method(lowered final self::C #this) → void {}
-static method A|get#method(lowered final self::C #this) → () → void
+static extension-member method A|method(lowered final self::C #this) → void {}
+static extension-member method A|get#method(lowered final self::C #this) → () → void
   return () → void => self::A|method(#this);
-static method A|get#getter(lowered final self::C #this) → core::int
+static extension-member method A|get#getter(lowered final self::C #this) → core::int
   return 42;
-static method A|set#setter(lowered final self::C #this, core::int value) → void {}
-static method A|get#property(lowered final self::C #this) → core::int
+static extension-member method A|set#setter(lowered final self::C #this, core::int value) → void {}
+static extension-member method A|get#property(lowered final self::C #this) → core::int
   return 42;
-static method A|+(lowered final self::C #this, core::int i) → core::int
+static extension-member method A|+(lowered final self::C #this, core::int i) → core::int
   return i;
-static method A|unary-(lowered final self::C #this) → core::int
+static extension-member method A|unary-(lowered final self::C #this) → core::int
   return 0;
-static method A|[](lowered final self::C #this, core::int i) → core::int
+static extension-member method A|[](lowered final self::C #this, core::int i) → core::int
   return i;
-static method B|method(lowered final self::C #this) → void {}
-static method B|get#method(lowered final self::C #this) → () → void
+static extension-member method B|method(lowered final self::C #this) → void {}
+static extension-member method B|get#method(lowered final self::C #this) → () → void
   return () → void => self::B|method(#this);
-static method B|get#getter(lowered final self::C #this) → core::int
+static extension-member method B|get#getter(lowered final self::C #this) → core::int
   return 42;
-static method B|set#setter(lowered final self::C #this, core::int value) → void {}
-static method B|set#property(lowered final self::C #this, core::int value) → void {}
-static method B|+(lowered final self::C #this, core::int i) → core::int
+static extension-member method B|set#setter(lowered final self::C #this, core::int value) → void {}
+static extension-member method B|set#property(lowered final self::C #this, core::int value) → void {}
+static extension-member method B|+(lowered final self::C #this, core::int i) → core::int
   return i;
-static method B|unary-(lowered final self::C #this) → core::int
+static extension-member method B|unary-(lowered final self::C #this) → core::int
   return 0;
-static method B|[]=(lowered final self::C #this, core::int i, core::int j) → void {}
+static extension-member method B|[]=(lowered final self::C #this, core::int i, core::int j) → void {}
 static method errors(self::C c) → dynamic {
   invalid-expression "pkg/front_end/testcases/extensions/ambiguous.dart:28:5: Error: The method 'method' is defined in multiple extensions for 'C' and neither is more specific.
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
@@ -225,12 +225,12 @@ Try using an explicit extension application of the wanted extension or hiding un
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
 Try using an explicit extension application of the wanted extension or hiding unwanted extensions from scope.
   c.getter = 42;
-    ^^^^^^" in c{<unresolved>}.getter = 42;
+    ^^^^^^" in c.{<unresolved>}getter = 42;
   invalid-expression "pkg/front_end/testcases/extensions/ambiguous.dart:33:5: Error: The property 'setter' is defined in multiple extensions for 'C' and neither is more specific.
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
 Try using an explicit extension application of the wanted extension or hiding unwanted extensions from scope.
   c.setter = 42;
-    ^^^^^^" in c{<unresolved>}.setter = 42;
+    ^^^^^^" in c.{<unresolved>}setter = 42;
   invalid-expression "pkg/front_end/testcases/extensions/ambiguous.dart:34:5: Error: The property 'property' is defined in multiple extensions for 'C' and neither is more specific.
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
 Try using an explicit extension application of the wanted extension or hiding unwanted extensions from scope.
@@ -240,7 +240,7 @@ Try using an explicit extension application of the wanted extension or hiding un
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
 Try using an explicit extension application of the wanted extension or hiding unwanted extensions from scope.
   c.property = 42;
-    ^^^^^^^^" in c{<unresolved>}.property = 42;
+    ^^^^^^^^" in c.{<unresolved>}property = 42;
   invalid-expression "pkg/front_end/testcases/extensions/ambiguous.dart:36:5: Error: The operator '+' is defined in multiple extensions for 'C' and neither is more specific.
  - 'C' is from 'pkg/front_end/testcases/extensions/ambiguous.dart'.
 Try using an explicit extension application of the wanted extension or hiding unwanted extensions from scope.

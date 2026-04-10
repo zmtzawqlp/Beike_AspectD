@@ -2,10 +2,12 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library js.size_estimator;
+library;
 
 import 'package:js_ast/js_ast.dart';
-import 'package:js_ast/src/characters.dart' as charCodes;
+// ignore: implementation_imports
+import 'package:js_ast/src/characters.dart' as char_codes;
+// ignore: implementation_imports
 import 'package:js_ast/src/precedence.dart';
 
 import '../js_backend/deferred_holder_expression.dart';
@@ -24,7 +26,7 @@ int estimateSize(Node node) {
 /// estimate for a given JavaScript AST. [SizeEstimator] trades accuracy for
 /// stability and performance. In addition, [SizeEstimator] assumes we will emit
 /// production quality minified JavaScript.
-class SizeEstimator implements NodeVisitor {
+class SizeEstimator implements NodeVisitor<void> {
   int charCount = 0;
   bool inForInit = false;
   bool atStatementBegin = false;
@@ -86,7 +88,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   void out(String s) {
-    if (s.length > 0) {
+    if (s.isNotEmpty) {
       // We can elide a semicolon in some cases, but for simplicity we
       // assume a semicolon is needed here.
       if (pendingSemicolon) {
@@ -116,15 +118,23 @@ class SizeEstimator implements NodeVisitor {
     node.accept(this);
   }
 
-  void visitCommaSeparated(List<Expression> nodes, int hasRequiredType,
-      {required bool newInForInit, required bool newAtStatementBegin}) {
+  void visitCommaSeparated(
+    List<Expression> nodes,
+    Precedence hasRequiredType, {
+    required bool newInForInit,
+    required bool newAtStatementBegin,
+  }) {
     for (int i = 0; i < nodes.length; i++) {
       if (i != 0) {
         atStatementBegin = false;
         out(','); // ','
       }
-      visitNestedExpression(nodes[i], hasRequiredType,
-          newInForInit: newInForInit, newAtStatementBegin: newAtStatementBegin);
+      visitNestedExpression(
+        nodes[i],
+        hasRequiredType,
+        newInForInit: newInForInit,
+        newAtStatementBegin: newAtStatementBegin,
+      );
     }
   }
 
@@ -137,16 +147,6 @@ class SizeEstimator implements NodeVisitor {
     if (program.body.isNotEmpty) {
       visitAll(program.body);
     }
-  }
-
-  Statement unwrapBlockIfSingleStatement(Statement body) {
-    Statement result = body;
-    while (result is Block) {
-      Block block = result;
-      if (block.statements.length != 1) break;
-      result = block.statements.single;
-    }
-    return result;
   }
 
   bool blockBody(Statement body, {required bool needsSeparation}) {
@@ -185,8 +185,12 @@ class SizeEstimator implements NodeVisitor {
 
   @override
   void visitExpressionStatement(ExpressionStatement node) {
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: true);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: true,
+    );
     outSemicolonLn();
   }
 
@@ -196,13 +200,17 @@ class SizeEstimator implements NodeVisitor {
   }
 
   void ifOut(If node) {
-    Statement then = unwrapBlockIfSingleStatement(node.then);
+    Statement then = node.then;
     Statement elsePart = node.otherwise;
     bool hasElse = node.hasElse;
 
     out('if('); // 'if('
-    visitNestedExpression(node.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
     blockBody(then, needsSeparation: false);
     if (hasElse) {
@@ -211,8 +219,7 @@ class SizeEstimator implements NodeVisitor {
         pendingSpace = true;
         ifOut(elsePart);
       } else {
-        blockBody(unwrapBlockIfSingleStatement(elsePart),
-            needsSeparation: true);
+        blockBody(elsePart, needsSeparation: true);
       }
     }
   }
@@ -226,53 +233,80 @@ class SizeEstimator implements NodeVisitor {
   void visitFor(For loop) {
     out('for('); // 'for('
     if (loop.init != null) {
-      visitNestedExpression(loop.init!, EXPRESSION,
-          newInForInit: true, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.init!,
+        Precedence.expression,
+        newInForInit: true,
+        newAtStatementBegin: false,
+      );
     }
     out(';'); // ';'
     if (loop.condition != null) {
-      visitNestedExpression(loop.condition!, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.condition!,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     out(';'); // ';'
     if (loop.update != null) {
-      visitNestedExpression(loop.update!, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        loop.update!,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     out(')'); // ')'
-    blockBody(unwrapBlockIfSingleStatement(loop.body), needsSeparation: false);
+    blockBody(loop.body, needsSeparation: false);
   }
 
   @override
   void visitForIn(ForIn loop) {
     out('for('); // 'for('
-    visitNestedExpression(loop.leftHandSide, EXPRESSION,
-        newInForInit: true, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.leftHandSide,
+      Precedence.expression,
+      newInForInit: true,
+      newAtStatementBegin: false,
+    );
     out(' in'); // ' in'
     pendingSpace = true;
-    visitNestedExpression(loop.object, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.object,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
-    blockBody(unwrapBlockIfSingleStatement(loop.body), needsSeparation: false);
+    blockBody(loop.body, needsSeparation: false);
   }
 
   @override
   void visitWhile(While loop) {
     out('while('); // 'while('
-    visitNestedExpression(loop.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
-    blockBody(unwrapBlockIfSingleStatement(loop.body), needsSeparation: false);
+    blockBody(loop.body, needsSeparation: false);
   }
 
   @override
   void visitDo(Do loop) {
     out('do'); // 'do'
-    if (blockBody(unwrapBlockIfSingleStatement(loop.body),
-        needsSeparation: true)) {}
+    if (blockBody(loop.body, needsSeparation: true)) {}
     out('while('); // 'while('
-    visitNestedExpression(loop.condition, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      loop.condition,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
     outSemicolonLn();
   }
@@ -302,8 +336,12 @@ class SizeEstimator implements NodeVisitor {
     out('return'); // 'return'
     if (node.value != null) {
       pendingSpace = true;
-      visitNestedExpression(node.value!, EXPRESSION,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        node.value!,
+        Precedence.expression,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     outSemicolonLn();
   }
@@ -316,8 +354,12 @@ class SizeEstimator implements NodeVisitor {
       out('yield'); // 'yield'
     }
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     outSemicolonLn();
   }
 
@@ -325,8 +367,12 @@ class SizeEstimator implements NodeVisitor {
   void visitThrow(Throw node) {
     out('throw'); // 'throw'
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     outSemicolonLn();
   }
 
@@ -346,8 +392,12 @@ class SizeEstimator implements NodeVisitor {
   @override
   void visitCatch(Catch node) {
     out('catch('); // 'catch('
-    visitNestedExpression(node.declaration, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.declaration,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
     blockBody(node.body, needsSeparation: false);
   }
@@ -355,8 +405,12 @@ class SizeEstimator implements NodeVisitor {
   @override
   void visitSwitch(Switch node) {
     out('switch('); // 'switch('
-    visitNestedExpression(node.key, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.key,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out('){'); // '){
     visitAll(node.cases);
     out('}'); // '}'
@@ -366,10 +420,14 @@ class SizeEstimator implements NodeVisitor {
   void visitCase(Case node) {
     out('case'); // 'case'
     pendingSpace = true;
-    visitNestedExpression(node.expression, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.expression,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(':'); // ':'
-    if (!node.body.statements.isEmpty) {
+    if (node.body.statements.isNotEmpty) {
       blockOutWithoutBraces(node.body);
     }
   }
@@ -377,25 +435,15 @@ class SizeEstimator implements NodeVisitor {
   @override
   void visitDefault(Default node) {
     out('default:'); // 'default:'
-    if (!node.body.statements.isEmpty) {
+    if (node.body.statements.isNotEmpty) {
       blockOutWithoutBraces(node.body);
     }
   }
 
   @override
   void visitLabeledStatement(LabeledStatement node) {
-    Statement body = unwrapBlockIfSingleStatement(node.body);
-    // `label: break label;`
-    // Does not work on IE. The statement is a nop, so replace it by an empty
-    // statement.
-    // See:
-    // https://connect.microsoft.com/IE/feedback/details/891889/parser-bugs
-    if (body is Break && body.targetLabel == node.label) {
-      visit(EmptyStatement());
-      return;
-    }
     out('${node.label}:');
-    blockBody(body, needsSeparation: false);
+    blockBody(node.body, needsSeparation: false);
   }
 
   int functionOut(Fun fun, Expression? name, VarCollector vars) {
@@ -403,12 +451,20 @@ class SizeEstimator implements NodeVisitor {
     if (name != null) {
       out(' '); // ' '
       // Name must be a [Decl]. Therefore only test for primary expressions.
-      visitNestedExpression(name, PRIMARY,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        name,
+        Precedence.primary,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     }
     out('('); // '('
-    visitCommaSeparated(fun.params, PRIMARY,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      fun.params,
+      Precedence.primary,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
     switch (fun.asyncModifier) {
       case AsyncModifier.sync:
@@ -428,18 +484,23 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitFunctionDeclaration(FunctionDeclaration declaration) {
+  void visitFunctionDeclaration(FunctionDeclaration declaration) {
     VarCollector vars = VarCollector();
     vars.visitFunctionDeclaration(declaration);
     functionOut(declaration.function, declaration.name, vars);
   }
 
-  visitNestedExpression(Expression node, int requiredPrecedence,
-      {required bool newInForInit, required bool newAtStatementBegin}) {
-    bool needsParentheses = !node.isFinalized ||
+  void visitNestedExpression(
+    Expression node,
+    Precedence requiredPrecedence, {
+    required bool newInForInit,
+    required bool newAtStatementBegin,
+  }) {
+    bool needsParentheses =
+        !node.isFinalized ||
         // a - (b + c).
-        (requiredPrecedence != EXPRESSION &&
-            node.precedenceLevel < requiredPrecedence) ||
+        (requiredPrecedence != Precedence.expression &&
+            node.precedenceLevel.index < requiredPrecedence.index) ||
         // for (a = (x in o); ... ; ... ) { ... }
         (newInForInit && node is Binary && node.op == "in") ||
         // (function() { ... })().
@@ -462,12 +523,16 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitVariableDeclarationList(VariableDeclarationList list) {
+  void visitVariableDeclarationList(VariableDeclarationList list) {
     out('var '); // 'var '
     final nodes = list.declarations;
     if (inForInit) {
-      visitCommaSeparated(nodes, ASSIGNMENT,
-          newInForInit: inForInit, newAtStatementBegin: false);
+      visitCommaSeparated(
+        nodes,
+        Precedence.assignment,
+        newInForInit: inForInit,
+        newAtStatementBegin: false,
+      );
     } else {
       for (int i = 0; i < nodes.length; i++) {
         final node = nodes[i];
@@ -475,8 +540,12 @@ class SizeEstimator implements NodeVisitor {
           atStatementBegin = false;
           out(','); // ','
         }
-        visitNestedExpression(node, ASSIGNMENT,
-            newInForInit: inForInit, newAtStatementBegin: false);
+        visitNestedExpression(
+          node,
+          Precedence.assignment,
+          newInForInit: inForInit,
+          newAtStatementBegin: false,
+        );
       }
     }
   }
@@ -489,12 +558,16 @@ class SizeEstimator implements NodeVisitor {
     } else {
       out(' --');
     }
-    visitNestedExpression(variable, UNARY,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      variable,
+      Precedence.unary,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
-  visitAssignment(Assignment assignment) {
+  void visitAssignment(Assignment assignment) {
     /// To print assignments like `a = a + 1` and `a = a + b` compactly as
     /// `++a` and `a += b` in the face of [DeferredExpression]s we detect the
     /// pattern of the undeferred assignment.
@@ -532,66 +605,118 @@ class SizeEstimator implements NodeVisitor {
             return;
           }
           // Output 'a = a + b' as 'a += b'.
-          visitNestedExpression(assignment.leftHandSide, CALL,
-              newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+          visitNestedExpression(
+            assignment.leftHandSide,
+            Precedence.call,
+            newInForInit: inForInit,
+            newAtStatementBegin: atStatementBegin,
+          );
           assert(op.length == 1);
           out('$op='); // '$op='
-          visitNestedExpression(rRight, ASSIGNMENT,
-              newInForInit: inForInit, newAtStatementBegin: false);
+          visitNestedExpression(
+            rRight,
+            Precedence.assignment,
+            newInForInit: inForInit,
+            newAtStatementBegin: false,
+          );
           return;
         }
       }
     }
-    visitNestedExpression(assignment.leftHandSide, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      assignment.leftHandSide,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     if (op != null) out(op);
     out('='); // '='
-    visitNestedExpression(assignment.value, ASSIGNMENT,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      assignment.value,
+      Precedence.assignment,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
-  visitVariableInitialization(VariableInitialization initialization) {
-    visitNestedExpression(initialization.declaration, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+  void visitVariableInitialization(VariableInitialization initialization) {
+    visitNestedExpression(
+      initialization.declaration,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     if (initialization.value != null) {
       out('=');
-      visitNestedExpression(initialization.value!, ASSIGNMENT,
-          newInForInit: inForInit, newAtStatementBegin: false);
+      visitNestedExpression(
+        initialization.value!,
+        Precedence.assignment,
+        newInForInit: inForInit,
+        newAtStatementBegin: false,
+      );
     }
   }
 
   @override
-  visitConditional(Conditional cond) {
-    visitNestedExpression(cond.condition, LOGICAL_OR,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+  void visitConditional(Conditional cond) {
+    visitNestedExpression(
+      cond.condition,
+      Precedence.logicalOr,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     out('?'); // '?'
     // The then part is allowed to have an 'in'.
-    visitNestedExpression(cond.then, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      cond.then,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(':'); // ':'
-    visitNestedExpression(cond.otherwise, ASSIGNMENT,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      cond.otherwise,
+      Precedence.assignment,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
-  visitNew(New node) {
+  void visitNew(New node) {
     out('new'); // 'new'
-    visitNestedExpression(node.target, LEFT_HAND_SIDE,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.target,
+      Precedence.leftHandSide,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
     out('('); // '('
-    visitCommaSeparated(node.arguments, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      node.arguments,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
   }
 
   @override
-  visitCall(Call call) {
-    visitNestedExpression(call.target, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+  void visitCall(Call call) {
+    visitNestedExpression(
+      call.target,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     out('('); // '('
-    visitCommaSeparated(call.arguments, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      call.arguments,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
   }
 
@@ -600,45 +725,45 @@ class SizeEstimator implements NodeVisitor {
     Expression left = binary.left;
     Expression right = binary.right;
     String op = binary.op;
-    int leftPrecedenceRequirement;
-    int rightPrecedenceRequirement;
+    Precedence leftPrecedenceRequirement;
+    Precedence rightPrecedenceRequirement;
     switch (op) {
       case ',':
         //  x, (y, z) <=> (x, y), z.
-        leftPrecedenceRequirement = EXPRESSION;
-        rightPrecedenceRequirement = EXPRESSION;
+        leftPrecedenceRequirement = Precedence.expression;
+        rightPrecedenceRequirement = Precedence.expression;
         break;
       case "||":
-        leftPrecedenceRequirement = LOGICAL_OR;
+        leftPrecedenceRequirement = Precedence.logicalOr;
         // x || (y || z) <=> (x || y) || z.
-        rightPrecedenceRequirement = LOGICAL_OR;
+        rightPrecedenceRequirement = Precedence.logicalOr;
         break;
       case "&&":
-        leftPrecedenceRequirement = LOGICAL_AND;
+        leftPrecedenceRequirement = Precedence.logicalAnd;
         // x && (y && z) <=> (x && y) && z.
-        rightPrecedenceRequirement = LOGICAL_AND;
+        rightPrecedenceRequirement = Precedence.logicalAnd;
         break;
       case "|":
-        leftPrecedenceRequirement = BIT_OR;
+        leftPrecedenceRequirement = Precedence.bitOr;
         // x | (y | z) <=> (x | y) | z.
-        rightPrecedenceRequirement = BIT_OR;
+        rightPrecedenceRequirement = Precedence.bitOr;
         break;
       case "^":
-        leftPrecedenceRequirement = BIT_XOR;
+        leftPrecedenceRequirement = Precedence.bitXor;
         // x ^ (y ^ z) <=> (x ^ y) ^ z.
-        rightPrecedenceRequirement = BIT_XOR;
+        rightPrecedenceRequirement = Precedence.bitXor;
         break;
       case "&":
-        leftPrecedenceRequirement = BIT_AND;
+        leftPrecedenceRequirement = Precedence.bitAnd;
         // x & (y & z) <=> (x & y) & z.
-        rightPrecedenceRequirement = BIT_AND;
+        rightPrecedenceRequirement = Precedence.bitAnd;
         break;
       case "==":
       case "!=":
       case "===":
       case "!==":
-        leftPrecedenceRequirement = EQUALITY;
-        rightPrecedenceRequirement = RELATIONAL;
+        leftPrecedenceRequirement = Precedence.equality;
+        rightPrecedenceRequirement = Precedence.relational;
         break;
       case "<":
       case ">":
@@ -646,43 +771,47 @@ class SizeEstimator implements NodeVisitor {
       case ">=":
       case "instanceof":
       case "in":
-        leftPrecedenceRequirement = RELATIONAL;
-        rightPrecedenceRequirement = SHIFT;
+        leftPrecedenceRequirement = Precedence.relational;
+        rightPrecedenceRequirement = Precedence.shift;
         break;
       case ">>":
       case "<<":
       case ">>>":
-        leftPrecedenceRequirement = SHIFT;
-        rightPrecedenceRequirement = ADDITIVE;
+        leftPrecedenceRequirement = Precedence.shift;
+        rightPrecedenceRequirement = Precedence.additive;
         break;
       case "+":
       case "-":
-        leftPrecedenceRequirement = ADDITIVE;
+        leftPrecedenceRequirement = Precedence.additive;
         // We cannot remove parenthesis for "+" because
         //   x + (y + z) <!=> (x + y) + z:
         // Example:
         //   "a" + (1 + 2) => "a3";
         //   ("a" + 1) + 2 => "a12";
-        rightPrecedenceRequirement = MULTIPLICATIVE;
+        rightPrecedenceRequirement = Precedence.multiplicative;
         break;
       case "*":
       case "/":
       case "%":
-        leftPrecedenceRequirement = MULTIPLICATIVE;
+        leftPrecedenceRequirement = Precedence.multiplicative;
         // We cannot remove parenthesis for "*" because of precision issues.
-        rightPrecedenceRequirement = UNARY;
+        rightPrecedenceRequirement = Precedence.unary;
         break;
       case "**":
-        leftPrecedenceRequirement = EXPONENTIATION;
+        leftPrecedenceRequirement = Precedence.exponentiation;
         // We cannot remove parenthesis for "**" because of precision issues.
-        rightPrecedenceRequirement = UNARY;
+        rightPrecedenceRequirement = Precedence.unary;
         break;
       default:
         throw UnsupportedError("Forgot operator: $op");
     }
 
-    visitNestedExpression(left, leftPrecedenceRequirement,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      left,
+      leftPrecedenceRequirement,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
 
     if (op == "in" || op == "instanceof") {
       // There are cases where the space is not required but without further
@@ -691,8 +820,12 @@ class SizeEstimator implements NodeVisitor {
     } else {
       out(op); // '$op'
     }
-    visitNestedExpression(right, rightPrecedenceRequirement,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      right,
+      rightPrecedenceRequirement,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
@@ -711,16 +844,24 @@ class SizeEstimator implements NodeVisitor {
         out('$op '); // '$op '
         break;
       default:
-        out('$op'); // '$op'
+        out(op); // '$op'
     }
-    visitNestedExpression(unary.argument, UNARY,
-        newInForInit: inForInit, newAtStatementBegin: false);
+    visitNestedExpression(
+      unary.argument,
+      Precedence.unary,
+      newInForInit: inForInit,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
   void visitPostfix(Postfix postfix) {
-    visitNestedExpression(postfix.argument, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      postfix.argument,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     out(postfix.op); // '${postfix.op}'
   }
 
@@ -752,19 +893,19 @@ class SizeEstimator implements NodeVisitor {
   }
 
   bool isDigit(int charCode) {
-    return charCodes.$0 <= charCode && charCode <= charCodes.$9;
+    return char_codes.$0 <= charCode && charCode <= char_codes.$9;
   }
 
   bool isValidJavaScriptId(String field) {
-    if (field.length == 0) return false;
+    if (field.isEmpty) return false;
     // Ignore the leading and trailing string-delimiter.
     for (int i = 0; i < field.length; i++) {
       // TODO(floitsch): allow more characters.
       int charCode = field.codeUnitAt(i);
-      if (!(charCodes.$a <= charCode && charCode <= charCodes.$z ||
-          charCodes.$A <= charCode && charCode <= charCodes.$Z ||
-          charCode == charCodes.$$ ||
-          charCode == charCodes.$_ ||
+      if (!(char_codes.$a <= charCode && charCode <= char_codes.$z ||
+          char_codes.$A <= charCode && charCode <= char_codes.$Z ||
+          charCode == char_codes.$$ ||
+          charCode == char_codes.$_ ||
           i > 0 && isDigit(charCode))) {
         return false;
       }
@@ -779,8 +920,12 @@ class SizeEstimator implements NodeVisitor {
 
   @override
   void visitAccess(PropertyAccess access) {
-    visitNestedExpression(access.receiver, CALL,
-        newInForInit: inForInit, newAtStatementBegin: atStatementBegin);
+    visitNestedExpression(
+      access.receiver,
+      Precedence.call,
+      newInForInit: inForInit,
+      newAtStatementBegin: atStatementBegin,
+    );
     Node selector = access.selector;
     if (selector is LiteralString) {
       String field = literalStringToString(selector);
@@ -808,8 +953,12 @@ class SizeEstimator implements NodeVisitor {
       return;
     }
     out('['); // '['
-    visitNestedExpression(access.selector, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      access.selector,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(']'); // ']
   }
 
@@ -837,25 +986,26 @@ class SizeEstimator implements NodeVisitor {
   int arrowFunctionOut(ArrowFunction fun, VarCollector vars) {
     // TODO: support static, get/set, async, and generators.
     if (fun.params.length == 1) {
-      visitNestedExpression(fun.params.single, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        fun.params.single,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
     } else {
       out("(");
-      visitCommaSeparated(fun.params, PRIMARY,
-          newInForInit: false, newAtStatementBegin: false);
+      visitCommaSeparated(
+        fun.params,
+        Precedence.primary,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
 
       out(")");
     }
     out("=>");
     int closingPosition;
     Node body = fun.body;
-    // Simplify arrow functions that return a single expression.
-    if (fun.implicitReturnAllowed && body is Block) {
-      final statement = unwrapBlockIfSingleStatement(body);
-      if (statement is Return) {
-        body = statement.value!;
-      }
-    }
     if (body is Block) {
       closingPosition = blockOut(body);
     } else {
@@ -864,8 +1014,12 @@ class SizeEstimator implements NodeVisitor {
       // https://tc39.github.io/ecma262/#sec-arrow-function-definitions
       bool needsParens = body is ObjectInitializer;
       if (needsParens) out("(");
-      visitNestedExpression(body as Expression, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        body as Expression,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
       if (needsParens) out(")");
       closingPosition = charCount;
     }
@@ -873,7 +1027,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitDeferredExpression(DeferredExpression node) {
+  void visitDeferredExpression(DeferredExpression node) {
     if (node.isFinalized) {
       // Continue printing with the expression value.
       assert(node.precedenceLevel == node.value.precedenceLevel);
@@ -884,7 +1038,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitDeferredStatement(DeferredStatement node) {
+  void visitDeferredStatement(DeferredStatement node) {
     if (node.isFinalized) {
       // Continue printing with the statement value.
       node.statement.accept(this);
@@ -893,9 +1047,9 @@ class SizeEstimator implements NodeVisitor {
     }
   }
 
-  outputNumberWithRequiredWhitespace(String number) {
+  void outputNumberWithRequiredWhitespace(String number) {
     int charCode = number.codeUnitAt(0);
-    if (charCode == charCodes.$MINUS) {
+    if (charCode == char_codes.$MINUS) {
       // We can eliminate the space in some cases, but for simplicity we
       // always assume it is necessary.
       out(' ');
@@ -904,7 +1058,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitDeferredNumber(DeferredNumber node) {
+  void visitDeferredNumber(DeferredNumber node) {
     if (node.isFinalized) {
       outputNumberWithRequiredWhitespace("${node.value}");
     } else {
@@ -913,7 +1067,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitDeferredString(DeferredString node) {
+  void visitDeferredString(DeferredString node) {
     if (node.isFinalized) {
       out(node.value);
     } else {
@@ -922,7 +1076,7 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitLiteralBool(LiteralBool node) {
+  void visitLiteralBool(LiteralBool node) {
     out(node.value ? '!0' : '!1');
   }
 
@@ -934,26 +1088,30 @@ class SizeEstimator implements NodeVisitor {
   }
 
   @override
-  visitStringConcatenation(StringConcatenation node) {
+  void visitStringConcatenation(StringConcatenation node) {
     node.visitChildren(this);
   }
 
   @override
-  visitName(Name node) {
+  void visitName(Name node) {
     // For simplicity and stability we use a constant name size estimate.
     out(sizeEstimate(node));
   }
 
   @override
-  visitParentheses(Parentheses node) {
+  void visitParentheses(Parentheses node) {
     out('('); // '('
-    visitNestedExpression(node.enclosed, EXPRESSION,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.enclosed,
+      Precedence.expression,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(')'); // ')'
   }
 
   @override
-  visitLiteralNumber(LiteralNumber node) {
+  void visitLiteralNumber(LiteralNumber node) {
     outputNumberWithRequiredWhitespace(node.value);
   }
 
@@ -976,8 +1134,12 @@ class SizeEstimator implements NodeVisitor {
         out(','); // ','
         continue;
       }
-      visitNestedExpression(element, ASSIGNMENT,
-          newInForInit: false, newAtStatementBegin: false);
+      visitNestedExpression(
+        element,
+        Precedence.assignment,
+        newInForInit: false,
+        newAtStatementBegin: false,
+      );
       // We can skip the trailing "," for the last element (since it's not
       // an array hole).
       if (i != elements.length - 1) out(','); // ','
@@ -1021,8 +1183,12 @@ class SizeEstimator implements NodeVisitor {
   void visitProperty(Property node) {
     propertyNameOut(node);
     out(':'); // ':'
-    visitNestedExpression(node.value, ASSIGNMENT,
-        newInForInit: false, newAtStatementBegin: false);
+    visitNestedExpression(
+      node.value,
+      Precedence.assignment,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
   }
 
   @override
@@ -1037,8 +1203,12 @@ class SizeEstimator implements NodeVisitor {
     // TODO: support static, get/set, async, and generators.
     Fun fun = node.function;
     out("(");
-    visitCommaSeparated(fun.params, PRIMARY,
-        newInForInit: false, newAtStatementBegin: false);
+    visitCommaSeparated(
+      fun.params,
+      Precedence.primary,
+      newInForInit: false,
+      newAtStatementBegin: false,
+    );
     out(")");
     int closingPosition = blockOut(fun.body);
     return closingPosition;

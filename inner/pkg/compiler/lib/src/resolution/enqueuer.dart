@@ -8,14 +8,16 @@ import '../common.dart';
 import '../common/elements.dart' show ElementEnvironment;
 import '../common/tasks.dart' show CompilerTask;
 import '../common/work.dart' show WorkItem;
-import '../enqueue.dart';
 import '../elements/entities.dart';
 import '../elements/types.dart';
+import '../enqueue.dart';
 import '../js_backend/annotations.dart';
+import '../js_backend/resolution_listener.dart';
 import '../universe/member_usage.dart';
 import '../universe/resolution_world_builder.dart' show ResolutionWorldBuilder;
 import '../universe/use.dart'
     show
+        ConditionalUse,
         ConstantUse,
         DynamicUse,
         StaticUse,
@@ -31,7 +33,7 @@ class ResolutionEnqueuer extends Enqueuer {
   final CompilerTask task;
   final String name;
   @override
-  final EnqueuerListener listener;
+  final ResolutionEnqueuerListener listener;
 
   final Set<ClassEntity> _recentClasses = Setlet<ClassEntity>();
   bool _recentConstants = false;
@@ -49,9 +51,15 @@ class ResolutionEnqueuer extends Enqueuer {
   // applying additional impacts before re-emptying the queue.
   void Function()? onEmptyForTesting;
 
-  ResolutionEnqueuer(this.task, this._reporter, this.listener,
-      this.worldBuilder, this._workItemBuilder, this._annotationsData,
-      [this.name = 'resolution enqueuer']);
+  ResolutionEnqueuer(
+    this.task,
+    this._reporter,
+    this.listener,
+    this.worldBuilder,
+    this._workItemBuilder,
+    this._annotationsData, [
+    this.name = 'resolution enqueuer',
+  ]);
 
   @override
   Iterable<ClassEntity> get directlyInstantiatedClasses =>
@@ -67,52 +75,65 @@ class ResolutionEnqueuer extends Enqueuer {
     }
   }
 
-  void _registerInstantiatedType(InterfaceType type,
-      {ConstructorEntity? constructor,
-      bool nativeUsage = false,
-      bool globalDependency = false}) {
+  void _registerInstantiatedType(
+    InterfaceType type, {
+    ConstructorEntity? constructor,
+    bool nativeUsage = false,
+    bool globalDependency = false,
+  }) {
     task.measureSubtask('resolution.typeUse', () {
-      worldBuilder.registerTypeInstantiation(type, _applyClassUse,
-          constructor: constructor);
-      listener.registerInstantiatedType(type,
-          isGlobal: globalDependency, nativeUsage: nativeUsage);
+      worldBuilder.registerTypeInstantiation(
+        type,
+        _applyClassUse,
+        constructor: constructor,
+      );
+      listener.registerInstantiatedType(
+        type,
+        isGlobal: globalDependency,
+        nativeUsage: nativeUsage,
+      );
     });
   }
 
   @override
   bool checkNoEnqueuedInvokedInstanceMethods(
-      ElementEnvironment elementEnvironment) {
+    ElementEnvironment elementEnvironment,
+  ) {
     if (Enqueuer.skipEnqueuerCheckForTesting) return true;
     return checkEnqueuerConsistency(elementEnvironment);
   }
 
   @override
   void checkClass(ClassEntity cls) {
-    worldBuilder.processClassMembers(cls,
-        (MemberEntity member, EnumSet<MemberUse> useSet) {
+    worldBuilder.processClassMembers(cls, (
+      MemberEntity member,
+      EnumSet<MemberUse> useSet,
+    ) {
       if (useSet.isNotEmpty) {
-        _reporter.internalError(member,
-            'Unenqueued use of $member: ${useSet.iterable(MemberUse.values)}');
+        _reporter.internalError(
+          member,
+          'Unenqueued use of $member: ${useSet.iterable(MemberUse.values)}',
+        );
       }
     }, checkEnqueuerConsistency: true);
   }
 
   /// Callback for applying the use of a [member].
-  void _applyMemberUse(Entity member, EnumSet<MemberUse> useSet) {
-    if (useSet.contains(MemberUse.NORMAL)) {
-      _addToWorkList(member as MemberEntity);
+  void _applyMemberUse(MemberEntity member, EnumSet<MemberUse> useSet) {
+    if (useSet.contains(MemberUse.normal)) {
+      _addToWorkList(member);
     }
-    if (useSet.contains(MemberUse.CLOSURIZE_INSTANCE)) {
+    if (useSet.contains(MemberUse.closurizeInstance)) {
       _registerClosurizedMember(member as FunctionEntity);
     }
-    if (useSet.contains(MemberUse.CLOSURIZE_STATIC)) {
+    if (useSet.contains(MemberUse.closurizeStatic)) {
       applyImpact(listener.registerGetOfStaticFunction());
     }
   }
 
   /// Callback for applying the use of a [cls].
   void _applyClassUse(ClassEntity cls, EnumSet<ClassUse> useSet) {
-    if (useSet.contains(ClassUse.INSTANTIATED)) {
+    if (useSet.contains(ClassUse.instantiated)) {
       _recentClasses.add(cls);
       worldBuilder.processClassMembers(cls, _applyMemberUse);
       // We only tell the backend once that [cls] was instantiated, so
@@ -120,7 +141,7 @@ class ResolutionEnqueuer extends Enqueuer {
       // dependencies.
       applyImpact(listener.registerInstantiatedClass(cls));
     }
-    if (useSet.contains(ClassUse.IMPLEMENTED)) {
+    if (useSet.contains(ClassUse.implemented)) {
       applyImpact(listener.registerImplementedClass(cls));
       if (cls.isAbstract) {
         worldBuilder.processAbstractClassMembers(cls, _applyMemberUse);
@@ -152,13 +173,33 @@ class ResolutionEnqueuer extends Enqueuer {
       // TODO(johnniwinther): Add `ResolutionWorldBuilder.registerConstructorUse`
       // for these:
       switch (staticUse.kind) {
-        case StaticUseKind.CONSTRUCTOR_INVOKE:
-        case StaticUseKind.CONST_CONSTRUCTOR_INVOKE:
-          _registerInstantiatedType(staticUse.type!,
-              constructor: staticUse.element as ConstructorEntity?,
-              globalDependency: false);
+        case StaticUseKind.constructorInvoke:
+        case StaticUseKind.constConstructorInvoke:
+          _registerInstantiatedType(
+            staticUse.type!,
+            constructor: staticUse.element as ConstructorEntity?,
+            globalDependency: false,
+          );
           break;
-        default:
+        case StaticUseKind.staticTearOff:
+        case StaticUseKind.superTearOff:
+        case StaticUseKind.superFieldSet:
+        case StaticUseKind.superGet:
+        case StaticUseKind.superSetterSet:
+        case StaticUseKind.superInvoke:
+        case StaticUseKind.instanceFieldGet:
+        case StaticUseKind.instanceFieldSet:
+        case StaticUseKind.closure:
+        case StaticUseKind.closureCall:
+        case StaticUseKind.callMethod:
+        case StaticUseKind.directInvoke:
+        case StaticUseKind.inlining:
+        case StaticUseKind.staticInvoke:
+        case StaticUseKind.staticGet:
+        case StaticUseKind.staticSet:
+        case StaticUseKind.fieldInit:
+        case StaticUseKind.fieldConstantInit:
+        case StaticUseKind.weakStaticTearOff:
           break;
       }
     });
@@ -169,49 +210,54 @@ class ResolutionEnqueuer extends Enqueuer {
     if (member?.isAbstract ?? false) return;
     DartType type = typeUse.type;
     switch (typeUse.kind) {
-      case TypeUseKind.INSTANTIATION:
-      case TypeUseKind.CONST_INSTANTIATION:
-        _registerInstantiatedType(type as InterfaceType,
-            globalDependency: false);
+      case TypeUseKind.instantiation:
+      case TypeUseKind.constInstantiation:
+        _registerInstantiatedType(
+          type as InterfaceType,
+          globalDependency: false,
+        );
         break;
-      case TypeUseKind.NATIVE_INSTANTIATION:
-        _registerInstantiatedType(type as InterfaceType,
-            nativeUsage: true, globalDependency: true);
+      case TypeUseKind.nativeInstantiation:
+        _registerInstantiatedType(
+          type as InterfaceType,
+          nativeUsage: true,
+          globalDependency: true,
+        );
         break;
-      case TypeUseKind.RECORD_INSTANTIATION:
+      case TypeUseKind.recordInstantiation:
         _registerInstantiatedRecordType(type as RecordType);
         break;
-      case TypeUseKind.IS_CHECK:
-      case TypeUseKind.CATCH_TYPE:
+      case TypeUseKind.isCheck:
+      case TypeUseKind.catchType:
         _registerIsCheck(type);
         break;
-      case TypeUseKind.AS_CAST:
+      case TypeUseKind.asCast:
         if (_annotationsData.getExplicitCastCheckPolicy(member).isEmitted) {
           _registerIsCheck(type);
         }
         break;
-      case TypeUseKind.IMPLICIT_CAST:
+      case TypeUseKind.implicitCast:
         if (_annotationsData.getImplicitDowncastCheckPolicy(member).isEmitted) {
           _registerIsCheck(type);
         }
         break;
-      case TypeUseKind.PARAMETER_CHECK:
-      case TypeUseKind.TYPE_VARIABLE_BOUND_CHECK:
+      case TypeUseKind.parameterCheck:
+      case TypeUseKind.typeVariableBoundCheck:
         if (_annotationsData.getParameterCheckPolicy(member).isEmitted) {
           _registerIsCheck(type);
         }
         break;
-      case TypeUseKind.TYPE_LITERAL:
+      case TypeUseKind.typeLiteral:
         if (type is TypeVariableType) {
           worldBuilder.registerTypeVariableTypeLiteral(type);
         }
         break;
-      case TypeUseKind.RTI_VALUE:
-      case TypeUseKind.TYPE_ARGUMENT:
-      case TypeUseKind.CONSTRUCTOR_REFERENCE:
-        failedAt(CURRENT_ELEMENT_SPANNABLE, "Unexpected type use: $typeUse.");
-      case TypeUseKind.NAMED_TYPE_VARIABLE_NEW_RTI:
-        _registerNamedTypeVariableNewRti(type as TypeVariableType);
+      case TypeUseKind.rtiValue:
+      case TypeUseKind.typeArgument:
+      case TypeUseKind.constructorReference:
+        failedAt(currentElementSpannable, "Unexpected type use: $typeUse.");
+      case TypeUseKind.namedTypeVariable:
+        _registerNamedTypeVariable(type as TypeVariableType);
         break;
     }
   }
@@ -224,8 +270,8 @@ class ResolutionEnqueuer extends Enqueuer {
     worldBuilder.registerIsCheck(type);
   }
 
-  void _registerNamedTypeVariableNewRti(TypeVariableType type) {
-    worldBuilder.registerNamedTypeVariableNewRti(type);
+  void _registerNamedTypeVariable(TypeVariableType type) {
+    worldBuilder.registerNamedTypeVariable(type);
   }
 
   void _registerClosurizedMember(FunctionEntity element) {
@@ -234,7 +280,7 @@ class ResolutionEnqueuer extends Enqueuer {
     worldBuilder.registerClosurizedMember(element);
   }
 
-  void _forEach(void f(WorkItem work)) {
+  void _forEach(void Function(WorkItem work) f) {
     do {
       while (_queue.isNotEmpty) {
         // TODO(johnniwinther): Find an optimal process order.
@@ -250,12 +296,13 @@ class ResolutionEnqueuer extends Enqueuer {
       if (!_onQueueEmpty(recents)) {
         _recentClasses.addAll(recents);
       }
-    } while (
-        _queue.isNotEmpty || _recentClasses.isNotEmpty || _recentConstants);
+    } while (_queue.isNotEmpty ||
+        _recentClasses.isNotEmpty ||
+        _recentConstants);
   }
 
   @override
-  void forEach(void f(WorkItem work)) {
+  void forEach(void Function(WorkItem work) f) {
     _forEach(f);
     if (onEmptyForTesting != null) {
       onEmptyForTesting!();
@@ -264,7 +311,7 @@ class ResolutionEnqueuer extends Enqueuer {
   }
 
   @override
-  void logSummary(void log(String message)) {
+  void logSummary(void Function(String message) log) {
     log('Resolved ${processedEntities.length} elements.');
     listener.logSummary(log);
   }
@@ -298,7 +345,9 @@ class ResolutionEnqueuer extends Enqueuer {
 
     if (queueIsClosed) {
       failedAt(
-          entity, "Resolution work list is closed. Trying to add $entity.");
+        entity,
+        "Resolution work list is closed. Trying to add $entity.",
+      );
     }
 
     applyImpact(listener.registerUsedElement(entity));
@@ -314,5 +363,10 @@ class ResolutionEnqueuer extends Enqueuer {
   /// still empty) and [recentClasses] will be a superset of the current value.
   bool _onQueueEmpty(Iterable<ClassEntity> recentClasses) {
     return listener.onQueueEmpty(this, recentClasses);
+  }
+
+  @override
+  void processConditionalUse(ConditionalUse conditionalUse) {
+    applyImpact(listener.registerConditionalUse(conditionalUse));
   }
 }

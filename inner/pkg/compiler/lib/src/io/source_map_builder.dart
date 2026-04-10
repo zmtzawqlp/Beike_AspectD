@@ -2,19 +2,23 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.source_map_builder;
+library;
 
+// ignore: implementation_imports
 import 'package:front_end/src/api_unstable/dart2js.dart' as fe;
 import 'package:kernel/ast.dart' show Location;
-import '../../compiler_api.dart' as api
+import '../../compiler_api.dart'
+    as api
     show CompilerOutput, OutputSink, OutputType;
+import '../util/output_util.dart';
 import '../util/util.dart';
 import 'location_provider.dart';
 import 'code_output.dart' show SourceLocationsProvider, SourceLocations;
-import 'source_information.dart' show SourceLocation, FrameEntry;
+import 'source_information.dart' show FrameEntry, SourceLocation;
 
 class SourceMapBuilder {
   final String version;
+  final StringSink outputSink;
 
   /// The URI of the source map file.
   final Uri? sourceMapUri;
@@ -29,61 +33,52 @@ class SourceMapBuilder {
   final Map<String, String> minifiedGlobalNames;
   final Map<String, String> minifiedInstanceNames;
 
-  /// Extension used to deobfuscate inlined stack frames.
-  final Map<int, List<FrameEntry>> frames;
+  /// Contains mapped source locations including inlined frame mappings.
+  final SourceLocations sourceLocations;
 
   SourceMapBuilder(
-      this.version,
-      this.sourceMapUri,
-      this.targetFileUri,
-      this.locationProvider,
-      this.minifiedGlobalNames,
-      this.minifiedInstanceNames,
-      this.frames);
+    this.version,
+    this.sourceMapUri,
+    this.targetFileUri,
+    this.locationProvider,
+    this.minifiedGlobalNames,
+    this.minifiedInstanceNames,
+    this.sourceLocations,
+    this.outputSink,
+  );
 
   void addMapping(int targetOffset, SourceLocation sourceLocation) {
     entries.add(SourceMapEntry(sourceLocation, targetOffset));
   }
 
-  void printStringListOn(Iterable<String> strings, StringBuffer buffer) {
+  void printStringListOn(Iterable<String> strings) {
     bool first = true;
-    buffer.write('[');
+    outputSink.write('[');
     for (String string in strings) {
-      if (!first) buffer.write(',');
-      buffer.write('"');
-      writeJsonEscapedCharsOn(string, buffer);
-      buffer.write('"');
+      if (!first) outputSink.write(',');
+      outputSink.write('"');
+      writeJsonEscapedCharsOn(string, outputSink);
+      outputSink.write('"');
       first = false;
     }
-    buffer.write(']');
+    outputSink.write(']');
   }
 
-  String build() {
+  void build() {
     LineColumnMap<SourceMapEntry> lineColumnMap = LineColumnMap();
-    Map<Uri, LineColumnMap<SourceMapEntry>> sourceLocationMap = {};
-    entries.forEach((SourceMapEntry sourceMapEntry) {
-      Location kernelLocation =
-          locationProvider.getLocation(sourceMapEntry.targetOffset);
+    for (var sourceMapEntry in entries) {
+      Location kernelLocation = locationProvider.getLocation(
+        sourceMapEntry.targetOffset,
+      );
       int line = kernelLocation.line - 1;
       int column = kernelLocation.column - 1;
       lineColumnMap.add(line, column, sourceMapEntry);
+    }
 
-      SourceLocation? location = sourceMapEntry.sourceLocation;
-      if (location != null) {
-        if (location.sourceUri != null) {
-          LineColumnMap<SourceMapEntry> sourceLineColumnMap =
-              sourceLocationMap.putIfAbsent(
-                  location.sourceUri!, () => LineColumnMap<SourceMapEntry>());
-          sourceLineColumnMap.add(
-              location.line - 1, location.column - 1, sourceMapEntry);
-        }
-      }
-    });
-
-    return _build(lineColumnMap);
+    _build(lineColumnMap);
   }
 
-  String _build(LineColumnMap<SourceMapEntry> lineColumnMap) {
+  void _build(LineColumnMap<SourceMapEntry> lineColumnMap) {
     IndexMap<Uri> uriMap = IndexMap<Uri>();
     IndexMap<String> nameMap = IndexMap<String>();
 
@@ -102,59 +97,61 @@ class SourceMapBuilder {
       registerLocation(entry.sourceLocation);
     });
 
-    minifiedGlobalNames.values.forEach(nameMap.register);
-    minifiedInstanceNames.values.forEach(nameMap.register);
-    for (List<FrameEntry> entries in frames.values) {
-      for (var frame in entries) {
-        registerLocation(frame.pushLocation);
-        if (frame.inlinedMethodName != null) {
-          nameMap.register(frame.inlinedMethodName!);
-        }
+    (List.of(minifiedGlobalNames.values)..sort()).forEach(nameMap.register);
+    (List.of(minifiedInstanceNames.values)..sort()).forEach(nameMap.register);
+
+    final inlinedNames = <String>[];
+    sourceLocations.forEachFrameMarker((_, frame) {
+      registerLocation(frame.pushLocation);
+      if (frame.inlinedMethodName != null) {
+        inlinedNames.add(frame.inlinedMethodName!);
       }
-    }
+    });
+    (inlinedNames..sort()).forEach(nameMap.register);
 
-    StringBuffer mappingsBuffer = StringBuffer();
-    writeEntries(lineColumnMap, uriMap, nameMap, mappingsBuffer);
-
-    StringBuffer buffer = StringBuffer();
-    buffer.write('{\n');
-    buffer.write('  "version": 3,\n');
-    buffer.write('  "engine": "$version",\n');
+    outputSink.write('{\n');
+    outputSink.write('  "version": 3,\n');
+    outputSink.write('  "engine": "$version",\n');
     if (sourceMapUri != null && targetFileUri != null) {
-      buffer.write('  "file": '
-          '"${fe.relativizeUri(sourceMapUri!, targetFileUri!, false)}",\n');
+      outputSink.write(
+        '  "file": '
+        '"${fe.relativizeUri(sourceMapUri!, targetFileUri!, false)}",\n',
+      );
     }
-    buffer.write('  "sourceRoot": "",\n');
-    buffer.write('  "sources": ');
+    outputSink.write('  "sourceRoot": "",\n');
+    outputSink.write('  "sources": ');
     Iterable<String> relativeSourceUriList = const <String>[];
     if (sourceMapUri != null) {
-      relativeSourceUriList =
-          uriMap.elements.map((u) => fe.relativizeUri(sourceMapUri!, u, false));
+      relativeSourceUriList = uriMap.elements.map(
+        (u) => fe.relativizeUri(sourceMapUri!, u, false),
+      );
     }
-    printStringListOn(relativeSourceUriList, buffer);
-    buffer.write(',\n');
-    buffer.write('  "names": ');
-    printStringListOn(nameMap.elements, buffer);
-    buffer.write(',\n');
-    buffer.write('  "mappings": "');
-    buffer.write(mappingsBuffer);
-    buffer.write('",\n');
-    buffer.write('  "x_org_dartlang_dart2js": {\n');
-    buffer.write('    "minified_names": {\n');
-    buffer.write('      "global": ');
-    writeMinifiedNames(minifiedGlobalNames, nameMap, buffer);
-    buffer.write(',\n');
-    buffer.write('      "instance": ');
-    writeMinifiedNames(minifiedInstanceNames, nameMap, buffer);
-    buffer.write('\n    },\n');
-    buffer.write('    "frames": ');
-    writeFrames(uriMap, nameMap, buffer);
-    buffer.write('\n  }\n}\n');
-    return buffer.toString();
+    printStringListOn(relativeSourceUriList);
+    outputSink.write(',\n');
+    outputSink.write('  "names": ');
+    printStringListOn(nameMap.elements);
+    outputSink.write(',\n');
+    outputSink.write('  "mappings": "');
+    writeEntries(lineColumnMap, uriMap, nameMap);
+    outputSink.write('",\n');
+    outputSink.write('  "x_org_dartlang_dart2js": {\n');
+    outputSink.write('    "minified_names": {\n');
+    outputSink.write('      "global": ');
+    writeMinifiedNames(minifiedGlobalNames, nameMap);
+    outputSink.write(',\n');
+    outputSink.write('      "instance": ');
+    writeMinifiedNames(minifiedInstanceNames, nameMap);
+    outputSink.write('\n    },\n');
+    outputSink.write('    "frames": ');
+    writeFrames(uriMap, nameMap);
+    outputSink.write('\n  }\n}\n');
   }
 
-  void writeEntries(LineColumnMap<SourceMapEntry> entries, IndexMap<Uri> uriMap,
-      IndexMap<String> nameMap, StringBuffer output) {
+  void writeEntries(
+    LineColumnMap<SourceMapEntry> entries,
+    IndexMap<Uri> uriMap,
+    IndexMap<String> nameMap,
+  ) {
     SourceLocation? previousSourceLocation;
     int previousTargetLine = 0;
     DeltaEncoder targetColumnEncoder = DeltaEncoder();
@@ -165,14 +162,14 @@ class SourceMapBuilder {
     DeltaEncoder sourceNameIndexEncoder = DeltaEncoder();
 
     entries.forEach((int targetLine, int targetColumn, SourceMapEntry entry) {
-      SourceLocation? sourceLocation = entry.sourceLocation;
+      SourceLocation sourceLocation = entry.sourceLocation;
       if (sourceLocation == previousSourceLocation) {
         return;
       }
 
       if (targetLine > previousTargetLine) {
         for (int i = previousTargetLine; i < targetLine; ++i) {
-          output.write(';');
+          outputSink.write(';');
         }
         previousTargetLine = targetLine;
         previousSourceLocation = null;
@@ -181,73 +178,69 @@ class SourceMapBuilder {
       }
 
       if (!firstEntryInLine) {
-        output.write(',');
+        outputSink.write(',');
       }
       firstEntryInLine = false;
 
-      targetColumnEncoder.encode(output, targetColumn);
-
-      if (sourceLocation == null) {
-        return;
-      }
+      targetColumnEncoder.encode(outputSink, targetColumn);
 
       Uri? sourceUri = sourceLocation.sourceUri;
       if (sourceUri != null) {
-        sourceUriIndexEncoder.encode(output, uriMap[sourceUri]!);
-        sourceLineEncoder.encode(output, sourceLocation.line - 1);
-        sourceColumnEncoder.encode(output, sourceLocation.column - 1);
+        sourceUriIndexEncoder.encode(outputSink, uriMap[sourceUri]!);
+        sourceLineEncoder.encode(outputSink, sourceLocation.line - 1);
+        sourceColumnEncoder.encode(outputSink, sourceLocation.column - 1);
       }
 
       String? sourceName = sourceLocation.sourceName;
       if (sourceName != null) {
-        sourceNameIndexEncoder.encode(output, nameMap[sourceName]!);
+        sourceNameIndexEncoder.encode(outputSink, nameMap[sourceName]!);
       }
 
       previousSourceLocation = sourceLocation;
     });
   }
 
-  void writeMinifiedNames(Map<String, String> minifiedNames,
-      IndexMap<String> nameMap, StringBuffer buffer) {
+  void writeMinifiedNames(
+    Map<String, String> minifiedNames,
+    IndexMap<String> nameMap,
+  ) {
     bool first = true;
-    buffer.write('"');
-    minifiedNames.forEach((String minifiedName, String name) {
-      if (!first) buffer.write(',');
+    outputSink.write('"');
+    for (final minifiedName in List.of(minifiedNames.keys)..sort()) {
+      final name = minifiedNames[minifiedName]!;
+      if (!first) outputSink.write(',');
       // minifiedNames are valid JS identifiers so they don't need to be escaped
-      buffer.write(minifiedName);
-      buffer.write(',');
-      buffer.write(nameMap[name]);
+      outputSink.write(minifiedName);
+      outputSink.write(',');
+      outputSink.write(nameMap[name]);
       first = false;
-    });
-    buffer.write('"');
+    }
+    outputSink.write('"');
   }
 
-  void writeFrames(
-      IndexMap<Uri> uriMap, IndexMap<String> nameMap, StringBuffer buffer) {
+  void writeFrames(IndexMap<Uri> uriMap, IndexMap<String> nameMap) {
     var offsetEncoder = DeltaEncoder();
     var uriEncoder = DeltaEncoder();
     var lineEncoder = DeltaEncoder();
     var columnEncoder = DeltaEncoder();
     var nameEncoder = DeltaEncoder();
-    buffer.write('"');
-    frames.forEach((int offset, List<FrameEntry> entries) {
-      for (var entry in entries) {
-        offsetEncoder.encode(buffer, offset);
-        if (entry.isPush) {
-          SourceLocation location = entry.pushLocation!;
-          uriEncoder.encode(buffer, uriMap[location.sourceUri!]!);
-          lineEncoder.encode(buffer, location.line - 1);
-          columnEncoder.encode(buffer, location.column - 1);
-          nameEncoder.encode(buffer, nameMap[entry.inlinedMethodName!]!);
-        } else {
-          // ; and , are not used by VLQ so we can distinguish them in the
-          // encoding, this is the same reason they are used in the mappings
-          // field.
-          buffer.write(entry.isEmptyPop ? ";" : ",");
-        }
+    outputSink.write('"');
+    sourceLocations.forEachFrameMarker((int offset, FrameEntry entry) {
+      offsetEncoder.encode(outputSink, offset);
+      if (entry.isPush) {
+        SourceLocation location = entry.pushLocation!;
+        uriEncoder.encode(outputSink, uriMap[location.sourceUri!]!);
+        lineEncoder.encode(outputSink, location.line - 1);
+        columnEncoder.encode(outputSink, location.column - 1);
+        nameEncoder.encode(outputSink, nameMap[entry.inlinedMethodName!]!);
+      } else {
+        // ; and , are not used by VLQ so we can distinguish them in the
+        // encoding, this is the same reason they are used in the mappings
+        // field.
+        outputSink.write(entry.isEmptyPop ? ";" : ",");
       }
     });
-    buffer.write('"');
+    outputSink.write('"');
   }
 
   /// Returns the source map tag to put at the end a .js file in [fileUri] to
@@ -269,29 +262,19 @@ class SourceMapBuilder {
   /// files and the target [fileUri]. [name] and [outputProvider] are used to
   /// create the [api.OutputSink] for the source map text.
   static void outputSourceMap(
-      SourceLocationsProvider sourceLocationsProvider,
-      LocationProvider locationProvider,
-      Map<String, String> minifiedGlobalNames,
-      Map<String, String> minifiedInstanceNames,
-      String name,
-      Uri? sourceMapUri,
-      Uri? fileUri,
-      api.CompilerOutput compilerOutput) {
+    SourceLocationsProvider sourceLocationsProvider,
+    LocationProvider locationProvider,
+    Map<String, String> minifiedGlobalNames,
+    Map<String, String> minifiedInstanceNames,
+    String name,
+    Uri? sourceMapUri,
+    Uri? fileUri,
+    api.CompilerOutput compilerOutput,
+  ) {
     // Create a source file for the compilation output. This allows using
     // [:getLine:] to transform offsets to line numbers in [SourceMapBuilder].
     int index = 0;
-    sourceLocationsProvider.sourceLocations
-        .forEach((SourceLocations sourceLocations) {
-      SourceMapBuilder sourceMapBuilder = SourceMapBuilder(
-          sourceLocations.name,
-          sourceMapUri,
-          fileUri,
-          locationProvider,
-          minifiedGlobalNames,
-          minifiedInstanceNames,
-          sourceLocations.frameMarkers);
-      sourceLocations.forEachSourceLocation(sourceMapBuilder.addMapping);
-      String sourceMap = sourceMapBuilder.build();
+    for (var sourceLocations in sourceLocationsProvider.sourceLocations) {
       String extension = 'js.map';
       if (index > 0) {
         if (name == '') {
@@ -301,11 +284,29 @@ class SourceMapBuilder {
           extension = 'js.map.${sourceLocations.name}';
         }
       }
-      compilerOutput.createOutputSink(name, extension, api.OutputType.sourceMap)
-        ..add(sourceMap)
-        ..close();
+      final outputSink = BufferedStringSinkWrapper(
+        compilerOutput.createOutputSink(
+          name,
+          extension,
+          api.OutputType.sourceMap,
+        ),
+      );
+      SourceMapBuilder sourceMapBuilder = SourceMapBuilder(
+        sourceLocations.name,
+        sourceMapUri,
+        fileUri,
+        locationProvider,
+        minifiedGlobalNames,
+        minifiedInstanceNames,
+        sourceLocations,
+        outputSink,
+      );
+      sourceLocations.forEachSourceLocation(sourceMapBuilder.addMapping);
+      sourceMapBuilder.build();
+      sourceLocations.close();
+      outputSink.close();
       index++;
-    });
+    }
   }
 }
 
@@ -321,20 +322,21 @@ class DeltaEncoder {
 
   /// Writes the VLQ of delta between [value] and the last emitted value into
   /// [output] and updates the last emitted value of the encoder.
-  void encode(StringBuffer output, int value) {
+  void encode(StringSink output, int value) {
     _value = encodeVLQ(output, value, _value);
   }
 
-  static const int VLQ_BASE_SHIFT = 5;
-  static const int VLQ_BASE_MASK = (1 << 5) - 1;
-  static const int VLQ_CONTINUATION_BIT = 1 << 5;
-  static const int VLQ_CONTINUATION_MASK = 1 << 5;
-  static const String BASE64_DIGITS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn'
+  static const int vlqBaseShift = 5;
+  static const int vlqBaseMask = (1 << 5) - 1;
+  static const int vlqContinuationBit = 1 << 5;
+  static const int vlqContinuationMask = 1 << 5;
+  static const String base64Digits =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn'
       'opqrstuvwxyz0123456789+/';
 
   /// Writes the VLQ of delta between [value] and [offset] into [output] and
   /// return [value].
-  static int encodeVLQ(StringBuffer output, int value, int offset) {
+  static int encodeVLQ(StringSink output, int value, int offset) {
     int delta = value - offset;
     int signBit = 0;
     if (delta < 0) {
@@ -343,19 +345,19 @@ class DeltaEncoder {
     }
     delta = (delta << 1) | signBit;
     do {
-      int digit = delta & VLQ_BASE_MASK;
-      delta >>= VLQ_BASE_SHIFT;
+      int digit = delta & vlqBaseMask;
+      delta >>= vlqBaseShift;
       if (delta > 0) {
-        digit |= VLQ_CONTINUATION_BIT;
+        digit |= vlqContinuationBit;
       }
-      output.write(BASE64_DIGITS[digit]);
+      output.write(base64Digits[digit]);
     } while (delta > 0);
     return value;
   }
 }
 
 class SourceMapEntry {
-  SourceLocation? sourceLocation;
+  SourceLocation sourceLocation;
   int targetOffset;
 
   SourceMapEntry(this.sourceLocation, this.targetOffset);
@@ -386,7 +388,7 @@ class LineColumnMap<T> {
   /// Calls [f] with the line number for each line with associated elements.
   ///
   /// [f] is called in increasing line order.
-  void forEachLine(f(int line)) {
+  void forEachLine(void Function(int line) f) {
     List<int> lines = _map.keys.toList()..sort();
     lines.forEach(f);
   }
@@ -403,26 +405,28 @@ class LineColumnMap<T> {
   /// Calls [f] for each column with associated elements in [line].
   ///
   /// [f] is called in increasing column order.
-  void forEachColumn(int line, f(int column, List<T> elements)) {
+  void forEachColumn(int line, void Function(int column, List<T> elements) f) {
     Map<int, List<T>>? lineMap = _map[line];
     if (lineMap != null) {
       List<int> columns = lineMap.keys.toList()..sort();
-      columns.forEach((int column) {
+      for (var column in columns) {
         f(column, lineMap[column]!);
-      });
+      }
     }
   }
 
   /// Calls [f] for each line/column/element triplet in the map.
   ///
   /// [f] is called in increasing line, column, element order.
-  void forEach(f(int line, int column, T element)) {
+  void forEach(void Function(int line, int column, T element) f) {
     List<int> lines = _map.keys.toList()..sort();
     for (int line in lines) {
       Map<int, List<T>> lineMap = _map[line]!;
       List<int> columns = lineMap.keys.toList()..sort();
       for (int column in columns) {
-        lineMap[column]!.forEach((e) => f(line, column, e));
+        for (var e in lineMap[column]!) {
+          f(line, column, e);
+        }
       }
     }
   }
@@ -430,7 +434,7 @@ class LineColumnMap<T> {
   /// Calls [f] for each element associated in the map.
   ///
   /// [f] is called in increasing line, column, element order.
-  void forEachElement(f(T element)) {
+  void forEachElement(void Function(T element) f) {
     forEach((line, column, element) => f(element));
   }
 }

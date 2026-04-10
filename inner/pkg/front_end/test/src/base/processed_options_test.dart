@@ -6,18 +6,13 @@ import 'dart:convert' show jsonEncode;
 
 import 'package:front_end/src/api_prototype/compiler_options.dart';
 import 'package:front_end/src/api_prototype/memory_file_system.dart';
+import 'package:front_end/src/base/compiler_context.dart';
 import 'package:front_end/src/base/processed_options.dart';
-import 'package:front_end/src/fasta/compiler_context.dart';
-import 'package:front_end/src/fasta/util/bytes_sink.dart' show BytesSink;
-import 'package:front_end/src/fasta/fasta_codes.dart';
+import 'package:front_end/src/codes/cfe_codes.dart';
+import 'package:front_end/src/util/bytes_sink.dart' show BytesSink;
 import 'package:kernel/binary/ast_to_binary.dart' show BinaryPrinter;
 import 'package:kernel/kernel.dart'
-    show
-        CanonicalName,
-        Library,
-        Component,
-        loadComponentFromBytes,
-        NonNullableByDefaultCompiledMode;
+    show CanonicalName, Library, Component, loadComponentFromBytes;
 import 'package:package_config/package_config.dart';
 import 'package:test/test.dart';
 import 'package:test_reflective_loader/test_reflective_loader.dart';
@@ -75,8 +70,7 @@ class ProcessedOptionsTest {
         new Library(Uri.parse('org-dartlang-test:///a/b.dart'),
             fileUri: Uri.parse('org-dartlang-test:///a/b.dart'))
       ])
-        ..setMainMethodAndMode(
-            null, false, NonNullableByDefaultCompiledMode.Weak);
+        ..setMainMethodAndMode(null, false);
 
   void test_compileSdk_false() {
     for (var value in [false, true]) {
@@ -93,7 +87,7 @@ class ProcessedOptionsTest {
       ..sdkRoot = Uri.parse('org-dartlang-test:///sdk/dir/')
       ..compileSdk = false;
     expect(new ProcessedOptions(options: raw).sdkSummary,
-        Uri.parse('org-dartlang-test:///sdk/dir/vm_platform_strong.dill'));
+        Uri.parse('org-dartlang-test:///sdk/dir/vm_platform.dill'));
 
     // But it is left null when compile-sdk is true
     raw = new CompilerOptions()
@@ -404,6 +398,17 @@ class ProcessedOptionsTest {
     var processed = new ProcessedOptions(options: raw);
     var uriTranslator = await processed.getUriTranslator();
     expect(uriTranslator.packages.packages, isEmpty);
+  }
+
+  Future<void> test_getUriTranslator_missingPackages() async {
+    var errors = <DiagnosticMessage>[];
+    var raw = new CompilerOptions()
+      ..fileSystem = fileSystem
+      ..packagesFileUri = new Uri(path: '/')
+      ..onDiagnostic = errors.add;
+    var processed = new ProcessedOptions(options: raw);
+    var uriTranslator = await processed.getUriTranslator();
+    expect(uriTranslator.packages.packages, isEmpty);
     expect((errors.single as FormattedMessage).problemMessage,
         startsWith(_stringPrefixOf(templateCantReadFile)));
   }
@@ -443,7 +448,7 @@ class ProcessedOptionsTest {
         .entityForUri(sdkRoot)
         .writeAsStringSync('\n');
     fileSystem
-        .entityForUri(sdkRoot.resolve('vm_platform_strong.dill'))
+        .entityForUri(sdkRoot.resolve('vm_platform.dill'))
         .writeAsStringSync('\n');
     fileSystem
         .entityForUri(Uri.parse('org-dartlang-test:///foo.dart'))
@@ -518,7 +523,7 @@ class ProcessedOptionsTest {
   Future<void> test_validateOptions_inferred_summary_exists() async {
     var sdkRoot = Uri.parse('org-dartlang-test:///sdk/root/');
     var sdkSummary =
-        Uri.parse('org-dartlang-test:///sdk/root/vm_platform_strong.dill');
+        Uri.parse('org-dartlang-test:///sdk/root/vm_platform.dill');
     fileSystem.entityForUri(sdkRoot).writeAsStringSync('\n');
     fileSystem.entityForUri(sdkSummary).writeAsStringSync('\n');
     fileSystem

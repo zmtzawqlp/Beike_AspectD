@@ -13,7 +13,6 @@ import 'package:front_end/src/api_unstable/vm.dart'
         computePlatformBinariesLocation,
         kernelForModule,
         kernelForProgram,
-        NnbdMode,
         parseExperimentalArguments,
         parseExperimentalFlags;
 import 'package:kernel/ast.dart';
@@ -22,43 +21,45 @@ import 'package:kernel/binary/ast_to_binary.dart' show BinaryPrinter;
 import 'package:kernel/target/targets.dart';
 import 'package:test/test.dart';
 
-import 'package:vm/target/vm.dart' show VmTarget;
-
 /// Environment define to update expectation files on failures.
 const kUpdateExpectations = 'updateExpectations';
 
 /// Environment define to dump actual results alongside expectations.
 const kDumpActualResult = 'dump.actual.result';
 
-Future<Component> compileTestCaseToKernelProgram(Uri sourceUri,
-    {Target? target,
-    List<String>? experimentalFlags,
-    Map<String, String>? environmentDefines,
-    Uri? packagesFileUri,
-    List<Uri>? linkedDependencies}) async {
+Future<Component> compileTestCaseToKernelProgram(
+  Uri sourceUri, {
+  required Target target,
+  List<String>? experimentalFlags,
+  Map<String, String>? environmentDefines,
+  Uri? packagesFileUri,
+  List<Uri>? linkedDependencies,
+}) async {
   Directory? tempDirectory;
   try {
-    target ??= new VmTarget(new TargetFlags());
-    final platformFileName = (target is WasmTarget)
-        ? 'dart2wasm_platform.dill'
-        : 'vm_platform_strong.dill';
-    final platformKernel =
-        computePlatformBinariesLocation().resolve(platformFileName);
+    final platformFileName =
+        (target is WasmTarget)
+            ? target.platformFile
+            : 'vm_platform.dill';
+    final platformKernel = computePlatformBinariesLocation().resolve(
+      platformFileName,
+    );
     environmentDefines ??= <String, String>{};
-    final options = new CompilerOptions()
-      ..target = target
-      ..additionalDills = <Uri>[platformKernel]
-      ..environmentDefines = environmentDefines
-      ..packagesFileUri = packagesFileUri
-      ..nnbdMode = NnbdMode.Strong
-      ..explicitExperimentalFlags =
-          parseExperimentalFlags(parseExperimentalArguments(experimentalFlags),
-              onError: (String message) {
-        throw message;
-      })
-      ..onDiagnostic = (DiagnosticMessage message) {
-        fail("Compilation error: ${message.plainTextFormatted.join('\n')}");
-      };
+    final options =
+        new CompilerOptions()
+          ..target = target
+          ..additionalDills = <Uri>[platformKernel]
+          ..environmentDefines = environmentDefines
+          ..packagesFileUri = packagesFileUri
+          ..explicitExperimentalFlags = parseExperimentalFlags(
+            parseExperimentalArguments(experimentalFlags),
+            onError: (String message) {
+              throw message;
+            },
+          )
+          ..onDiagnostic = (DiagnosticMessage message) {
+            fail("Compilation error: ${message.plainTextFormatted.join('\n')}");
+          };
     if (linkedDependencies != null) {
       final Component component =
           (await kernelForModule(linkedDependencies, options)).component!;
@@ -92,8 +93,10 @@ Future<Component> compileTestCaseToKernelProgram(Uri sourceUri,
 /// Extra libraries apart from the main library are passed to the front-end as
 /// additional dills, which places them last in the library list, causing them
 /// to have very high (and often changing) selector IDs.
-String kernelLibraryToString(Library library,
-    {bool removeSelectorIds = false}) {
+String kernelLibraryToString(
+  Library library, {
+  bool removeSelectorIds = false,
+}) {
   final StringBuffer buffer = new StringBuffer();
   final printer = new Printer(buffer, showMetadata: true);
   printer.writeLibraryFile(library);
@@ -115,12 +118,13 @@ String kernelComponentToString(Component component) {
   final StringBuffer buffer = new StringBuffer();
   new Printer(buffer, showMetadata: true).writeComponentFile(component);
   final mainLibrary = component.mainMethod!.enclosingLibrary;
-  return buffer
-      .toString()
-      .replaceAll(mainLibrary.importUri.toString(), mainLibrary.name!);
+  return buffer.toString().replaceAll(
+    mainLibrary.importUri.toString(),
+    mainLibrary.name!,
+  );
 }
 
-class DevNullSink<T> extends Sink<T> {
+class DevNullSink<T> implements Sink<T> {
   @override
   void add(T data) {}
 
@@ -150,9 +154,10 @@ Difference findFirstDifference(String actual, String expected) {
     }
   }
   return new Difference(
-      i + 1,
-      i < actualLines.length ? actualLines[i] : '<END>',
-      i < expectedLines.length ? expectedLines[i] : '<END>');
+    i + 1,
+    i < actualLines.length ? actualLines[i] : '<END>',
+    i < expectedLines.length ? expectedLines[i] : '<END>',
+  );
 }
 
 void compareResultWithExpectationsFile(
@@ -160,8 +165,8 @@ void compareResultWithExpectationsFile(
   String actual, {
   String expectFilePostfix = '',
 }) {
-  final expectFile =
-      new File('${source.toFilePath()}$expectFilePostfix.expect');
+  final baseFilename = '${source.toFilePath()}$expectFilePostfix';
+  final expectFile = new File('$baseFilename.expect');
   final expected = expectFile.existsSync() ? expectFile.readAsStringSync() : '';
 
   if (actual != expected) {
@@ -170,7 +175,7 @@ void compareResultWithExpectationsFile(
       print("  Updated $expectFile");
     } else {
       if (bool.fromEnvironment(kDumpActualResult)) {
-        new File(source.toFilePath() + '.actual').writeAsStringSync(actual);
+        new File('$baseFilename.actual').writeAsStringSync(actual);
       }
       Difference diff = findFirstDifference(actual, expected);
       fail("""
@@ -186,11 +191,11 @@ different kernel AST for the same Dart programs.
 
 In order to re-generate expectations run tests with -D$kUpdateExpectations=true VM option:
 
-  tools/test.py -m release --vm-options -D$kUpdateExpectations=true pkg/vm/
+  tools/test.py -m release --vm-options -D$kUpdateExpectations=true --timeout 600 pkg/vm/
 
 In order to dump actual results into .actual files run tests with -D$kDumpActualResult=true VM option:
 
-  tools/test.py -m release --vm-options -D$kDumpActualResult=true pkg/vm/
+  tools/test.py -m release --vm-options -D$kDumpActualResult=true --timeout 600 pkg/vm/
 
 """);
     }

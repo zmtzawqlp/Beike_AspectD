@@ -2,8 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
 import 'package:compiler/src/elements/entities.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import '../helpers/compiler_helper.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
@@ -89,18 +89,21 @@ main() {
   runTests() async {
     check(String test) async {
       var checker = checkerForAbsentPresent(test);
-      String main = 'sdk/tests/web_2/native/main.dart';
+      String main = 'sdk/tests/web/native/main.dart';
       Uri entryPoint = Uri.parse('memory:$main');
       var result = await runCompiler(
-          entryPoint: entryPoint, memorySourceFiles: {main: test});
+        entryPoint: entryPoint,
+        memorySourceFiles: {main: test},
+      );
       Expect.isTrue(result.isSuccess);
-      var compiler = result.compiler;
-      var closedWorld = compiler.backendClosedWorldForTesting;
+      var compiler = result.compiler!;
+      var closedWorld = compiler.backendClosedWorldForTesting!;
       var elementEnvironment = closedWorld.elementEnvironment;
 
-      MemberEntity element = elementEnvironment.mainFunction;
-      String generated =
-          compiler.backendStrategy.getGeneratedCodeForTesting(element);
+      MemberEntity element = elementEnvironment.mainFunction!;
+      String generated = compiler.backendStrategy.getGeneratedCodeForTesting(
+        element,
+      )!;
       checker(generated);
     }
 

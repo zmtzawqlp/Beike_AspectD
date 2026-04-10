@@ -6,7 +6,6 @@ import '../constants/values.dart' show ConstantValue, PrimitiveConstantValue;
 import '../elements/entities.dart';
 import '../elements/names.dart';
 import '../elements/types.dart' show DartType;
-import '../ir/static_type.dart';
 import '../js_model/js_world.dart';
 import '../serialization/serialization.dart';
 import '../universe/member_hierarchy.dart';
@@ -36,7 +35,9 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   void writeAbstractValueToDataSink(
-      DataSinkWriter sink, AbstractValue? value) {}
+    DataSinkWriter sink,
+    AbstractValue? value,
+  ) {}
 
   @override
   AbstractValue readAbstractValueFromDataSource(DataSourceReader source) =>
@@ -47,14 +48,14 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractBool isFixedLengthJsIndexable(AbstractValue value) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractBool isJsIndexableAndIterable(AbstractValue value) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
-  AbstractBool isJsIndexable(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isJsIndexable(AbstractValue value) => AbstractBool.maybe;
 
   @override
   MemberEntity? locateSingleMember(AbstractValue receiver, Selector selector) =>
@@ -62,17 +63,20 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractBool isIn(AbstractValue subset, AbstractValue superset) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractBool needsNoSuchMethodHandling(
-          AbstractValue receiver, Selector selector) =>
-      AbstractBool.Maybe;
+    AbstractValue receiver,
+    Selector selector,
+  ) => AbstractBool.maybe;
 
   @override
   AbstractBool isTargetingMember(
-          AbstractValue receiver, MemberEntity member, Name name) =>
-      AbstractBool.Maybe;
+    AbstractValue receiver,
+    MemberEntity member,
+    Name name,
+  ) => AbstractBool.maybe;
 
   @override
   AbstractValue computeReceiver(Iterable<MemberEntity> members) =>
@@ -83,8 +87,9 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractValue createPrimitiveValue(
-          AbstractValue originalValue, PrimitiveConstantValue value) =>
-      const TrivialAbstractValue();
+    AbstractValue originalValue,
+    PrimitiveConstantValue value,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isPrimitiveValue(AbstractValue value) => false;
@@ -101,13 +106,15 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   bool isSpecializationOf(
-          AbstractValue specialization, AbstractValue generalization) =>
-      false;
+    AbstractValue specialization,
+    AbstractValue generalization,
+  ) => false;
 
   @override
   AbstractValue getDictionaryValueForKey(AbstractValue value, String key) {
     throw UnsupportedError(
-        "TrivialAbstractValueDomain.getDictionaryValueForKey");
+      "TrivialAbstractValueDomain.getDictionaryValueForKey",
+    );
   }
 
   @override
@@ -117,21 +124,22 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractValue createDictionaryValue(
-          AbstractValue? originalValue,
-          Object? allocationNode,
-          MemberEntity? allocationElement,
-          AbstractValue key,
-          AbstractValue value,
-          Map<String, AbstractValue> mappings) =>
-      const TrivialAbstractValue();
+    AbstractValue? originalValue,
+    Object? allocationNode,
+    MemberEntity? allocationElement,
+    AbstractValue key,
+    AbstractValue value,
+    Map<String, AbstractValue> mappings,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isDictionary(AbstractValue value) => false;
 
   @override
   AbstractValue createRecordValue(
-          RecordShape shape, List<AbstractValue> types) =>
-      const TrivialAbstractValue();
+    RecordShape shape,
+    List<AbstractValue> types,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isRecord(AbstractValue value) => false;
@@ -155,12 +163,12 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractValue createMapValue(
-          AbstractValue? originalValue,
-          Object? allocationNode,
-          MemberEntity? allocationElement,
-          AbstractValue key,
-          AbstractValue value) =>
-      const TrivialAbstractValue();
+    AbstractValue? originalValue,
+    Object? allocationNode,
+    MemberEntity? allocationElement,
+    AbstractValue key,
+    AbstractValue value,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isMap(AbstractValue value) => false;
@@ -172,11 +180,11 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
 
   @override
   AbstractValue createSetValue(
-          AbstractValue? originalValue,
-          Object? allocationNode,
-          MemberEntity? allocationElement,
-          AbstractValue elementType) =>
-      const TrivialAbstractValue();
+    AbstractValue? originalValue,
+    Object? allocationNode,
+    MemberEntity? allocationElement,
+    AbstractValue elementType,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isSet(AbstractValue value) => false;
@@ -187,17 +195,18 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
   @override
   AbstractValue getContainerElementType(AbstractValue value) {
     throw UnsupportedError(
-        "TrivialAbstractValueDomain.getContainerElementType");
+      "TrivialAbstractValueDomain.getContainerElementType",
+    );
   }
 
   @override
   AbstractValue createContainerValue(
-          AbstractValue? originalValue,
-          Object? allocationNode,
-          MemberEntity? allocationElement,
-          AbstractValue elementType,
-          int? length) =>
-      const TrivialAbstractValue();
+    AbstractValue? originalValue,
+    Object? allocationNode,
+    MemberEntity? allocationElement,
+    AbstractValue elementType,
+    int? length,
+  ) => const TrivialAbstractValue();
 
   @override
   bool isContainer(AbstractValue value) => false;
@@ -211,11 +220,11 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
       null;
 
   @override
-  AbstractBool containsAll(AbstractValue a) => AbstractBool.Maybe;
+  AbstractBool containsAll(AbstractValue a) => AbstractBool.maybe;
 
   @override
   AbstractBool areDisjoint(AbstractValue a, AbstractValue b) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractValue intersection(AbstractValue a, AbstractValue b) =>
@@ -230,111 +239,104 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
       const TrivialAbstractValue();
 
   @override
-  AbstractBool isPrimitiveOrNull(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPrimitiveOrNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isStringOrNull(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isStringOrNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isString(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isString(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isBooleanOrNull(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isBooleanOrNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isBoolean(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isBoolean(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isTruthy(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isTruthy(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isNumberOrNull(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isNumberOrNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isNumber(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isNumber(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isIntegerOrNull(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isIntegerOrNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
   AbstractBool isPositiveIntegerOrNull(AbstractValue value) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
-  AbstractBool isPositiveInteger(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPositiveInteger(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isUInt31(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isUInt31(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isUInt32(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isUInt32(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isInteger(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isInteger(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isInterceptor(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isInterceptor(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isPrimitiveString(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPrimitiveString(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isArray(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isMutableIndexable(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isGrowableArray(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isMutableArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isModifiableArray(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isExtendableArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isMutableIndexable(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isFixedArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isIndexablePrimitive(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isIndexablePrimitive(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPrimitiveBoolean(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isPrimitiveBoolean(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPrimitiveNumber(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isPrimitiveNumber(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isPrimitive(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isPrimitive(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isNull(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isNull(AbstractValue value) => AbstractBool.Maybe;
-
-  @override
-  AbstractBool isLateSentinel(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isLateSentinel(AbstractValue value) => AbstractBool.maybe;
 
   @override
   ClassEntity? getExactClass(AbstractValue value) => null;
 
   @override
-  AbstractBool isExact(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isExact(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isEmpty(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isEmpty(AbstractValue value) => AbstractBool.maybe;
 
   @override
   AbstractBool isInstanceOf(AbstractValue value, ClassEntity cls) =>
-      AbstractBool.Maybe;
-
-  @override
-  AbstractBool isInstanceOfOrNull(AbstractValue value, ClassEntity cls) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractBool containsOnlyType(AbstractValue value, ClassEntity cls) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractBool containsType(AbstractValue value, ClassEntity cls) =>
-      AbstractBool.Maybe;
+      AbstractBool.maybe;
 
   @override
   AbstractValue includeNull(AbstractValue value) =>
@@ -353,10 +355,10 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
       const TrivialAbstractValue();
 
   @override
-  AbstractBool couldBeTypedArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool couldBeTypedArray(AbstractValue value) => AbstractBool.maybe;
 
   @override
-  AbstractBool isTypedArray(AbstractValue value) => AbstractBool.Maybe;
+  AbstractBool isTypedArray(AbstractValue value) => AbstractBool.maybe;
 
   @override
   AbstractValue createNullableSubtype(ClassEntity cls) =>
@@ -379,18 +381,19 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
       const TrivialAbstractValue();
 
   @override
-  AbstractValueWithPrecision createFromStaticType(DartType type,
-      {ClassRelation classRelation = ClassRelation.subtype,
-      required bool nullable}) {
+  AbstractValueWithPrecision createFromStaticType(DartType type) {
     return const AbstractValueWithPrecision(TrivialAbstractValue(), false);
   }
 
   @override
   Iterable<DynamicCallTarget> findRootsOfTargets(
-          covariant TrivialAbstractValue receiver,
-          Selector selector,
-          MemberHierarchyBuilder memberHierarchyBuilder) =>
-      const [];
+    covariant TrivialAbstractValue receiver,
+    Selector selector,
+    MemberHierarchyBuilder memberHierarchyBuilder,
+  ) => const [];
+
+  @override
+  bool isInvalidRefinement(AbstractValue before, AbstractValue after) => true;
 
   @override
   AbstractValue get asyncStarStreamType => const TrivialAbstractValue();
@@ -474,16 +477,19 @@ class TrivialAbstractValueDomain with AbstractValueDomain {
   AbstractValue get typeType => const TrivialAbstractValue();
 }
 
-class TrivialAbstractValueStrategy implements AbstractValueStrategy {
+class TrivialAbstractValueStrategy
+    implements AbstractValueStrategy<TrivialAbstractValueDomain> {
   const TrivialAbstractValueStrategy();
 
   @override
-  AbstractValueDomain createDomain(JClosedWorld closedWorld) {
+  TrivialAbstractValueDomain createDomain(JClosedWorld closedWorld) {
     return const TrivialAbstractValueDomain();
   }
 
   @override
-  SelectorConstraintsStrategy createSelectorStrategy() {
+  SelectorConstraintsStrategy createSelectorStrategy(
+    TrivialAbstractValueDomain domain,
+  ) {
     return const TrivialSelectorStrategy();
   }
 }
@@ -493,13 +499,18 @@ class TrivialSelectorStrategy implements SelectorConstraintsStrategy {
 
   @override
   UniverseSelectorConstraints createSelectorConstraints(
-      Selector selector, Object? initialConstraint) {
+    Selector selector,
+    Object? initialConstraint,
+  ) {
     return const TrivialUniverseSelectorConstraints();
   }
 
   @override
-  bool appliedUnnamed(DynamicUse dynamicUse, MemberEntity member,
-      covariant JClosedWorld world) {
+  bool appliedUnnamed(
+    DynamicUse dynamicUse,
+    MemberEntity member,
+    covariant JClosedWorld world,
+  ) {
     return dynamicUse.selector.appliesUnnamed(member);
   }
 }

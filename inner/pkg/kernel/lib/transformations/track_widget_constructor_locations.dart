@@ -368,8 +368,7 @@ class WidgetCreatorTracker {
     bool foundLocationClass = false;
     for (Library library in libraries) {
       final Uri importUri = library.importUri;
-      // ignore: unnecessary_null_comparison
-      if (importUri != null && importUri.isScheme('package')) {
+      if (importUri.isScheme('package')) {
         if (importUri.path == 'flutter/src/widgets/framework.dart') {
           for (Class class_ in library.classes) {
             if (class_.name == 'Widget') {
@@ -395,7 +394,7 @@ class WidgetCreatorTracker {
       }
     }
     // TODO(johnniwinther): Require the [_widgetFactoryClass] once the
-    //  `widgetFactory` is stably in flutter.
+    //  `widgetFactory` is stable in flutter.
     _foundClasses =
         foundWidgetClass && foundHasCreationLocationClass && foundLocationClass;
   }
@@ -711,16 +710,30 @@ class WidgetCreatorTracker {
       return;
     }
 
-    for (ExtensionMemberDescriptor member in extension.members) {
+    for (ExtensionMemberDescriptor member in extension.memberDescriptors) {
       if (member.isStatic) {
         // We could support static extension methods but it is not clear that
         // there is a use case for this.
         continue;
       }
-      final Procedure method = member.member.asProcedure;
-      if (_hasWidgetFactoryAnnotation(method)) {
+      final Procedure? method = member.memberReference?.asProcedure;
+      if (method != null && _hasWidgetFactoryAnnotation(method)) {
         _maybeAddNamedParameter(
           method.function,
+          new VariableDeclaration(
+            _creationLocationParameterName,
+            type: new InterfaceType(
+              _locationClass,
+              extension.enclosingLibrary.nullable,
+            ),
+            initializer: new NullLiteral(),
+          ),
+        );
+      }
+      final Procedure? tearOff = member.tearOffReference?.asProcedure;
+      if (tearOff != null && _hasWidgetFactoryAnnotation(tearOff)) {
+        _maybeAddNamedParameter(
+          tearOff.function,
           new VariableDeclaration(
             _creationLocationParameterName,
             type: new InterfaceType(

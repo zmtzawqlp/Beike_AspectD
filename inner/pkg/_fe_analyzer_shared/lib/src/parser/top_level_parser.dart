@@ -2,6 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+/// @docImport 'parser_impl.dart';
 library _fe_analyzer_shared.parser.top_level_parser;
 
 import '../scanner/token.dart' show Token;
@@ -16,7 +17,9 @@ class TopLevelParser extends ClassMemberParser {
   TopLevelParser(super.listener, {super.useImplicitCreationExpression});
 
   @override
-  Token parseClassOrMixinOrExtensionBody(Token token, DeclarationKind kind,
-          String? enclosingDeclarationName) =>
-      skipClassOrMixinOrExtensionBody(token);
+  Token parseClassOrMixinOrExtensionBody(
+    Token token,
+    DeclarationKind kind,
+    String? enclosingDeclarationName,
+  ) => skipClassOrMixinOrExtensionBody(token);
 }

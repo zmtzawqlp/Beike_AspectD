@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   trustLocals();
   trustFunctions();
@@ -15,15 +13,21 @@ main() {
 // Test that we trust the explicit type of a local.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _trustLocals:[exact=JSBool]*/ _trustLocals(
-    int Function(int) /*[null|subclass=Closure]*/ f) {
-  int c = f(0);
-  return c /*invoke: [null|subclass=JSInt]*/ == 0;
+/*member: _trustLocals:[exact=JSBool|powerset={I}{O}{N}]*/
+_trustLocals(
+  int Function(int)? /*[null|subclass=Closure|powerset={null}{N}{O}{N}]*/ f,
+) {
+  int c = f!(0);
+  return c /*invoke: [subclass=JSInt|powerset={I}{O}{N}]*/ == 0;
 }
 
-/*member: trustLocals:[null]*/
+/*member: trustLocals:[null|powerset={null}]*/
 trustLocals() {
-  _trustLocals(/*[exact=JSUInt31]*/ (/*[exact=JSUInt31]*/ o) => o);
+  _trustLocals(
+    /*[exact=JSUInt31|powerset={I}{O}{N}]*/ (
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/ o,
+    ) => o,
+  );
   _trustLocals(null);
 }
 
@@ -31,16 +35,22 @@ trustLocals() {
 // Test that we infer the type of a dynamic local from the type of the function.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _trustFunctions:[exact=JSBool]*/
-_trustFunctions(int Function(int) /*[null|subclass=Closure]*/ f) {
-  dynamic c = f(0);
+/*member: _trustFunctions:[exact=JSBool|powerset={I}{O}{N}]*/
+_trustFunctions(
+  int Function(int)? /*[null|subclass=Closure|powerset={null}{N}{O}{N}]*/ f,
+) {
+  dynamic c = f!(0);
   c = f(0);
-  return c /*invoke: [null|subclass=JSInt]*/ == 0;
+  return c /*invoke: [subclass=JSInt|powerset={I}{O}{N}]*/ == 0;
 }
 
-/*member: trustFunctions:[null]*/
+/*member: trustFunctions:[null|powerset={null}]*/
 trustFunctions() {
-  _trustFunctions(/*[exact=JSUInt31]*/ (/*[exact=JSUInt31]*/ o) => o);
+  _trustFunctions(
+    /*[exact=JSUInt31|powerset={I}{O}{N}]*/ (
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/ o,
+    ) => o,
+  );
   _trustFunctions(null);
 }
 
@@ -48,14 +58,20 @@ trustFunctions() {
 // Test that we infer the type of a 'var' local from the type of the function.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*member: _inferFromFunctions:[exact=JSBool]*/
-_inferFromFunctions(int Function(int) /*[null|subclass=Closure]*/ f) {
-  var c = f(0);
-  return c /*invoke: [null|subclass=JSInt]*/ == 0;
+/*member: _inferFromFunctions:[exact=JSBool|powerset={I}{O}{N}]*/
+_inferFromFunctions(
+  int Function(int)? /*[null|subclass=Closure|powerset={null}{N}{O}{N}]*/ f,
+) {
+  var c = f!(0);
+  return c /*invoke: [subclass=JSInt|powerset={I}{O}{N}]*/ == 0;
 }
 
-/*member: inferFromFunctions:[null]*/
+/*member: inferFromFunctions:[null|powerset={null}]*/
 inferFromFunctions() {
-  _inferFromFunctions(/*[exact=JSUInt31]*/ (/*[exact=JSUInt31]*/ o) => o);
+  _inferFromFunctions(
+    /*[exact=JSUInt31|powerset={I}{O}{N}]*/ (
+      /*[exact=JSUInt31|powerset={I}{O}{N}]*/ o,
+    ) => o,
+  );
   _inferFromFunctions(null);
 }

@@ -34,8 +34,11 @@ abstract class DataSink {
   ///
   /// This is a convenience method to be used together with
   /// [DataSource.readList].
-  void writeList<E>(Iterable<E> values, void Function(E value) f,
-      {bool allowNull = false});
+  void writeList<E>(
+    Iterable<E> values,
+    void Function(E value) f, {
+    bool allowNull = false,
+  });
 
   /// Writes the boolean [value] to this data sink.
   void writeBool(bool value);
@@ -71,14 +74,14 @@ abstract class DataSink {
   ///
   /// This is a convenience method to be used together with
   /// [DataSource.readStringMap].
-  void writeStringMap<V>(Map<String, V> map, void Function(V value) f,
-      {bool allowNull = false});
+  void writeStringMap<V>(
+    Map<String, V> map,
+    void Function(V value) f, {
+    bool allowNull = false,
+  });
 
   /// Writes the enum value [value] to this data sink.
-  // TODO(johnniwinther): Change the signature to
-  // `void writeEnum<E extends Enum<E>>(E value);` when an interface for enums
-  // is added to the language.
-  void writeEnum(dynamic value);
+  void writeEnum<E extends Enum>(E value);
 
   /// Writes the URI [value] to this data sink.
   void writeUri(Uri value);
@@ -116,8 +119,11 @@ abstract class DataSinkMixin implements DataSink {
   }
 
   @override
-  void writeStringMap<V>(Map<String, V>? map, void Function(V value) f,
-      {bool allowNull = false}) {
+  void writeStringMap<V>(
+    Map<String, V>? map,
+    void Function(V value) f, {
+    bool allowNull = false,
+  }) {
     if (map == null) {
       assert(allowNull);
       writeInt(0);
@@ -131,8 +137,11 @@ abstract class DataSinkMixin implements DataSink {
   }
 
   @override
-  void writeList<E>(Iterable<E>? values, void Function(E value) f,
-      {bool allowNull = false}) {
+  void writeList<E>(
+    Iterable<E>? values,
+    void Function(E value) f, {
+    bool allowNull = false,
+  }) {
     if (values == null) {
       assert(allowNull);
       writeInt(0);
@@ -194,7 +203,7 @@ abstract class AbstractDataSink extends DataSinkMixin implements DataSink {
   }
 
   @override
-  void writeEnum(dynamic value) {
+  void writeEnum<E extends Enum>(E value) {
     _writeEnumInternal(value);
   }
 
@@ -238,7 +247,7 @@ abstract class AbstractDataSink extends DataSinkMixin implements DataSink {
   void _writeIntInternal(int value);
 
   /// Actual serialization of an enum value, implemented by subclasses.
-  void _writeEnumInternal(dynamic value);
+  void _writeEnumInternal<E extends Enum>(E value);
 }
 
 /// [DataSink] that writes data as a sequence of bytes.
@@ -275,15 +284,18 @@ class BinarySink extends AbstractDataSink {
       _bufferedSink!.addByte2((value >> 8) | 0x80, value & 0xFF);
       _length += 2;
     } else {
-      _bufferedSink!.addByte4((value >> 24) | 0xC0, (value >> 16) & 0xFF,
-          (value >> 8) & 0xFF, value & 0xFF);
+      _bufferedSink!.addByte4(
+        (value >> 24) | 0xC0,
+        (value >> 16) & 0xFF,
+        (value >> 8) & 0xFF,
+        value & 0xFF,
+      );
       _length += 4;
     }
   }
 
   @override
-  void _writeEnumInternal(dynamic value) {
-    // ignore: avoid_dynamic_calls
+  void _writeEnumInternal<E extends Enum>(E value) {
     _writeIntInternal(value.index);
   }
 
@@ -319,13 +331,21 @@ class BufferedSink {
   BufferedSink(this._sink);
 
   void addDouble(double d) {
-    final doubleBufferUint8 =
-        _doubleBufferUint8 ??= _doubleBuffer.buffer.asUint8List();
+    final doubleBufferUint8 = _doubleBufferUint8 ??= _doubleBuffer.buffer
+        .asUint8List();
     _doubleBuffer[0] = d;
-    addByte4(doubleBufferUint8[0], doubleBufferUint8[1], doubleBufferUint8[2],
-        doubleBufferUint8[3]);
-    addByte4(doubleBufferUint8[4], doubleBufferUint8[5], doubleBufferUint8[6],
-        doubleBufferUint8[7]);
+    addByte4(
+      doubleBufferUint8[0],
+      doubleBufferUint8[1],
+      doubleBufferUint8[2],
+      doubleBufferUint8[3],
+    );
+    addByte4(
+      doubleBufferUint8[4],
+      doubleBufferUint8[5],
+      doubleBufferUint8[6],
+      doubleBufferUint8[7],
+    );
   }
 
   void addByte(int byte) {

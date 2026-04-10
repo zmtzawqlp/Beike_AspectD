@@ -3,7 +3,9 @@ name: dev_compiler
 publish_to: none
 
 environment:
-  sdk: '>=2.15.0 <3.0.0'
+  sdk: ^3.8.0
+
+resolution: workspace
 
 # Use 'any' constraints here; we get our versions from the DEPS file.
 dependencies:
@@ -17,8 +19,8 @@ dependencies:
   front_end: any
   js_shared: any
   kernel: any
-  meta: any
   path: any
+  shell_arg_splitter: any
   source_maps: any
   source_span: any
 
@@ -30,10 +32,11 @@ dev_dependencies:
   js: any
   lints: any
   modular_test: any
+  reload_test: any
   shelf: any
   sourcemap_testing: any
   stack_trace: any
   test: any
   testing: any
-  vm: any
+  vm_service: any
   webkit_inspection_protocol: any

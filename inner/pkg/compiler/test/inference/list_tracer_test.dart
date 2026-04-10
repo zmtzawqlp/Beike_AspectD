@@ -2,9 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
-import 'package:compiler/src/commandline_options.dart';
 import 'package:compiler/src/inferrer/typemasks/masks.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 
 import 'type_mask_test_helper.dart';
@@ -222,19 +221,17 @@ void main() {
 
 doTest(String allocation, {required bool nullify}) async {
   String source = generateTest(allocation);
-  var result = await runCompiler(
-      memorySourceFiles: {'main.dart': source},
-      options: [Flags.soundNullSafety]);
+  var result = await runCompiler(memorySourceFiles: {'main.dart': source});
   Expect.isTrue(result.isSuccess);
-  var compiler = result.compiler;
-  var results = compiler.globalInference.resultsForTesting;
+  var compiler = result.compiler!;
+  var results = compiler.globalInference.resultsForTesting!;
   var closedWorld = results.closedWorld;
-  var commonMasks = closedWorld.abstractValueDomain;
+  var commonMasks = closedWorld.abstractValueDomain as CommonMasks;
 
-  checkType(String name, type) {
+  checkType(String name, TypeMask type) {
     var element = findMember(closedWorld, name);
-    ContainerTypeMask mask = results.resultOfMember(element).type;
-    if (nullify) type = type.nullable();
+    final mask = results.resultOfMember(element).type as ContainerTypeMask;
+    if (nullify) type = type.nullable(commonMasks);
     Expect.equals(type, simplify(mask.elementType, commonMasks), name);
   }
 
@@ -254,7 +251,10 @@ doTest(String allocation, {required bool nullify}) async {
   checkType('listEscapingInIndexSet', commonMasks.uint31Type);
   checkType('listEscapingTwiceInIndexSet', commonMasks.numType);
   checkType('listSetInNonFinalField', commonMasks.numType);
-  checkType('listWithChangedLength', commonMasks.uint31Type.nullable());
+  checkType(
+    'listWithChangedLength',
+    commonMasks.uint31Type.nullable(commonMasks),
+  );
 
   checkType('listPassedToClosure', commonMasks.dynamicType);
   checkType('listReturnedFromClosure', commonMasks.dynamicType);
@@ -269,7 +269,7 @@ doTest(String allocation, {required bool nullify}) async {
   checkType('listStoredInRecordWithoutAccess', commonMasks.uint31Type);
 
   if (!allocation.contains('filled')) {
-    checkType('listUnset', TypeMask.nonNullEmpty());
-    checkType('listOnlySetWithConstraint', TypeMask.nonNullEmpty());
+    checkType('listUnset', TypeMask.nonNullEmpty(commonMasks));
+    checkType('listOnlySetWithConstraint', TypeMask.nonNullEmpty(commonMasks));
   }
 }

@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 import 'package:compiler/src/util/testing.dart';
 
 /*spec.class: global#JsLinkedHashMap:checkedInstance,checks=[],instance*/
@@ -13,9 +11,9 @@ import 'package:compiler/src/util/testing.dart';
 @pragma('dart2js:noInline')
 method<T>() {
   return
-      /*spec.checks=[$signature],instance*/
-      /*prod.checks=[],instance*/
-      () => <T, int>{};
+  /*spec.checks=[$signature],instance*/
+  /*prod.checks=[],instance*/
+  () => <T, int>{};
 }
 
 @pragma('dart2js:noInline')

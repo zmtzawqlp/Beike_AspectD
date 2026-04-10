@@ -4,26 +4,20 @@
 
 import 'package:_fe_analyzer_shared/src/scanner/string_scanner.dart'
     show StringScanner;
-
 import 'package:kernel/class_hierarchy.dart' show ClassHierarchy;
-
 import 'package:kernel/core_types.dart' show CoreTypes;
-
 import 'package:kernel/kernel.dart'
     show Component, Library, Procedure, DartType, TypeParameter;
 
+import '../base/compiler_context.dart' show CompilerContext;
+import '../base/incremental_compiler.dart' show IncrementalCompiler;
+import '../base/incremental_serializer.dart' show IncrementalSerializer;
 import '../base/processed_options.dart' show ProcessedOptions;
-
-import '../fasta/compiler_context.dart' show CompilerContext;
-
-import '../fasta/incremental_compiler.dart' show IncrementalCompiler;
-
-import '../fasta/incremental_serializer.dart' show IncrementalSerializer;
-
 import 'compiler_options.dart' show CompilerOptions;
 
-export '../fasta/incremental_serializer.dart' show IncrementalSerializer;
+export '../base/incremental_serializer.dart' show IncrementalSerializer;
 
+// Coverage-ignore(suite): Not run.
 abstract class IncrementalKernelGenerator {
   factory IncrementalKernelGenerator(
       CompilerOptions options, List<Uri> entryPoints,
@@ -108,7 +102,7 @@ abstract class IncrementalKernelGenerator {
   /// expression is compiled.
   ///
   /// [expression] may use the variables supplied in [definitions] as free
-  /// variables and [typeDefinitions] as free type variables. These will become
+  /// variables and [typeDefinitions] as free type parameters. These will become
   /// required parameters to the compiled function. All elements of
   /// [definitions] and [typeDefinitions] will become parameters/type
   /// parameters, whether or not they appear free in [expression]. The type
@@ -117,7 +111,7 @@ abstract class IncrementalKernelGenerator {
   /// [libraryUri] must refer to either a previously compiled library.
   /// [className] may optionally refer to a class within such library to use for
   /// the scope of the expression. In that case, [isStatic] indicates whether
-  /// the scope can access [this].
+  /// the scope can access this [IncrementalKernelGenerator].
   ///
   /// It is illegal to use "await" in [expression] and the compiled function
   /// will always be synchronous.
@@ -135,6 +129,8 @@ abstract class IncrementalKernelGenerator {
       Uri libraryUri,
       {String? className,
       String? methodName,
+      int offset = -1,
+      String? scriptUri,
       bool isStatic = false});
 
   /// Sets experimental features.
@@ -143,16 +139,19 @@ abstract class IncrementalKernelGenerator {
   void setExperimentalFeaturesForTesting(Set<String> features);
 }
 
+// Coverage-ignore(suite): Not run.
 bool isLegalIdentifier(String identifier) {
   return StringScanner.isLegalIdentifier(identifier);
 }
 
 class IncrementalCompilerResult {
   final Component component;
-  final ClassHierarchy? classHierarchy;
-  final CoreTypes? coreTypes;
+  final ClassHierarchy classHierarchy;
+  final CoreTypes coreTypes;
   final Set<Library>? neededDillLibraries;
 
   IncrementalCompilerResult(this.component,
-      {this.classHierarchy, this.coreTypes, this.neededDillLibraries});
+      {required this.classHierarchy,
+      required this.coreTypes,
+      this.neededDillLibraries});
 }

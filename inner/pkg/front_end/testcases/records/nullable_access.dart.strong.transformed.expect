@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -10,14 +10,6 @@ library /*isNonNullableByDefault*/;
 // pkg/front_end/testcases/records/nullable_access.dart:7:14: Error: Property 'a' cannot be accessed on '(int, {String a})?' because it is potentially null.
 // Try accessing using ?. instead.
 //   var l1 = r.a; // Error.
-//              ^
-//
-// pkg/front_end/testcases/records/nullable_access.dart:13:14: Warning: Operand of null-aware operation '?.' has type '(int, {String a})' which excludes null.
-//     var l6 = r?.$1; // Warning.
-//              ^
-//
-// pkg/front_end/testcases/records/nullable_access.dart:14:14: Warning: Operand of null-aware operation '?.' has type '(int, {String a})' which excludes null.
-//     var l7 = r?.a; // Warning.
 //              ^
 //
 import self as self;

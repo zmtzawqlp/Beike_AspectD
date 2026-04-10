@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library compiler.src.inferrer.list_tracer;
+library;
 
 import '../common/names.dart';
 import '../elements/entities.dart';
@@ -14,7 +14,7 @@ import 'type_graph_nodes.dart';
 /// A set of selector names that [List] implements, that we know do not
 /// change the element type of the list, or let the list escape to code
 /// that might change the element type.
-Set<String> okListSelectorsSet = Set<String>.from(const <String>[
+Set<String> elementTypePreservingSelectorNames = <String>{
   // From Object.
   '==',
   'hashCode',
@@ -43,8 +43,6 @@ Set<String> okListSelectorsSet = Set<String>.from(const <String>[
   'takeWhile',
   'skip',
   'skipWhile',
-  'first',
-  'last',
   'single',
   'firstWhere',
   'lastWhere',
@@ -53,7 +51,6 @@ Set<String> okListSelectorsSet = Set<String>.from(const <String>[
 
   // From List.
   '[]',
-  'length',
   'reversed',
   'sort',
   'indexOf',
@@ -72,9 +69,9 @@ Set<String> okListSelectorsSet = Set<String>.from(const <String>[
   // From JSArray.
   'checkMutable',
   'checkGrowable',
-]);
+};
 
-Set<String> doNotChangeLengthSelectorsSet = Set<String>.from(const <String>[
+Set<String> lengthPreservingSelectorNames = <String>{
   // From Object.
   '==',
   'hashCode',
@@ -96,7 +93,6 @@ Set<String> doNotChangeLengthSelectorsSet = Set<String>.from(const <String>[
   'any',
   'toList',
   'toSet',
-  'length',
   'isEmpty',
   'isNotEmpty',
   'take',
@@ -114,7 +110,6 @@ Set<String> doNotChangeLengthSelectorsSet = Set<String>.from(const <String>[
   // From List.
   '[]',
   '[]=',
-  'length',
   'reversed',
   'sort',
   'indexOf',
@@ -126,7 +121,7 @@ Set<String> doNotChangeLengthSelectorsSet = Set<String>.from(const <String>[
   // From JSArray.
   'checkMutable',
   'checkGrowable',
-]);
+};
 
 class ListTracerVisitor extends TracerVisitor {
   // The [Set] of found assignments to the list.
@@ -155,16 +150,18 @@ class ListTracerVisitor extends TracerVisitor {
   }
 
   @override
-  visitClosureCallSiteTypeInformation(ClosureCallSiteTypeInformation info) {
+  void visitClosureCallSiteTypeInformation(
+    ClosureCallSiteTypeInformation info,
+  ) {
     bailout('Passed to a closure');
   }
 
   @override
-  visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
+  void visitStaticCallSiteTypeInformation(StaticCallSiteTypeInformation info) {
     super.visitStaticCallSiteTypeInformation(info);
     final commonElements = inferrer.closedWorld.commonElements;
     MemberEntity called = info.calledElement;
-    if (commonElements.isForeign(called) && called.name == Identifiers.JS) {
+    if (commonElements.isForeign(called) && called.name == Identifiers.js) {
       NativeBehavior nativeBehavior = inferrer.closedWorld.elementMap
           .getNativeBehaviorForJsCall(info.invocationNode);
       // Assume side-effects means that the list has escaped to some unknown
@@ -176,44 +173,51 @@ class ListTracerVisitor extends TracerVisitor {
   }
 
   @override
-  visitDynamicCallSiteTypeInformation(DynamicCallSiteTypeInformation info) {
+  void visitDynamicCallSiteTypeInformation(
+    DynamicCallSiteTypeInformation info,
+  ) {
     super.visitDynamicCallSiteTypeInformation(info);
     final selector = info.selector!;
     String selectorName = selector.name;
     final arguments = info.arguments;
     if (currentUser == info.receiver) {
-      if (!okListSelectorsSet.contains(selectorName)) {
-        if (selector.isCall) {
-          int positionalLength = arguments!.positional.length;
-          if (selectorName == 'add') {
-            if (positionalLength == 1) {
+      if (!elementTypePreservingSelectorNames.contains(selectorName)) {
+        if (selectorName == 'add' && selector.isCall) {
+          if (arguments!.positional.length == 1) {
+            inputs.add(arguments.positional[0]);
+          }
+        } else if (selectorName == 'insert' && selector.isCall) {
+          if (arguments!.positional.length == 2) {
+            inputs.add(arguments.positional[1]);
+          }
+        } else if (selectorName == 'first' || selectorName == 'last') {
+          if (selector.isSetter) {
+            if (arguments!.positional.length == 1) {
               inputs.add(arguments.positional[0]);
             }
-          } else if (selectorName == 'insert') {
-            if (positionalLength == 2) {
-              inputs.add(arguments.positional[1]);
-            }
-          } else {
-            bailout('Used in a not-ok selector');
-            return;
           }
+          // 'first' and 'last' getter are safe.
         } else if (selector.isIndexSet) {
           inputs.add(arguments!.positional[1]);
-        } else if (!selector.isIndex) {
+        } else if (selector.isIndex) {
+          // Index lookup is safe.
+        } else {
           bailout('Used in a not-ok selector');
           return;
         }
       }
-      if (!doNotChangeLengthSelectorsSet.contains(selectorName)) {
-        callsGrowableMethod = true;
-      }
-      if (selectorName == 'length' && selector.isSetter) {
-        callsGrowableMethod = true;
-        inputs.add(inferrer.types.nullType);
+      if (!lengthPreservingSelectorNames.contains(selectorName)) {
+        if (selectorName == 'length') {
+          if (selector.isSetter) {
+            callsGrowableMethod = true;
+            inputs.add(inferrer.types.nullType);
+          }
+        } else {
+          callsGrowableMethod = true;
+        }
       }
     } else if (selector.isCall &&
-        (info.hasClosureCallTargets ||
-            info.concreteTargets.any((element) => !element.isFunction))) {
+        (info.hasClosureCallTargets || dynamicCallTargetsNonFunction(info))) {
       bailout('Passed to a closure');
       return;
     }

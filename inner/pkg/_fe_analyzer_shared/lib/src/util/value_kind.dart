@@ -2,6 +2,9 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+/// @docImport '../parser/stack_listener.dart';
+library;
+
 import 'null_value.dart' show NullValue;
 
 /// [ValueKind] is used in [StackListener.checkState] to document and check the
@@ -19,8 +22,7 @@ abstract class ValueKind {
 /// A [ValueKind] for a particular type [T], optionally with a recognized
 /// [NullValue].
 class SingleValueKind<T> implements ValueKind {
-  // TODO(johnniwinther): Type this as `NullValue<T>?`.
-  final NullValue<Object>? nullValue;
+  final NullValue? nullValue;
 
   const SingleValueKind([this.nullValue]);
 

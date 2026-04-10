@@ -25,14 +25,6 @@
   "code": "B.JSArray_methods = J.JSArray.prototype;\n"
 },
   {
-  "id": "constant/B.JSString_methods = J.JSString.prototype;\n",
-  "kind": "constant",
-  "name": "",
-  "size": 43,
-  "outputUnit": "outputUnit/main",
-  "code": "B.JSString_methods = J.JSString.prototype;\n"
-},
-  {
   "id": "constant/B.JavaScriptObject_methods = J.JavaScriptObject.prototype;\n",
   "kind": "constant",
   "name": "",
@@ -46,7 +38,7 @@
   "id": "library/memory:sdk/tests/web/native/main.dart::",
   "kind": "library",
   "name": "<unnamed>",
-  "size": 12431,
+  "size": 12268,
   "children": [
     "class/memory:sdk/tests/web/native/main.dart::Class1",
     "function/memory:sdk/tests/web/native/main.dart::main",
@@ -73,7 +65,7 @@
   "id": "class/memory:sdk/tests/web/native/main.dart::Class1",
   "kind": "class",
   "name": "Class1",
-  "size": 6151,
+  "size": 6067,
   "outputUnit": "outputUnit/main",
   "parent": "library/memory:sdk/tests/web/native/main.dart::",
   "modifiers": {
@@ -115,14 +107,14 @@ class Class1<T> {
   "id": "field/memory:sdk/tests/web/native/main.dart::Class1.field",
   "kind": "field",
   "name": "field",
-  "size": 318,
+  "size": 242,
   "outputUnit": "outputUnit/main",
   "parent": "class/memory:sdk/tests/web/native/main.dart::Class1",
   "children": [
     "closure/memory:sdk/tests/web/native/main.dart::Class1.field.Class1_field_closure"
   ],
-  "inferredType": "[subclass=Closure]",
-  "code": "set$field(field) {\n      this.field = type$.Type_Function._as(field);\n    }",
+  "inferredType": "[subclass=Closure|powerset={N}{O}{N}]",
+  "code": "",
   "type": "Type Function()"
 },
     {
@@ -140,7 +132,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -150,27 +142,21 @@ class Class1<T> {
 }],
    holding=[
     {"id":"field/memory:sdk/tests/web/native/main.dart::Class1.field"},
-    {"id":"function/dart:_js_helper::throwCyclicInit"},
     {"id":"function/dart:_late_helper::throwLateFieldADI"},
     {"id":"function/dart:_rti::Rti._bind"},
     {"id":"function/dart:_rti::Rti._eval"},
     {"id":"function/dart:_rti::_arrayInstanceType"},
     {"id":"function/dart:_rti::_asBool"},
     {"id":"function/dart:_rti::_asBoolQ"},
-    {"id":"function/dart:_rti::_asBoolS"},
     {"id":"function/dart:_rti::_asDouble"},
     {"id":"function/dart:_rti::_asDoubleQ"},
-    {"id":"function/dart:_rti::_asDoubleS"},
     {"id":"function/dart:_rti::_asInt"},
     {"id":"function/dart:_rti::_asIntQ"},
-    {"id":"function/dart:_rti::_asIntS"},
     {"id":"function/dart:_rti::_asNum"},
     {"id":"function/dart:_rti::_asNumQ"},
-    {"id":"function/dart:_rti::_asNumS"},
     {"id":"function/dart:_rti::_asObject"},
     {"id":"function/dart:_rti::_asString"},
     {"id":"function/dart:_rti::_asStringQ"},
-    {"id":"function/dart:_rti::_asStringS"},
     {"id":"function/dart:_rti::_asTop"},
     {"id":"function/dart:_rti::_generalAsCheckImplementation"},
     {"id":"function/dart:_rti::_generalIsTestImplementation"},
@@ -198,13 +184,12 @@ class Class1<T> {
   "outputUnit": "outputUnit/main",
   "parent": "class/memory:sdk/tests/web/native/main.dart::Class1",
   "children": [],
-  "inferredType": "[null|subclass=Closure]",
+  "inferredType": "[null|subclass=Closure|powerset={null}{N}{O}{N}]",
   "code": "",
   "type": "dynamic"
 }],
    holding=[
     {"id":"field/memory:sdk/tests/web/native/main.dart::Class1.funcField"},
-    {"id":"function/dart:_js_helper::throwCyclicInit"},
     {"id":"function/dart:_late_helper::throwLateFieldADI"}]
   */
   var funcField;
@@ -237,7 +222,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=Class1]",
+  "inferredReturnType": "[exact=Class1|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes field)",
   "inlinedCount": 0,
@@ -260,7 +245,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -294,11 +279,11 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=Class1]",
+  "inferredReturnType": "[exact=Class1|powerset={N}{O}{N}]",
   "parameters": [
     {
       "name": "funcField",
-      "type": "[subclass=Closure]",
+      "type": "[subclass=Closure|powerset={N}{O}{N}]",
       "declaredType": "dynamic"
     }
   ],
@@ -330,7 +315,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Class1<#Afree>",
-  "inferredReturnType": "[exact=Class1]",
+  "inferredReturnType": "[exact=Class1|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes field)",
   "inlinedCount": 1,
@@ -367,7 +352,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Class1<#Afree>",
-  "inferredReturnType": "[exact=Class1]",
+  "inferredReturnType": "[exact=Class1|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -390,7 +375,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Set<Class1.T>",
-  "inferredReturnType": "[subclass=_LinkedHashSet]",
+  "inferredReturnType": "[subclass=_LinkedHashSet|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -421,7 +406,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 1,
@@ -458,7 +443,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -481,7 +466,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -513,7 +498,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 1,
@@ -550,7 +535,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -573,7 +558,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -629,7 +614,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -652,7 +637,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -675,7 +660,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -756,7 +741,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -779,7 +764,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Map<Class1.T,method6.S>",
-  "inferredReturnType": "[exact=JsLinkedHashMap]",
+  "inferredReturnType": "[exact=JsLinkedHashMap|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -802,11 +787,11 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Map<Class1.T,method6.S> Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [
     {
       "name": "o",
-      "type": "[subclass=Closure]",
+      "type": "[subclass=Closure|powerset={N}{O}{N}]",
       "declaredType": "dynamic"
     }
   ],
@@ -831,7 +816,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "String Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -854,7 +839,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "String",
-  "inferredReturnType": "[exact=JSString]",
+  "inferredReturnType": "[exact=JSString|powerset={I}{O}{I}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes anything)",
   "inlinedCount": 0,
@@ -896,7 +881,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 1,
@@ -933,7 +918,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -956,7 +941,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1012,7 +997,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1035,7 +1020,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1058,7 +1043,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1139,7 +1124,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1162,7 +1147,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Set<staticMethod4.S>",
-  "inferredReturnType": "[subclass=_LinkedHashSet]",
+  "inferredReturnType": "[subclass=_LinkedHashSet|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1185,11 +1170,11 @@ class Class1<T> {
     "external": false
   },
   "returnType": "Set<staticMethod4.S> Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [
     {
       "name": "o",
-      "type": "[subclass=Closure]",
+      "type": "[subclass=Closure|powerset={N}{O}{N}]",
       "declaredType": "dynamic"
     }
   ],
@@ -1214,7 +1199,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "String Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1237,7 +1222,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "String",
-  "inferredReturnType": "[exact=JSString]",
+  "inferredReturnType": "[exact=JSString|powerset={I}{O}{I}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes anything)",
   "inlinedCount": 0,
@@ -1280,7 +1265,7 @@ class Class1<T> {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 1,
@@ -1318,7 +1303,7 @@ topLevelMethod1<S>() => S;
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1341,7 +1326,7 @@ topLevelMethod1<S>() => S;
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1397,7 +1382,7 @@ topLevelMethod2<S>() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1420,7 +1405,7 @@ topLevelMethod2<S>() {
     "external": false
   },
   "returnType": "Type Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1443,7 +1428,7 @@ topLevelMethod2<S>() {
     "external": false
   },
   "returnType": "Type",
-  "inferredReturnType": "[exact=_Type]",
+  "inferredReturnType": "[exact=_Type|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1524,7 +1509,7 @@ topLevelMethod3() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1547,7 +1532,7 @@ topLevelMethod3() {
     "external": false
   },
   "returnType": "Set<topLevelMethod4.S>",
-  "inferredReturnType": "[subclass=_LinkedHashSet]",
+  "inferredReturnType": "[subclass=_LinkedHashSet|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1570,11 +1555,11 @@ topLevelMethod3() {
     "external": false
   },
   "returnType": "Set<topLevelMethod4.S> Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [
     {
       "name": "o",
-      "type": "[subclass=Closure]",
+      "type": "[subclass=Closure|powerset={N}{O}{N}]",
       "declaredType": "dynamic"
     }
   ],
@@ -1599,7 +1584,7 @@ topLevelMethod3() {
     "external": false
   },
   "returnType": "String Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1622,7 +1607,7 @@ topLevelMethod3() {
     "external": false
   },
   "returnType": "String",
-  "inferredReturnType": "[exact=JSString]",
+  "inferredReturnType": "[exact=JSString|powerset={I}{O}{I}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes anything)",
   "inlinedCount": 0,
@@ -1688,7 +1673,7 @@ topLevelMethod4<S>() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1711,7 +1696,7 @@ topLevelMethod4<S>() {
     "external": false
   },
   "returnType": "Null",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1734,7 +1719,7 @@ topLevelMethod4<S>() {
     "external": false
   },
   "returnType": "Null",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1794,7 +1779,7 @@ dynamic twoLocals() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1817,7 +1802,7 @@ dynamic twoLocals() {
     "external": false
   },
   "returnType": "Null",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1840,7 +1825,7 @@ dynamic twoLocals() {
     "external": false
   },
   "returnType": "dynamic Function()",
-  "inferredReturnType": "[subclass=Closure]",
+  "inferredReturnType": "[subclass=Closure|powerset={N}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1888,7 +1873,7 @@ dynamic nested() {
   "id": "closure/memory:sdk/tests/web/native/main.dart::nested2.nested2_local1_closure",
   "kind": "closure",
   "name": "nested2_local1_closure",
-  "size": 311,
+  "size": 232,
   "outputUnit": "outputUnit/main",
   "parent": "function/memory:sdk/tests/web/native/main.dart::nested2",
   "function": "function/memory:sdk/tests/web/native/main.dart::nested2.nested2_local1_closure.call"
@@ -1898,7 +1883,7 @@ dynamic nested() {
   "id": "function/memory:sdk/tests/web/native/main.dart::nested2",
   "kind": "function",
   "name": "nested2",
-  "size": 764,
+  "size": 685,
   "outputUnit": "outputUnit/main",
   "parent": "library/memory:sdk/tests/web/native/main.dart::",
   "children": [
@@ -1913,7 +1898,7 @@ dynamic nested() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1936,7 +1921,7 @@ dynamic nested() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[subclass=JSInt]",
+  "inferredReturnType": "[subclass=JSInt|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -1959,7 +1944,7 @@ dynamic nested() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[exact=JSUInt31]",
+  "inferredReturnType": "[exact=JSUInt31|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -1971,7 +1956,7 @@ dynamic nested() {
   "id": "function/memory:sdk/tests/web/native/main.dart::nested2.nested2_local1_closure.call",
   "kind": "function",
   "name": "call",
-  "size": 154,
+  "size": 75,
   "outputUnit": "outputUnit/main",
   "parent": "closure/memory:sdk/tests/web/native/main.dart::nested2.nested2_local1_closure",
   "children": [],
@@ -1982,11 +1967,11 @@ dynamic nested() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[subclass=JSInt]",
+  "inferredReturnType": "[subclass=JSInt|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
-  "code": "call$0() {\n      var t1 = new A.nested2_local1__closure().call$0();\n      if (typeof t1 !== \"number\")\n        return A.iae(t1);\n      return 1 + t1;\n    }",
+  "code": "call$0() {\n      return 1 + new A.nested2_local1__closure().call$0();\n    }",
   "type": "int Function()",
   "functionKind": 2
 }],
@@ -2055,7 +2040,7 @@ dynamic nested2() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -2078,7 +2063,7 @@ dynamic nested2() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[subclass=JSInt]",
+  "inferredReturnType": "[subclass=JSInt|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,
@@ -2101,7 +2086,7 @@ dynamic nested2() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[exact=JSUInt31]",
+  "inferredReturnType": "[exact=JSUInt31|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -2124,7 +2109,7 @@ dynamic nested2() {
     "external": false
   },
   "returnType": "int",
-  "inferredReturnType": "[exact=JSUInt31]",
+  "inferredReturnType": "[exact=JSUInt31|powerset={I}{O}{N}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads nothing; writes nothing)",
   "inlinedCount": 0,
@@ -2165,7 +2150,7 @@ dynamic siblings() {
     "external": false
   },
   "returnType": "dynamic",
-  "inferredReturnType": "[null]",
+  "inferredReturnType": "[null|powerset={null}]",
   "parameters": [],
   "sideEffects": "SideEffects(reads anything; writes anything)",
   "inlinedCount": 0,

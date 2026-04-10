@@ -5,33 +5,40 @@
 import 'package:kernel/kernel.dart';
 import 'package:kernel/util/graph.dart' as kernel_graph;
 
-/// Returns true iff the node has an `@JS(...)` annotation from `package:js` or
-/// from the internal `dart:_js_annotations`.
+/// Returns true iff the node has an `@JS(...)` annotation from `package:js`,
+/// `dart:_js_annotations`, or `dart:_js_interop`. Note that while `package:js`
+/// has no annotations any more, it used to, so we still need to support those
+/// versions.
 bool hasJSInteropAnnotation(Annotatable a) =>
-    a.annotations.any(_isPublicJSAnnotation);
+    a.annotations.any(_isJSInteropAnnotation);
 
-/// Returns true iff the node has an `@JS(...)` annotation from the internal
+/// Returns true iff the node has an `@JS(...)` annotation from `package:js` or
 /// `dart:_js_annotations`.
-bool hasInternalJSInteropAnnotation(Annotatable a) =>
-    a.annotations.any(_isInternalJSAnnotation);
+bool hasPackageJSAnnotation(Annotatable a) =>
+    a.annotations.any(_isPackageJSAnnotation);
+
+/// Returns true iff the node has an `@JS(...)` annotation from
+/// `dart:js_interop`.
+bool hasDartJSInteropAnnotation(Annotatable a) =>
+    a.annotations.any(_isDartJSInteropAnnotation);
 
 /// Returns true iff the node has an `@anonymous` annotation from `package:js`
-/// or from the internal `dart:_js_annotations`.
+/// or `dart:_js_annotations`.
 bool hasAnonymousAnnotation(Annotatable a) =>
     a.annotations.any(_isAnonymousAnnotation);
 
 /// Returns true iff the node has an `@staticInterop` annotation from
-/// `package:js` or from the internal `dart:_js_annotations`.
+/// `package:js` or `dart:_js_annotations`.
 bool hasStaticInteropAnnotation(Annotatable a) =>
     a.annotations.any(_isStaticInteropAnnotation);
 
-/// Returns true iff the node has an `@trustTypes` annotation from
-/// `package:js` or from the internal `dart:_js_annotations`.
+/// Returns true iff the node has an `@trustTypes` annotation from `package:js`
+/// or `dart:_js_annotations`.
 bool hasTrustTypesAnnotation(Annotatable a) =>
     a.annotations.any(_isTrustTypesAnnotation);
 
 /// Returns true iff the node has an `@JSExport(...)` annotation from
-/// `package:js` or from the internal `dart:_js_annotations`.
+/// `package:js` or `dart:_js_annotations`.
 bool hasJSExportAnnotation(Annotatable a) =>
     a.annotations.any(_isJSExportAnnotation);
 
@@ -40,10 +47,8 @@ bool hasJSExportAnnotation(Annotatable a) =>
 bool hasNativeAnnotation(Annotatable a) =>
     a.annotations.any(_isNativeAnnotation);
 
-/// Returns true iff the node has an `@ObjectLiteral(...)` annotation from
-/// `dart:js_interop`.
-bool hasObjectLiteralAnnotation(Annotatable a) =>
-    a.annotations.any(_isObjectLiteralAnnotation);
+/// Returns true iff the node has an `@patch` annotation from `dart:_internal`.
+bool hasPatchAnnotation(Annotatable a) => a.annotations.any(_isPatchAnnotation);
 
 /// If [a] has a `@JS('...')` annotation, returns the value inside the
 /// parentheses.
@@ -53,7 +58,7 @@ bool hasObjectLiteralAnnotation(Annotatable a) =>
 String getJSName(Annotatable a) {
   String jsClass = '';
   for (var annotation in a.annotations) {
-    if (_isPublicJSAnnotation(annotation)) {
+    if (_isJSInteropAnnotation(annotation)) {
       var jsClasses = stringAnnotationValues(annotation);
       if (jsClasses.isNotEmpty) {
         jsClass = jsClasses[0];
@@ -103,29 +108,39 @@ String getJSExportName(Annotatable a) {
 }
 
 final _packageJs = Uri.parse('package:js/js.dart');
-final _internalJs = Uri.parse('dart:_js_annotations');
+final _internal = Uri.parse('dart:_internal');
+final _jsAnnotations = Uri.parse('dart:_js_annotations');
 final _jsHelper = Uri.parse('dart:_js_helper');
 final _jsInterop = Uri.parse('dart:js_interop');
 
 /// Returns true if [value] is the interop annotation whose class is
-/// [annotationClassName] from `package:js` or from `dart:_js_annotations`.
+/// [annotationClassName] from [interopLibraries].
 ///
-/// If [internalJsOnly] is true, we only check if it's the annotation from
-/// `dart:_js_annotations`.
-bool _isInteropAnnotation(Expression value, String annotationClassName,
-    {bool internalJsOnly = false}) {
+/// If [interopLibraries] is null, we check `package:js`,
+/// `dart:_js_annotations`, and `dart:js_interop`.
+bool _isInteropAnnotation(
+  Expression value,
+  String annotationClassName, {
+  Set<Uri>? interopLibraries,
+}) {
+  interopLibraries ??= {_packageJs, _jsAnnotations, _jsInterop};
   var c = annotationClass(value);
   if (c == null || c.name != annotationClassName) return false;
   var importUri = c.enclosingLibrary.importUri;
-  if (internalJsOnly) return importUri == _internalJs;
-  return importUri == _packageJs || importUri == _internalJs;
+  return interopLibraries.contains(importUri);
 }
 
-bool _isInternalJSAnnotation(Expression value) =>
-    _isInteropAnnotation(value, 'JS', internalJsOnly: true);
-
-bool _isPublicJSAnnotation(Expression value) =>
+bool _isJSInteropAnnotation(Expression value) =>
     _isInteropAnnotation(value, 'JS');
+
+bool _isPackageJSAnnotation(Expression value) => _isInteropAnnotation(
+  value,
+  'JS',
+  interopLibraries: {_packageJs, _jsAnnotations},
+);
+
+bool _isDartJSInteropAnnotation(Expression value) =>
+    _isInteropAnnotation(value, 'JS', interopLibraries: {_jsInterop});
 
 bool _isAnonymousAnnotation(Expression value) =>
     _isInteropAnnotation(value, '_Anonymous');
@@ -147,22 +162,23 @@ bool _isNativeAnnotation(Expression value) {
       c.enclosingLibrary.importUri == _jsHelper;
 }
 
-/// Returns true if [value] is the `ObjectLiteral` annotation from
-/// `dart:js_interop`.
-bool _isObjectLiteralAnnotation(Expression value) {
-  final c = annotationClass(value);
+/// Returns true if [value] is the `patch` annotation from `dart:_internal`.
+bool _isPatchAnnotation(Expression value) {
+  var c = annotationClass(value);
   return c != null &&
-      c.name == 'ObjectLiteral' &&
-      c.enclosingLibrary.importUri == _jsInterop;
+      c.name == '_Patch' &&
+      c.enclosingLibrary.importUri == _internal;
 }
 
 /// Returns the class of the instance referred to by metadata annotation [node].
 ///
 /// For example:
 ///
-/// - `@JS()` would return the "JS" class in "package:js".
-/// - `@anonymous` would return the "_Anonymous" class in "package:js".
-/// - `@staticInterop` would return the "_StaticInterop" class in "package:js".
+/// - `@JS()` would return the "JS" class in "dart:_js_annotations".
+/// - `@anonymous` would return the "_Anonymous" class in
+/// "dart:_js_annotations".
+/// - `@staticInterop` would return the "_StaticInterop" class in
+/// "dart:_js_annotations".
 /// - `@Native` would return the "Native" class in "dart:_js_helper".
 ///
 /// This function works regardless of whether the CFE is evaluating constants,
@@ -200,27 +216,49 @@ List<String> stringAnnotationValues(Expression node) {
         var value = constant.fieldValues.values.elementAt(0);
         if (value is StringConstant) values.addAll(value.value.split(','));
       } else if (argLength > 1) {
-        throw ArgumentError('Method expects annotation with at most one '
-            'positional argument: $node.');
+        throw ArgumentError(
+          'Method expects annotation with at most one positional argument: '
+          '$node.',
+        );
       }
     }
   } else if (node is ConstructorInvocation) {
     var argLength = node.arguments.positional.length;
     if (argLength > 1 || node.arguments.named.isNotEmpty) {
-      throw ArgumentError('Method expects annotation with at most one '
-          'positional argument: $node.');
+      throw ArgumentError(
+        'Method expects annotation with at most one positional argument: '
+        '$node.',
+      );
     } else if (argLength == 1) {
       var value = node.arguments.positional[0];
-      if (value is StringLiteral) values.addAll(value.value.split(','));
+      if (value is StringLiteral) {
+        values.addAll(value.value.split(','));
+      } else if (value is StaticGet) {
+        // Sometimes the CFE will translate the following to a StaticGet of a
+        // const field:
+        //
+        // const String fieldName = 'field';
+        // @JS(fieldName)
+        //
+        // In this case we derive the name from the intializer of the referenced
+        // field.
+        var target = value.target;
+        if (target is Field && target.isConst) {
+          final value = target.initializer;
+          if (value is StringLiteral) {
+            values.addAll(value.value.split(','));
+          }
+        }
+      }
     }
   }
   return values;
 }
 
-/// Returns the [Library] within [component] matching the specified
+/// Returns the [Library] within [libraries] matching the specified
 /// [interopUri] or [null].
-Library? _findJsInteropLibrary(Component component, Uri interopUri) {
-  for (Library lib in component.libraries) {
+Library? _findJsInteropLibrary(List<Library> libraries, Uri interopUri) {
+  for (Library lib in libraries) {
     for (LibraryDependency dependency in lib.dependencies) {
       Library targetLibrary = dependency.targetLibrary;
       if (targetLibrary.importUri == interopUri) {
@@ -234,22 +272,23 @@ Library? _findJsInteropLibrary(Component component, Uri interopUri) {
 /// Calculates the libraries in [component] that transitively import a given js
 /// interop library.
 ///
-/// Returns null if the given js interop library is not imported.
 /// NOTE: This function was based off of
 /// `calculateTransitiveImportsOfDartFfiIfUsed` in
 /// pkg/vm/lib/transformations/ffi/common.dart.
-List<Library>? calculateTransitiveImportsOfJsInteropIfUsed(
-    Component component, Uri interopUri) {
+Set<Library> calculateTransitiveImportsOfJsInteropIfUsed(
+  List<Library> libraries,
+  Uri interopUri,
+) {
   // Check for the presence of [jsInteropLibrary] as a dependency of any of the
   // libraries in [component]. We use this to bypass the expensive
   // [calculateTransitiveDependenciesOf] call for cases where js interop is
   // not used, otherwise we could just use the index of the library instead.
-  Library? jsInteropLibrary = _findJsInteropLibrary(component, interopUri);
-  if (jsInteropLibrary == null) return null;
+  Library? jsInteropLibrary = _findJsInteropLibrary(libraries, interopUri);
+  if (jsInteropLibrary == null) return const <Library>{};
 
-  kernel_graph.LibraryGraph graph =
-      kernel_graph.LibraryGraph(component.libraries);
-  Set<Library> result =
-      kernel_graph.calculateTransitiveDependenciesOf(graph, {jsInteropLibrary});
-  return result.toList();
+  kernel_graph.LibraryGraph graph = kernel_graph.LibraryGraph(libraries);
+  Set<Library> result = kernel_graph.calculateTransitiveDependenciesOf(graph, {
+    jsInteropLibrary,
+  });
+  return result;
 }

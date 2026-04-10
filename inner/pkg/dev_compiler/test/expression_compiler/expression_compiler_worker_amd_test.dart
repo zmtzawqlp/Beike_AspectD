@@ -5,21 +5,18 @@
 import 'package:dev_compiler/dev_compiler.dart';
 import 'package:test/test.dart';
 
+import '../shared_test_options.dart';
 import 'expression_compiler_worker_shared.dart';
 
-void main() async {
+void main(List<String> args) async {
   // Set to true to enable debug output
   var debug = false;
 
   group('amd module format -', () {
-    for (var soundNullSafety in [true, false]) {
-      group('${soundNullSafety ? "sound" : "unsound"} null safety -', () {
-        runTests(
-          moduleFormat: ModuleFormat.amd,
-          soundNullSafety: soundNullSafety,
-          verbose: debug,
-        );
-      });
-    }
+    var setup = SetupCompilerOptions(
+      moduleFormat: ModuleFormat.amd,
+      args: args,
+    );
+    runTests(setup, verbose: debug);
   });
 }

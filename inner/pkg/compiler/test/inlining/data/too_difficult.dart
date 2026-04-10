@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*member: main:[]*/
 main() {
   asyncMethod();
@@ -99,12 +97,14 @@ syncStarMethod() sync* {}
 /*member: localFunction:closure*/
 localFunction() {
   // ignore: UNUSED_ELEMENT
-  /*[]*/ local() {}
+  /*[]*/
+  local() {}
 }
 
 /*member: anonymousFunction:closure*/
 anonymousFunction() {
-  /*[]*/ () {};
+  /*[]*/
+  () {};
 }
 
 /*member: tryCatch:try*/
@@ -170,7 +170,7 @@ class Class1 {
   var f;
 
   /*member: Class1.:closure*/
-  Class1() : f = (/*[]*/ () {}) {
+  Class1() : f = ( /*[]*/ () {}) {
     print(f);
   }
 }

@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -116,13 +116,13 @@ No types are needed, the first is given by 'on', the second is always 'StackTrac
       }
     }
   }
-  block {
+  {
     final core::List<core::int> #t1 = core::_GrowableList::•<core::int>(0);
     for (core::int i = 0; i.{core::num::<}(10){(core::num) → core::bool}; i = i.{core::num::+}(1){(core::num) → core::int})
       #t1.{core::List::add}{Invariant}(i){(core::int) → void};
-  } =>#t1;
+  }
 }
-static method hest() → dynamic async /* futureValueType= dynamic */ {
+static method hest() → dynamic async /* emittedValueType= dynamic */ {
   {
     synthesized asy::Stream<core::String> :stream = asy::Stream::fromIterable<core::String>(core::_GrowableList::_literal1<core::String>("hest"));
     synthesized asy::_StreamIterator<core::String>? :for-iterator = new asy::_StreamIterator::•<core::String>(:stream);
@@ -139,7 +139,7 @@ static method hest() → dynamic async /* futureValueType= dynamic */ {
   }
   return "hest";
 }
-static method fisk() → dynamic async /* futureValueType= dynamic */ {
+static method fisk() → dynamic async /* emittedValueType= dynamic */ {
   function #s1#initializer() → core::String
     return invalid-expression "pkg/front_end/testcases/nnbd/later.dart:38:20: Error: `await` expressions are not supported in late local initializers.
   late String s1 = await hest();
@@ -151,7 +151,7 @@ static method fisk() → dynamic async /* futureValueType= dynamic */ {
                              ^^^^^"}${#C1}";
   late core::String s2 = #s2#initializer(){() → core::String};
   function #f#initializer() → core::Function
-    return () → asy::Future<dynamic> async /* futureValueType= dynamic */ => await self::hest() /* runtimeCheckType= asy::Future<dynamic> */ ;
+    return () → asy::Future<dynamic> async /* emittedValueType= dynamic */ => await self::hest() /* runtimeCheckType= asy::Future<dynamic> */ ;
   late core::Function f = #f#initializer(){() → core::Function};
 }
 static method main() → dynamic {}

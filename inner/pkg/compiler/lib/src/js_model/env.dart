@@ -2,17 +2,16 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library dart2js.js_model.env;
+library;
 
+import 'package:js_shared/variance.dart';
 import 'package:kernel/ast.dart' as ir;
 
 import '../constants/values.dart';
 import '../elements/entities.dart';
-import '../elements/indexed.dart';
 import '../elements/names.dart';
 import '../elements/types.dart';
 import '../ir/element_map.dart';
-import '../ir/static_type_cache.dart';
 import '../ir/util.dart';
 import '../js_model/class_type_variable_access.dart';
 import '../ordered_typeset.dart';
@@ -26,8 +25,8 @@ import 'closure.dart'
         ClosureFieldData;
 import 'element_map.dart'
     show
-        JsToElementMap,
         ClassDefinition,
+        JsToElementMap,
         MemberDefinition,
         forEachOrderedParameterByFunctionNode;
 import 'element_map_impl.dart';
@@ -56,7 +55,7 @@ class JProgramEnv {
   }
 
   /// Calls [f] for each library in this environment.
-  void forEachLibrary(void f(JLibraryEnv library)) {
+  void forEachLibrary(void Function(JLibraryEnv library) f) {
     _libraryMap.values.forEach(f);
   }
 
@@ -83,10 +82,12 @@ class JLibraryEnv {
   factory JLibraryEnv.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
     ir.Library library = source.readLibraryNode();
-    Map<String, ir.Member> memberMap =
-        source.readStringMap(source.readMemberNode)!;
-    Map<String, ir.Member> setterMap =
-        source.readStringMap(source.readMemberNode)!;
+    Map<String, ir.Member> memberMap = source.readStringMap(
+      source.readMemberNode,
+    );
+    Map<String, ir.Member> setterMap = source.readStringMap(
+      source.readMemberNode,
+    );
     source.end(tag);
     return JLibraryEnv(library, memberMap, setterMap);
   }
@@ -110,7 +111,7 @@ class JLibraryEnv {
   }
 
   /// Calls [f] for each class in this library.
-  void forEachClass(void f(JClassEnv cls)) {
+  void forEachClass(void Function(JClassEnv cls) f) {
     _classMap.values.forEach(f);
   }
 
@@ -119,7 +120,7 @@ class JLibraryEnv {
     return setter ? _setterMap[name] : _memberMap[name];
   }
 
-  void forEachMember(void f(ir.Member member)) {
+  void forEachMember(void Function(ir.Member member) f) {
     _memberMap.values.forEach(f);
     for (ir.Member member in _setterMap.values) {
       if (member is ir.Procedure) {
@@ -220,18 +221,25 @@ abstract class JClassEnv {
   MemberEntity? lookupMember(IrToElementMap elementMap, Name name);
 
   /// Calls [f] for each member of [cls].
-  void forEachMember(IrToElementMap elementMap, void f(MemberEntity member));
+  void forEachMember(
+    IrToElementMap elementMap,
+    void Function(MemberEntity member) f,
+  );
 
   /// Return the [ConstructorEntity] for the constructor [name] in [cls].
   ConstructorEntity? lookupConstructor(IrToElementMap elementMap, String name);
 
   /// Calls [f] for each constructor of [cls].
   void forEachConstructor(
-      IrToElementMap elementMap, void f(ConstructorEntity constructor));
+    IrToElementMap elementMap,
+    void Function(ConstructorEntity constructor) f,
+  );
 
   /// Calls [f] for each constructor body for the live constructors in the
   /// class.
-  void forEachConstructorBody(void f(ConstructorBodyEntity constructor));
+  void forEachConstructorBody(
+    void Function(ConstructorBodyEntity constructor) f,
+  );
 }
 
 /// Environment for fast lookup of class members.
@@ -251,20 +259,31 @@ class JClassEnvImpl implements JClassEnv {
   /// Constructor bodies created for this class.
   List<ConstructorBodyEntity>? _constructorBodyList;
 
-  JClassEnvImpl(this.cls, this._constructorMap, this._memberMap, this._members,
-      this.isMixinApplicationWithMembers);
+  JClassEnvImpl(
+    this.cls,
+    this._constructorMap,
+    this._memberMap,
+    this._members,
+    this.isMixinApplicationWithMembers,
+  );
 
   factory JClassEnvImpl.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
     ir.Class cls = source.readClassNode();
-    Map<String, ir.Member> constructorMap =
-        source.readStringMap(source.readMemberNode)!;
-    Map<Name, ir.Member> memberMap = source.readNameMap(source.readMemberNode)!;
+    Map<String, ir.Member> constructorMap = source.readStringMap(
+      source.readMemberNode,
+    );
+    Map<Name, ir.Member> memberMap = source.readNameMap(source.readMemberNode);
     List<ir.Member> members = source.readMemberNodes();
     bool isSuperMixinApplication = source.readBool();
     source.end(tag);
     return JClassEnvImpl(
-        cls, constructorMap, memberMap, members, isSuperMixinApplication);
+      cls,
+      constructorMap,
+      memberMap,
+      members,
+      isSuperMixinApplication,
+    );
   }
 
   @override
@@ -289,10 +308,13 @@ class JClassEnvImpl implements JClassEnv {
   }
 
   @override
-  void forEachMember(IrToElementMap elementMap, void f(MemberEntity member)) {
-    _members.forEach((ir.Member member) {
+  void forEachMember(
+    IrToElementMap elementMap,
+    void Function(MemberEntity member) f,
+  ) {
+    for (var member in _members) {
       f(elementMap.getMember(member));
-    });
+    }
   }
 
   @override
@@ -303,10 +325,12 @@ class JClassEnvImpl implements JClassEnv {
 
   @override
   void forEachConstructor(
-      IrToElementMap elementMap, void f(ConstructorEntity constructor)) {
-    _constructorMap.values.forEach((ir.Member constructor) {
+    IrToElementMap elementMap,
+    void Function(ConstructorEntity constructor) f,
+  ) {
+    for (var constructor in _constructorMap.values) {
       f(elementMap.getConstructor(constructor));
-    });
+    }
   }
 
   void addConstructorBody(ConstructorBodyEntity constructorBody) {
@@ -314,7 +338,9 @@ class JClassEnvImpl implements JClassEnv {
   }
 
   @override
-  void forEachConstructorBody(void f(ConstructorBodyEntity constructor)) {
+  void forEachConstructorBody(
+    void Function(ConstructorBodyEntity constructor) f,
+  ) {
     _constructorBodyList?.forEach(f);
   }
 }
@@ -324,35 +350,39 @@ class ContextEnv implements JClassEnv {
   /// data stream.
   static const String tag = 'context-env';
 
-  final Map<Name, IndexedMember> _memberMap;
+  final Map<Name, MemberEntity> _memberMap;
 
   ContextEnv(this._memberMap);
 
   factory ContextEnv.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
-    Map<Name, IndexedMember> _memberMap =
-        source.readNameMap(() => source.readMember() as IndexedMember)!;
+    Map<Name, MemberEntity> memberMap = source.readNameMap(
+      () => source.readMember(),
+    );
     source.end(tag);
-    return ContextEnv(_memberMap);
+    return ContextEnv(memberMap);
   }
 
   @override
   void writeToDataSink(DataSinkWriter sink) {
     sink.writeEnum(JClassEnvKind.context);
     sink.begin(tag);
-    sink.writeNameMap(
-        _memberMap, (IndexedMember member) => sink.writeMember(member));
+    sink.writeNameMap(_memberMap, (member) => sink.writeMember(member));
     sink.end(tag);
   }
 
   @override
-  void forEachConstructorBody(void f(ConstructorBodyEntity constructor)) {
+  void forEachConstructorBody(
+    void Function(ConstructorBodyEntity constructor) f,
+  ) {
     // We do not create constructor bodies for containers.
   }
 
   @override
   void forEachConstructor(
-      IrToElementMap elementMap, void f(ConstructorEntity constructor)) {
+    IrToElementMap elementMap,
+    void Function(ConstructorEntity constructor) f,
+  ) {
     // We do not create constructors for containers.
   }
 
@@ -363,7 +393,10 @@ class ContextEnv implements JClassEnv {
   }
 
   @override
-  void forEachMember(IrToElementMap elementMap, void f(MemberEntity member)) {
+  void forEachMember(
+    IrToElementMap elementMap,
+    void Function(MemberEntity member) f,
+  ) {
     _memberMap.values.forEach(f);
   }
 
@@ -391,18 +424,18 @@ class ClosureClassEnv extends ContextEnv {
 
   factory ClosureClassEnv.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
-    Map<Name, IndexedMember> _memberMap =
-        source.readNameMap(() => source.readMember() as IndexedMember)!;
+    Map<Name, MemberEntity> memberMap = source.readNameMap(
+      () => source.readMember(),
+    );
     source.end(tag);
-    return ClosureClassEnv(_memberMap);
+    return ClosureClassEnv(memberMap);
   }
 
   @override
   void writeToDataSink(DataSinkWriter sink) {
     sink.writeEnum(JClassEnvKind.closure);
     sink.begin(tag);
-    sink.writeNameMap(
-        _memberMap, (IndexedMember member) => sink.writeMember(member));
+    sink.writeNameMap(_memberMap, (member) => sink.writeMember(member));
     sink.end(tag);
   }
 }
@@ -412,35 +445,39 @@ class RecordClassEnv implements JClassEnv {
   /// data stream.
   static const String tag = 'record-env';
 
-  final Map<Name, IndexedMember> _memberMap;
+  final Map<Name, MemberEntity> _memberMap;
 
   RecordClassEnv(this._memberMap);
 
   factory RecordClassEnv.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
-    Map<Name, IndexedMember> _memberMap =
-        source.readNameMap(() => source.readMember() as IndexedMember)!;
+    Map<Name, MemberEntity> memberMap = source.readNameMap(
+      () => source.readMember(),
+    );
     source.end(tag);
-    return RecordClassEnv(_memberMap);
+    return RecordClassEnv(memberMap);
   }
 
   @override
   void writeToDataSink(DataSinkWriter sink) {
     sink.writeEnum(JClassEnvKind.record);
     sink.begin(tag);
-    sink.writeNameMap(
-        _memberMap, (IndexedMember member) => sink.writeMember(member));
+    sink.writeNameMap(_memberMap, (member) => sink.writeMember(member));
     sink.end(tag);
   }
 
   @override
-  void forEachConstructorBody(void f(ConstructorBodyEntity constructor)) {
+  void forEachConstructorBody(
+    void Function(ConstructorBodyEntity constructor) f,
+  ) {
     // We do not create constructor bodies for containers.
   }
 
   @override
   void forEachConstructor(
-      IrToElementMap elementMap, void f(ConstructorEntity constructor)) {
+    IrToElementMap elementMap,
+    void Function(ConstructorEntity constructor) f,
+  ) {
     // We do not create constructors for containers.
   }
 
@@ -451,7 +488,10 @@ class RecordClassEnv implements JClassEnv {
   }
 
   @override
-  void forEachMember(IrToElementMap elementMap, void f(MemberEntity member)) {
+  void forEachMember(
+    IrToElementMap elementMap,
+    void Function(MemberEntity member) f,
+  ) {
     _memberMap.values.forEach(f);
   }
 
@@ -591,8 +631,6 @@ abstract class JMemberData {
 
   ClassTypeVariableAccess get classTypeVariableAccess;
 
-  StaticTypeCache get staticTypes;
-
   JMemberData();
 
   /// Deserializes a [JMemberData] object from [source].
@@ -604,7 +642,7 @@ abstract class JMemberData {
       case JMemberDataKind.field:
         return JFieldDataImpl.readFromDataSource(source);
       case JMemberDataKind.constructor:
-        return JConstructorDataImpl.readFromDataSource(source);
+        return JConstructorData.readFromDataSource(source);
       case JMemberDataKind.constructorBody:
         return ConstructorBodyDataImpl.readFromDataSource(source);
       case JMemberDataKind.signature:
@@ -630,14 +668,9 @@ abstract class JMemberDataImpl implements JMemberData {
   @override
   final MemberDefinition definition;
 
-  @override
-  StaticTypeCache get staticTypes => _staticTypes.loaded();
-  final Deferrable<StaticTypeCache> _staticTypes;
+  JMemberDataImpl(this.node, this.definition);
 
-  JMemberDataImpl(this.node, this.definition, StaticTypeCache staticTypes)
-      : _staticTypes = Deferrable.eager(staticTypes);
-
-  JMemberDataImpl._deserialized(this.node, this.definition, this._staticTypes);
+  JMemberDataImpl._deserialized(this.node, this.definition);
 
   @override
   InterfaceType? getMemberThisType(JsToElementMap elementMap) {
@@ -656,19 +689,21 @@ abstract class FunctionData implements JMemberData {
   List<TypeVariableType> getFunctionTypeVariables(IrToElementMap elementMap);
 
   void forEachParameter(
-      JsToElementMap elementMap,
-      ParameterStructure parameterStructure,
-      void f(DartType type, String? name, ConstantValue? defaultValue),
-      {bool isNative = false});
+    JsToElementMap elementMap,
+    ParameterStructure parameterStructure,
+    void Function(DartType type, String? name, ConstantValue? defaultValue) f, {
+    bool isNative = false,
+  });
 }
 
-abstract class FunctionDataTypeVariablesMixin implements FunctionData {
+mixin FunctionDataTypeVariablesMixin implements FunctionData {
   ir.FunctionNode get functionNode;
   List<TypeVariableType>? _typeVariables;
 
   @override
   List<TypeVariableType> getFunctionTypeVariables(
-      covariant JsKernelToElementMap elementMap) {
+    covariant JsKernelToElementMap elementMap,
+  ) {
     if (_typeVariables == null) {
       if (functionNode.typeParameters.isEmpty) {
         _typeVariables = const <TypeVariableType>[];
@@ -679,12 +714,18 @@ abstract class FunctionDataTypeVariablesMixin implements FunctionData {
                 parent.kind == ir.ProcedureKind.Factory)) {
           _typeVariables = const <TypeVariableType>[];
         } else {
-          _typeVariables = functionNode.typeParameters
-              .map<TypeVariableType>((ir.TypeParameter typeParameter) {
+          _typeVariables = functionNode.typeParameters.map<TypeVariableType>((
+            ir.TypeParameter typeParameter,
+          ) {
             return elementMap
-                .getDartType(ir.TypeParameterType(
-                    typeParameter, ir.Nullability.nonNullable))
-                .withoutNullability as TypeVariableType;
+                    .getDartType(
+                      ir.TypeParameterType(
+                        typeParameter,
+                        ir.Nullability.nonNullable,
+                      ),
+                    )
+                    .withoutNullability
+                as TypeVariableType;
           }).toList();
         }
       }
@@ -693,34 +734,28 @@ abstract class FunctionDataTypeVariablesMixin implements FunctionData {
   }
 }
 
-abstract class FunctionDataForEachParameterMixin implements FunctionData {
+mixin FunctionDataForEachParameterMixin implements FunctionData {
   ir.FunctionNode get functionNode;
-
-  // TODO(johnniwinther,sigmund): Remove this when it's no longer needed for
-  //  `getConstantValue` in [forEachParameter].
-  ir.Member get memberContext;
 
   @override
   void forEachParameter(
-      JsToElementMap elementMap,
-      ParameterStructure parameterStructure,
-      void f(DartType type, String? name, ConstantValue? defaultValue),
-      {bool isNative = false}) {
-    void handleParameter(ir.VariableDeclaration parameter,
-        {bool isOptional = true}) {
+    JsToElementMap elementMap,
+    ParameterStructure parameterStructure,
+    void Function(DartType type, String? name, ConstantValue? defaultValue) f, {
+    bool isNative = false,
+  }) {
+    void handleParameter(
+      ir.VariableDeclaration parameter, {
+      bool isOptional = true,
+    }) {
       DartType type = elementMap.getDartType(parameter.type);
       String? name = parameter.name;
       ConstantValue? defaultValue;
       if (parameter.isRequired) {
-        if (elementMap.types.useLegacySubtyping) {
-          defaultValue = NullConstantValue();
-        } else {
-          defaultValue = elementMap.getRequiredSentinelConstantValue();
-        }
+        defaultValue = elementMap.getRequiredSentinelConstantValue();
       } else if (isOptional) {
         if (parameter.initializer != null) {
-          defaultValue = elementMap.getConstantValue(
-              memberContext, parameter.initializer!);
+          defaultValue = elementMap.getConstantValue(parameter.initializer!);
         } else {
           defaultValue = NullConstantValue();
         }
@@ -728,9 +763,11 @@ abstract class FunctionDataForEachParameterMixin implements FunctionData {
       f(type, name, defaultValue);
     }
 
-    forEachOrderedParameterByFunctionNode(functionNode, parameterStructure,
-        (ir.VariableDeclaration parameter,
-            {required bool isOptional, required bool isElided}) {
+    forEachOrderedParameterByFunctionNode(functionNode, parameterStructure, (
+      ir.VariableDeclaration parameter, {
+      required bool isOptional,
+      required bool isElided,
+    }) {
       if (!isElided) {
         handleParameter(parameter, isOptional: isOptional);
       }
@@ -749,13 +786,17 @@ class FunctionDataImpl extends JMemberDataImpl
   final ir.FunctionNode functionNode;
   FunctionType? _type;
 
-  FunctionDataImpl(ir.Member node, this.functionNode,
-      MemberDefinition definition, StaticTypeCache staticTypes)
-      : super(node, definition, staticTypes);
+  FunctionDataImpl(
+    ir.Member node,
+    this.functionNode,
+    MemberDefinition definition,
+  ) : super(node, definition);
 
-  FunctionDataImpl._deserialized(ir.Member node, this.functionNode,
-      MemberDefinition definition, Deferrable<StaticTypeCache> staticTypes)
-      : super._deserialized(node, definition, staticTypes);
+  FunctionDataImpl._deserialized(
+    ir.Member node,
+    this.functionNode,
+    MemberDefinition definition,
+  ) : super._deserialized(node, definition);
 
   factory FunctionDataImpl.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
@@ -767,14 +808,12 @@ class FunctionDataImpl extends JMemberDataImpl
       functionNode = node.function;
     } else {
       throw UnsupportedError(
-          "Unexpected member node $node (${node.runtimeType}).");
+        "Unexpected member node $node (${node.runtimeType}).",
+      );
     }
     MemberDefinition definition = MemberDefinition.readFromDataSource(source);
-    Deferrable<StaticTypeCache> staticTypes = source
-        .readDeferrable(() => StaticTypeCache.readFromDataSource(source, node));
     source.end(tag);
-    return FunctionDataImpl._deserialized(
-        node, functionNode, definition, staticTypes);
+    return FunctionDataImpl._deserialized(node, functionNode, definition);
   }
 
   @override
@@ -783,12 +822,8 @@ class FunctionDataImpl extends JMemberDataImpl
     sink.begin(tag);
     sink.writeMemberNode(node);
     definition.writeToDataSink(sink);
-    sink.writeDeferrable(() => staticTypes.writeToDataSink(sink, node));
     sink.end(tag);
   }
-
-  @override
-  ir.Member get memberContext => node;
 
   @override
   FunctionType getFunctionType(covariant JsKernelToElementMap elementMap) {
@@ -815,25 +850,44 @@ class SignatureFunctionData implements FunctionData {
   List<ir.TypeParameter> get typeParameters => _typeParameters.loaded();
   final Deferrable<List<ir.TypeParameter>> _typeParameters;
 
-  SignatureFunctionData(this.definition, this.memberThisType,
-      List<ir.TypeParameter> typeParameters, this.classTypeVariableAccess)
-      : _typeParameters = Deferrable.eager(typeParameters);
+  SignatureFunctionData(
+    this.definition,
+    this.memberThisType,
+    List<ir.TypeParameter> typeParameters,
+    this.classTypeVariableAccess,
+  ) : _typeParameters = Deferrable.eager(typeParameters);
 
-  SignatureFunctionData._deserialized(this.definition, this.memberThisType,
-      this._typeParameters, this.classTypeVariableAccess);
+  SignatureFunctionData._deserialized(
+    this.definition,
+    this.memberThisType,
+    this._typeParameters,
+    this.classTypeVariableAccess,
+  );
+
+  static List<ir.TypeParameter> _readTypeParameterNodes(
+    DataSourceReader source,
+  ) {
+    return source.readTypeParameterNodes();
+  }
 
   factory SignatureFunctionData.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
     MemberDefinition definition = MemberDefinition.readFromDataSource(source);
     InterfaceType? memberThisType =
         source.readDartTypeOrNull() as InterfaceType?;
-    Deferrable<List<ir.TypeParameter>> typeParameters =
-        source.readDeferrable(() => source.readTypeParameterNodes());
-    ClassTypeVariableAccess classTypeVariableAccess =
-        source.readEnum(ClassTypeVariableAccess.values);
+    Deferrable<List<ir.TypeParameter>> typeParameters = source.readDeferrable(
+      _readTypeParameterNodes,
+    );
+    ClassTypeVariableAccess classTypeVariableAccess = source.readEnum(
+      ClassTypeVariableAccess.values,
+    );
     source.end(tag);
     return SignatureFunctionData._deserialized(
-        definition, memberThisType, typeParameters, classTypeVariableAccess);
+      definition,
+      memberThisType,
+      typeParameters,
+      classTypeVariableAccess,
+    );
   }
 
   @override
@@ -848,30 +902,31 @@ class SignatureFunctionData implements FunctionData {
   }
 
   @override
-  StaticTypeCache get staticTypes => const StaticTypeCache();
-
-  @override
   FunctionType getFunctionType(covariant JsKernelToElementMap elementMap) {
     throw UnsupportedError("SignatureFunctionData.getFunctionType");
   }
 
   @override
   List<TypeVariableType> getFunctionTypeVariables(IrToElementMap elementMap) {
-    return typeParameters
-        .map<TypeVariableType>((ir.TypeParameter typeParameter) {
+    return typeParameters.map<TypeVariableType>((
+      ir.TypeParameter typeParameter,
+    ) {
       return elementMap
-          .getDartType(
-              ir.TypeParameterType(typeParameter, ir.Nullability.nonNullable))
-          .withoutNullability as TypeVariableType;
+              .getDartType(
+                ir.TypeParameterType(typeParameter, ir.Nullability.nonNullable),
+              )
+              .withoutNullability
+          as TypeVariableType;
     }).toList();
   }
 
   @override
   void forEachParameter(
-      JsToElementMap elementMap,
-      ParameterStructure parameterStructure,
-      void f(DartType type, String? name, ConstantValue? defaultValue),
-      {bool isNative = false}) {
+    JsToElementMap elementMap,
+    ParameterStructure parameterStructure,
+    void Function(DartType type, String? name, ConstantValue? defaultValue) f, {
+    bool isNative = false,
+  }) {
     throw UnimplementedError('SignatureData.forEachParameter');
   }
 
@@ -896,12 +951,17 @@ abstract class DelegatedFunctionData implements FunctionData {
 
   @override
   void forEachParameter(
-      JsToElementMap elementMap,
-      ParameterStructure parameterStructure,
-      void f(DartType type, String? name, ConstantValue? defaultValue),
-      {bool isNative = false}) {
-    return baseData.forEachParameter(elementMap, parameterStructure, f,
-        isNative: isNative);
+    JsToElementMap elementMap,
+    ParameterStructure parameterStructure,
+    void Function(DartType type, String? name, ConstantValue? defaultValue) f, {
+    bool isNative = false,
+  }) {
+    return baseData.forEachParameter(
+      elementMap,
+      parameterStructure,
+      f,
+      isNative: isNative,
+    );
   }
 
   @override
@@ -912,6 +972,18 @@ abstract class DelegatedFunctionData implements FunctionData {
   @override
   ClassTypeVariableAccess get classTypeVariableAccess =>
       baseData.classTypeVariableAccess;
+}
+
+class ParameterStubFunctionData extends DelegatedFunctionData {
+  @override
+  final MemberDefinition definition;
+
+  ParameterStubFunctionData(super.baseData, this.definition);
+
+  @override
+  void writeToDataSink(DataSinkWriter sink) {
+    throw UnimplementedError('Cannot serialize parameter stub data.');
+  }
 }
 
 class GeneratorBodyFunctionData extends DelegatedFunctionData {
@@ -925,7 +997,8 @@ class GeneratorBodyFunctionData extends DelegatedFunctionData {
   GeneratorBodyFunctionData(super.baseData, this.definition);
 
   factory GeneratorBodyFunctionData.readFromDataSource(
-      DataSourceReader source) {
+    DataSourceReader source,
+  ) {
     source.begin(tag);
     // TODO(johnniwinther): Share the original base data on deserialization.
     FunctionData baseData =
@@ -943,29 +1016,24 @@ class GeneratorBodyFunctionData extends DelegatedFunctionData {
     definition.writeToDataSink(sink);
     sink.end(tag);
   }
-
-  @override
-  StaticTypeCache get staticTypes => const StaticTypeCache();
 }
 
-abstract class JConstructorData extends FunctionData {}
-
-class JConstructorDataImpl extends FunctionDataImpl
-    implements JConstructorData {
+class JConstructorData extends FunctionDataImpl {
   /// Tag used for identifying serialized [JConstructorDataImpl] objects in a
   /// debugging data stream.
   static const String tag = 'constructor-data';
 
   JConstructorBody? constructorBody;
 
-  JConstructorDataImpl(
-      super.node, super.functionNode, super.definition, super.staticTypes);
+  JConstructorData(super.node, super.functionNode, super.definition);
 
-  JConstructorDataImpl._deserialized(
-      super.node, super.functionNode, super.definition, super.staticTypes)
-      : super._deserialized();
+  JConstructorData._deserialized(
+    super.node,
+    super.functionNode,
+    super.definition,
+  ) : super._deserialized();
 
-  factory JConstructorDataImpl.readFromDataSource(DataSourceReader source) {
+  factory JConstructorData.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
     ir.Member node = source.readMemberNode();
     ir.FunctionNode functionNode;
@@ -975,14 +1043,12 @@ class JConstructorDataImpl extends FunctionDataImpl
       functionNode = node.function;
     } else {
       throw UnsupportedError(
-          "Unexpected member node $node (${node.runtimeType}).");
+        "Unexpected member node $node (${node.runtimeType}).",
+      );
     }
     MemberDefinition definition = MemberDefinition.readFromDataSource(source);
-    Deferrable<StaticTypeCache> staticTypes = source
-        .readDeferrable(() => StaticTypeCache.readFromDataSource(source, node));
     source.end(tag);
-    return JConstructorDataImpl._deserialized(
-        node, functionNode, definition, staticTypes);
+    return JConstructorData._deserialized(node, functionNode, definition);
   }
 
   @override
@@ -992,7 +1058,6 @@ class JConstructorDataImpl extends FunctionDataImpl
     sink.writeMemberNode(node);
     definition.writeToDataSink(sink);
     assert(constructorBody == null);
-    sink.writeDeferrable(() => staticTypes.writeToDataSink(sink, node));
     sink.end(tag);
   }
 
@@ -1006,12 +1071,13 @@ class ConstructorBodyDataImpl extends FunctionDataImpl {
   /// a debugging data stream.
   static const String tag = 'constructor-body-data';
 
-  ConstructorBodyDataImpl(
-      super.node, super.functionNode, super.definition, super.staticTypes);
+  ConstructorBodyDataImpl(super.node, super.functionNode, super.definition);
 
   ConstructorBodyDataImpl._deserialized(
-      super.node, super.functionNode, super.definition, super.staticTypes)
-      : super._deserialized();
+    super.node,
+    super.functionNode,
+    super.definition,
+  ) : super._deserialized();
 
   factory ConstructorBodyDataImpl.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
@@ -1023,14 +1089,16 @@ class ConstructorBodyDataImpl extends FunctionDataImpl {
       functionNode = node.function;
     } else {
       throw UnsupportedError(
-          "Unexpected member node $node (${node.runtimeType}).");
+        "Unexpected member node $node (${node.runtimeType}).",
+      );
     }
     MemberDefinition definition = MemberDefinition.readFromDataSource(source);
-    Deferrable<StaticTypeCache> staticTypes = source
-        .readDeferrable(() => StaticTypeCache.readFromDataSource(source, node));
     source.end(tag);
     return ConstructorBodyDataImpl._deserialized(
-        node, functionNode, definition, staticTypes);
+      node,
+      functionNode,
+      definition,
+    );
   }
 
   @override
@@ -1039,7 +1107,6 @@ class ConstructorBodyDataImpl extends FunctionDataImpl {
     sink.begin(tag);
     sink.writeMemberNode(node);
     definition.writeToDataSink(sink);
-    sink.writeDeferrable(() => staticTypes.writeToDataSink(sink, node));
     sink.end(tag);
   }
 
@@ -1052,6 +1119,7 @@ class ConstructorBodyDataImpl extends FunctionDataImpl {
 
 abstract class JFieldData extends JMemberData {
   DartType getFieldType(IrToElementMap elementMap);
+  bool get isCovariantByDeclaration;
 }
 
 class JFieldDataImpl extends JMemberDataImpl implements JFieldData {
@@ -1061,20 +1129,17 @@ class JFieldDataImpl extends JMemberDataImpl implements JFieldData {
 
   DartType? _type;
 
-  JFieldDataImpl(super.node, super.definition, super.staticTypes);
+  JFieldDataImpl(super.node, super.definition);
 
-  JFieldDataImpl._deserialized(super.node, super.definition, super.staticTypes)
-      : super._deserialized();
+  JFieldDataImpl._deserialized(super.node, super.definition)
+    : super._deserialized();
 
   factory JFieldDataImpl.readFromDataSource(DataSourceReader source) {
     source.begin(tag);
     ir.Member node = source.readMemberNode();
     MemberDefinition definition = MemberDefinition.readFromDataSource(source);
-    Deferrable<StaticTypeCache> staticTypes = source
-        .readDeferrable(() => StaticTypeCache.readFromDataSource(source, node));
     source.end(tag);
-    return JFieldDataImpl._deserialized(
-        node as ir.Field, definition, staticTypes);
+    return JFieldDataImpl._deserialized(node as ir.Field, definition);
   }
 
   @override
@@ -1083,7 +1148,6 @@ class JFieldDataImpl extends JMemberDataImpl implements JFieldData {
     sink.begin(tag);
     sink.writeMemberNode(node);
     definition.writeToDataSink(sink);
-    sink.writeDeferrable(() => staticTypes.writeToDataSink(sink, node));
     sink.end(tag);
   }
 
@@ -1093,6 +1157,11 @@ class JFieldDataImpl extends JMemberDataImpl implements JFieldData {
   @override
   DartType getFieldType(covariant JsKernelToElementMap elementMap) {
     return _type ??= elementMap.getDartType(node.type);
+  }
+
+  @override
+  bool get isCovariantByDeclaration {
+    return node.isCovariantByDeclaration;
   }
 
   @override

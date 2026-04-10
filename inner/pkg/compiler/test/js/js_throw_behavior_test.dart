@@ -9,16 +9,17 @@ import 'package:compiler/src/js/js.dart' as js;
 
 void test(String source, NativeThrowBehavior expectedThrowBehavior) {
   js.Template template = js.js.parseForeignJS(source);
-  NativeThrowBehavior throwBehavior =
-      ThrowBehaviorVisitor().analyze(template.ast);
+  NativeThrowBehavior throwBehavior = ThrowBehaviorVisitor().analyze(
+    template.ast,
+  );
   Expect.equals(expectedThrowBehavior, throwBehavior, 'source "$source"');
 }
 
 void main() {
-  final MAY = NativeThrowBehavior.MAY;
-  final NEVER = NativeThrowBehavior.NEVER;
-  final NULL_NSM = NativeThrowBehavior.NULL_NSM;
-  final NULL_NSM_THEN_MAY = NativeThrowBehavior.NULL_NSM_THEN_MAY;
+  final MAY = NativeThrowBehavior.may;
+  final NEVER = NativeThrowBehavior.never;
+  final NULL_NSM = NativeThrowBehavior.nullNsm;
+  final NULL_NSM_THEN_MAY = NativeThrowBehavior.nullNsmThenMay;
 
   test('0', NEVER);
   test('void 0', NEVER);

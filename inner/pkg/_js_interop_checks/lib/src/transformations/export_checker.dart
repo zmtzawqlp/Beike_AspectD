@@ -6,31 +6,19 @@
 
 import 'package:_fe_analyzer_shared/src/messages/codes.dart'
     show
-        Message,
-        LocatedMessage,
         templateJsInteropExportDartInterfaceHasNonEmptyJSExportValue,
         templateJsInteropExportDisallowedMember,
         templateJsInteropExportMemberCollision,
         templateJsInteropExportNoExportableMembers;
+import 'package:_js_interop_checks/js_interop_checks.dart'
+    show JsInteropDiagnosticReporter;
 import 'package:_js_interop_checks/src/js_interop.dart' as js_interop;
 import 'package:kernel/ast.dart';
-import 'package:kernel/target/targets.dart';
 
-enum ExportStatus {
-  exportError,
-  exportable,
-  nonExportable,
-}
-
-class GetSet {
-  Member? getter;
-  Member? setter;
-
-  GetSet(this.getter, this.setter);
-}
+enum ExportStatus { exportError, exportable, nonExportable }
 
 class ExportChecker {
-  final DiagnosticReporter<Message, LocatedMessage> _diagnosticReporter;
+  final JsInteropDiagnosticReporter _diagnosticReporter;
   final Map<Reference, Map<String, Set<Member>>> exportClassToMemberMap = {};
   final Map<Reference, ExportStatus> exportStatus = {};
   final Class _objectClass;
@@ -46,7 +34,7 @@ class ExportChecker {
   ///
   /// [exports] should be a set of members from the [exportClassToMemberMap]. If
   /// missing a getter and/or setter, the corresponding field will be `null`.
-  GetSet getGetterSetter(Set<Member> exports) {
+  ({Member? getter, Member? setter}) getGetterSetter(Set<Member> exports) {
     assert(exports.isNotEmpty && exports.length <= 2);
     Member? getter;
     Member? setter;
@@ -72,7 +60,7 @@ class ExportChecker {
       }
     }
 
-    return GetSet(getter, setter);
+    return (getter: getter, setter: setter);
   }
 
   /// Calculates the overrides, including inheritance, for [cls].
@@ -85,7 +73,7 @@ class ExportChecker {
     var superclass = cls.superclass;
     if (superclass != null && superclass != _objectClass) {
       _collectOverrides(superclass);
-      memberMap = Map.from(_overrideMap[superclass.reference]!);
+      memberMap = Map.of(_overrideMap[superclass.reference]!);
     } else {
       memberMap = {};
     }
@@ -93,7 +81,7 @@ class ExportChecker {
     var demangledCls = cls.isMixinApplication ? cls.mixin : cls;
     for (var member in [
       ...demangledCls.procedures.where((proc) => proc.exportable),
-      ...demangledCls.fields.where((field) => field.exportable)
+      ...demangledCls.fields.where((field) => field.exportable),
     ]) {
       var memberName = member.name.text;
       if (member is Procedure && member.isSetter) {
@@ -109,7 +97,6 @@ class ExportChecker {
   }
 
   /// Determine if [cls] is exportable, and if so, compute the export members.
-  ///
   ///
   /// Check the following:
   /// - If the class has a `@JSExport` annotation, the value should be empty.
@@ -131,23 +118,25 @@ class ExportChecker {
 
     if (classHasJSExport && js_interop.getJSExportName(cls).isNotEmpty) {
       _diagnosticReporter.report(
-          templateJsInteropExportDartInterfaceHasNonEmptyJSExportValue
-              .withArguments(cls.name),
-          cls.fileOffset,
-          cls.name.length,
-          cls.location?.file);
+        templateJsInteropExportDartInterfaceHasNonEmptyJSExportValue
+            .withArguments(cls.name),
+        cls.fileOffset,
+        cls.name.length,
+        cls.location?.file,
+      );
       exportStatus[cls.reference] = ExportStatus.exportError;
     }
 
     _collectOverrides(cls);
 
     var allExportableMembers = _overrideMap[cls.reference]!.values.where(
-        (member) =>
-            // Only members that qualify are those that are exportable, and
-            // either their class has the annotation or they have it themselves.
-            member.exportable &&
-            (js_interop.hasJSExportAnnotation(member) ||
-                js_interop.hasJSExportAnnotation(member.enclosingClass!)));
+      (member) =>
+          // Only members that qualify are those that are exportable, and
+          // either their class has the annotation or they have it themselves.
+          member.exportable &&
+          (js_interop.hasJSExportAnnotation(member) ||
+              js_interop.hasJSExportAnnotation(member.enclosingClass!)),
+    );
     var exports = <String, Set<Member>>{};
 
     // Store the exportable members.
@@ -158,8 +147,8 @@ class ExportChecker {
 
     // Walk through the export map and determine if there are any unresolvable
     // conflicts.
-    for (var exportName in exports.keys) {
-      var existingMembers = exports[exportName]!;
+    for (var MapEntry(key: exportName, value: existingMembers)
+        in exports.entries) {
       if (existingMembers.length == 1) continue;
       if (existingMembers.length == 2) {
         // There are two instances where you can resolve collisions:
@@ -192,20 +181,24 @@ class ExportChecker {
       var sortedExistingMembers =
           existingMembers.map((member) => member.toString()).toList()..sort();
       _diagnosticReporter.report(
-          templateJsInteropExportMemberCollision.withArguments(
-              exportName, sortedExistingMembers.join(', ')),
-          cls.fileOffset,
-          cls.name.length,
-          cls.location?.file);
+        templateJsInteropExportMemberCollision.withArguments(
+          exportName,
+          sortedExistingMembers.join(', '),
+        ),
+        cls.fileOffset,
+        cls.name.length,
+        cls.location?.file,
+      );
       exportStatus[cls.reference] = ExportStatus.exportError;
     }
 
     if (exports.isEmpty) {
       _diagnosticReporter.report(
-          templateJsInteropExportNoExportableMembers.withArguments(cls.name),
-          cls.fileOffset,
-          cls.name.length,
-          cls.location?.file);
+        templateJsInteropExportNoExportableMembers.withArguments(cls.name),
+        cls.fileOffset,
+        cls.name.length,
+        cls.location?.file,
+      );
       exportStatus[cls.reference] = ExportStatus.exportError;
     }
 
@@ -220,12 +213,14 @@ class ExportChecker {
     var cls = member.enclosingClass;
     if (memberHasJSExportAnnotation) {
       if (!member.exportable) {
+        String name = member.name.text;
+        if (name.isEmpty) name = '<unnamed>';
         _diagnosticReporter.report(
-            templateJsInteropExportDisallowedMember
-                .withArguments(member.name.text),
-            member.fileOffset,
-            member.name.text.length,
-            member.location?.file);
+          templateJsInteropExportDisallowedMember.withArguments(name),
+          member.fileOffset,
+          member.name.text.length,
+          member.location?.file,
+        );
         if (cls != null) {
           exportStatus[cls.reference] = ExportStatus.exportError;
         }
@@ -255,17 +250,19 @@ extension ExtensionMemberDescriptorExtension on ExtensionMemberDescriptor {
   bool get isSetter => kind == ExtensionMemberKind.Setter;
   bool get isMethod => kind == ExtensionMemberKind.Method;
 
-  bool get isExternal => (member.asProcedure).isExternal;
+  bool get isExternal => (memberReference!.asProcedure).isExternal;
 }
 
 extension ProcedureExtension on Procedure {
-  // We only care about concrete instance procedures.
+  // We only care about concrete instance procedures that don't define their own
+  // type parameters.
   bool get exportable =>
       !isAbstract &&
       !isStatic &&
       !isExtensionMember &&
       !isFactory &&
       !isExternal &&
+      function.typeParameters.isEmpty &&
       kind != ProcedureKind.Operator;
 }
 

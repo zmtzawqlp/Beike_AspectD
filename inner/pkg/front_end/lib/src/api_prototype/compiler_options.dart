@@ -4,38 +4,27 @@
 
 library front_end.compiler_options;
 
-import 'package:_fe_analyzer_shared/src/macros/executor/multi_executor.dart';
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessage, DiagnosticMessageHandler;
 import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
-
 import 'package:kernel/ast.dart' show Component, Version;
-
 import 'package:kernel/default_language_version.dart' as kernel
     show defaultLanguageVersion;
-
 import 'package:kernel/target/targets.dart' show Target;
 
-import '../base/nnbd_mode.dart';
-
-import '../macro_serializer.dart';
+import '../api_unstable/util.dart';
 import 'experimental_flags.dart'
     show
         AllowedExperimentalFlags,
         ExperimentalFlag,
         GlobalFeatures,
         parseExperimentalFlag;
-
 import 'experimental_flags.dart' as flags
     show
         getExperimentEnabledVersionInLibrary,
         isExperimentEnabledInLibraryByVersion;
-
 import 'file_system.dart' show FileSystem;
-
 import 'standard_file_system.dart' show StandardFileSystem;
-
-import '../api_unstable/util.dart';
 
 export 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessage;
@@ -94,6 +83,16 @@ class CompilerOptions {
   /// at a default location within [sdkRoot].
   Uri? sdkSummary;
 
+  /// Uri to a dynamic interface specification file.
+  ///
+  /// A dynamic interface specification file is a YAML file that lists
+  /// Dart APIs (libraries, classes and members) available for a dynamic module.
+  ///
+  /// If value is specified, the compiled Dart libraries are validated
+  /// to conform to the dynamic module interface and other dynamic module
+  /// restrictions.
+  Uri? dynamicInterfaceSpecificationUri;
+
   /// The declared variables for use by configurable imports and constant
   /// evaluation.
   Map<String, String>? declaredVariables;
@@ -105,27 +104,6 @@ class CompilerOptions {
   /// [packagesFileUri], the packages file is located using the actual physical
   /// file system.  TODO(paulberry): fix this.
   FileSystem fileSystem = StandardFileSystem.instance;
-
-  /// The [MultiMacroExecutor] for loading and executing macros if supported.
-  ///
-  /// This is part of the experimental macro feature.
-  MultiMacroExecutor? macroExecutor;
-
-  /// The [Target] used for compiling macros.
-  ///
-  /// If `null`, macro declarations will not be precompiled, even when other
-  /// libraries depend on them.
-  /// This is part of the experimental macro feature.
-  Target? macroTarget;
-
-  /// Function that can create a [Uri] for the serialized result of a
-  /// [Component].
-  ///
-  /// This is used to turn a precompiled macro into a [Uri] that can be loaded
-  /// by the [macroExecutor].
-  ///
-  /// This is part of the experimental macro feature.
-  MacroSerializer? macroSerializer;
 
   /// Whether to generate code for the SDK.
   ///
@@ -197,7 +175,7 @@ class CompilerOptions {
   /// Whether to show file offsets when [debugDump] is `true`.
   bool debugDumpShowOffsets = false;
 
-  /// Whether to omit the platform when serializing the result from a `fasta
+  /// Whether to omit the platform when serializing the result from a `cfe
   /// compile` run.
   bool omitPlatform = false;
 
@@ -238,16 +216,11 @@ class CompilerOptions {
   /// order to ensure a stable output for testing.
   bool omitOsMessageForTesting = false;
 
+  /// Object used for hooking into the compilation pipeline during testing.
+  HooksForTesting? hooksForTesting;
+
   /// Whether to write a file (e.g. a dill file) when reporting a crash.
   bool writeFileOnCrashReport = true;
-
-  /// Whether nnbd weak, strong or agnostic mode is used if experiment
-  /// 'non-nullable' is enabled.
-  NnbdMode nnbdMode = NnbdMode.Weak;
-
-  /// Whether to emit a warning when a ReachabilityError is thrown to ensure
-  /// soundness in mixed mode.
-  bool warnOnReachabilityCheck = false;
 
   /// The current sdk version string, e.g. "2.6.0-edge.sha1hash".
   /// For instance used for language versioning (specifying the maximum
@@ -279,6 +252,7 @@ class CompilerOptions {
       experimentReleasedVersionForTesting: experimentReleasedVersionForTesting,
       allowedExperimentalFlags: allowedExperimentalFlagsForTesting);
 
+  // Coverage-ignore(suite): Not run.
   /// Returns the minimum language version needed for a library with the given
   /// [importUri] to opt into the experiment with the given [flag].
   ///
@@ -308,6 +282,7 @@ class CompilerOptions {
             experimentReleasedVersionForTesting);
   }
 
+  // Coverage-ignore(suite): Not run.
   bool equivalent(CompilerOptions other,
       {bool ignoreOnDiagnostic = true,
       bool ignoreVerbose = true,
@@ -323,6 +298,10 @@ class CompilerOptions {
     if (packagesFileUri != other.packagesFileUri) return false;
     if (!equalLists(additionalDills, other.additionalDills)) return false;
     if (sdkSummary != other.sdkSummary) return false;
+    if (dynamicInterfaceSpecificationUri !=
+        other.dynamicInterfaceSpecificationUri) {
+      return false;
+    }
     if (!equalMaps(declaredVariables, other.declaredVariables)) return false;
     if (fileSystem != other.fileSystem) return false;
     if (compileSdk != other.compileSdk) return false;
@@ -366,7 +345,6 @@ class CompilerOptions {
     }
     if (skipForDebugging != other.skipForDebugging) return false;
     if (writeFileOnCrashReport != other.writeFileOnCrashReport) return false;
-    if (nnbdMode != other.nnbdMode) return false;
     if (currentSdkVersion != other.currentSdkVersion) return false;
     if (emitDeps != other.emitDeps) return false;
     if (!equalSets(invocationModes, other.invocationModes)) return false;
@@ -386,6 +364,7 @@ Map<String, bool> parseExperimentalArguments(Iterable<String>? arguments) {
     for (String argument in arguments) {
       for (String feature in argument.split(',')) {
         if (feature.startsWith('no-')) {
+          // Coverage-ignore-block(suite): Not run.
           result[feature.substring(3)] = false;
         } else {
           result[feature] = true;
@@ -417,14 +396,17 @@ Map<ExperimentalFlag, bool> parseExperimentalFlags(
       bool value = experiments[experiment]!;
       ExperimentalFlag? flag = parseExperimentalFlag(experiment);
       if (flag == null) {
+        // Coverage-ignore-block(suite): Not run.
         onError("Unknown experiment: " + experiment);
       } else if (flags.containsKey(flag)) {
+        // Coverage-ignore-block(suite): Not run.
         if (flags[flag] != value) {
           onError(
               "Experiment specified with conflicting values: " + experiment);
         }
       } else {
         if (flag.isExpired) {
+          // Coverage-ignore-block(suite): Not run.
           if (value != flag.isEnabledByDefault) {
             /// Produce an error when the value is not the default value.
             if (value) {
@@ -485,6 +467,7 @@ class InvocationMode {
     Set<InvocationMode> result = {};
     for (String name in arg.split(',')) {
       if (name.isNotEmpty) {
+        // Coverage-ignore-block(suite): Not run.
         InvocationMode? mode = fromName(name);
         if (mode == null) {
           String message = "Unknown invocation mode '$name'.";
@@ -501,6 +484,7 @@ class InvocationMode {
     return result;
   }
 
+  // Coverage-ignore(suite): Not run.
   /// Returns the [InvocationMode] with the given [name].
   static InvocationMode? fromName(String name) {
     for (InvocationMode invocationMode in values) {
@@ -533,10 +517,12 @@ class Verbosity {
 
   static const List<Verbosity> values = const [error, warning, info, all];
 
+  // Coverage-ignore(suite): Not run.
   /// Returns the names of all options.
   static List<String> get allowedValues =>
       [for (Verbosity value in values) value.name];
 
+  // Coverage-ignore(suite): Not run.
   /// Returns a map from option name to option help messages.
   static Map<String, String> get allowedValuesHelp =>
       {for (Verbosity value in values) value.name: value.help};
@@ -556,6 +542,7 @@ class Verbosity {
         return verbosity;
       }
     }
+    // Coverage-ignore-block(suite): Not run.
     String message = "Unknown verbosity '$name'.";
     if (onError != null) {
       onError(message);
@@ -564,6 +551,7 @@ class Verbosity {
     throw new UnsupportedError(message);
   }
 
+  // Coverage-ignore(suite): Not run.
   static bool shouldPrint(Verbosity verbosity, DiagnosticMessage message) {
     Severity severity = message.severity;
     switch (verbosity) {
@@ -616,4 +604,15 @@ class Verbosity {
 
   @override
   String toString() => 'Verbosity($name)';
+}
+
+// Coverage-ignore(suite): Not run.
+/// Interface for hooking into the compilation pipeline for testing.
+class HooksForTesting {
+  /// Called at the end of full compilation in the `KernelTarget.buildComponent`
+  /// method.
+  ///
+  /// [Component] is the fully built component as returned from
+  /// `KernelTarget.buildComponent`.
+  void onBuildComponentComplete(Component component) {}
 }

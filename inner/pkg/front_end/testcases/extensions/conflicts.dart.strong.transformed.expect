@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 //
 // Problems in library:
 //
@@ -16,7 +16,7 @@ library /*isNonNullableByDefault*/;
 //   duplicateMethodName1() => 1;
 //   ^^^^^^^^^^^^^^^^^^^^
 //
-// pkg/front_end/testcases/extensions/conflicts.dart:31:6: Error: The method 'uniqueMethod2' isn't defined for the class 'Class2'.
+// pkg/front_end/testcases/extensions/conflicts.dart:31:6: Error: The method 'uniqueMethod2' isn't defined for the type 'Class2'.
 //  - 'Class2' is from 'pkg/front_end/testcases/extensions/conflicts.dart'.
 // Try correcting the name to the name of an existing method, or defining a method named 'uniqueMethod2'.
 //   c2.uniqueMethod2();
@@ -37,24 +37,24 @@ class Class2 extends core::Object {
 }
 extension DuplicateExtensionName on self::Class1 {
   method uniqueMethod1 = self::DuplicateExtensionName|uniqueMethod1;
-  tearoff uniqueMethod1 = self::DuplicateExtensionName|get#uniqueMethod1;
+  method tearoff uniqueMethod1 = self::DuplicateExtensionName|get#uniqueMethod1;
   method duplicateMethodName2 = self::DuplicateExtensionName|duplicateMethodName2;
-  tearoff duplicateMethodName2 = self::DuplicateExtensionName|get#duplicateMethodName2;
+  method tearoff duplicateMethodName2 = self::DuplicateExtensionName|get#duplicateMethodName2;
 }
 extension UniqueExtensionName on self::Class1 {
   method duplicateMethodName1 = self::UniqueExtensionName|duplicateMethodName1;
-  tearoff duplicateMethodName1 = self::UniqueExtensionName|get#duplicateMethodName1;
+  method tearoff duplicateMethodName1 = self::UniqueExtensionName|get#duplicateMethodName1;
 }
-static method DuplicateExtensionName|uniqueMethod1(lowered final self::Class1 #this) → dynamic {}
-static method DuplicateExtensionName|get#uniqueMethod1(lowered final self::Class1 #this) → () → dynamic
+static extension-member method DuplicateExtensionName|uniqueMethod1(lowered final self::Class1 #this) → dynamic {}
+static extension-member method DuplicateExtensionName|get#uniqueMethod1(lowered final self::Class1 #this) → () → dynamic
   return () → dynamic => self::DuplicateExtensionName|uniqueMethod1(#this);
-static method DuplicateExtensionName|duplicateMethodName2(lowered final self::Class1 #this) → dynamic
+static extension-member method DuplicateExtensionName|duplicateMethodName2(lowered final self::Class1 #this) → dynamic
   return 1;
-static method DuplicateExtensionName|get#duplicateMethodName2(lowered final self::Class1 #this) → () → dynamic
+static extension-member method DuplicateExtensionName|get#duplicateMethodName2(lowered final self::Class1 #this) → () → dynamic
   return () → dynamic => self::DuplicateExtensionName|duplicateMethodName2(#this);
-static method UniqueExtensionName|duplicateMethodName1(lowered final self::Class1 #this) → dynamic
+static extension-member method UniqueExtensionName|duplicateMethodName1(lowered final self::Class1 #this) → dynamic
   return 1;
-static method UniqueExtensionName|get#duplicateMethodName1(lowered final self::Class1 #this) → () → dynamic
+static extension-member method UniqueExtensionName|get#duplicateMethodName1(lowered final self::Class1 #this) → () → dynamic
   return () → dynamic => self::UniqueExtensionName|duplicateMethodName1(#this);
 static method main() → dynamic {
   self::Class1 c1 = new self::Class1::•();
@@ -62,7 +62,7 @@ static method main() → dynamic {
 }
 static method errors() → dynamic {
   self::Class2 c2 = new self::Class2::•();
-  invalid-expression "pkg/front_end/testcases/extensions/conflicts.dart:31:6: Error: The method 'uniqueMethod2' isn't defined for the class 'Class2'.
+  invalid-expression "pkg/front_end/testcases/extensions/conflicts.dart:31:6: Error: The method 'uniqueMethod2' isn't defined for the type 'Class2'.
  - 'Class2' is from 'pkg/front_end/testcases/extensions/conflicts.dart'.
 Try correcting the name to the name of an existing method, or defining a method named 'uniqueMethod2'.
   c2.uniqueMethod2();

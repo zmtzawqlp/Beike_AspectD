@@ -2,16 +2,14 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: foo:[exact=JSBool]*/
-foo(/*[exact=JSUInt31]*/ x) {
-  if (x /*invoke: [exact=JSUInt31]*/ > 3) return true;
+/*member: foo:[exact=JSBool|powerset={I}{O}{N}]*/
+foo(/*[exact=JSUInt31|powerset={I}{O}{N}]*/ x) {
+  if (x /*invoke: [exact=JSUInt31|powerset={I}{O}{N}]*/ > 3) return true;
   return false;
 }
 
-/*member: bar:[null]*/
-bar(/*[exact=JSBool]*/ x) {
+/*member: bar:[null|powerset={null}]*/
+bar(/*[exact=JSBool|powerset={I}{O}{N}]*/ x) {
   if (x) {
     print("aaa");
   } else {
@@ -19,7 +17,8 @@ bar(/*[exact=JSBool]*/ x) {
   }
 }
 
-/*member: main:[null]*/ main() {
+/*member: main:[null|powerset={null}]*/
+main() {
   bar(foo(5));
   bar(foo(6));
 }

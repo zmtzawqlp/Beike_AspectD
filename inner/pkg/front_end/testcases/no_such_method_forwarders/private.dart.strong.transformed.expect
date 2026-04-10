@@ -1,4 +1,4 @@
-library private /*isNonNullableByDefault*/;
+library private;
 import self as self;
 import "dart:core" as core;
 import "private_module.dart" as pri;
@@ -16,8 +16,8 @@ class Bar extends self::Foo implements pri::Fisk {
   synthetic constructor •() → self::Bar
     : super self::Foo::•()
     ;
-  no-such-method-forwarder method _hest() → void
-    return throw core::NoSuchMethodError::withInvocation(this, new core::_InvocationMirror::_withType(#C1, 0, #C2, #C3, core::Map::unmodifiable<core::Symbol*, dynamic>(#C4)));
+  synthetic no-such-method-forwarder method pri::_hest() → void
+    return throw{for-error-handling} core::NoSuchMethodError::withInvocation(this, new core::_InvocationMirror::_withType(#C1, 0, #C2, #C3, core::Map::unmodifiable<core::Symbol, dynamic>(#C4)));
 }
 class Baz extends self::Foo implements pri::Fisk {
   synthetic constructor •() → self::Baz
@@ -25,12 +25,12 @@ class Baz extends self::Foo implements pri::Fisk {
     ;
   method _hest() → dynamic
     return null;
-  no-such-method-forwarder method _hest() → void
-    return throw core::NoSuchMethodError::withInvocation(this, new core::_InvocationMirror::_withType(#C1, 0, #C2, #C3, core::Map::unmodifiable<core::Symbol*, dynamic>(#C4)));
+  synthetic no-such-method-forwarder method pri::_hest() → void
+    return throw{for-error-handling} core::NoSuchMethodError::withInvocation(this, new core::_InvocationMirror::_withType(#C1, 0, #C2, #C3, core::Map::unmodifiable<core::Symbol, dynamic>(#C4)));
 }
 static method main() → dynamic {}
 
-library private_module /*isNonNullableByDefault*/;
+library private_module;
 import self as pri;
 import "dart:core" as core;
 
@@ -44,7 +44,7 @@ static method main() → dynamic {}
 
 constants  {
   #C1 = #org-dartlang-testcase:///private.dart::_hest
-  #C2 = <core::Type*>[]
+  #C2 = <core::Type>[]
   #C3 = <dynamic>[]
-  #C4 = <core::Symbol*, dynamic>{}
+  #C4 = <core::Symbol, dynamic>{}
 }

@@ -2,8 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
 /*spec.class: A:checkedInstance,checkedTypeArgument,typeArgument*/
 /*prod.class: A:checkedTypeArgument,typeArgument*/
 class A {}
@@ -24,7 +22,8 @@ class D extends C<B> {}
 main() {
   C<A> c = D();
   c.method(
-      /*spec.checks=[$signature],instance*/
-      /*prod.checks=[],instance*/
-      (A a) {});
+    /*spec.checks=[$signature],instance*/
+    /*prod.checks=[],instance*/
+    (A a) {},
+  );
 }

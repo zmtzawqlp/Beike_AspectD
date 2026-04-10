@@ -2,10 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: foo:[null|exact=JSUInt31]*/
-foo(int /*[subclass=JSInt]*/ x) {
+/*member: foo:[null|exact=JSUInt31|powerset={null}{I}{O}{N}]*/
+foo(int /*[subclass=JSInt|powerset={I}{O}{N}]*/ x) {
   var a;
   do {
     // add extra locals scope
@@ -22,7 +20,10 @@ foo(int /*[subclass=JSInt]*/ x) {
   return a;
 }
 
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
-  foo(new DateTime.now(). /*[exact=DateTime]*/ millisecondsSinceEpoch);
+  foo(
+    new DateTime.now()
+        . /*[exact=DateTime|powerset={N}{O}{N}]*/ millisecondsSinceEpoch,
+  );
 }

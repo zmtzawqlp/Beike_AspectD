@@ -3,15 +3,13 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:io' show Directory, File;
+import 'dart:typed_data';
 
 import 'package:expect/expect.dart' show Expect;
-
 import 'package:front_end/src/compute_platform_binaries_location.dart'
     show computePlatformBinariesLocation;
-
-import 'package:kernel/binary/ast_from_binary.dart' show BinaryBuilder;
-
 import 'package:kernel/ast.dart';
+import 'package:kernel/binary/ast_from_binary.dart' show BinaryBuilder;
 import 'package:kernel/src/equivalence.dart';
 import 'package:kernel/target/targets.dart';
 
@@ -32,7 +30,7 @@ Future<void> main() async {
 }
 
 Future<void> testDart2jsCompile() async {
-  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/bin/dart2js.dart");
+  final Uri dart2jsUrl = Uri.base.resolve("pkg/compiler/lib/src/dart2js.dart");
   final Uri invalidateUri =
       Uri.parse("package:_fe_analyzer_shared/src/util/filenames.dart");
   Uri normalDill = outDir.uri.resolve("dart2js.full.dill");
@@ -50,7 +48,7 @@ Future<void> testDart2jsCompile() async {
   {
     // Check that we don't include the source from files from the sdk.
     final Uri sdkRoot = computePlatformBinariesLocation(forceBuildDir: true);
-    Uri platformUri = sdkRoot.resolve("vm_platform_strong.dill");
+    Uri platformUri = sdkRoot.resolve("vm_platform.dill");
     Component cSdk = new Component();
     new BinaryBuilder(new File.fromUri(platformUri).readAsBytesSync(),
             disableLazyReading: false)
@@ -89,8 +87,8 @@ Future<void> testDart2jsCompile() async {
         "took ${stopwatch.elapsedMilliseconds} ms");
 
     // Compare the two files.
-    List<int> normalDillData = new File.fromUri(normalDill).readAsBytesSync();
-    List<int> initializedDillData =
+    Uint8List normalDillData = new File.fromUri(normalDill).readAsBytesSync();
+    Uint8List initializedDillData =
         new File.fromUri(fullDillFromInitialized).readAsBytesSync();
 
     Component component1 = new Component();

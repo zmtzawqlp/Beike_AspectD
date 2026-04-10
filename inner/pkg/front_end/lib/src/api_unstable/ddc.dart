@@ -4,80 +4,47 @@
 
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessageHandler;
-
 import 'package:kernel/class_hierarchy.dart';
-
 import 'package:kernel/kernel.dart' show Component, Library;
-
 import 'package:kernel/target/targets.dart' show Target;
 
 import '../api_prototype/compiler_options.dart' show CompilerOptions;
-
 import '../api_prototype/experimental_flags.dart' show ExperimentalFlag;
-
 import '../api_prototype/file_system.dart' show FileSystem;
-
 import '../api_prototype/kernel_generator.dart' show CompilerResult;
-
 import '../api_prototype/standard_file_system.dart' show StandardFileSystem;
-
 import '../base/processed_options.dart' show ProcessedOptions;
-
-import '../base/nnbd_mode.dart' show NnbdMode;
-
 import '../kernel_generator_impl.dart' show generateKernel;
-
 import 'compiler_state.dart' show InitializedCompilerState;
-
 import 'modular_incremental_compilation.dart' as modular
     show initializeIncrementalCompiler;
-
 import 'util.dart' show equalLists, equalMaps;
 
 export 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessage;
-
 export 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
 
 export '../api_prototype/compiler_options.dart'
     show CompilerOptions, parseExperimentalFlags, parseExperimentalArguments;
-
 export '../api_prototype/experimental_flags.dart'
     show ExperimentalFlag, parseExperimentalFlag;
-
 export '../api_prototype/kernel_generator.dart' show kernelForModule;
-
 export '../api_prototype/lowering_predicates.dart';
-
 export '../api_prototype/memory_file_system.dart' show MemoryFileSystem;
-
 export '../api_prototype/standard_file_system.dart' show StandardFileSystem;
-
 export '../api_prototype/terminal_color_support.dart'
     show printDiagnosticMessage;
-
-export '../fasta/ticker.dart' show Ticker;
+export '../base/compiler_context.dart' show CompilerContext;
+export '../base/hybrid_file_system.dart' show HybridFileSystem;
+export '../base/incremental_compiler.dart' show IncrementalCompiler;
+export '../base/incremental_serializer.dart' show IncrementalSerializer;
 export '../base/processed_options.dart' show ProcessedOptions;
-
-export '../base/nnbd_mode.dart' show NnbdMode;
-
-export '../fasta/compiler_context.dart' show CompilerContext;
-
-export '../fasta/incremental_compiler.dart' show IncrementalCompiler;
-
-export '../fasta/kernel/constructor_tearoff_lowering.dart'
-    show isTearOffLowering;
-
-export '../fasta/kernel/redirecting_factory_body.dart'
-    show
-        getRedirectingFactories,
-        RedirectingFactoryBody,
-        isRedirectingFactoryField,
-        redirectingName;
-
-export '../fasta/type_inference/type_schema_environment.dart'
+export '../base/ticker.dart' show Ticker;
+export '../compute_platform_binaries_location.dart'
+    show computePlatformBinariesLocation;
+export '../kernel/constructor_tearoff_lowering.dart' show isTearOffLowering;
+export '../type_inference/type_schema_environment.dart'
     show TypeSchemaEnvironment;
-
 export 'compiler_state.dart'
     show InitializedCompilerState, WorkerInputComponent, digestsEqual;
 
@@ -87,13 +54,13 @@ class DdcResult {
   final List<Component> additionalDills;
   final ClassHierarchy classHierarchy;
   final Set<Library>? neededDillLibraries;
+  late final Set<Library> librariesFromDill = _computeLibrariesFromDill();
+  late final Component compiledLibraries = _computeCompiledLibraries();
 
   DdcResult(this.component, this.sdkSummary, this.additionalDills,
-      this.classHierarchy, this.neededDillLibraries)
-      // ignore: unnecessary_null_comparison
-      : assert(classHierarchy != null);
+      this.classHierarchy, this.neededDillLibraries);
 
-  Set<Library> computeLibrariesFromDill() {
+  Set<Library> _computeLibrariesFromDill() {
     Set<Library> librariesFromDill = new Set<Library>();
 
     for (Component c in additionalDills) {
@@ -109,6 +76,18 @@ class DdcResult {
 
     return librariesFromDill;
   }
+
+  Component _computeCompiledLibraries() {
+    Component compiledLibraries = new Component(
+        nameRoot: component.root, uriToSource: component.uriToSource)
+      ..setMainMethodAndMode(null, false);
+    for (Library lib in component.libraries) {
+      if (!librariesFromDill.contains(lib)) {
+        compiledLibraries.libraries.add(lib);
+      }
+    }
+    return compiledLibraries;
+  }
 }
 
 InitializedCompilerState initializeCompiler(
@@ -122,10 +101,7 @@ InitializedCompilerState initializeCompiler(
     Target target,
     {FileSystem? fileSystem,
     Map<ExperimentalFlag, bool>? explicitExperimentalFlags,
-    Map<String, String>? environmentDefines,
-    required NnbdMode nnbdMode}) {
-  // ignore: unnecessary_null_comparison
-  assert(nnbdMode != null, "No NnbdMode provided.");
+    Map<String, String>? environmentDefines}) {
   additionalDills.sort((a, b) => a.toString().compareTo(b.toString()));
 
   if (oldState != null &&
@@ -133,7 +109,6 @@ InitializedCompilerState initializeCompiler(
       oldState.options.sdkSummary == sdkSummary &&
       oldState.options.packagesFileUri == packagesFile &&
       oldState.options.librariesSpecificationUri == librariesSpecificationUri &&
-      oldState.options.nnbdMode == nnbdMode &&
       equalLists(oldState.options.additionalDills, additionalDills) &&
       equalMaps(oldState.options.explicitExperimentalFlags,
           explicitExperimentalFlags) &&
@@ -151,8 +126,7 @@ InitializedCompilerState initializeCompiler(
     ..librariesSpecificationUri = librariesSpecificationUri
     ..target = target
     ..fileSystem = fileSystem ?? StandardFileSystem.instance
-    ..environmentDefines = environmentDefines
-    ..nnbdMode = nnbdMode;
+    ..environmentDefines = environmentDefines;
   if (explicitExperimentalFlags != null) {
     options.explicitExperimentalFlags = explicitExperimentalFlags;
   }
@@ -181,8 +155,7 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
     {FileSystem? fileSystem,
     required Map<ExperimentalFlag, bool> explicitExperimentalFlags,
     required Map<String, String> environmentDefines,
-    bool trackNeededDillLibraries = false,
-    required NnbdMode nnbdMode}) {
+    bool trackNeededDillLibraries = false}) {
   return modular.initializeIncrementalCompiler(
       oldState,
       tags,
@@ -200,8 +173,7 @@ Future<InitializedCompilerState> initializeIncrementalCompiler(
       environmentDefines: environmentDefines,
       outlineOnly: false,
       omitPlatform: false,
-      trackNeededDillLibraries: trackNeededDillLibraries,
-      nnbdMode: nnbdMode);
+      trackNeededDillLibraries: trackNeededDillLibraries);
 }
 
 Future<DdcResult?> compile(InitializedCompilerState compilerState,

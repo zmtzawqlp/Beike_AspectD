@@ -14,9 +14,9 @@ import 'package:_fe_analyzer_shared/src/testing/id.dart'
 import 'package:_fe_analyzer_shared/src/testing/id_testing.dart'
     show DataInterpreter, cfeMarker, runTests;
 import 'package:front_end/src/api_prototype/experimental_flags.dart';
-import 'package:front_end/src/fasta/kernel/exhaustiveness.dart';
+import 'package:front_end/src/kernel/exhaustiveness.dart';
 import 'package:front_end/src/testing/id_testing_helper.dart';
-import 'package:kernel/ast.dart' hide Variance;
+import 'package:kernel/ast.dart';
 
 Future<void> main(List<String> args) async {
   Directory dataDir = new Directory.fromUri(Platform.script
@@ -26,16 +26,17 @@ Future<void> main(List<String> args) async {
       createUriForFileName: createUriForFileName,
       onFailure: onFailure,
       runTest: runTestFor<Features>(const ExhaustivenessDataComputer(), [
-        const TestConfig(cfeMarker, 'cfe with experiments',
+        const CfeTestConfig(cfeMarker, 'cfe with experiments',
             explicitExperimentalFlags: const {
               ExperimentalFlag.patterns: true,
               ExperimentalFlag.records: true,
-              ExperimentalFlag.sealedClass: true
+              ExperimentalFlag.sealedClass: true,
+              ExperimentalFlag.inlineClass: true
             })
       ]));
 }
 
-class ExhaustivenessDataComputer extends DataComputer<Features> {
+class ExhaustivenessDataComputer extends CfeDataComputer<Features> {
   const ExhaustivenessDataComputer();
 
   @override
@@ -46,7 +47,7 @@ class ExhaustivenessDataComputer extends DataComputer<Features> {
   ///
   /// Fills [actualMap] with the data.
   @override
-  void computeMemberData(TestResultData testResultData, Member member,
+  void computeMemberData(CfeTestResultData testResultData, Member member,
       Map<Id, ActualData<Features>> actualMap,
       {bool? verbose}) {
     member.accept(new ExhaustivenessDataExtractor(
@@ -100,20 +101,16 @@ class ExhaustivenessDataExtractor extends CfeDataExtractor<Features> {
         features[Tags.scrutineeFields] = fieldsToText(result.scrutineeType,
             _exhaustivenessData.objectFieldLookup!, fieldsOfInterest);
       }
-      for (ExhaustivenessError error in result.errors) {
-        if (error is NonExhaustiveError) {
-          features[Tags.error] = errorToText(error);
-        }
+      if (result.nonExhaustiveness case NonExhaustiveness nonExhaustiveness) {
+        features[Tags.error] = nonExhaustivenessToText(nonExhaustiveness);
       }
       Uri uri = node.location!.file;
       for (int i = 0; i < result.caseSpaces.length; i++) {
         int offset = result.caseOffsets[i];
         Features caseFeatures = new Features();
         caseFeatures[Tags.space] = spacesToText(result.caseSpaces[i]);
-        for (ExhaustivenessError error in result.errors) {
-          if (error is UnreachableCaseError && error.index == i) {
-            caseFeatures[Tags.error] = errorToText(error);
-          }
+        if (result.unreachableCases.contains(i)) {
+          caseFeatures[Tags.error] = 'unreachable';
         }
         registerValue(
             uri, offset, new NodeId(offset, IdKind.node), caseFeatures, node);

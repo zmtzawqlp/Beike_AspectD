@@ -8,11 +8,11 @@ import 'package:kernel/ast.dart' as ir;
 
 /// Kinds of foreign functions.
 enum ForeignKind {
-  JS,
-  JS_BUILTIN,
-  JS_EMBEDDED_GLOBAL,
-  JS_INTERCEPTOR_CONSTANT,
-  NONE,
+  js,
+  jsBuiltin,
+  jsEmbeddedGlobal,
+  jsInterceptorConstant,
+  none,
 }
 
 // Members which dart2js ignores.
@@ -28,6 +28,7 @@ bool memberIsIgnorable(ir.Member node, {ir.Class? cls}) {
     case ir.ProcedureStubKind.MemberSignature:
     case ir.ProcedureStubKind.AbstractMixinStub:
     case ir.ProcedureStubKind.ConcreteMixinStub:
+    case ir.ProcedureStubKind.RepresentationField:
       return true;
   }
 }

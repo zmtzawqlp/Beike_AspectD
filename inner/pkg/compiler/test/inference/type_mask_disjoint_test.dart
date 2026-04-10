@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/common/elements.dart';
 import 'package:compiler/src/compiler.dart';
@@ -13,7 +13,7 @@ import 'package:compiler/src/js_model/js_world.dart' show JClosedWorld;
 import 'package:compiler/src/util/memory_compiler.dart';
 
 const String CODE = """
-class A {}
+mixin class A {}
 class B extends A {}
 class C extends A {}
 
@@ -24,7 +24,7 @@ class F extends E {}
 class G implements E {}
 
 class H {}
-class I implements H {}
+mixin class I implements H {}
 class J extends D implements I {}
 
 class K {}
@@ -40,10 +40,11 @@ main() {
 
 main() {
   runTests() async {
-    CompilationResult result =
-        await runCompiler(memorySourceFiles: {'main.dart': CODE});
+    CompilationResult result = await runCompiler(
+      memorySourceFiles: {'main.dart': CODE},
+    );
     Expect.isTrue(result.isSuccess);
-    Compiler compiler = result.compiler;
+    Compiler compiler = result.compiler!;
     JClosedWorld world = compiler.backendClosedWorldForTesting!;
     ElementEnvironment elementEnvironment = world.elementEnvironment;
     final commonMasks = world.abstractValueDomain as CommonMasks;
@@ -88,37 +89,52 @@ main() {
 
           if (type == " ") {
             Expect.isFalse(isExact || isSubclass || isSubtype);
-            return isNullable ? TypeMask.empty() : TypeMask.nonNullEmpty();
+            return isNullable
+                ? TypeMask.empty(commonMasks)
+                : TypeMask.nonNullEmpty(commonMasks);
           }
 
           Expect.isTrue(isExact || isSubclass || isSubtype);
           var element = _elementCache.putIfAbsent(type, () {
             if (type == " ") return null;
-            final cls = elementEnvironment.lookupClass(
-                elementEnvironment.mainLibrary!, type) as ClassEntity;
+            final cls =
+                elementEnvironment.lookupClass(
+                      elementEnvironment.mainLibrary!,
+                      type,
+                    )
+                    as ClassEntity;
             Expect.isNotNull(cls, "No class '$type' found.");
             return cls;
           });
 
           var mask = isExact
-              ? TypeMask.nonNullExact(element, world)
+              ? TypeMask.nonNullExact(element, commonMasks)
               : (isSubclass
-                  ? TypeMask.nonNullSubclass(element, world)
-                  : TypeMask.nonNullSubtype(element, world));
-          return isNullable ? mask.nullable() : mask;
+                    ? TypeMask.nonNullSubclass(element, commonMasks)
+                    : TypeMask.nonNullSubtype(element, commonMasks));
+          return isNullable ? mask.nullable(commonMasks) : mask;
         });
 
     /// Checks the expectation of `isDisjoint` for two mask descriptors (see
     /// [maskOf] for details).
-    check(String typeMaskDescriptor1, String typeMaskDescriptor2,
-        {areDisjoint = true}) {
+    check(
+      String typeMaskDescriptor1,
+      String typeMaskDescriptor2, {
+      areDisjoint = true,
+    }) {
       print('[$typeMaskDescriptor1] & [$typeMaskDescriptor2]');
-      checkMask(maskOf(typeMaskDescriptor1), maskOf(typeMaskDescriptor2),
-          areDisjoint: areDisjoint);
+      checkMask(
+        maskOf(typeMaskDescriptor1),
+        maskOf(typeMaskDescriptor2),
+        areDisjoint: areDisjoint,
+      );
     }
 
-    checkUnions(List<String> descriptors1, List<String> descriptors2,
-        {areDisjoint = true}) {
+    checkUnions(
+      List<String> descriptors1,
+      List<String> descriptors2, {
+      areDisjoint = true,
+    }) {
       print('[$descriptors1] & [$descriptors2]');
       var m1 = TypeMask.unionOf(descriptors1.map(maskOf).toList(), commonMasks);
       var m2 = TypeMask.unionOf(descriptors2.map(maskOf).toList(), commonMasks);

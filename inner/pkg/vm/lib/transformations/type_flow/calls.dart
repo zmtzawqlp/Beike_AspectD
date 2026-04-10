@@ -3,6 +3,7 @@
 // BSD-style license that can be found in the LICENSE file.
 
 /// Declares classes which describe a call: selectors and arguments.
+library;
 
 import 'dart:core' hide Type;
 
@@ -98,14 +99,16 @@ class DirectSelector extends Selector {
   final Member member;
 
   DirectSelector(this.member, {CallKind callKind = CallKind.Method})
-      : super(callKind) {
-    assert((callKind == CallKind.Method) ||
-        (callKind == CallKind.PropertyGet) ||
-        memberAgreesToCallKind(member));
+    : super(callKind) {
+    assert(
+      (callKind == CallKind.Method) ||
+          (callKind == CallKind.PropertyGet) ||
+          memberAgreesToCallKind(member),
+    );
   }
 
   @override
-  int get hashCode => (super.hashCode ^ member.hashCode) & kHashMask;
+  int get hashCode => combineHashes(super.hashCode, member.hashCode);
 
   @override
   bool operator ==(other) =>
@@ -113,7 +116,8 @@ class DirectSelector extends Selector {
       other is DirectSelector && super == (other) && other.member == member;
 
   @override
-  String toString() => 'direct ${_callKindPrefix}'
+  String toString() =>
+      'direct ${_callKindPrefix}'
       '[${nodeToText(member)}]';
 }
 
@@ -122,10 +126,10 @@ class InterfaceSelector extends Selector {
   final Member member;
 
   InterfaceSelector(this.member, {CallKind callKind = CallKind.Method})
-      : super(callKind);
+    : super(callKind);
 
   @override
-  int get hashCode => (super.hashCode ^ member.hashCode + 31) & kHashMask;
+  int get hashCode => combineHashes(super.hashCode, member.hashCode);
 
   @override
   bool operator ==(other) =>
@@ -133,24 +137,29 @@ class InterfaceSelector extends Selector {
       other is InterfaceSelector && super == (other) && other.member == member;
 
   @override
-  String toString() => '${_callKindPrefix}'
+  String toString() =>
+      '${_callKindPrefix}'
       '[${nodeToText(member)}]';
 }
 
 /// Virtual call (using 'this' as a receiver).
 class VirtualSelector extends InterfaceSelector {
   VirtualSelector(Member member, {CallKind callKind = CallKind.Method})
-      : super(member, callKind: callKind);
+    : super(member, callKind: callKind);
 
   @override
-  int get hashCode => (super.hashCode + 37) & kHashMask;
+  int get hashCode {
+    const int seed = 37;
+    return combineHashes(seed, super.hashCode);
+  }
 
   @override
   bool operator ==(other) =>
       identical(this, other) || other is VirtualSelector && super == (other);
 
   @override
-  String toString() => 'virtual ${_callKindPrefix}'
+  String toString() =>
+      'virtual ${_callKindPrefix}'
       '[${nodeToText(member)}]';
 }
 
@@ -159,7 +168,7 @@ class DynamicSelector extends Selector {
   @override
   final Name name;
 
-  static final kCall = new DynamicSelector(CallKind.Method, new Name('call'));
+  static final kCall = DynamicSelector(CallKind.Method, Name.callName);
 
   DynamicSelector(CallKind callKind, this.name) : super(callKind);
 
@@ -167,7 +176,7 @@ class DynamicSelector extends Selector {
   Member? get member => null;
 
   @override
-  int get hashCode => (super.hashCode ^ name.hashCode + 37) & kHashMask;
+  int get hashCode => combineHashes(super.hashCode, name.hashCode);
 
   @override
   bool operator ==(other) =>
@@ -176,6 +185,32 @@ class DynamicSelector extends Selector {
 
   @override
   String toString() => 'dynamic ${_callKindPrefix}[${nodeToText(name)}]';
+}
+
+/// Function call with known function type.
+class FunctionSelector extends Selector {
+  final Type staticResultType;
+
+  @override
+  Name get name => Name.callName;
+
+  FunctionSelector(this.staticResultType) : super(CallKind.Method);
+
+  @override
+  Member? get member => null;
+
+  @override
+  int get hashCode => combineHashes(super.hashCode, staticResultType.hashCode);
+
+  @override
+  bool operator ==(other) =>
+      identical(this, other) ||
+      other is FunctionSelector &&
+          super == (other) &&
+          other.staticResultType == staticResultType;
+
+  @override
+  String toString() => 'function [=> ${staticResultType}]';
 }
 
 /// Arguments passed to a call, including implicit receiver argument.
@@ -192,8 +227,8 @@ class Args<T extends TypeExpr> {
   }
 
   Args.withReceiver(Args<T> args, T receiver)
-      : values = new List.from(args.values),
-        names = args.names {
+    : values = new List.from(args.values),
+      names = args.names {
     values[0] = receiver;
   }
 
@@ -204,11 +239,11 @@ class Args<T extends TypeExpr> {
 
   int _computeHashCode() {
     int hash = 1231;
-    for (var v in values) {
-      hash = (((hash * 31) & kHashMask) + v.hashCode) & kHashMask;
+    for (var i = 0; i < values.length; i++) {
+      hash = combineHashes(hash, values[i].hashCode);
     }
-    for (var n in names) {
-      hash = (((hash * 31) & kHashMask) + n.hashCode) & kHashMask;
+    for (var i = 0; i < names.length; i++) {
+      hash = combineHashes(hash, names[i].hashCode);
     }
     return hash;
   }

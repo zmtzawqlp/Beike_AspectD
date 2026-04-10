@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'dart:typed_data';
+
 import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
 import 'package:kernel/src/tool/find_referenced_libraries.dart';
@@ -24,10 +26,10 @@ void main() {
 
   ByteSink sink = new ByteSink();
   new BinaryPrinter(sink).writeComponentFile(component1);
-  List<int> writtenBytes1 = sink.builder.takeBytes();
+  Uint8List writtenBytes1 = sink.builder.takeBytes();
   sink = new ByteSink();
   new BinaryPrinter(sink).writeComponentFile(component2);
-  List<int> writtenBytes2 = sink.builder.takeBytes();
+  Uint8List writtenBytes2 = sink.builder.takeBytes();
 
   // Loading a single one works as one would expect: It's linked to itself.
   Component component1Prime = new Component();
@@ -80,6 +82,10 @@ void main() {
     // After the relink only the libs from component1Prime are reachable!
     expectReachable(findAllReferencedLibraries(component1Prime.libraries),
         component1Prime.libraries);
+    expectReachable(
+        findAllReferencedLibraries(component1Prime.libraries,
+            collectViaReferencesToo: true),
+        component1Prime.libraries);
     if (duplicateLibrariesReachable(component1Prime.libraries)) {
       throw "Didn't expect duplicates libraries!";
     }
@@ -102,6 +108,10 @@ void main() {
     component2Prime.relink();
     // After the relink only the libs from component1Prime are reachable!
     expectReachable(findAllReferencedLibraries(component2Prime.libraries),
+        component2Prime.libraries);
+    expectReachable(
+        findAllReferencedLibraries(component2Prime.libraries,
+            collectViaReferencesToo: true),
         component2Prime.libraries);
     if (duplicateLibrariesReachable(component2Prime.libraries)) {
       throw "Didn't expect duplicates libraries!";
@@ -160,6 +170,21 @@ Component createComponent(int literal) {
       fileUri: libUri);
   lib.addProcedure(libProcedure);
 
+  ExtensionTypeDeclaration extensionTypeDeclaration =
+      new ExtensionTypeDeclaration(name: "Foo", fileUri: libUri);
+  extensionTypeDeclaration.declaredRepresentationType = DynamicType();
+  extensionTypeDeclaration.representationName = "extensionTypeMethod";
+  final Block extensionTypeProcedureBody =
+      new Block([new ReturnStatement(new IntLiteral(literal))]);
+  final Procedure extensionTypeProcedure = new Procedure(
+      new Name("extensionTypeMethod"),
+      ProcedureKind.Method,
+      new FunctionNode(extensionTypeProcedureBody,
+          returnType: new DynamicType()),
+      fileUri: libUri);
+  extensionTypeDeclaration.addProcedure(extensionTypeProcedure);
+  lib.addExtensionTypeDeclaration(extensionTypeDeclaration);
+
   final Uri mainUri = Uri.parse('org-dartlang:///main.dart');
   final Library main = new Library(mainUri, fileUri: mainUri);
   final Block mainProcedureBody = new Block([
@@ -173,5 +198,5 @@ Component createComponent(int literal) {
       fileUri: mainUri);
   main.addProcedure(mainProcedure);
   return new Component(libraries: [main, lib])
-    ..setMainMethodAndMode(null, false, NonNullableByDefaultCompiledMode.Weak);
+    ..setMainMethodAndMode(null, false);
 }

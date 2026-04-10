@@ -4,40 +4,25 @@
 
 import 'package:_fe_analyzer_shared/src/messages/codes.dart'
     show messageMissingMain;
-
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show DiagnosticMessageHandler;
-
 import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
-
 import 'package:kernel/kernel.dart' show Component;
-
 import 'package:kernel/target/targets.dart' show Target;
 
 import '../api_prototype/compiler_options.dart'
     show CompilerOptions, InvocationMode, Verbosity;
-
 import '../api_prototype/experimental_flags.dart' show ExperimentalFlag;
-
 import '../api_prototype/file_system.dart' show FileSystem, NullFileSystem;
-
 import '../api_prototype/kernel_generator.dart' show CompilerResult;
-
+import '../base/compiler_context.dart' show CompilerContext;
 import '../base/processed_options.dart' show ProcessedOptions;
-
-import '../base/nnbd_mode.dart' show NnbdMode;
-
-import '../fasta/compiler_context.dart' show CompilerContext;
-
 import '../kernel_generator_impl.dart' show generateKernelInternal;
-
 import 'compiler_state.dart' show InitializedCompilerState;
-
 import 'util.dart' show equalLists, equalMaps, equalSets;
 
 export 'package:_fe_analyzer_shared/src/messages/codes.dart'
     show LocatedMessage;
-
 export 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
     show
         DiagnosticMessage,
@@ -47,15 +32,9 @@ export 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
         getMessageLength,
         getMessageRelatedInformation,
         getMessageUri;
-
 export 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
-
 export 'package:_fe_analyzer_shared/src/parser/async_modifier.dart'
     show AsyncModifier;
-
-export 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
-    show isUserDefinableOperator, isMinusOperator;
-
 export 'package:_fe_analyzer_shared/src/scanner/characters.dart'
     show
         $$,
@@ -77,15 +56,13 @@ export 'package:_fe_analyzer_shared/src/scanner/characters.dart'
         $g,
         $s,
         $z;
-
+export 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
+    show isUserDefinableOperator, isMinusOperator;
 export 'package:_fe_analyzer_shared/src/util/filenames.dart'
     show nativeToUri, nativeToUriPath, uriPathToNative;
-
 export 'package:_fe_analyzer_shared/src/util/link.dart' show Link, LinkBuilder;
-
 export 'package:_fe_analyzer_shared/src/util/link_implementation.dart'
     show LinkEntry;
-
 export 'package:_fe_analyzer_shared/src/util/relativize.dart'
     show relativizeUri;
 
@@ -96,38 +73,24 @@ export '../api_prototype/compiler_options.dart'
         Verbosity,
         parseExperimentalFlags,
         parseExperimentalArguments;
-
 export '../api_prototype/const_conditional_simplifier.dart';
-
 export '../api_prototype/constant_evaluator.dart';
-
 export '../api_prototype/experimental_flags.dart'
     show defaultExperimentalFlags, ExperimentalFlag, isExperimentEnabled;
-
 export '../api_prototype/file_system.dart'
     show FileSystem, FileSystemEntity, FileSystemException;
-
 export '../api_prototype/kernel_generator.dart' show kernelForProgram;
-
 export '../api_prototype/language_version.dart'
     show uriUsesLegacyLanguageVersion;
-
 export '../api_prototype/standard_file_system.dart' show DataFileSystemEntity;
-
 export '../api_prototype/try_constant_evaluator.dart';
-
-export '../base/nnbd_mode.dart' show NnbdMode;
-
+export '../base/operator.dart' show Operator;
 export '../compute_platform_binaries_location.dart'
     show computePlatformBinariesLocation;
-
-export '../fasta/kernel/redirecting_factory_body.dart'
-    show isRedirectingFactoryField;
-
-export '../fasta/operator.dart' show operatorFromString;
-
+export '../kernel/utils.dart' show ByteSink, serializeComponent;
 export 'compiler_state.dart' show InitializedCompilerState;
 
+// Coverage-ignore(suite): Not run.
 InitializedCompilerState initializeCompiler(
     InitializedCompilerState? oldState,
     Target target,
@@ -137,7 +100,6 @@ InitializedCompilerState initializeCompiler(
     {required Map<ExperimentalFlag, bool> explicitExperimentalFlags,
     Map<String, String>? environmentDefines,
     bool verify = false,
-    NnbdMode? nnbdMode,
     Set<InvocationMode> invocationModes = const <InvocationMode>{},
     Verbosity verbosity = Verbosity.all}) {
   additionalDills.sort((a, b) => a.toString().compareTo(b.toString()));
@@ -153,7 +115,6 @@ InitializedCompilerState initializeCompiler(
           explicitExperimentalFlags) &&
       equalMaps(oldState.options.environmentDefines, environmentDefines) &&
       oldState.options.verify == verify &&
-      oldState.options.nnbdMode == nnbdMode &&
       equalSets(oldState.options.invocationModes, invocationModes) &&
       oldState.options.verbosity == verbosity) {
     return oldState;
@@ -170,21 +131,20 @@ InitializedCompilerState initializeCompiler(
     ..verify = verify
     ..invocationModes = invocationModes
     ..verbosity = verbosity;
-  if (nnbdMode != null) options.nnbdMode = nnbdMode;
 
   ProcessedOptions processedOpts = new ProcessedOptions(options: options);
 
   return new InitializedCompilerState(options, processedOpts);
 }
 
+// Coverage-ignore(suite): Not run.
 Future<Component?> compile(
     InitializedCompilerState state,
     bool verbose,
     FileSystem fileSystem,
     DiagnosticMessageHandler onDiagnostic,
-    List<Uri> inputs,
-    bool isModularCompile) async {
-  assert(inputs.length == 1 || isModularCompile);
+    List<Uri> inputs) async {
+  assert(inputs.length == 1);
   CompilerOptions options = state.options;
   options
     ..onDiagnostic = onDiagnostic
@@ -198,11 +158,12 @@ Future<Component?> compile(
 
   CompilerResult? compilerResult = await CompilerContext.runWithOptions(
       processedOpts, (CompilerContext context) async {
-    CompilerResult compilerResult = await generateKernelInternal();
+    CompilerResult compilerResult = await generateKernelInternal(context);
     Component? component = compilerResult.component;
     if (component == null) return null;
-    if (component.mainMethod == null && !isModularCompile) {
+    if (component.mainMethod == null) {
       context.options.report(
+          context,
           messageMissingMain.withLocation(inputs.single, -1, 0),
           Severity.error);
       return null;

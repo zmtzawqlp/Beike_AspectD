@@ -28,19 +28,7 @@ The current compiler phases are:
     The result of this phase is a kernel AST which is serialized as a `.dill`
     file.
 
-  2. **modular analysis**: Using kernel as input, compute data recording
-     properties about each method in the program, especially around dependencies
-     and features they may need. We call this "impact data" (i1).
-
-     When the compiler runs as a single process, this is done lazily/on-demand
-     during the tree-shaking phase (below). However, this data can also be
-     computed independently for individual methods, files, or packages in the
-     application.  That makes it possible to run this modularly and in parallel.
-
-     The result of this phase can be emitted as files containing impact data in
-     a serialized format.
-
-  3. **tree-shake and create world**: Create a model to understand what parts of
+  2. **tree-shake and create world**: Create a model to understand what parts of
      the code are used by an application. This consists of:
         * creating an intermediate representation called the "K model" that
           wraps our kernel representation
@@ -56,7 +44,7 @@ The current compiler phases are:
      in any subtype of some interface? The answers to these questions can help
      the compiler generate higher quality JavaScript.
 
-  4. **global analysis**: Run a global analysis that assumes closed world
+  3. **global analysis**: Run a global analysis that assumes closed world
      semantics (from w1) and propagates information across method boundaries to
      further understand what values flow through the program. This phase is
      very valuable in narrowing down possibilities that are ambiguous based
@@ -66,13 +54,13 @@ The current compiler phases are:
 
      The result of this phase is a "global result" (g).
 
-  5. **codegen model**: Create a JS or backend model of the program. This is an
+  4. **codegen model**: Create a JS or backend model of the program. This is an
      intermediate representation of the entities in the program we referred to
      as the "J model". It is very similar to the "K model", but it is tailored
      to model JavaScript specific concepts (like the split of constructor bodies
      as separate elements) and provide a mapping to the Dart model.
 
-  6. **codegen**: Generate code for each method that is deemed necessary. This
+  5. **codegen**: Generate code for each method that is deemed necessary. This
      includes:
         * build an SSA graph from kernel ASTs and global results (g)
         * optimize the SSA representation
@@ -80,7 +68,7 @@ The current compiler phases are:
         * emit JS ASTs for the code
 
 
-  7. **link tree-shake**: Using the results of codegen, we perform a second
+  6. **link tree-shake**: Using the results of codegen, we perform a second
      round of tree-shaking. This is important because code that was deemed
      reachable in (w1) may be found unreachable after optimizations. The process
      is very similar to the earlier phase: we combine incrementally the codegen
@@ -90,7 +78,7 @@ The current compiler phases are:
      When dart2js runs as a single process the codegen phase is done lazily and
      on-demand, together with the tree-shaking phase.
 
-  8. **emit JavaScript files**: The final step is to assemble and minify the
+  7. **emit JavaScript files**: The final step is to assemble and minify the
      final program. This includes:
      * Build a JavaScript program structure from the compiled pieces (w2)
      * Use frequency namer to minify names.
@@ -136,16 +124,6 @@ The current compiler phases are:
 Here are some details of our current code layout and what's in each file. This
 list also includes some action items (labeled AI below), which are mainly
 cleanup tasks that we have been discussing for a while:
-
-**bin folder**: some experimental command-line entrypoints, these need to be
-revisited
-
-* `bin/dart2js.dart`: is a dart2js entry point, not used today other than
-  locally for development, most of our tools launch dart2js from
-  `lib/src/dart2js.dart` instead.
-
-  AI: change how we build the SDK to launch dart2js from here, most logic might
-  remain inside `lib/src/dart2js.dart` for testing purposes.
 
 **lib folder**: API to use dart2js as a library. This is used by our
 command-line tool to launch dart2js, but also by pub to invoke dart2js as a
@@ -288,9 +266,9 @@ functionality is publicly exposed.
 
   * `lib/src/source_file_provider.dart`: _TODO: add details_.
 
-* Parsing: most of the parsing logic is now in the `front_end` package,
-  currently under `pkg/front_end/lib/src/fasta/scanner` and
-  `pkg/front_end/lib/src/fasta/parser`. The `front_end` parser is AST agnostic
+* Parsing: most of the parsing logic is now in the `fe_analyzer_shared` package,
+  currently under `pkg/_fe_analyzer_shared/lib/src/scanner` and
+  `pkg/fe_analyzer_shared/lib/src/parser`. The `front_end` parser is AST agnostic
   and uses listeners to create on the side what they want as the result of
   parsing. The logic to create dart2js' ASTs is defined in listeners within the
   compiler package:
@@ -384,18 +362,12 @@ functionality is publicly exposed.
 
 * `tool`: some helper scripts, some of these could be deleted
 
-  * `tool/perf.dart`: used by our benchmark runners to measure performance of
-    some frontend pieces of dart2js. We should be able to delete it in the near
-    future once the front end code is moved into `fasta`.
-
-  * `tool/perf_test.dart`: small test to ensure we don't break `perf.dart`.
-
   * `tool/track_memory.dart`: a helper script to see memory usage of dart2js
     while it's running. Used in the past to profile the global analysis phases
     when run on very large apps.
 
   * `tool/dart2js_stress.dart` and `tool/dart2js_profile_many.dart`: other
-    helper wrappers to make it easier to profile dart2js with Observatory.
+    helper wrappers to make it easier to profile dart2js with Dart DevTools.
 
 * Source map tracking (`lib/src/io`): helpers used to track source information
   and to build source map files. _TODO: add details_.

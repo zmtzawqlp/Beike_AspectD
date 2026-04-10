@@ -8,12 +8,13 @@
 library source_mapping.test.viewer;
 
 import 'dart:async';
+
 import 'package:_fe_analyzer_shared/src/util/filenames.dart';
-import 'package:compiler/src/util/util.dart';
-import 'source_mapping_tester.dart';
+
 import '../helpers/sourcemap_helper.dart';
 import '../helpers/sourcemap_html_helper.dart';
 import '../helpers/sourcemap_html_templates.dart';
+import 'source_mapping_tester.dart';
 
 const String DEFAULT_OUTPUT_PATH = 'out.js.map.html';
 
@@ -49,8 +50,10 @@ main(List<String> arguments) async {
     return;
   }
 
-  OutputConfigurations outputConfigurations =
-      OutputConfigurations(configurations, tests.keys);
+  OutputConfigurations outputConfigurations = OutputConfigurations(
+    configurations,
+    tests.keys,
+  );
   bool generateMultiConfigs = false;
   if (configurations.length > 1 || tests.length > 1) {
     for (String config in configurations) {
@@ -62,8 +65,12 @@ main(List<String> arguments) async {
     }
     generateMultiConfigs = true;
   } else {
-    outputConfigurations.registerPathUri(configurations.first, tests.keys.first,
-        outputPath, Uri.base.resolve(nativeToUriPath(outputPath)));
+    outputConfigurations.registerPathUri(
+      configurations.first,
+      tests.keys.first,
+      outputPath,
+      Uri.base.resolve(nativeToUriPath(outputPath)),
+    );
   }
 
   List<Measurement> measurements = <Measurement>[];
@@ -71,10 +78,14 @@ main(List<String> arguments) async {
     for (String file in tests.keys) {
       List<String> options = TEST_CONFIGURATIONS[config]!;
       Measurement measurement = await runTest(
-          config, file, tests[file]!, options,
-          outputUri: outputConfigurations.getUri(config, file),
-          verbose: !measure,
-          missingOnly: missingOnly);
+        config,
+        file,
+        tests[file]!,
+        options,
+        outputUri: outputConfigurations.getUri(config, file),
+        verbose: !measure,
+        missingOnly: missingOnly,
+      );
       measurements.add(measurement);
     }
   }
@@ -91,34 +102,39 @@ class OutputConfigurations implements Configurations {
   final Iterable<String> configs;
   @override
   final Iterable<String> files;
-  final Map<Pair, String> pathMap = {};
-  final Map<Pair, Uri> uriMap = {};
+  final Map<(String, String), String> pathMap = {};
+  final Map<(String, String), Uri> uriMap = {};
 
   OutputConfigurations(this.configs, this.files);
 
   void registerPathUri(String config, String file, String path, Uri uri) {
-    Pair key = Pair(config, file);
+    var key = (config, file);
     pathMap[key] = path;
     uriMap[key] = uri;
   }
 
-  Uri? getUri(String config, String file) {
-    Pair key = Pair(config, file);
-    return uriMap[key];
-  }
+  Uri? getUri(String config, String file) => uriMap[(config, file)];
 
   @override
-  String getPath(String config, String file) {
-    Pair key = Pair(config, file);
-    return pathMap[key]!;
-  }
+  String getPath(String config, String file) => pathMap[(config, file)]!;
 }
 
 Future<Measurement> runTest(
-    String config, String filename, Uri uri, List<String> options,
-    {Uri? outputUri, required bool verbose, bool missingOnly = false}) async {
-  TestResult result =
-      await runTests(config, filename, uri, options, verbose: verbose);
+  String config,
+  String filename,
+  Uri uri,
+  List<String> options, {
+  Uri? outputUri,
+  required bool verbose,
+  bool missingOnly = false,
+}) async {
+  TestResult result = await runTests(
+    config,
+    filename,
+    uri,
+    options,
+    verbose: verbose,
+  );
   if (outputUri != null) {
     if (result.missingCodePointsMap.isNotEmpty) {
       result.printMissingCodePoints();
@@ -138,10 +154,11 @@ Future<Measurement> runTest(
     createTraceSourceMapHtml(outputUri, result.processor, infoList);
   }
   return Measurement(
-      config,
-      filename,
-      result.missingCodePointsMap.values.fold(0, (s, i) => s + i.length),
-      result.userInfoList.fold(0, (s, i) => s + i.codePoints.length));
+    config,
+    filename,
+    result.missingCodePointsMap.values.fold(0, (s, i) => s + i.length),
+    result.userInfoList.fold(0, (s, i) => s + i.codePoints.length),
+  );
 }
 
 class Measurement {

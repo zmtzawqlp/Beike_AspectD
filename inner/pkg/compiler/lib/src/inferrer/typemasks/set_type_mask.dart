@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-part of masks;
+part of 'masks.dart';
 
 /// A [SetTypeMask] is a [TypeMask] for a specific allocation site of a set
 /// (currently only the internal Set class) that will get specialized once the
@@ -25,12 +25,18 @@ class SetTypeMask extends AllocationTypeMask {
   // The element type of this set.
   final TypeMask elementType;
 
-  const SetTypeMask(this.forwardTo, this._allocationNode,
-      this.allocationElement, this.elementType);
+  const SetTypeMask(
+    this.forwardTo,
+    this._allocationNode,
+    this.allocationElement,
+    this.elementType,
+  );
 
   /// Deserializes a [SetTypeMask] object from [source].
   factory SetTypeMask.readFromDataSource(
-      DataSourceReader source, CommonMasks domain) {
+    DataSourceReader source,
+    CommonMasks domain,
+  ) {
     source.begin(tag);
     final forwardTo = TypeMask.readFromDataSource(source, domain);
     final allocationElement = source.readMemberOrNull();
@@ -51,27 +57,25 @@ class SetTypeMask extends AllocationTypeMask {
   }
 
   @override
-  SetTypeMask withFlags({bool? isNullable, bool? hasLateSentinel}) {
-    isNullable ??= this.isNullable;
-    hasLateSentinel ??= this.hasLateSentinel;
-    if (isNullable == this.isNullable &&
-        hasLateSentinel == this.hasLateSentinel) {
-      return this;
-    }
+  SetTypeMask withPowerset(Bitset powerset, CommonMasks domain) {
+    if (powerset == this.powerset) return this;
     return SetTypeMask(
-        forwardTo.withFlags(
-            isNullable: isNullable, hasLateSentinel: hasLateSentinel),
-        allocationNode,
-        allocationElement,
-        elementType);
+      forwardTo.withPowerset(powerset, domain),
+      allocationNode,
+      allocationElement,
+      elementType,
+    );
   }
 
   @override
   bool get isExact => true;
 
   @override
-  TypeMask? _unionSpecialCases(TypeMask other, CommonMasks domain,
-      {required bool isNullable, required bool hasLateSentinel}) {
+  TypeMask? _unionSpecialCases(
+    TypeMask other,
+    CommonMasks domain,
+    Bitset powerset,
+  ) {
     if (other is SetTypeMask) {
       TypeMask newElementType = elementType.union(other.elementType, domain);
       TypeMask newForwardTo = forwardTo.union(other.forwardTo, domain);
@@ -91,5 +95,7 @@ class SetTypeMask extends AllocationTypeMask {
   int get hashCode => Hashing.objectHash(elementType, super.hashCode);
 
   @override
-  String toString() => 'Set($forwardTo, element: $elementType)';
+  String toString() =>
+      'Set($forwardTo, element: $elementType, '
+      'powerset: ${TypeMask.powersetToString(powerset)})';
 }

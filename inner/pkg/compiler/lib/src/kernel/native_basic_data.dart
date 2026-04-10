@@ -20,7 +20,10 @@ class KernelAnnotationProcessor {
   final IrAnnotationData annotationData;
 
   KernelAnnotationProcessor(
-      this.elementMap, this._nativeBasicDataBuilder, this.annotationData);
+    this.elementMap,
+    this._nativeBasicDataBuilder,
+    this.annotationData,
+  );
 
   void extractNativeAnnotations(LibraryEntity library) {
     KElementEnvironment elementEnvironment = elementMap.elementEnvironment;
@@ -35,15 +38,30 @@ class KernelAnnotationProcessor {
   }
 
   String? getJsInteropName(
-      Spannable spannable, Iterable<ConstantValue> metadata) {
+    Spannable spannable,
+    Iterable<ConstantValue> metadata,
+  ) {
     KCommonElements commonElements = elementMap.commonElements;
     String? annotationName;
     for (ConstantValue value in metadata) {
-      String? name = readAnnotationName(commonElements.dartTypes, spannable,
-              value, commonElements.jsAnnotationClass1!, defaultValue: '') ??
-          readAnnotationName(commonElements.dartTypes, spannable, value,
-              commonElements.jsAnnotationClass2!,
-              defaultValue: '');
+      String? name;
+      List<ClassEntity?> jsAnnotationClasses = [
+        commonElements.jsAnnotationClass1,
+        commonElements.jsAnnotationClass2,
+        commonElements.jsAnnotationClass3,
+      ];
+      for (ClassEntity? jsAnnotationClass in jsAnnotationClasses) {
+        if (jsAnnotationClass != null) {
+          name = readAnnotationName(
+            commonElements.dartTypes,
+            spannable,
+            value,
+            jsAnnotationClass,
+            defaultValue: '',
+          );
+          if (name != null) break;
+        }
+      }
       if (annotationName == null) {
         annotationName = name;
       } else if (name != null) {
@@ -75,7 +93,20 @@ class KernelAnnotationProcessor {
         }
       } else {
         FunctionEntity function = member as FunctionEntity;
-        if (function.isExternal && isExplicitlyJsLibrary) {
+        // We need this explicit check as object literal constructors in
+        // extension types do not need an `@JS()` annotation on them, their
+        // extension type, or their library. JS interop checks assert that the
+        // only extension type interop member that has named parameters is an
+        // object literal constructor.
+        // TODO(54968): We should handle the lowering for object literal
+        // constructors in the interop transformer somehow instead and avoid
+        // assuming all such members are object literal constructors or
+        // otherwise paying the cost to verify by indexing extension types.
+        bool isObjectLiteralConstructor =
+            (memberNode.isExtensionTypeMember &&
+            memberNode.function?.namedParameters.isNotEmpty == true);
+        if (function.isExternal &&
+            (isExplicitlyJsLibrary || isObjectLiteralConstructor)) {
           // External members of explicit js-interop library are implicitly
           // js-interop members.
           memberName ??= function.name;
@@ -86,9 +117,7 @@ class KernelAnnotationProcessor {
             /*reporter.reportErrorMessage(
                 function, MessageKind.JS_INTEROP_NON_EXTERNAL_MEMBER);*/
           } else {
-            _nativeBasicDataBuilder.markAsJsInteropMember(function, memberName,
-                isJsInteropObjectLiteral:
-                    annotationData.isJsInteropObjectLiteral(memberNode));
+            _nativeBasicDataBuilder.markAsJsInteropMember(function, memberName);
             // TODO(johnniwinther): It is unclear whether library can be
             // implicitly js-interop. For now we allow it.
             isJsLibrary = true;
@@ -105,10 +134,12 @@ class KernelAnnotationProcessor {
         bool isStaticInterop = annotationData.isStaticInteropClass(classNode);
         // TODO(johnniwinther): Report an error if the class is anonymous but
         // has a non-empty name.
-        _nativeBasicDataBuilder.markAsJsInteropClass(cls,
-            name: className,
-            isAnonymous: isAnonymous,
-            isStaticInterop: isStaticInterop);
+        _nativeBasicDataBuilder.markAsJsInteropClass(
+          cls,
+          name: className,
+          isAnonymous: isAnonymous,
+          isStaticInterop: isStaticInterop,
+        );
         // TODO(johnniwinther): It is unclear whether library can be implicitly
         // js-interop. For now we allow it.
         isJsLibrary = true;
@@ -124,8 +155,9 @@ class KernelAnnotationProcessor {
             // Members that are not annotated and not external will result in
             // null here. For example, the default constructor which is not
             // user-specified.
-            String? memberName =
-                annotationData.getJsInteropMemberName(memberNode);
+            String? memberName = annotationData.getJsInteropMemberName(
+              memberNode,
+            );
             if (function.isExternal) {
               memberName ??= function.name;
             }
@@ -133,15 +165,19 @@ class KernelAnnotationProcessor {
               // TODO(johnniwinther): The documentation states that explicit
               // member name annotations are not allowed on instance members.
               _nativeBasicDataBuilder.markAsJsInteropMember(
-                  function, memberName,
-                  isJsInteropObjectLiteral: false);
+                function,
+                memberName,
+              );
             }
           }
         });
-        elementEnvironment.forEachConstructor(cls,
-            (ConstructorEntity constructor) {
+        elementEnvironment.forEachConstructor(cls, (
+          ConstructorEntity constructor,
+        ) {
           String? memberName = getJsInteropName(
-              library, elementEnvironment.getMemberMetadata(constructor));
+            library,
+            elementEnvironment.getMemberMetadata(constructor),
+          );
           if (constructor.isExternal) {
             // TODO(johnniwinther): It should probably be an error to have a
             // no-name constructor without a @JS() annotation.
@@ -151,8 +187,9 @@ class KernelAnnotationProcessor {
             // TODO(johnniwinther): The documentation states that explicit
             // member name annotations are not allowed on instance members.
             _nativeBasicDataBuilder.markAsJsInteropMember(
-                constructor, memberName,
-                isJsInteropObjectLiteral: false);
+              constructor,
+              memberName,
+            );
           }
         });
       }
@@ -162,8 +199,10 @@ class KernelAnnotationProcessor {
       // TODO(johnniwinther): It is unclear whether library can be implicitly
       // js-interop. For now we allow it and assume the empty name.
       libraryName ??= '';
-      _nativeBasicDataBuilder.markAsJsInteropLibrary(library,
-          name: libraryName);
+      _nativeBasicDataBuilder.markAsJsInteropLibrary(
+        library,
+        name: libraryName,
+      );
     }
   }
 }

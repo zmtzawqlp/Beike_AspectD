@@ -4,7 +4,7 @@
 
 // Test that global analysis in dart2js propagates positive integers.
 
-import 'package:async_helper/async_helper.dart';
+import 'package:expect/async_helper.dart';
 import 'package:expect/expect.dart';
 import 'package:compiler/src/util/memory_compiler.dart';
 
@@ -25,10 +25,10 @@ main() {
 main() {
   runTest() async {
     var result = await runCompiler(memorySourceFiles: MEMORY_SOURCE_FILES);
-    var compiler = result.compiler;
+    var compiler = result.compiler!;
     var element =
-        compiler.backendClosedWorldForTesting.elementEnvironment.mainFunction;
-    var code = compiler.backendStrategy.getGeneratedCodeForTesting(element);
+        compiler.backendClosedWorldForTesting!.elementEnvironment.mainFunction!;
+    var code = compiler.backendStrategy.getGeneratedCodeForTesting(element)!;
     Expect.isFalse(code.contains('ioore'));
   }
 

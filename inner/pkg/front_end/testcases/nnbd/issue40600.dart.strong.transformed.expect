@@ -1,4 +1,4 @@
-library /*isNonNullableByDefault*/;
+library;
 import self as self;
 import "dart:core" as core;
 import "dart:async" as asy;
@@ -12,13 +12,13 @@ class B<Y extends core::Object? = dynamic> extends core::Object {
   method bar(covariant-by-class FutureOr<self::B::Y%>y) → dynamic {}
 }
 class A<X extends core::Object? = dynamic> extends core::Object {
-  covariant-by-class final field self::B<self::A::X%> b = new self::B::•<self::A::X%>();
+  final field self::B<self::A::X%> b = new self::B::•<self::A::X%>();
   synthetic constructor •() → self::A<self::A::X%>
     : super core::Object::•()
     ;
   method foo([covariant-by-class FutureOr<self::A::X%>? x = #C1]) → dynamic {
-    if(x is{ForNonNullableByDefault} asy::Future<self::A::X%>) {
-      this.{self::A::b}{self::B<self::A::X%>}.{self::B::bar}(x{asy::Future<self::A::X%>}){(FutureOr<self::A::X%>) → dynamic};
+    if(x is asy::Future<self::A::X%>) {
+      this.{self::A::b}{self::B<self::A::X%>}.{self::B::bar}(x{asy::Future<self::A::X%>} as{Unchecked} FutureOr<self::A::X%>){(FutureOr<self::A::X%>) → dynamic};
     }
   }
 }

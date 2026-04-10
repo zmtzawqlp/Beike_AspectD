@@ -24,24 +24,25 @@ import 'text/ast_to_text.dart';
 export 'ast.dart';
 
 Component loadComponentFromBinary(String path, [Component? component]) {
-  List<int> bytes = new File(path).readAsBytesSync();
+  Uint8List bytes = new File(path).readAsBytesSync();
   return loadComponentFromBytes(bytes, component);
 }
 
-Component loadComponentFromBytes(List<int> bytes, [Component? component]) {
+Component loadComponentFromBytes(Uint8List bytes, [Component? component]) {
   component ??= new Component();
   new BinaryBuilder(bytes).readComponent(component);
   return component;
 }
 
-Component loadComponentSourceFromBytes(List<int> bytes,
+Component loadComponentSourceFromBytes(Uint8List bytes,
     [Component? component]) {
   component ??= new Component();
   new BinaryBuilder(bytes).readComponentSource(component);
   return component;
 }
 
-Future writeComponentToBinary(Component component, String path) {
+Future writeComponentToBinary(Component component, String path,
+    {bool includeSource = true}) {
   IOSink sink;
   if (path == 'null' || path == 'stdout') {
     sink = stdout.nonBlocking;
@@ -51,7 +52,8 @@ Future writeComponentToBinary(Component component, String path) {
 
   Future future;
   try {
-    new BinaryPrinter(sink).writeComponentFile(component);
+    new BinaryPrinter(sink, includeSources: includeSource)
+        .writeComponentFile(component);
   } finally {
     if (sink == stdout.nonBlocking) {
       future = sink.flush();
@@ -67,16 +69,6 @@ Uint8List writeComponentToBytes(Component component) {
   BytesSink sink = new BytesSink();
   new BinaryPrinter(sink).writeComponentFile(component);
   return sink.builder.toBytes();
-}
-
-void writeLibraryToText(Library library, {String? path}) {
-  StringBuffer buffer = new StringBuffer();
-  new Printer(buffer).writeLibraryFile(library);
-  if (path == null) {
-    print(buffer);
-  } else {
-    new File(path).writeAsStringSync('$buffer');
-  }
 }
 
 void writeComponentToText(Component component,

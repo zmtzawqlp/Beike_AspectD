@@ -2,9 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-// @dart = 2.7
-
-/*member: main:[null]*/
+/*member: main:[null|powerset={null}]*/
 main() {
   enumValue();
   enumIndex();
@@ -17,60 +15,48 @@ main() {
 /// Access an enum value.
 ////////////////////////////////////////////////////////////////////////////////
 
-enum Enum1 {
-  a,
-}
+enum Enum1 { a }
 
-/*member: enumValue:[exact=Enum1]*/
+/*member: enumValue:[exact=Enum1|powerset={N}{O}{N}]*/
 enumValue() => Enum1.a;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Access an enum 'index' property.
 ////////////////////////////////////////////////////////////////////////////////
 
-enum Enum2 {
-  a,
-}
+enum Enum2 { a }
 
-/*member: enumIndex:[exact=JSUInt31]*/
-enumIndex() => Enum2.a. /*[exact=Enum2]*/ index;
+/*member: enumIndex:[exact=JSUInt31|powerset={I}{O}{N}]*/
+enumIndex() => Enum2.a. /*[exact=Enum2|powerset={N}{O}{N}]*/ index;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Access an enum 'values' property.
 ////////////////////////////////////////////////////////////////////////////////
 
-enum Enum3 {
-  a,
-  b,
-}
+enum Enum3 { a, b }
 
-/*member: enumValues:Container([exact=JSUnmodifiableArray], element: [exact=Enum3], length: 2)*/
+/*member: enumValues:Container([exact=JSUnmodifiableArray|powerset={I}{U}{I}], element: [exact=Enum3|powerset={N}{O}{N}], length: 2, powerset: {I}{U}{I})*/
 enumValues() => Enum3.values;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Call an enum 'toString' method on a singleton enum.
 ////////////////////////////////////////////////////////////////////////////////
 
-enum Enum4 {
-  a,
-}
+enum Enum4 { a }
 
-/*member: enumToString1:[exact=JSString]*/
+/*member: enumToString1:[exact=JSString|powerset={I}{O}{I}]*/
 enumToString1() {
-  return Enum4.a. /*invoke: [exact=Enum4]*/ toString();
+  return Enum4.a. /*invoke: [exact=Enum4|powerset={N}{O}{N}]*/ toString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Call an enum 'toString' method on an enum with multiple values.
 ////////////////////////////////////////////////////////////////////////////////
 
-enum Enum5 {
-  a,
-  b,
-}
+enum Enum5 { a, b }
 
-/*member: enumToString2:[exact=JSString]*/
+/*member: enumToString2:[exact=JSString|powerset={I}{O}{I}]*/
 enumToString2() {
-  Enum5.b. /*invoke: [exact=Enum5]*/ toString();
-  return Enum5.a. /*invoke: [exact=Enum5]*/ toString();
+  Enum5.b. /*invoke: [exact=Enum5|powerset={N}{O}{N}]*/ toString();
+  return Enum5.a. /*invoke: [exact=Enum5|powerset={N}{O}{N}]*/ toString();
 }

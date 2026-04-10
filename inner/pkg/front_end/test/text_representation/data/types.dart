@@ -2,7 +2,6 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-/*library: nnbd=true*/
 library test;
 
 import 'dart:async';
@@ -71,14 +70,44 @@ futureOrType(
         /*normal|limited.FutureOr<int?>?*/
         /*verbose.FutureOr<dart.core::int?>?*/
         o4) {}
-typeVariableType1<T>(T /*T%*/ o1, T? /*T?*/ o2) {}
-typeVariableType2<T extends num>(T /*T*/ o1, T? /*T?*/ o2) {}
+typeVariableType1<T>(
+    T /*normal|limited.typeVariableType1.T%*/ /*verbose.test::typeVariableType1.T%*/
+        o1,
+    T? /*normal|limited.typeVariableType1.T?*/ /*verbose.test::typeVariableType1.T?*/
+        o2) {}
+typeVariableType2<T extends num>(
+    T /*normal|limited.typeVariableType2.T*/ /*verbose.test::typeVariableType2.T*/
+        o1,
+    T? /*normal|limited.typeVariableType2.T?*/ /*verbose.test::typeVariableType2.T?*/
+        o2) {}
 typeVariableType3<T extends S, S>(
-    T /*T%*/ o1, S /*S%*/ p1, T? /*T?*/ o2, S? /*S?*/ p2) {}
+    T /*normal|limited.typeVariableType3.T%*/ /*verbose.test::typeVariableType3.T%*/
+        o1,
+    S /*normal|limited.typeVariableType3.S%*/ /*verbose.test::typeVariableType3.S%*/
+        p1,
+    T? /*normal|limited.typeVariableType3.T?*/ /*verbose.test::typeVariableType3.T?*/
+        o2,
+    S? /*normal|limited.typeVariableType3.S?*/ /*verbose.test::typeVariableType3.S?*/
+        p2) {}
 typeVariableType4<T, S extends T>(
-    T /*T%*/ o1, S /*S%*/ p1, T? /*T?*/ o2, S? /*S?*/ p2) {}
-typeVariableType5<T extends Object>(T /*T*/ o1, T? /*T?*/ o2) {}
-typeVariableType6<T extends Object?>(T /*T%*/ o1, T? /*T?*/ o2) {}
+    T /*normal|limited.typeVariableType4.T%*/ /*verbose.test::typeVariableType4.T%*/
+        o1,
+    S /*normal|limited.typeVariableType4.S%*/ /*verbose.test::typeVariableType4.S%*/
+        p1,
+    T? /*normal|limited.typeVariableType4.T?*/ /*verbose.test::typeVariableType4.T?*/
+        o2,
+    S? /*normal|limited.typeVariableType4.S?*/ /*verbose.test::typeVariableType4.S?*/
+        p2) {}
+typeVariableType5<T extends Object>(
+    T /*normal|limited.typeVariableType5.T*/ /*verbose.test::typeVariableType5.T*/
+        o1,
+    T? /*normal|limited.typeVariableType5.T?*/ /*verbose.test::typeVariableType5.T?*/
+        o2) {}
+typeVariableType6<T extends Object?>(
+    T /*normal|limited.typeVariableType6.T%*/ /*verbose.test::typeVariableType6.T%*/
+        o1,
+    T? /*normal|limited.typeVariableType6.T?*/ /*verbose.test::typeVariableType6.T?*/
+        o2) {}
 functionType1(void Function() /*void Function()*/ o1,
     void Function()? /*void Function()?*/ o2) {}
 functionType2(
@@ -152,7 +181,7 @@ genericFunctionType4(
         /*normal|limited.T Function<T extends num>([T, T?])*/
         /*verbose.T Function<T extends dart.core::num>([T, T?])*/
         o) {}
-// TODO(johnniwinther): Support interdependent function type variables.
+// TODO(johnniwinther): Support interdependent structural parameters.
 //genericFunctionType5(T Function<T, S extends T>([T, S]) o) {}
 //genericFunctionType6(T Function<T extends S, S>([T, S]) o) {}
 typedefType1(Typedef1 /*void Function()*/ o) {}
