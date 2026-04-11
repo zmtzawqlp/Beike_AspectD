@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:kernel/ast.dart';
 import 'package:kernel/binary/ast_from_binary.dart';
 import 'package:kernel/binary/ast_to_binary.dart';
@@ -17,7 +18,7 @@ import 'package:vm/metadata/unboxing_info.dart'
     show UnboxingInfoMetadataRepository;
 import 'package:vm/metadata/unreachable.dart'
     show UnreachableNodeMetadataRepository;
-import 'package:vm/metadata/call_site_attributes.dart'
+import 'package:vm/modular/metadata/call_site_attributes.dart'
     show CallSiteAttributesMetadataRepository;
 
 class DillOps {
@@ -33,7 +34,7 @@ class DillOps {
     component.addMetadataRepository(UnreachableNodeMetadataRepository());
     component.addMetadataRepository(CallSiteAttributesMetadataRepository());
 
-    final List<int> bytes = File(dillFile).readAsBytesSync();
+    final Uint8List bytes = File(dillFile).readAsBytesSync();
     BinaryBuilderWithMetadata(bytes, disableLazyReading: true, disableLazyClassReading:true, alwaysCreateNewNamedNodes:true).readComponent(component);
     return component;
   }

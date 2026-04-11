@@ -1,1 +1,1 @@
-`dart --deterministic --snapshot=frontend_server.dart.snapshot starter.dart`
+`dart --deterministic --snapshot=frontend_server_aot.dart.snapshot starter.dart`

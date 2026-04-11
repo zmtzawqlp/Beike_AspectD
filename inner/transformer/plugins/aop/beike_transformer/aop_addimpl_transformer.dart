@@ -3,7 +3,7 @@ import 'package:kernel/visitor.dart';
 import '../transformer/aop_iteminfo.dart';
 import '../transformer/aop_tranform_utils.dart';
 
-class AopAddImplTransformer extends RecursiveVisitor<void> {
+class AopAddImplTransformer extends RecursiveVisitor  {
   AopAddImplTransformer(this._aopItemInfoList, this._uriToSource);
 
   final List<AopItemInfo> _aopItemInfoList;

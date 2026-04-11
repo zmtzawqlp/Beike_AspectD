@@ -18,7 +18,7 @@ int main(List<String> args) {
   if (configYamlFile.existsSync()) {
     final dynamic pubspec = loadYaml(configYamlFile.readAsStringSync());
     if (pubspec == null) {
-      return null;
+      return 0;
     }
     final YamlList pluginsNode = pubspec['plugins'];
     for (YamlNode yamlNode in pluginsNode.nodes) {

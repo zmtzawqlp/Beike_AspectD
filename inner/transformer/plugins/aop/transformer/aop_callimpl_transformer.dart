@@ -520,7 +520,7 @@ class AopCallImplTransformer extends Transformer {
             InstanceGet(
                 InstanceAccessKind.Instance, ThisExpression(), Name('target'),
                 resultType: targetFiled.type as DartType, interfaceTarget: targetFiled),
-            InterfaceType(procedureImpl, Nullability.legacy)),
+            InterfaceType(procedureImpl, Nullability.nonNullable)),
         originalProcedure.name,
         AopUtils.concatArguments4PointcutStubCall(
             originalProcedure, aopItemInfo),

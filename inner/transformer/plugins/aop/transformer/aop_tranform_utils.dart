@@ -4,7 +4,7 @@ import 'aop_iteminfo.dart';
 import 'aop_mode.dart';
 
 class AopUtils {
-  AopUtils();
+  AopUtils._();
 
   static String kAopAnnotationClassCall = 'Call';
   static String kAopAnnotationClassExecute = 'Execute';
@@ -213,7 +213,7 @@ class AopUtils {
       for (Field field in cls.fields) {
         if (field.name.text == part) {
           final InterfaceType interfaceType = field.type as InterfaceType;
-          cls = interfaceType.className.node as Class;
+          cls = interfaceType.classNode;
           break;
         }
       }
@@ -840,14 +840,14 @@ class AopUtils {
       return FunctionType(
           deepCopyASTNodes(node.positionalParameters),
           deepCopyASTNode(node.returnType, isReturnType: true),
-          Nullability.legacy,
+          Nullability.nonNullable,
           namedParameters: deepCopyASTNodes(node.namedParameters),
           typeParameters: deepCopyASTNodes(node.typeParameters),
           requiredParameterCount: node.requiredParameterCount,
        );
     }
     if (node is TypedefType) {
-      return TypedefType(node.typedefNode, Nullability.legacy,
+      return TypedefType(node.typedefNode, Nullability.nonNullable,
           deepCopyASTNodes(node.typeArguments, ignoreGeneric: ignoreGenerics));
     }
     return node;

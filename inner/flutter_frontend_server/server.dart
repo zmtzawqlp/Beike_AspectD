@@ -17,7 +17,7 @@ import 'package:frontend_server/frontend_server.dart' as frontend
 import 'package:kernel/ast.dart';
 import 'package:path/path.dart' as path;
 import 'package:vm/incremental_compiler.dart';
-import 'package:vm/target/flutter.dart';
+import 'package:vm/modular/target/flutter.dart';
 
 import '../transformer/plugins/aop/aop_transformer_wrapper.dart';
 
@@ -54,12 +54,12 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
   }
 
   @override
-  Future<void> recompileDelta({String? entryPoint}) async {
+  Future<void> recompileDelta({String? entryPoint,bool recompileRestart = false}) async {
     final List<FlutterProgramTransformer> transformers =
         FlutterTarget.flutterProgramTransformers;
     transformers.clear();
 
-    return _compiler.recompileDelta(entryPoint: entryPoint);
+    return _compiler.recompileDelta(entryPoint: entryPoint,recompileRestart:recompileRestart);
   }
 
   @override
@@ -88,6 +88,8 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
       String libraryUri,
       String? klass,
       String? method,
+      int offset,
+      String? scriptUri,
       bool isStatic) {
     return _compiler.compileExpression(
         expression,
@@ -99,20 +101,22 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
         libraryUri,
         klass,
         method,
+        offset,
+        scriptUri,
         isStatic);
   }
 
   @override
   Future<void> compileExpressionToJs(
       String libraryUri,
+      String? scriptUri,
       int line,
       int column,
       Map<String, String> jsModules,
       Map<String, String> jsFrameValues,
-      String moduleName,
       String expression) {
-    return _compiler.compileExpressionToJs(libraryUri, line, column, jsModules,
-        jsFrameValues, moduleName, expression);
+    return _compiler.compileExpressionToJs(libraryUri,scriptUri, line, column, jsModules,
+        jsFrameValues, expression,);
   }
 
   @override
@@ -128,6 +132,12 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
   @override
   Future<bool> setNativeAssets(String nativeAssets) {
     return _compiler.setNativeAssets(nativeAssets);
+  }
+  
+  @override
+  Future<bool> compileNativeAssetsOnly(ArgResults options,
+      {IncrementalCompiler? generator}) {
+    return _compiler.compileNativeAssetsOnly(options, generator: generator);
   }
 }
 
@@ -222,7 +232,7 @@ Future<int> starter(
 
 /// A [RecursiveVisitor] that replaces [Object.toString] overrides with
 /// `super.toString()`.
-class ToStringVisitor extends RecursiveVisitor<void> {
+class ToStringVisitor extends RecursiveVisitor {
   /// The [packageUris] must not be null.
   ToStringVisitor(this._packageUris) : assert(_packageUris != null);
 

@@ -423,7 +423,7 @@ class AopExecuteImplTransformer extends Transformer {
           InstanceGet(
               InstanceAccessKind.Instance, ThisExpression(), Name('target'),
               resultType: targetFiled.type, interfaceTarget: targetFiled),
-          InterfaceType(originalClass, Nullability.legacy)),
+          InterfaceType(originalClass, Nullability.nonNullable)),
       originalStubProcedure.name,
       AopUtils.concatArguments4PointcutStubCall(originalProcedure, aopItemInfo),
     );

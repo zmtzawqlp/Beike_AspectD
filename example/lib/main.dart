@@ -159,7 +159,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             Text(
               '$i',
-              style: Theme.of(context).textTheme.bodyText2,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
             // Image.network('https://preview.lianjia.com/yunpan/e606fce4-a9bf-4d3d-a413-5e2c2ebe9462!m_simple,f_000009.jpg', width: 50, height: 100),
 //            FadeInImage.memoryNetwork('https://preview.lianjia.com/yunpan/e606fce4-a9bf-4d3d-a413-5e2c2ebe9462!m_simple,f_000009.jpg', width: 50, height: 100),

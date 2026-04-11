@@ -1,5 +1,5 @@
 import 'package:kernel/ast.dart';
-import 'package:vm/target/flutter.dart';
+import 'package:vm/modular/target/flutter.dart';
 
 import 'beike_transformer/aop_addimpl_transformer.dart';
 import 'beike_transformer/aop_field_get_transformer.dart';
