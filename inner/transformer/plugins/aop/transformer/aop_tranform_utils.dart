@@ -838,14 +838,14 @@ class AopUtils {
       return FunctionType(
           deepCopyASTNodes(node.positionalParameters),
           deepCopyASTNode(node.returnType, isReturnType: true),
-          Nullability.nonNullable,
+          node.nullability,
           namedParameters: deepCopyASTNodes(node.namedParameters),
           typeParameters: deepCopyASTNodes(node.typeParameters),
           requiredParameterCount: node.requiredParameterCount,
        );
     }
     if (node is TypedefType) {
-      return TypedefType(node.typedefNode, Nullability.nonNullable,
+      return TypedefType(node.typedefNode, node.nullability,
           deepCopyASTNodes(node.typeArguments, ignoreGeneric: ignoreGenerics));
     }
     return node;
