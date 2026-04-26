@@ -39,6 +39,9 @@ import 'dart:io';
 
 import '../inner/flutter_frontend_server/server.dart' as server;
 
+// 修改这里即可切换要调试的 demo 工程目录（例如: example、aop_exmaple）。
+const String _targetDemoDir = 'example';
+
 Future<void> main(List<String> args) async {
   // 手动透传模式：若传入了参数，直接转发给 server.starter。
   if (args.isNotEmpty) {
@@ -58,9 +61,11 @@ Future<void> main(List<String> args) async {
   }
 
   final sep = Platform.pathSeparator;
-  final exampleDir = Directory('${repoRoot.path}${sep}example');
+  final exampleDir = Directory('${repoRoot.path}${sep}$_targetDemoDir');
   if (!exampleDir.existsSync()) {
-    stderr.writeln('ERROR: example/ directory not found at: ${exampleDir.path}');
+    stderr.writeln(
+      'ERROR: $_targetDemoDir/ directory not found at: ${exampleDir.path}',
+    );
     exitCode = 2;
     return;
   }
@@ -69,7 +74,7 @@ Future<void> main(List<String> args) async {
   final flutterRoot = _findFlutterRoot(exampleDir);
   if (flutterRoot == null) {
     stderr.writeln('ERROR: Cannot determine Flutter SDK root.');
-    stderr.writeln('       Run `flutter pub get` inside example/ first.');
+    stderr.writeln('       Run `flutter pub get` inside $_targetDemoDir/ first.');
     exitCode = 3;
     return;
   }
@@ -79,7 +84,7 @@ Future<void> main(List<String> args) async {
   if (buildHashDir == null) {
     stderr.writeln('ERROR: No flutter_build hash directory found.');
     stderr.writeln('       Run a build first:');
-    stderr.writeln('         cd example && flutter build apk --debug');
+    stderr.writeln('         cd $_targetDemoDir && flutter build apk --debug');
     exitCode = 4;
     return;
   }
@@ -136,7 +141,7 @@ Future<void> main(List<String> args) async {
     '--incremental',
     '--aop', '1',
     '--verbosity=error',
-    'package:example/main.dart',
+    'package:$_targetDemoDir/main.dart',
   ];
 
   stdout.writeln('Flutter root  : $flutterRoot');
@@ -229,7 +234,7 @@ Directory? _resolveRepoRoot(Directory scriptDir) {
   return null;
 }
 
-/// 解析 example/.dart_tool/package_config.json，找到 'flutter' 包条目，
+/// 解析 <targetDemoDir>/.dart_tool/package_config.json，找到 'flutter' 包条目，
 /// 并从其 rootUri 推导出 Flutter SDK 根目录。
 String? _findFlutterRoot(Directory exampleDir) {
   final packageConfigFile = File(
@@ -258,7 +263,7 @@ String? _findFlutterRoot(Directory exampleDir) {
   return null;
 }
 
-/// 返回 example/.dart_tool/flutter_build/ 下修改时间最新的 hash 目录。
+/// 返回 <targetDemoDir>/.dart_tool/flutter_build/ 下修改时间最新的 hash 目录。
 Directory? _findLatestBuildHashDir(Directory exampleDir) {
   final flutterBuildDir = Directory(
       '${exampleDir.path}${Platform.pathSeparator}.dart_tool'

@@ -1,12 +1,16 @@
 import 'dart:io';
 
+// 修改这里即可切换要读取的 demo 工程目录（例如: example、aop_exmaple）。
+const String _targetDemoDir = 'example';
+
 Future<void> main(List<String> args) async {
   final scriptFile = File.fromUri(Platform.script);
   final binDir = scriptFile.parent;
   final repoRoot = _resolveRepoRoot(binDir);
 
   if (repoRoot == null) {
-    stderr.writeln('Cannot resolve repository root from script path: ${scriptFile.path}');
+    stderr.writeln(
+        'Cannot resolve repository root from script path: ${scriptFile.path}');
     exitCode = 1;
     return;
   }
@@ -32,9 +36,11 @@ Future<void> main(List<String> args) async {
   }
 
   if (inputDillPath == null) {
-    stderr.writeln('No app.dill found under example/.dart_tool/flutter_build/.');
+    stderr.writeln(
+      'No app.dill found under $_targetDemoDir/.dart_tool/flutter_build/.',
+    );
     stderr.writeln('Try running a Flutter build first, for example:');
-    stderr.writeln('  cd example');
+    stderr.writeln('  cd $_targetDemoDir');
     stderr.writeln('  flutter build apk --debug');
     exitCode = 3;
     return;
@@ -69,20 +75,23 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  stdout.writeln('Done. Output generated: $outputPath (${outFile.lengthSync()} bytes)');
+  stdout.writeln(
+      'Done. Output generated: $outputPath (${outFile.lengthSync()} bytes)');
 }
 
 String? _findLatestAppDill(String repoRootPath) {
   final flutterBuildDir = Directory(
-    '$repoRootPath${Platform.pathSeparator}example${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}flutter_build',
+    '$repoRootPath${Platform.pathSeparator}$_targetDemoDir${Platform.pathSeparator}.dart_tool${Platform.pathSeparator}flutter_build',
   );
   if (!flutterBuildDir.existsSync()) {
     return null;
   }
 
   final appDillFiles = <File>[];
-  for (final entity in flutterBuildDir.listSync(recursive: true, followLinks: false)) {
-    if (entity is File && entity.path.endsWith('${Platform.pathSeparator}app.dill')) {
+  for (final entity
+      in flutterBuildDir.listSync(recursive: true, followLinks: false)) {
+    if (entity is File &&
+        entity.path.endsWith('${Platform.pathSeparator}app.dill')) {
       appDillFiles.add(entity);
     }
   }
@@ -100,7 +109,8 @@ String? _findLatestAppDill(String repoRootPath) {
 Directory? _resolveRepoRoot(Directory scriptDir) {
   var current = scriptDir;
   for (var i = 0; i < 6; i++) {
-    final pubspec = File('${current.path}${Platform.pathSeparator}pubspec.yaml');
+    final pubspec =
+        File('${current.path}${Platform.pathSeparator}pubspec.yaml');
     final dumpKernel = File(
       '${current.path}${Platform.pathSeparator}inner${Platform.pathSeparator}pkg${Platform.pathSeparator}vm${Platform.pathSeparator}bin${Platform.pathSeparator}dump_kernel.dart',
     );

@@ -3,6 +3,7 @@ import 'package:vm/modular/target/flutter.dart';
 
 import 'beike_transformer/aop_addimpl_transformer.dart';
 import 'beike_transformer/aop_field_get_transformer.dart';
+import 'location/track_widget_constructor_locations.dart';
 import 'transformer/aop_callimpl_transformer.dart';
 import 'transformer/aop_executeimpl_transformer.dart';
 import 'transformer/aop_injectimpl_transformer.dart';
@@ -17,8 +18,11 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
   Map<String, Library> componentLibraryMap = <String, Library>{};
   Component? platformStrongComponent;
 
+  final WidgetCreatorTracker _aopWidgetCreatorTracker =
+      WidgetCreatorTracker();
   @override
   void transform(Component program, {void Function(String msg)? logger}) {
+    _aopWidgetCreatorTracker.transform(program, program.libraries, null);
     for (Library library in program.libraries) {
       componentLibraryMap.putIfAbsent(
           library.importUri.toString(), () => library);
@@ -184,7 +188,6 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
   }
 
   AopItemInfo? _processAopMember(Member member) {
-
     for (Expression annotation in member.annotations) {
       if (annotation is ConstantExpression) {
         final ConstantExpression constantExpression = annotation;
@@ -200,7 +203,7 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
             reference.node ??= AopUtils.getNodeFromCanonicalName(
                 componentLibraryMap, reference.canonicalName);
           });
-          if(canonicalName == null || canonicalName.parent ==null) {
+          if (canonicalName == null || canonicalName.parent == null) {
             continue;
           }
           final AopMode? aopMode = AopUtils.getAopModeByNameAndImportUri(
@@ -298,9 +301,10 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
       //Debug Mode
       else if (annotation is ConstructorInvocation) {
         final ConstructorInvocation constructorInvocation = annotation;
-        final Class? cls = constructorInvocation.targetReference.node?.parent as Class?;
+        final Class? cls =
+            constructorInvocation.targetReference.node?.parent as Class?;
         final Library? clsParentLib = cls?.parent as Library?;
-        if(cls == null || clsParentLib == null) {
+        if (cls == null || clsParentLib == null) {
           continue;
         }
         final AopMode? aopMode = AopUtils.getAopModeByNameAndImportUri(
@@ -330,11 +334,13 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
             lineNum = intLiteral.value - 1;
           }
           if (namedExpression.name == AopUtils.kAopAnnotationSuperClsName) {
-            final StringLiteral stringLiteral = namedExpression.value as StringLiteral;
+            final StringLiteral stringLiteral =
+                namedExpression.value as StringLiteral;
             superCls = stringLiteral.value;
           }
           if (namedExpression.name == AopUtils.kAopAnnotationIsRegex) {
-            final BoolLiteral boolLiteral = namedExpression.value as BoolLiteral;
+            final BoolLiteral boolLiteral =
+                namedExpression.value as BoolLiteral;
             isRegex = boolLiteral.value;
           }
         }
@@ -354,7 +360,7 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
         String fieldName = '';
         if (aopMode == AopMode.FieldInitializer) {
           final StringLiteral stringLiteral3 =
-             ( constructorInvocation.arguments.positional.length > 3
+              (constructorInvocation.arguments.positional.length > 3
                   ? constructorInvocation.arguments.positional[3]
                   : StringLiteral('')) as StringLiteral;
           fieldName = stringLiteral3.value;
@@ -394,8 +400,7 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
   }
 
   void _checkIfCompleteLibraryReference(Library library) {
-    for (LibraryDependency libraryDependency
-        in library.dependencies) {
+    for (LibraryDependency libraryDependency in library.dependencies) {
       libraryDependency.importedLibraryReference.node ??=
           AopUtils.getNodeFromCanonicalName(componentLibraryMap,
               libraryDependency.importedLibraryReference.canonicalName);

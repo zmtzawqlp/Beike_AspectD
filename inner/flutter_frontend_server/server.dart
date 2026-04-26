@@ -57,7 +57,15 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
   Future<void> recompileDelta({String? entryPoint,bool recompileRestart = false}) async {
     final List<FlutterProgramTransformer> transformers =
         FlutterTarget.flutterProgramTransformers;
-    transformers.clear();
+    // 解决 reload 直接 clear 导致 AOP transformer 丢失问题
+    // 比如导致 AopHasCreationLocation 的 aopLocation 变成 _Location
+    if (aopTransform == true) {
+      if (!transformers.contains(aspectdAopTransformer)) {
+        transformers.add(aspectdAopTransformer);
+      }
+    } else {
+      transformers.clear();
+    }
 
     return _compiler.recompileDelta(entryPoint: entryPoint,recompileRestart:recompileRestart);
   }
