@@ -19,3 +19,4 @@ android/*
 flutter/wrapper/flutterw/__pycache__
 .vscode/settings.json
 flutter/wrapper/.idea/flutterw_sdk.path
+out.dill.txt

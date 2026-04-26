@@ -271,26 +271,27 @@ class AopUtils {
       Member member,
       Arguments invocationArguments,
       Class? currentClass) {
-    final String stubKeyDefault =
-        '${AopUtils.kAopStubMethodPrefix}${AopUtils.kPrimaryKeyAopMethod}';
+    // final String stubKeyDefault =
+    //     '${AopUtils.kAopStubMethodPrefix}${AopUtils.kPrimaryKeyAopMethod}';
     //重定向到AOP的函数体中去
     final Arguments pointCutConstructorArguments = Arguments.empty();
     final List<MapLiteralEntry> sourceInfos = <MapLiteralEntry>[];
 
-    sourceInfo?.forEach((String key, String value) {
+    sourceInfo.forEach((String key, String value) {
       sourceInfos
           .add(MapLiteralEntry(StringLiteral(key), StringLiteral(value)));
     });
 
     pointCutConstructorArguments.positional.add(MapLiteral(sourceInfos));
     pointCutConstructorArguments.positional.add(targetExpression);
-    String? memberName = member?.name?.text;
+    String? memberName = member.name.text;
     if (member is Constructor) {
       memberName = AopUtils.nameForConstructor(member);
     }
-    pointCutConstructorArguments.positional.add(StringLiteral(memberName!));
+    pointCutConstructorArguments.positional.add(StringLiteral(memberName));
     pointCutConstructorArguments.positional
-        .add(StringLiteral(stubKey ?? stubKeyDefault));
+        .add(StringLiteral(stubKey // ?? stubKeyDefault
+        ));
     pointCutConstructorArguments.positional
         .add(ListLiteral(invocationArguments.positional));
     final List<MapLiteralEntry> entries = <MapLiteralEntry>[];
@@ -308,7 +309,7 @@ class AopUtils {
     }
 
     //Get annotations and members in call/execute mode
-    if (clz != null && clz is Class) {
+    if (clz != null) {
       final ThisExpression thisE = ThisExpression();
       final List<MapLiteralEntry> filedsMap = <MapLiteralEntry>[];
 
@@ -318,21 +319,21 @@ class AopUtils {
         NamedExpression ne;
 
         if (f.isConst) {
-          ConstantExpression constantExpression;
+          // ConstantExpression constantExpression;
           if (f.initializer is BasicLiteral) {
-            Constant c;
+            // Constant c;
 
-            if (f.initializer is DoubleLiteral) {
-              c = DoubleConstant((f.initializer as DoubleLiteral).value);
-            } else if (f.initializer is StringLiteral) {
-              c = StringConstant((f.initializer as StringLiteral).value);
-            } else if (f.initializer is IntLiteral) {
-              c = IntConstant((f.initializer as IntLiteral).value);
-            } else if (f.initializer is BoolLiteral) {
-              c = BoolConstant((f.initializer as BoolLiteral).value);
-            } else if (f.initializer is NullLiteral) {
-              c = NullConstant();
-            }
+            // if (f.initializer is DoubleLiteral) {
+            //   c = DoubleConstant((f.initializer as DoubleLiteral).value);
+            // } else if (f.initializer is StringLiteral) {
+            //   c = StringConstant((f.initializer as StringLiteral).value);
+            // } else if (f.initializer is IntLiteral) {
+            //   c = IntConstant((f.initializer as IntLiteral).value);
+            // } else if (f.initializer is BoolLiteral) {
+            //   c = BoolConstant((f.initializer as BoolLiteral).value);
+            // } else if (f.initializer is NullLiteral) {
+            //   c = NullConstant();
+            // }
 
             // filedsMap.add(
             //     MapEntry(StringLiteral(f.name.name), ConstantExpression(c)));
@@ -360,7 +361,7 @@ class AopUtils {
       }
 
       //Get annotations of caller
-      final List<Expression>? annotations = clz?.annotations;
+      final List<Expression>? annotations = clz.annotations;
       final List<MapLiteralEntry> annotationMap = <MapLiteralEntry>[];
 
       if (annotations != null) {
@@ -416,22 +417,23 @@ class AopUtils {
       Expression member,
       Arguments invocationArguments,
       Class currrentClass) {
-    final String stubKeyDefault =
-        '${AopUtils.kAopStubMethodPrefix}${AopUtils.kPrimaryKeyAopMethod}';
+    // final String stubKeyDefault =
+    //     '${AopUtils.kAopStubMethodPrefix}${AopUtils.kPrimaryKeyAopMethod}';
     //重定向到AOP的函数体中去
     final Arguments pointCutConstructorArguments = Arguments.empty();
     final List<MapLiteralEntry> sourceInfos = <MapLiteralEntry>[];
-    sourceInfo?.forEach((String key, String value) {
+    sourceInfo.forEach((String key, String value) {
       sourceInfos
           .add(MapLiteralEntry(StringLiteral(key), StringLiteral(value)));
     });
     pointCutConstructorArguments.positional.add(MapLiteral(sourceInfos));
     pointCutConstructorArguments.positional.add(targetExpression);
-    String memberName = '';
+    const String memberName = '';
 
     pointCutConstructorArguments.positional.add(StringLiteral(memberName));
     pointCutConstructorArguments.positional
-        .add(StringLiteral(stubKey ?? stubKeyDefault));
+        .add(StringLiteral(stubKey // ?? stubKeyDefault
+        ));
     pointCutConstructorArguments.positional
         .add(ListLiteral(invocationArguments.positional));
     final List<MapLiteralEntry> entries = <MapLiteralEntry>[];
@@ -442,83 +444,78 @@ class AopUtils {
     pointCutConstructorArguments.positional.add(MapLiteral(entries));
 
     Class? clz;
-    if (currrentClass == null && member.parent is Class) {
+    if (member.parent is Class) {
       clz = member.parent as Class;
     } else {
       clz = currrentClass;
     }
 
     //Get annotations and members in call/execute mode
-    if (clz != null && clz is Class) {
-      final ThisExpression thisE = ThisExpression();
-      final List<MapLiteralEntry> filedsMap = <MapLiteralEntry>[];
+    final ThisExpression thisE = ThisExpression();
+    final List<MapLiteralEntry> filedsMap = <MapLiteralEntry>[];
 
-      final List<Field> fields = clz.fields;
+    final List<Field> fields = clz.fields;
 
-      for (Field f in fields) {
-        NamedExpression ne;
+    for (Field f in fields) {
+      NamedExpression ne;
 
-        if (f.isConst) {
-          final ConstantExpression constantExpression = f.initializer! as ConstantExpression;
-          filedsMap.add(
-              MapLiteralEntry(StringLiteral(f.name.text), constantExpression));
-        } else if (f.isStatic) {
-          final StaticGet staticGet = StaticGet(f);
-          ne = NamedExpression(f.name.text, staticGet);
-          filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
-        } else {
-          final InstanceGet property = InstanceGet(
-              InstanceAccessKind.Instance, thisE, Name(f.name.text, clz.parent as Library?),
-              interfaceTarget: f, resultType: f.type);
-          final NamedExpression ne = NamedExpression(f.name.text, property);
-          filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
-        }
+      if (f.isConst) {
+        final ConstantExpression constantExpression = f.initializer! as ConstantExpression;
+        filedsMap.add(
+            MapLiteralEntry(StringLiteral(f.name.text), constantExpression));
+      } else if (f.isStatic) {
+        final StaticGet staticGet = StaticGet(f);
+        ne = NamedExpression(f.name.text, staticGet);
+        filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
+      } else {
+        final InstanceGet property = InstanceGet(
+            InstanceAccessKind.Instance, thisE, Name(f.name.text, clz.parent as Library?),
+            interfaceTarget: f, resultType: f.type);
+        final NamedExpression ne = NamedExpression(f.name.text, property);
+        filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
       }
-
-      pointCutConstructorArguments.positional.add(MapLiteral(filedsMap));
-
-      //Get annotations of caller
-      final List<Expression>? annotations = clz?.annotations;
-      final List<MapLiteralEntry> annotationMap = <MapLiteralEntry>[];
-
-      if (annotations != null) {
-        for (Expression annotation in annotations) {
-          if (annotation is ConstantExpression) {
-            final ConstantExpression constantExpression = annotation;
-            final Constant constant = constantExpression.constant;
-
-            if (constant is InstanceConstant) {
-              final InstanceConstant instanceConstant = constant;
-              final Map<Reference, Constant> vals =
-                  instanceConstant.fieldValues;
-
-              final List<MapLiteralEntry> annotationParams =
-                  <MapLiteralEntry>[];
-
-              vals.forEach((Reference ref, Constant val) {
-                final ConstantExpression exp = ConstantExpression(val);
-                annotationParams.add(MapLiteralEntry(
-                    StringLiteral(ref.canonicalName!.name), exp));
-              });
-
-              final CanonicalName canonicalName =
-                  instanceConstant.classReference.canonicalName!;
-              annotationMap.add(MapLiteralEntry(
-                  StringLiteral(canonicalName.name),
-                  MapLiteral(annotationParams)));
-            }
-          } else if (annotation is ConstructorInvocation) {
-            //In 1.12.13， annotation is InstanceConstant
-          }
-        }
-      }
-
-      pointCutConstructorArguments.positional.add(MapLiteral(annotationMap));
-    } else {
-      pointCutConstructorArguments.positional.add(NullLiteral());
-      pointCutConstructorArguments.positional.add(NullLiteral());
     }
 
+    pointCutConstructorArguments.positional.add(MapLiteral(filedsMap));
+
+    //Get annotations of caller
+    final List<Expression>? annotations = clz.annotations;
+    final List<MapLiteralEntry> annotationMap = <MapLiteralEntry>[];
+
+    if (annotations != null) {
+      for (Expression annotation in annotations) {
+        if (annotation is ConstantExpression) {
+          final ConstantExpression constantExpression = annotation;
+          final Constant constant = constantExpression.constant;
+
+          if (constant is InstanceConstant) {
+            final InstanceConstant instanceConstant = constant;
+            final Map<Reference, Constant> vals =
+                instanceConstant.fieldValues;
+
+            final List<MapLiteralEntry> annotationParams =
+                <MapLiteralEntry>[];
+
+            vals.forEach((Reference ref, Constant val) {
+              final ConstantExpression exp = ConstantExpression(val);
+              annotationParams.add(MapLiteralEntry(
+                  StringLiteral(ref.canonicalName!.name), exp));
+            });
+
+            final CanonicalName canonicalName =
+                instanceConstant.classReference.canonicalName!;
+            annotationMap.add(MapLiteralEntry(
+                StringLiteral(canonicalName.name),
+                MapLiteral(annotationParams)));
+          }
+        } else if (annotation is ConstructorInvocation) {
+          //In 1.12.13， annotation is InstanceConstant
+        }
+      }
+    }
+
+    pointCutConstructorArguments.positional.add(MapLiteral(annotationMap));
+  
     final Class pointCutProceedProcedureCls = pointCutProceedProcedure!.parent! as Class;
     final ConstructorInvocation pointCutConstructorInvocation =
         ConstructorInvocation(pointCutProceedProcedureCls.constructors.first,
@@ -685,7 +682,7 @@ class AopUtils {
               instanceConstant.classReference.canonicalName;
           if (canonicalName != null &&
               canonicalName.name == AopUtils.kAopAnnotationClassAspect &&
-              canonicalName?.parent?.name == AopUtils.kImportUriAopAspect) {
+              canonicalName.parent?.name == AopUtils.kImportUriAopAspect) {
             enabled = true;
             break;
           }
@@ -694,11 +691,14 @@ class AopUtils {
       //Debug Mode
       else if (annotation is ConstructorInvocation) {
         final ConstructorInvocation constructorInvocation = annotation;
-        final Class? cls = constructorInvocation.targetReference.node?.parent as Class;
+        final Class? cls = constructorInvocation.targetReference.node?.parent as Class?;
         if (cls == null) {
           continue;
         }
-        final Library library = cls?.parent as Library;
+        final Library? library = cls.parent as Library?;
+        if(library == null) {
+          continue;
+        }
         if (cls.name == AopUtils.kAopAnnotationClassAspect &&
             library.importUri.toString() == AopUtils.kImportUriAopAspect) {
           enabled = true;
@@ -734,9 +734,7 @@ class AopUtils {
     }
     sourceInfo.putIfAbsent(
         'importUri',
-        () => (library.importUri.toString() != null)
-            ? (library.importUri.toString())
-            : '');
+        () => library.importUri.toString());
     sourceInfo.putIfAbsent('library', () => importUri);
     sourceInfo.putIfAbsent('file', () => fileUri.toString());
     sourceInfo.putIfAbsent('lineNum', () => '${lineNum + 1}');
@@ -920,7 +918,10 @@ class AopUtils {
         }
       }
     }
-    return namedNodes?.last;
+    if(namedNodes.isEmpty) {
+      return null;
+    }
+    return namedNodes.last;
   }
 
   static Class? classOfLib(Library lib, String className) {

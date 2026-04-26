@@ -64,13 +64,13 @@ class AopInjectImplTransformer extends Transformer {
   InstanceGet visitInstanceGet(InstanceGet node) {
     node.transformChildren(this);
 
-    final Reference reference = node.interfaceTargetReference;
+    // final Reference reference = node.interfaceTargetReference;
 
-    if (reference == null) {
-      return node;
-    }
+    // if (reference == null) {
+    //   return node;
+    // }
 
-    final Node interfaceTargetNode = node.interfaceTargetReference.node!;
+    final Node? interfaceTargetNode = node.interfaceTargetReference.node;
     if (_curAopLibrary != null) {
       if (interfaceTargetNode is Field) {
         if (interfaceTargetNode.fileUri == _curAopLibrary!.fileUri) {
@@ -103,7 +103,7 @@ class AopInjectImplTransformer extends Transformer {
               final Class cls = _curClass;
               final Field field =
                   AopUtils.findFieldForClassWithName(cls, node.name.text)!;
-              InstanceGet instanceGet = InstanceGet(
+              final InstanceGet instanceGet = InstanceGet(
                   InstanceAccessKind.Instance, node.receiver, field.name,
                   interfaceTarget: node.interfaceTarget,
                   resultType: node.resultType);
@@ -139,29 +139,27 @@ class AopInjectImplTransformer extends Transformer {
     }
 
     final String text = node.name.text;
-    if (text != null) {
-      late Field exchangeField;
-      for (Field field in _curClass.fields) {
-        if (field.name.text == text) {
-          exchangeField = field;
-          break;
-        }
-      }
-
-      if (exchangeField != null) {
-        final ThisExpression thisE = ThisExpression();
-
-        final InstanceGet property = InstanceGet(InstanceAccessKind.Instance,
-            thisE, Name(exchangeField.name.text, _curClass!.parent as Library),
-            interfaceTarget: exchangeField, resultType: exchangeField.type);
-
-        InstanceSet newSet = InstanceSet(
-            node.kind, thisE, exchangeField.name, node.value,
-            interfaceTarget: exchangeField);
-        return newSet;
+    Field? exchangeField;
+    for (Field field in _curClass.fields) {
+      if (field.name.text == text) {
+        exchangeField = field;
+        break;
       }
     }
 
+    if (exchangeField != null) {
+      final ThisExpression thisE = ThisExpression();
+
+      // final InstanceGet property = InstanceGet(InstanceAccessKind.Instance,
+      //     thisE, Name(exchangeField.name.text, _curClass.parent as Library),
+      //     interfaceTarget: exchangeField, resultType: exchangeField.type);
+
+      final InstanceSet newSet = InstanceSet(
+          node.kind, thisE, exchangeField.name, node.value,
+          interfaceTarget: exchangeField);
+      return newSet;
+    }
+  
     return node;
   }
 
@@ -195,13 +193,13 @@ class AopInjectImplTransformer extends Transformer {
     mergeTransform();
 
     for (AopItemInfo aopItemInfo in _aopItemInfoList) {
-      final Library aopAnnoLibrary = _libraryMap[aopItemInfo.importUri]!;
+      final Library? aopAnnoLibrary = _libraryMap[aopItemInfo.importUri];
       final String clsName = aopItemInfo.clsName;
       if (aopAnnoLibrary == null) {
         return;
       }
       //类静态/实例方法
-      if ((clsName?.length ?? 0) > 0) {
+      if (clsName.isNotEmpty) {
         Class expectedCls;
         for (Class cls in aopAnnoLibrary.classes) {
           if (cls.name == aopItemInfo.clsName) {
@@ -418,7 +416,7 @@ class AopInjectImplTransformer extends Transformer {
   }
 
   void mergeTransform() {
-    late AopItemInfo lastInfo;
+    AopItemInfo? lastInfo;
 
     final List<AopItemInfo> removeList = [];
 
@@ -478,7 +476,7 @@ class AopInjectImplTransformer extends Transformer {
       AopItemInfo aopItemInfo, List<Statement> aopInsertStatements) {
     late Statement body;
     if (node is FunctionNode) {
-      body = node!.body!;
+      body = node.body!;
       if (body is EmptyStatement) {
         final List<Statement> statements = <Statement>[body];
         body = Block(statements);
@@ -523,7 +521,7 @@ class AopInjectImplTransformer extends Transformer {
               final Procedure procedure = _curMethodNode as Procedure;
               if (AopUtils.isAsyncFunctionNode(procedure.function) &&
                   procedure ==
-                      body?.parent?.parent?.parent?.parent?.parent?.parent
+                      body.parent?.parent?.parent?.parent?.parent?.parent
                           ?.parent?.parent) {
                 if (lineEnds < 0 && i == len - 1) {
                   lineEnds = lineNum2Insert;

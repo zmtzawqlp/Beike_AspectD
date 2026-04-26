@@ -30,18 +30,22 @@ class AopFieldGetImplTransformer extends Transformer {
   }
 
   @override
-  Expression visitStaticGet(StaticGet node) {
+  TreeNode visitStaticGet(StaticGet node) {
     String? importUri, clsName, fieldName;
 
     // importUri = _curLibrary!.importUri.toString();
 
-    importUri = node?.targetReference?.canonicalName?.reference?.canonicalName
+    importUri = node.targetReference.canonicalName?.reference.canonicalName
         ?.nonRootTop?.name;
-    clsName = node?.targetReference?.canonicalName?.parent?.parent?.name;
-    fieldName = node?.targetReference?.canonicalName?.name;
+    clsName = node.targetReference.canonicalName?.parent?.parent?.name;
+    fieldName = node.targetReference.canonicalName?.name;
 
-    final AopItemInfo aopItemInfo = _filterAopItemInfo(
-        _aopItemInfoList, importUri!, clsName!, fieldName!, true)!;
+    if (importUri == null || clsName == null || fieldName == null) {
+      return super.visitStaticGet(node);
+    }
+
+    final AopItemInfo? aopItemInfo = _filterAopItemInfo(
+        _aopItemInfoList, importUri, clsName, fieldName, true);
 
     if (aopItemInfo != null) {
       final Arguments redirectArguments = Arguments.empty();
@@ -63,8 +67,8 @@ class AopFieldGetImplTransformer extends Transformer {
     clsName = _curClass!.name;
     fieldName = node.name.text;
 
-    final AopItemInfo aopItemInfo = _filterAopItemInfo(
-        _aopItemInfoList, importUri, clsName, fieldName, false)!;
+    final AopItemInfo? aopItemInfo = _filterAopItemInfo(
+        _aopItemInfoList, importUri, clsName, fieldName, false);
 
     if (aopItemInfo != null) {
       final Arguments redirectArguments = Arguments.empty();
@@ -84,9 +88,7 @@ class AopFieldGetImplTransformer extends Transformer {
   AopItemInfo? _filterAopItemInfo(List<AopItemInfo> aopItemInfoList,
       String importUri, String clsName, String fieldName, bool isStatic) {
     //Reverse sorting so that the newly added Aspect might override the older ones.
-    importUri ??= '';
-    clsName ??= '';
-    fieldName ??= '';
+ 
     final int aopItemInfoCnt = aopItemInfoList.length;
     for (int i = aopItemInfoCnt - 1; i >= 0; i--) {
       final AopItemInfo aopItemInfo = aopItemInfoList[i];
@@ -124,7 +126,7 @@ class AopFieldGetImplTransformer extends Transformer {
         AopUtils.pointCutProceedProcedure as Procedure,
         bodyStatements,
         shouldReturn);
-    pointCutClass.procedures.add(procedure);
+    pointCutClass.addProcedure(procedure);
     AopUtils.insertProceedBranch(pointCutClass, procedure, shouldReturn);
   }
 }

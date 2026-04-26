@@ -313,3 +313,19 @@ class ToStringTransformer extends frontend.ProgramTransformer {
     _child?.transform(component);
   }
 }
+
+class _ChainedProgramTransformer extends frontend.ProgramTransformer {
+  _ChainedProgramTransformer({
+    this.first,
+    this.second,
+  });
+
+  final frontend.ProgramTransformer? first;
+  final FlutterProgramTransformer? second;
+
+  @override
+  void transform(Component component) {
+    first?.transform(component);
+    second?.transform(component);
+  }
+}

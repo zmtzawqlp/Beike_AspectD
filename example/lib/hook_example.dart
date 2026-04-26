@@ -1,14 +1,16 @@
 import 'package:beike_aspectd/aspectd.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/src/material/page.dart';
 
 @Aspect()
 @pragma("vm:entry-point")
 class FieldGetDemo {
-  // @pragma("vm:entry-point")
-  // @FieldGet('dart:io', 'Platform', 'isAndroid', true)
-  // static bool exchange(PointCut pointCut) {
-  //   //origin call
-  //   return true;
-  // }
+  @pragma("vm:entry-point")
+  @FieldGet('dart:io', 'Platform', 'isAndroid', true)
+  static bool exchange(PointCut pointCut) {
+    //origin call
+    return true;
+  }
 
   // @pragma("vm:entry-point")
   // @FieldGet('package:example/main.dart', '_MyHomePageState', 's', false)
@@ -18,36 +20,6 @@ class FieldGetDemo {
   // }
 }
 
-@Aspect()
-@pragma("vm:entry-point")
-class FieldInitializerDemo {
-  //  @FieldInitializer("package:flutter/src/widgets/image.dart", "Image", "+Image.network", "gaplessPlayback")
-//  @pragma("vm:entry-point")
-//  void hookNetworkImage()
-//  {
-//    true;
-//  }
-//
-//  @FieldInitializer("package:flutter/src/widgets/image.dart", "Image", "+Image.network", "image")
-//  @pragma("vm:entry-point")
-//  void hookNetworkImage2()
-//  {
-//    int cacheWidth;
-//    int cacheHeight;
-//
-//    double width;
-//    double height;
-//
-//    String src;
-//    double scale;
-//    Map<String, String> headers;
-//
-//    ResizeImage.resizeIfNeeded(cacheWidth!=null?cacheWidth:width.toInt(), cacheHeight!=null?cacheHeight:height.toInt(), NetworkImage(src, scale: scale, headers: headers));
-////    ResizeImage.resizeIfNeeded(100, 50, NetworkImage(src, scale: scale, headers: headers));
-//
-//  }
-
-}
 
 @Aspect()
 @pragma("vm:entry-point")
@@ -55,13 +27,13 @@ class CallDemo {
   @pragma("vm:entry-point")
   CallDemo();
 
-//实例方法
-  @Call("package:example/main.dart", "_MyHomePageState", "-_incrementCounter")
-  @pragma("vm:entry-point")
-  void _incrementCounter4(PointCut pointcut) {
-    print('[beike_aspectd]: call instance method2!');
-    pointcut.proceed();
-  }
+  //实例方法
+  // @Call("package:example/main.dart", "_MyHomePageState", "-_incrementCounter")
+  // @pragma("vm:entry-point")
+  // void _incrementCounter4(PointCut pointcut) {
+  //   print('[beike_aspectd]: call instance method2!');
+  //   pointcut.proceed();
+  // }
 
   // @Call('package:example/main.dart', 'TextRightImageModel', '-.*',
   //     isRegex: true)
@@ -147,15 +119,15 @@ class ExecuteDemo {
   ExecuteDemo();
 
 //实例方法
-//   @Execute(
-//       "package:example/main.dart", "_MyHomePageState", "-_incrementCounter")
-//   @pragma("vm:entry-point")
-//   void _incrementCounter(PointCut pointcut) {
-//     print('[beike_aspectd]: Execute instance method!');
-//     pointcut.proceed();
-//   }
+  @Execute(
+      "package:example/main.dart", "_MyHomePageState", "-_incrementCounter")
+  @pragma("vm:entry-point")
+  void _incrementCounter5(PointCut pointcut) {
+    print('[beike_aspectd]: Execute instance method!');
+   pointcut.proceed();
+  }
 
-// //类静态方法
+//类静态方法
 // @Execute("package:example/receiver_test.dart", "Receiver", "+tap")
 // @pragma("vm:entry-point")
 // static dynamic tap(PointCut pointcut) {
@@ -229,28 +201,28 @@ class InjectDemo {
   InjectDemo();
 
 // //实例方法
-//   @Inject("package:example/main.dart", "_MyHomePageState", "-onPluginDemo",
-//       lineNum: 108)
-//   @pragma("vm:entry-point")
-//   void onPluginDemo(PointCut pointcut) {
-//     Object p; //Aspectd Ignore
-//
-//     print('[beike_aspectd]:Inject instance method!');
-//     // Object bo; //Aspectd Ignore
-//     print(p);
-//     // print(bo);
-//   }
+  // @Inject("package:example/main.dart", "_MyHomePageState", "-onPluginDemo",
+  //     lineNum: 108)
+  // @pragma("vm:entry-point")
+  // void onPluginDemo(PointCut pointcut) {
+  //  // Object p; //Aspectd Ignore
 
-// //类静态方法
+  //   print('[beike_aspectd]:Inject instance method!');
+  //   // Object bo; //Aspectd Ignore
+  //  // print(p);
+  //   // print(bo);
+  // }
+
+//类静态方法
 // @Inject("package:example/receiver_test.dart", "Receiver", "+tap",
 //     lineNum: 8)
 // @pragma("vm:entry-point")
 // static dynamic tap(PointCut pointcut) {
 //   print('Inject static method!');
-//   Object instance; //Aspectd Ignore
-//   Object context; //Aspectd Ignore
-//   print(instance);
-//   print(context);
+//   // Object instance; //Aspectd Ignore
+//   // Object context; //Aspectd Ignore
+//   // print(instance);
+//   // print(context);
 // }
 
 // //构造方法
@@ -283,46 +255,12 @@ class InjectDemo {
 class InjectSameLineDemo {
   InjectSameLineDemo();
 
-//  @Inject("package:flutter/src/material/page.dart","MaterialPageRoute","-buildPage", lineNum:87)
-//  @pragma("vm:entry-point")
-//  void routeAfterPage() {
-//
-//    {
-//
-//      print("----Hook buildPage 87----");
-//    }
-//
-//
-//  }
-//
-//  @Inject("package:flutter/src/material/page.dart","MaterialPageRoute","-buildPage", lineNum:87)
-//  @pragma("vm:entry-point")
-//  void routeBeforePage() {
-//
-//    {
-//      dynamic self = this;
-//      print(self);
-//      print("----Hook buildPage 87----");
-//    }
-//  }
-//
-//  @Inject("package:flutter/src/material/page.dart","MaterialPageRoute","-buildPage", lineNum:87)
-//  @pragma("vm:entry-point")
-//  void routeAfterPage2() {
-//
-//    {
-//
-//      print("----Hook buildPage 87----");
-//    }
-//
-//
-//  }
-//
-//  @Inject("package:flutter/src/material/page.dart","MaterialPageRoute","-buildPage", lineNum:88)
-//  @pragma("vm:entry-point")
-//  void routeAfterPage3() {
-//    print("----Hook buildPage 88----");
-//  }
+ @Inject("package:flutter/src/material/app.dart", "_MaterialAppState", "-initState", lineNum: 911)
+ @pragma("vm:entry-point")
+ void hookMaterialAppStateInitState() {
+   print("----Hook scheduleAttachRootWidget: app is starting----");
+ }
+ 
 }
 
 @Aspect()

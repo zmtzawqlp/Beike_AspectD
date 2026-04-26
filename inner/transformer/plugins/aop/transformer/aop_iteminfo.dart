@@ -31,11 +31,11 @@ class AopItemInfo {
   static String uniqueKeyForMethod(
       String importUri, String clsName, String methodName, bool isStatic,
       {int? lineNum}) {
-    return (importUri ?? '') +
+    return importUri +
         AopUtils.kAopUniqueKeySeperator +
-        (clsName ?? '') +
+        clsName +
         AopUtils.kAopUniqueKeySeperator +
-        (methodName ?? '') +
+        methodName +
         AopUtils.kAopUniqueKeySeperator +
         (isStatic == true ? '+' : '-') +
         (lineNum != null ? (AopUtils.kAopUniqueKeySeperator + '$lineNum') : '');

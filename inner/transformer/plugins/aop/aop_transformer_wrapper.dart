@@ -174,9 +174,6 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
           continue;
         }
         for (Member member in cls.members) {
-          if (!(member is Member)) {
-            continue;
-          }
           final AopItemInfo? aopItemInfo = _processAopMember(member);
           if (aopItemInfo != null) {
             aopItemInfoList.add(aopItemInfo);
@@ -201,10 +198,13 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
           constant.fieldValues
               .forEach((Reference reference, Constant constant) {
             reference.node ??= AopUtils.getNodeFromCanonicalName(
-                componentLibraryMap, reference?.canonicalName);
+                componentLibraryMap, reference.canonicalName);
           });
+          if(canonicalName == null || canonicalName.parent ==null) {
+            continue;
+          }
           final AopMode? aopMode = AopUtils.getAopModeByNameAndImportUri(
-              canonicalName!.name, canonicalName!.parent!.name);
+              canonicalName.name, canonicalName.parent!.name);
           if (aopMode == null) {
             continue;
           }
@@ -222,24 +222,24 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
               .forEach((Reference reference, Constant constant) {
             if (constant is StringConstant) {
               final String value = constant.value;
-              if (reference?.canonicalName?.name ==
+              if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationImportUri) {
                 importUri = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationClsName) {
                 clsName = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationMethodName) {
                 methodName = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationSuperClsName) {
                 superClsName = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationfieldName) {
                 fieldName = value;
               }
             }
-            if (reference?.canonicalName?.name ==
+            if (reference.canonicalName?.name ==
                 AopUtils.kAopAnnotationLineNum) {
               if (constant is DoubleConstant) {
                 final int value = constant.value.toInt();
@@ -251,13 +251,13 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
             }
             if (constant is BoolConstant) {
               final bool value = constant.value;
-              if (reference?.canonicalName?.name ==
+              if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationIsRegex) {
                 isRegex = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationExcludeCoreLib) {
                 excludeCoreLib = value;
-              } else if (reference?.canonicalName?.name ==
+              } else if (reference.canonicalName?.name ==
                   AopUtils.kAopAnnotationIsStatic) {
                 isStatic = value;
               }
@@ -298,10 +298,13 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
       //Debug Mode
       else if (annotation is ConstructorInvocation) {
         final ConstructorInvocation constructorInvocation = annotation;
-        final Class cls = constructorInvocation!.targetReference!.node!.parent as Class;
-        final Library clsParentLib = cls.parent as Library;
+        final Class? cls = constructorInvocation.targetReference.node?.parent as Class?;
+        final Library? clsParentLib = cls?.parent as Library?;
+        if(cls == null || clsParentLib == null) {
+          continue;
+        }
         final AopMode? aopMode = AopUtils.getAopModeByNameAndImportUri(
-            cls.name, clsParentLib.importUri!.toString());
+            cls.name, clsParentLib.importUri.toString());
         if (aopMode == null) {
           continue;
         }
@@ -392,7 +395,7 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
 
   void _checkIfCompleteLibraryReference(Library library) {
     for (LibraryDependency libraryDependency
-        in library.dependencies ?? <LibraryDependency>[]) {
+        in library.dependencies) {
       libraryDependency.importedLibraryReference.node ??=
           AopUtils.getNodeFromCanonicalName(componentLibraryMap,
               libraryDependency.importedLibraryReference.canonicalName);

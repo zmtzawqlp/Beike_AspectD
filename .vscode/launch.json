@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug debug_server.dart (inner packages)",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug_server.dart",
+            "cwd": "${workspaceFolder}/example",
+            "vmAdditionalArgs": [
+                "--packages=${workspaceFolder}/inner/.dart_tool/package_config.json"
+            ]
+        }
+    ]
+}

@@ -151,7 +151,7 @@ class AopAddImplTransformer extends RecursiveVisitor  {
       fileUri: pointCutClass.fileUri,
     );
 
-    pointCutClass.procedures.add(procedure);
+    pointCutClass.addProcedure(procedure);
   }
 
   //Filter AopInfoMap for specific class.

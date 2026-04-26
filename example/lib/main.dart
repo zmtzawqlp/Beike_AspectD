@@ -1,7 +1,9 @@
+// ignore_for_file: unused_import
+
 import 'dart:io';
 
-import 'package:beike_aspectd/aspectd.dart';
 // ignore: unused_import
+import 'package:beike_aspectd/aspectd.dart';
 import 'package:example/hook_example.dart';
 import 'package:flutter/material.dart';
 
@@ -180,12 +182,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 // dynamic4.addTestRegularFilterSuper(null);
                 // dynamicO.addTest(null, '111', s:'666', i:5);
 
-                // PointCut p = PointCut.pointCut();
-                // dynamicO.addTest(p, 9);
+                PointCut p = PointCut.pointCut();
+                dynamicO.addTest(p, 9);
                 // dynamicO.testFunc('ffff');
                 // dynamicO.addTestRegular(null);
                 // receiver2.addTest(null, '111', s:'777', i:8);
-                print(_receiver6);
+                // print(_receiver6);
 
                 // dynamic d2 = this;
                 // d2.addTest();
@@ -196,9 +198,10 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          test();
-          // Receiver.tap();
-          _incrementCounter();
+         // test();
+           Receiver.tap();
+           
+           _incrementCounter();
         },
         tooltip: 'Increment',
         child: Icon(Icons.add),

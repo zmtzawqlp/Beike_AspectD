@@ -119,6 +119,12 @@ Field get可以被用来替换对于某个属性的调用.
 ## 如何调试
 见[调试](doc/如何调试.md)
 
+## 如何迁移 pkg
+见[pkg迁移说明](doc/pkg迁移说明.md)
+
+## 如何迁移 flutter_tool
+见[flutter_tool迁移说明](doc/flutter_tool迁移说明.md)
+
 ## 常见问题
 - 如何知道我的hook代码是否生效?
   1. 首先需要下载Flutter对于的dart sdk。Dart sdk的revision可以在path_to_flutter/bin/cache/dart-sdk/revision文件中找到。
