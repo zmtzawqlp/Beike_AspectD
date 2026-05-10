@@ -1,7 +1,7 @@
 import 'dart:io';
 
 // 修改这里即可切换要读取的 demo 工程目录（例如: example、aop_exmaple）。
-const String _targetDemoDir = 'example';
+const String _targetDemoDir = 'aop_example';
 
 Future<void> main(List<String> args) async {
   final scriptFile = File.fromUri(Platform.script);
@@ -26,7 +26,7 @@ Future<void> main(List<String> args) async {
 
   final outputPath = args.length >= 2
       ? args[1]
-      : '${repoRoot.path}${Platform.pathSeparator}out.dill.txt';
+      : '${repoRoot.path}${Platform.pathSeparator}$_targetDemoDir${Platform.pathSeparator}out.dill.txt';
 
   String? inputDillPath;
   if (args.isNotEmpty) {
