@@ -2,10 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-library kernel.transformations.track_widget_constructor_locations;
-
-import '../ast.dart';
-import '../target/changed_structure_notifier.dart';
+import 'package:kernel/ast.dart';
+import 'package:kernel/target/changed_structure_notifier.dart';
 
 // Parameter name used to track where widget constructor calls were made from.
 //
@@ -20,7 +18,7 @@ const String _creationLocationParameterName =
 /// Regardless of what library a class implementing Widget is defined in, the
 /// private field will always be defined in the context of the widget_inspector
 /// library ensuring no name conflicts with regular fields.
-const String _locationFieldName = r'_location';
+const String _locationFieldName = r'aopLocation';
 
 bool _hasNamedParameter(FunctionNode function, String name) {
   return function.namedParameters.any(
@@ -169,12 +167,19 @@ class _WidgetCallSiteTransformer extends Transformer {
   /// constructor call but it is convenient to bundle the location and names
   /// of the parameters passed in so that tools can show parameter locations
   /// without re-parsing the source code.
-  ConstructorInvocation _constructLocation(Location location, {String? name}) {
+  ConstructorInvocation _constructLocation(
+    Location location, {
+    String? name,
+    String? ownerImportUri,
+  }) {
     final List<NamedExpression> arguments = <NamedExpression>[
       new NamedExpression('file', new StringLiteral(location.file.toString())),
       new NamedExpression('line', new IntLiteral(location.line)),
       new NamedExpression('column', new IntLiteral(location.column)),
       if (name != null) new NamedExpression('name', new StringLiteral(name)),
+      if (ownerImportUri != null)
+        new NamedExpression(
+            'ownerImportUri', new StringLiteral(ownerImportUri)),
     ];
 
     return new ConstructorInvocation(
@@ -319,12 +324,22 @@ class _WidgetCallSiteTransformer extends Transformer {
       }
     }
 
+    String? ownerImportUri;
+    if (constructedClass != null) {
+      ownerImportUri = constructedClass.enclosingLibrary.importUri.toString();
+    } else {
+      final TreeNode? parent = function.parent;
+      if (parent is Procedure) {
+        ownerImportUri = parent.enclosingLibrary.importUri.toString();
+      }
+    }
+
     return _constructLocation(
       node.location!,
-      name:
-          constructedClass?.name ??
+      name: constructedClass?.name ??
           // For extension factory methods we use the name of the method.
           (function.parent! as Procedure).name.text,
+      ownerImportUri: ownerImportUri,
     );
   }
 
@@ -391,16 +406,14 @@ class WidgetCreatorTracker {
             }
           }
         } else {
-          if (importUri.path == 'flutter/src/widgets/widget_inspector.dart') {
+          if (importUri.path == 'beike_aspectd/src/plugins/aop/location.dart') {
             for (Class class_ in library.classes) {
-              if (class_.name == '_HasCreationLocation') {
+              if (class_.name == 'AopHasCreationLocation') {
                 _hasCreationLocationClass = class_;
                 foundHasCreationLocationClass = true;
-              } else if (class_.name == '_Location') {
+              } else if (class_.name == 'AopLocation') {
                 _locationClass = class_;
                 foundLocationClass = true;
-              } else if (class_.name == '_WidgetFactory') {
-                _widgetFactoryClass = class_;
               }
             }
           }
