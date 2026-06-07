@@ -8,11 +8,13 @@ library front_end.tool.perf_common;
 import 'dart:io' show exitCode, stderr;
 
 import 'package:_fe_analyzer_shared/src/messages/diagnostic_message.dart'
-    show DiagnosticMessage, DiagnosticMessageHandler, getMessageCodeObject;
-import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
+    show CfeDiagnosticMessage, DiagnosticMessageHandler, getMessageCodeObject;
+import 'package:_fe_analyzer_shared/src/messages/severity.dart'
+    show CfeSeverity;
 import 'package:front_end/src/api_prototype/terminal_color_support.dart'
     show printDiagnosticMessage;
 import 'package:front_end/src/codes/cfe_codes.dart' as cfeCodes;
+import 'package:front_end/src/codes/diagnostic.dart' as diag;
 import 'package:kernel/target/targets.dart' show Target, TargetFlags;
 import 'package:vm/modular/target/flutter.dart' show FlutterTarget;
 import 'package:vm/modular/target/vm.dart' show VmTarget;
@@ -29,24 +31,24 @@ import 'package:vm/modular/target/vm.dart' show VmTarget;
 /// from this set.
 final allowlistMessageCode = new Set<cfeCodes.Code>.from(<cfeCodes.Code>[
   // Code names in this list should match the key used in messages.yaml
-  cfeCodes.codeInvalidAssignmentError,
-  cfeCodes.codeOverrideTypeMismatchParameter,
-  cfeCodes.codeOverriddenMethodCause,
+  diag.invalidAssignmentError,
+  diag.overrideTypeMismatchParameter,
+  diag.overriddenMethodCause,
 
   // The following errors are not covered by unit tests in the SDK repo because
   // they are only seen today in the flutter-gallery benchmark (external to
   // this repo).
-  cfeCodes.codeInvalidCastFunctionExpr,
-  cfeCodes.codeInvalidCastTopLevelFunction,
-  cfeCodes.codeUndefinedGetter,
-  cfeCodes.codeUndefinedMethod,
+  diag.invalidCastFunctionExpr,
+  diag.invalidCastTopLevelFunction,
+  diag.undefinedGetter,
+  diag.undefinedMethod,
 ]);
 
 DiagnosticMessageHandler onDiagnosticMessageHandler() {
   bool messageReported = false;
-  return (DiagnosticMessage m) {
-    if (m.severity == Severity.internalProblem ||
-        m.severity == Severity.error) {
+  return (CfeDiagnosticMessage m) {
+    if (m.severity == CfeSeverity.internalProblem ||
+        m.severity == CfeSeverity.error) {
       if (!allowlistMessageCode.contains(getMessageCodeObject(m))) {
         printDiagnosticMessage(m, stderr.writeln);
         exitCode = 1;

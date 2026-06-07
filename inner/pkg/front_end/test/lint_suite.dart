@@ -5,9 +5,11 @@
 import 'dart:io' show File;
 import 'dart:typed_data' show Uint8List;
 
+import 'package:_fe_analyzer_shared/src/parser/experimental_features.dart'
+    show DefaultExperimentalFeatures;
 import 'package:_fe_analyzer_shared/src/parser/listener.dart' show Listener;
 import 'package:_fe_analyzer_shared/src/parser/parser.dart'
-    show FormalParameterKind, MemberKind, Parser;
+    show FormalParameterKind, MemberKind, Parser, DeclarationKind;
 import 'package:_fe_analyzer_shared/src/scanner/abstract_scanner.dart'
     show ScannerConfiguration;
 import 'package:_fe_analyzer_shared/src/scanner/token.dart' show Token;
@@ -25,10 +27,12 @@ import 'package:testing/testing.dart'
 import 'utils/suite_utils.dart';
 import 'testing_utils.dart' show checkEnvironment, filterList;
 
-void main([List<String> arguments = const []]) => internalMain(createContext,
-    arguments: arguments,
-    displayName: "lint suite",
-    configurationPath: "../testing.json");
+void main([List<String> arguments = const []]) => internalMain(
+  createContext,
+  arguments: arguments,
+  displayName: "lint suite",
+  configurationPath: "../testing.json",
+);
 
 Future<Context> createContext(Chain suite, Map<String, String> environment) {
   const Set<String> knownEnvironmentKeys = {"onlyInGit"};
@@ -55,11 +59,12 @@ class LintTestDescription extends TestDescription {
     cache.source ??= new Source(cache.lineStarts, cache.rawBytes!, uri, uri);
     Location location = cache.source!.getLocation(uri, offset);
     return command_line_reporting.formatErrorMessage(
-        cache.source!.getTextLine(location.line),
-        location,
-        squigglyLength,
-        uri.toString(),
-        message);
+      cache.source!.getTextLine(location.line),
+      location,
+      squigglyLength,
+      uri.toString(),
+      message,
+    );
   }
 }
 
@@ -76,45 +81,53 @@ class Context extends ChainContext {
   Context({required this.onlyInGit});
 
   @override
-  final List<Step> steps = const <Step>[
-    const LintStep(),
-  ];
+  final List<Step> steps = const <Step>[const LintStep()];
 
   @override
   Future<List<LintTestDescription>> list(Chain suite) async {
     String rootString = "${suite.root}";
-    Uri apiUnstableUri =
-        Uri.base.resolve("pkg/front_end/lib/src/api_unstable/");
+    Uri apiUnstableUri = Uri.base.resolve(
+      "pkg/front_end/lib/src/api_unstable/",
+    );
     String apiUnstableString = apiUnstableUri.toString();
 
     List<LintTestDescription> result = [];
-    for (TestDescription description
-        in await filterList(suite, onlyInGit, await super.list(suite))) {
+    for (TestDescription description in await filterList(
+      suite,
+      onlyInGit,
+      await super.list(suite),
+    )) {
       String baseName = "${description.uri}".substring(rootString.length);
       baseName = baseName.substring(0, baseName.length - ".dart".length);
       LintTestCache cache = new LintTestCache();
 
-      result.add(new LintTestDescription(
-        "$baseName/ExplicitType",
-        description.uri,
-        cache,
-        new ExplicitTypeLintListener(),
-      ));
-
-      result.add(new LintTestDescription(
-        "$baseName/ImportsTwice",
-        description.uri,
-        cache,
-        new ImportsTwiceLintListener(),
-      ));
-
-      if (!description.uri.toString().startsWith(apiUnstableString)) {
-        result.add(new LintTestDescription(
-          "$baseName/Exports",
+      result.add(
+        new LintTestDescription(
+          "$baseName/ExplicitType",
           description.uri,
           cache,
-          new ExportsLintListener(),
-        ));
+          new ExplicitTypeLintListener(),
+        ),
+      );
+
+      result.add(
+        new LintTestDescription(
+          "$baseName/ImportsTwice",
+          description.uri,
+          cache,
+          new ImportsTwiceLintListener(),
+        ),
+      );
+
+      if (!description.uri.toString().startsWith(apiUnstableString)) {
+        result.add(
+          new LintTestDescription(
+            "$baseName/Exports",
+            description.uri,
+            cache,
+            new ExportsLintListener(),
+          ),
+        );
       }
     }
     return result;
@@ -129,7 +142,9 @@ class LintStep extends Step<LintTestDescription, LintTestDescription, Context> {
 
   @override
   Future<Result<LintTestDescription>> run(
-      LintTestDescription description, Context context) async {
+    LintTestDescription description,
+    Context context,
+  ) async {
     if (description.cache.rawBytes == null) {
       File f = new File.fromUri(description.uri);
       Uint8List bytes = description.cache.rawBytes = f.readAsBytesSync();
@@ -144,8 +159,9 @@ class LintStep extends Step<LintTestDescription, LintTestDescription, Context> {
       description.cache.firstToken = scanner.tokenize();
       description.cache.lineStarts = scanner.lineStarts;
 
-      Uri packageConfig =
-          description.uri.resolve(".dart_tool/package_config.json");
+      Uri packageConfig = description.uri.resolve(
+        ".dart_tool/package_config.json",
+      );
       while (true) {
         if (new File.fromUri(packageConfig).existsSync()) {
           break;
@@ -154,8 +170,9 @@ class LintStep extends Step<LintTestDescription, LintTestDescription, Context> {
         if (packageConfig.pathSegments.length < Uri.base.pathSegments.length) {
           break;
         }
-        packageConfig =
-            packageConfig.resolve("../../.dart_tool/package_config.json");
+        packageConfig = packageConfig.resolve(
+          "../../.dart_tool/package_config.json",
+        );
       }
 
       File packageConfigUri = new File.fromUri(packageConfig);
@@ -168,10 +185,11 @@ class LintStep extends Step<LintTestDescription, LintTestDescription, Context> {
       return crash(description, StackTrace.current);
     }
 
-    Parser parser = new Parser(description.listener,
-        useImplicitCreationExpression: useImplicitCreationExpressionInCfe,
-        allowPatterns: true,
-        enableFeatureEnhancedParts: true);
+    Parser parser = new Parser(
+      description.listener,
+      useImplicitCreationExpression: useImplicitCreationExpressionInCfe,
+      experimentalFeatures: const DefaultExperimentalFeatures(),
+    );
     parser.parseUnit(description.cache.firstToken!);
 
     if (description.listener.problems.isEmpty) {
@@ -184,7 +202,6 @@ class LintStep extends Step<LintTestDescription, LintTestDescription, Context> {
 class LintListener extends Listener {
   List<String> problems = <String>[];
   late final LintTestDescription description;
-  @override
   late final Uri uri;
 
   void onProblem(int offset, int squigglyLength, String message) {
@@ -197,10 +214,16 @@ class ExplicitTypeLintListener extends LintListener {
 
   @override
   void beginVariablesDeclaration(
-      Token token, Token? lateToken, Token? varFinalOrConst) {
+    Token token,
+    Token? lateToken,
+    Token? varFinalOrConst,
+  ) {
     if (!_latestTypes.last.type) {
       onProblem(
-          varFinalOrConst!.offset, varFinalOrConst.length, "No explicit type.");
+        varFinalOrConst!.offset,
+        varFinalOrConst.length,
+        "No explicit type.",
+      );
     }
   }
 
@@ -221,15 +244,16 @@ class ExplicitTypeLintListener extends LintListener {
 
   @override
   void endTopLevelFields(
-      Token? augmentToken,
-      Token? externalToken,
-      Token? staticToken,
-      Token? covariantToken,
-      Token? lateToken,
-      Token? varFinalOrConst,
-      int count,
-      Token beginToken,
-      Token endToken) {
+    Token? augmentToken,
+    Token? externalToken,
+    Token? staticToken,
+    Token? covariantToken,
+    Token? lateToken,
+    Token? varFinalOrConst,
+    int count,
+    Token beginToken,
+    Token endToken,
+  ) {
     if (!_latestTypes.last.type) {
       onProblem(beginToken.offset, beginToken.length, "No explicit type.");
     }
@@ -237,34 +261,41 @@ class ExplicitTypeLintListener extends LintListener {
   }
 
   @override
-  void endClassFields(
-      Token? abstractToken,
-      Token? augmentToken,
-      Token? externalToken,
-      Token? staticToken,
-      Token? covariantToken,
-      Token? lateToken,
-      Token? varFinalOrConst,
-      int count,
-      Token beginToken,
-      Token endToken) {
+  void endFields(
+    DeclarationKind kind,
+    Token? abstractToken,
+    Token? augmentToken,
+    Token? externalToken,
+    Token? staticToken,
+    Token? covariantToken,
+    Token? lateToken,
+    Token? varFinalOrConst,
+    int count,
+    Token beginToken,
+    Token endToken,
+  ) {
     if (!_latestTypes.last.type) {
       onProblem(
-          varFinalOrConst!.offset, varFinalOrConst.length, "No explicit type.");
+        varFinalOrConst!.offset,
+        varFinalOrConst.length,
+        "No explicit type.",
+      );
     }
     _latestTypes.removeLast();
   }
 
   @override
   void endFormalParameter(
-      Token? thisKeyword,
-      Token? superKeyword,
-      Token? periodAfterThisOrSuper,
-      Token nameToken,
-      Token? initializerStart,
-      Token? initializerEnd,
-      FormalParameterKind kind,
-      MemberKind memberKind) {
+    Token? varOrFinal,
+    Token? thisKeyword,
+    Token? superKeyword,
+    Token? periodAfterThisOrSuper,
+    Token nameToken,
+    Token? initializerStart,
+    Token? initializerEnd,
+    FormalParameterKind kind,
+    MemberKind memberKind,
+  ) {
     _latestTypes.removeLast();
   }
 }
@@ -305,11 +336,17 @@ class ImportsTwiceLintListener extends LintListener {
     Set<String?> asNames = seenImports[resolved] ??= {};
     if (!asNames.add(asName)) {
       if (asName != null) {
-        onProblem(importUriToken.offset, importUriToken.lexeme.length,
-            "Uri '$resolved' already imported once as '${asName}'.");
+        onProblem(
+          importUriToken.offset,
+          importUriToken.lexeme.length,
+          "Uri '$resolved' already imported once as '${asName}'.",
+        );
       } else {
-        onProblem(importUriToken.offset, importUriToken.lexeme.length,
-            "Uri '$resolved' already imported once.");
+        onProblem(
+          importUriToken.offset,
+          importUriToken.lexeme.length,
+          "Uri '$resolved' already imported once.",
+        );
       }
     }
   }
@@ -343,7 +380,10 @@ class ExportsLintListener extends LintListener {
         resolved = description.cache.packages!.resolve(resolved)!;
       }
     }
-    onProblem(exportUriToken.offset, exportUriToken.lexeme.length,
-        "Exports disallowed internally.");
+    onProblem(
+      exportUriToken.offset,
+      exportUriToken.lexeme.length,
+      "Exports disallowed internally.",
+    );
   }
 }

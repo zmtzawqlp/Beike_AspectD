@@ -102,6 +102,7 @@ alias
 aliased
 aliases
 alignment
+alike
 all
 allocated
 allocating
@@ -329,6 +330,7 @@ bot
 both
 bottom
 bound
+boundaries
 boundary
 bounded
 boundedness
@@ -455,6 +457,7 @@ checkpoints
 checks
 child
 children
+children's
 choice
 choose
 chooses
@@ -523,6 +526,8 @@ collection
 collections
 collector
 collects
+collide
+colliding
 colon
 colons
 color
@@ -551,6 +556,7 @@ compact
 comparable
 comparator
 compare
+comparer
 comparing
 comparison
 comparisons
@@ -613,6 +619,7 @@ conflicting
 conflicts
 conform
 conformed
+conforming
 confuse
 confused
 confusion
@@ -755,6 +762,7 @@ dart
 dart2js
 dart2wasm
 dart2wasm_js_compatibility
+dart2wasm_standalone
 dartdevc
 data
 date
@@ -821,6 +829,7 @@ deliberately
 delimited
 delimiter
 delimiters
+deliver
 delta
 demote
 demoted
@@ -845,6 +854,7 @@ deprecate
 deprecated
 depromotes
 depth
+depths
 dereferenced
 derivation
 derive
@@ -866,6 +876,7 @@ deserialize
 deserialized
 designed
 desired
+destructively
 desugar
 desugared
 desugaring
@@ -946,6 +957,7 @@ distinct
 distinction
 distinguish
 distinguishes
+distinguishing
 divide
 division
 divisor
@@ -1082,6 +1094,7 @@ enumeration
 enumerations
 enums
 environment
+environments
 equal
 equalities
 equality
@@ -1127,6 +1140,7 @@ examined
 examining
 example
 examples
+exceed
 exceeded
 except
 exception
@@ -1137,6 +1151,7 @@ exclude
 excluded
 excludes
 excluding
+exclusion
 exclusive
 executable
 executed
@@ -1445,6 +1460,7 @@ header
 headers
 heading
 heavier
+held
 help
 helper
 helpers
@@ -1524,6 +1540,7 @@ implicitly
 implied
 implies
 import
+importable
 important
 imported
 importer
@@ -1934,6 +1951,7 @@ measurably
 measure
 measurements
 mechanism
+mechanisms
 medium
 meet
 member
@@ -2219,6 +2237,7 @@ overwritten
 own
 owned
 owner
+owns
 package
 packaged
 packages
@@ -2328,6 +2347,7 @@ popping
 pops
 populate
 populated
+populating
 port
 portion
 position
@@ -2542,6 +2562,7 @@ recovered
 recovering
 recovers
 recovery
+recreated
 recurse
 recursing
 recursive
@@ -2758,6 +2779,7 @@ satisfying
 save
 saved
 says
+scaffolding
 scalar
 scan
 scanned
@@ -2819,6 +2841,7 @@ serialized
 serializes
 serializing
 serious
+served
 set
 sets
 setter
@@ -2950,6 +2973,7 @@ spending
 split
 splits
 splitter
+spot
 spread
 spreadable
 spreads
@@ -3304,6 +3328,7 @@ unassignable
 unassigned
 unbalanced
 unbind
+uncaptured
 uncertain
 unchanged
 unchecked
@@ -3458,6 +3483,7 @@ visiting
 visitor
 visitor's
 visual
+visually
 vm
 void
 vowel

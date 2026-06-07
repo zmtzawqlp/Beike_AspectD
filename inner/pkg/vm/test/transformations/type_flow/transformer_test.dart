@@ -60,6 +60,7 @@ void runTestCase(
     matcher: new ConstantPragmaAnnotationParser(coreTypes, target),
     config: tfaConfig,
     treeShakeProtobufs: true,
+    treeShakeProtobufMixins: true,
     useRapidTypeAnalysis: useRapidTypeAnalysis,
   );
 
@@ -179,8 +180,9 @@ void main(List<String> args) {
           );
           List<String>? linked = TestOptions.linked.read(parsedOptions);
           if (linked != null) {
-            linkDependencies =
-                linked.map((String name) => entry.uri.resolve(name)).toList();
+            linkDependencies = linked
+                .map((String name) => entry.uri.resolve(name))
+                .toList();
           }
           experimentalFlags = TestOptions.enableExperiment.read(parsedOptions);
           targetName = TestOptions.target.read(parsedOptions);

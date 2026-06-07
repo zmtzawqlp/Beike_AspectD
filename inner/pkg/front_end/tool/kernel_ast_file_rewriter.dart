@@ -16,8 +16,11 @@ void main(List<String> args) {
   Uri uri = Platform.script;
   uri = uri.resolve("../../kernel/lib/ast.dart");
   Uint8List bytes = new File.fromUri(uri).readAsBytesSync();
-  CompilationUnitEnd ast =
-      getAST(bytes, includeBody: true, includeComments: true);
+  CompilationUnitEnd ast = getAST(
+    bytes,
+    includeBody: true,
+    includeComments: true,
+  );
   Map<String, TopLevelDeclarationEnd> classes = {};
   for (TopLevelDeclarationEnd cls in ast.getClasses()) {
     IdentifierHandle identifier = cls.getIdentifier();
@@ -41,8 +44,9 @@ void main(List<String> args) {
       String? parent = getExtends(cls);
       TopLevelDeclarationEnd? parentCls = classes[parent];
       List<String?> allParents = [parent];
-      while (
-          parent != null && parentCls != null && !goodNames.contains(parent)) {
+      while (parent != null &&
+          parentCls != null &&
+          !goodNames.contains(parent)) {
         parent = getExtends(parentCls);
         allParents.add(parent);
         parentCls = classes[parent];
@@ -55,14 +59,14 @@ void main(List<String> args) {
     }
 
     ClassDeclarationEnd classDeclaration = cls.getClassDeclaration();
-    ClassOrMixinOrExtensionBodyEnd classOrMixinBody =
-        classDeclaration.getClassOrMixinOrExtensionBody();
+    ClassOrMixinOrExtensionBodyEnd? classOrMixinBody = classDeclaration
+        .getClassOrMixinOrExtensionBody();
 
     Set<String> namedClassConstructors = {};
     Set<String> namedFields = {};
     for (MemberEnd member in classOrMixinBody.getMembers()) {
-      if (member.isClassConstructor()) {
-        ClassConstructorEnd constructor = member.getClassConstructor();
+      if (member.isConstructor()) {
+        ConstructorEnd constructor = member.getConstructor();
         Token nameToken = constructor.beginToken;
         // String name = nameToken.lexeme;
         if (nameToken.next!.lexeme == ".") {
@@ -73,9 +77,9 @@ void main(List<String> args) {
         if (nameToken.next!.lexeme == ".") {
           throw "Unexpected";
         }
-      } else if (member.isClassFields()) {
-        ClassFieldsEnd classFields = member.getClassFields();
-        Token identifierToken = classFields.getFieldIdentifiers().single.token;
+      } else if (member.isFields()) {
+        FieldsEnd fields = member.getFields();
+        Token identifierToken = fields.getFieldIdentifiers().single.token;
         String identifier = identifierToken.toString();
         namedFields.add(identifier);
       }
@@ -83,17 +87,24 @@ void main(List<String> args) {
 
     // If there isn't a `frozen` field in `TreeNode` we insert one.
     if (entry.key == "TreeNode" && !namedFields.contains("frozen")) {
-      Token classBraceToken = classOrMixinBody.beginToken;
+      Token classBraceToken = classOrMixinBody!.beginToken;
       assert(classBraceToken.lexeme == "{");
       replacements[classBraceToken] = new Replacement(
-          classBraceToken, classBraceToken, "{\n  bool frozen = false;");
+        classBraceToken,
+        classBraceToken,
+        "{\n  bool frozen = false;",
+      );
     }
 
     for (MemberEnd member in classOrMixinBody.getMembers()) {
-      if (member.isClassConstructor()) {
+      if (member.isConstructor()) {
         processConstructor(
-            member, replacements, namedClassConstructors, namedFields);
-      } else if (member.isClassFields()) {
+          member,
+          replacements,
+          namedClassConstructors,
+          namedFields,
+        );
+      } else if (member.isFields()) {
         processField(member, entry, replacements);
       }
     }
@@ -137,29 +148,30 @@ void main(List<String> args) {
 }
 
 void processField(
-    MemberEnd member,
-    MapEntry<String, TopLevelDeclarationEnd> entry,
-    Map<Token, Replacement> replacements) {
-  ClassFieldsEnd classFields = member.getClassFields();
+  MemberEnd member,
+  MapEntry<String, TopLevelDeclarationEnd> entry,
+  Map<Token, Replacement> replacements,
+) {
+  FieldsEnd fields = member.getFields();
 
-  if (classFields.count != 1) {
-    throw "Notice ${classFields.count}";
+  if (fields.count != 1) {
+    throw "Notice ${fields.count}";
   }
 
-  Token identifierToken = classFields.getFieldIdentifiers().single.token;
+  Token identifierToken = fields.getFieldIdentifiers().single.token;
   String identifier = identifierToken.toString();
 
   if (identifier == "frozen" && entry.key == "TreeNode") return;
 
-  if (classFields.staticToken != null) {
+  if (fields.staticToken != null) {
     return;
   }
   bool isFinal = false;
-  if (classFields.varFinalOrConst?.toString() == "final") {
+  if (fields.varFinalOrConst?.toString() == "final") {
     isFinal = true;
   }
 
-  TypeHandle? type = classFields.getFirstType();
+  TypeHandle? type = fields.getFirstType();
   String typeString = "dynamic";
   if (type != null) {
     Token token = type.beginToken;
@@ -171,7 +183,7 @@ void processField(
     typeString = typeString.trim();
   }
 
-  FieldInitializerEnd? initializer = classFields.getFieldInitializer();
+  FieldInitializerEnd? initializer = fields.getFieldInitializer();
   String initializerString = "";
   if (initializer != null) {
     Token token = initializer.assignment;
@@ -183,8 +195,8 @@ void processField(
     initializerString = initializerString.trim();
   }
 
-  Token beginToken = classFields.beginToken;
-  Token endToken = classFields.endToken;
+  Token beginToken = fields.beginToken;
+  Token endToken = fields.endToken;
 
   String frozenCheckCode =
       """if (frozen) throw "Trying to modify frozen node!";""";
@@ -229,9 +241,13 @@ $typeString get $identifier => _$identifier;""");
   }
 }
 
-void processConstructor(MemberEnd member, Map<Token, Replacement> replacements,
-    Set<String> namedClassConstructors, Set<String> namedFields) {
-  ClassConstructorEnd constructor = member.getClassConstructor();
+void processConstructor(
+  MemberEnd member,
+  Map<Token, Replacement> replacements,
+  Set<String> namedClassConstructors,
+  Set<String> namedFields,
+) {
+  ConstructorEnd constructor = member.getConstructor();
   FormalParametersEnd formalParameters = constructor.getFormalParameters();
   List<FormalParameterEnd> parameters = formalParameters.getFormalParameters();
 
@@ -245,12 +261,12 @@ void processConstructor(MemberEnd member, Map<Token, Replacement> replacements,
     replacements[afterDot] = new Replacement(afterDot, afterDot, "_$afterDot");
   }
 
-  OptionalFormalParametersEnd? optionalFormalParameters =
-      formalParameters.getOptionalFormalParameters();
+  OptionalFormalParametersEnd? optionalFormalParameters = formalParameters
+      .getOptionalFormalParameters();
   Set<String> addInitializers = {};
   if (optionalFormalParameters != null) {
-    List<FormalParameterEnd> parameters =
-        optionalFormalParameters.getFormalParameters();
+    List<FormalParameterEnd> parameters = optionalFormalParameters
+        .getFormalParameters();
 
     for (FormalParameterEnd parameter in parameters) {
       Token token = parameter.getBegin().token;
@@ -293,21 +309,26 @@ void processConstructor(MemberEnd member, Map<Token, Replacement> replacements,
       if (token.lexeme == "this") {
         // Here `this.foo` can just be replace with `this._foo`.
         assert(namedFields.contains(afterDot.lexeme));
-        replacements[afterDot] =
-            new Replacement(afterDot, afterDot, "_$afterDot");
+        replacements[afterDot] = new Replacement(
+          afterDot,
+          afterDot,
+          "_$afterDot",
+        );
       } else if (token.lexeme == "super") {
         // Don't try to patch this one.
       } else if (token.lexeme == "assert") {
-        List<IdentifierHandle> identifiers =
-            initializer.recursivelyFind<IdentifierHandle>();
+        List<IdentifierHandle> identifiers = initializer
+            .recursivelyFind<IdentifierHandle>();
         for (Token token in identifiers.map((e) => e.token)) {
           if (namedFields.contains(token.lexeme)) {
             replacements[token] = new Replacement(token, token, "_$token");
           }
         }
       } else {
-        assert(namedFields.contains(token.lexeme),
-            "${token.lexeme} isn't a known field among ${namedFields}");
+        assert(
+          namedFields.contains(token.lexeme),
+          "${token.lexeme} isn't a known field among ${namedFields}",
+        );
         replacements[token] = new Replacement(token, token, "_$token");
       }
     }
@@ -318,20 +339,28 @@ void processConstructor(MemberEnd member, Map<Token, Replacement> replacements,
     // No initializers => Fake one by inserting `:` and all `_foo = foo`
     // entries.
     Token endToken = formalParameters.endToken;
-    String initializerString =
-        addInitializers.map((e) => "this._$e = $e").join(",\n");
-    replacements[endToken] =
-        new Replacement(endToken, endToken, ") : $initializerString");
+    String initializerString = addInitializers
+        .map((e) => "this._$e = $e")
+        .join(",\n");
+    replacements[endToken] = new Replacement(
+      endToken,
+      endToken,
+      ") : $initializerString",
+    );
   } else if (addInitializers.isNotEmpty) {
     // Add to existing initializer list. We add them as the first one(s)
     // so we don't have to insert before the potential super call.
     InitializersBegin firstOne = initializers!.getBegin();
     Token colon = firstOne.token;
     assert(colon.lexeme == ":");
-    String initializerString =
-        addInitializers.map((e) => "this._$e = $e").join(", ");
-    replacements[colon] =
-        new Replacement(colon, colon, ": $initializerString,");
+    String initializerString = addInitializers
+        .map((e) => "this._$e = $e")
+        .join(", ");
+    replacements[colon] = new Replacement(
+      colon,
+      colon,
+      ": $initializerString,",
+    );
   }
 
   // If there are anything in addInitializers we need to patch
@@ -345,11 +374,11 @@ void processConstructor(MemberEnd member, Map<Token, Replacement> replacements,
   //    C(this.field1) : field2 = field1 + 1;
   //  }
   if (addInitializers.isNotEmpty) {
-    BlockFunctionBodyEnd? blockFunctionBody =
-        constructor.getBlockFunctionBody();
+    BlockFunctionBodyEnd? blockFunctionBody = constructor
+        .getBlockFunctionBody();
     if (blockFunctionBody != null) {
-      List<IdentifierHandle> identifiers =
-          blockFunctionBody.recursivelyFind<IdentifierHandle>();
+      List<IdentifierHandle> identifiers = blockFunctionBody
+          .recursivelyFind<IdentifierHandle>();
       for (IdentifierHandle identifier in identifiers) {
         Token token = identifier.token;
         IdentifierContext context = identifier.context;
@@ -388,8 +417,10 @@ String? getExtends(TopLevelDeclarationEnd cls) {
 
 void debugDumpNode(ParserAstNode node) {
   node.children!.forEach((element) {
-    print("${element.what} (${element.deprecatedArguments}) "
-        "(${element.children})");
+    print(
+      "${element.what} (${element.deprecatedArguments}) "
+      "(${element.children})",
+    );
   });
 }
 

@@ -2,11 +2,6 @@ library;
 //
 // Problems in library:
 //
-// pkg/front_end/testcases/general/hierarchy.dart:24:7: Error: 'A1' can't be used in both 'extends' and 'implements' clauses.
-// Try removing one of the occurrences.
-// class A6 extends A1 implements A1 {}
-//       ^
-//
 // pkg/front_end/testcases/general/hierarchy.dart:24:7: Error: The non-abstract class 'A6' is missing implementations for these members:
 //  - A1.extendedInterfaceMember
 // Try to either
@@ -14,7 +9,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class A6 extends A1 implements A1 {}
 //       ^^
 // pkg/front_end/testcases/general/hierarchy.dart:7:8: Context: 'A1.extendedInterfaceMember' is defined here.
@@ -29,7 +23,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class B5 extends B4 {}
 //       ^^
 // pkg/front_end/testcases/general/hierarchy.dart:27:8: Context: 'B1.twiceInterfaceMember' is defined here.
@@ -47,7 +40,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class B6 extends B3 implements B1, B2 {}
 //       ^^
 // pkg/front_end/testcases/general/hierarchy.dart:27:8: Context: 'B1.twiceInterfaceMember' is defined here.
@@ -65,7 +57,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class C4 extends C3 {}
 //       ^^
 // pkg/front_end/testcases/general/hierarchy.dart:47:8: Context: 'C1.mixedInAndImplementedInterfaceMember' is defined here.
@@ -83,7 +74,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class C5 with C1 implements C2 {}
 //       ^^
 // pkg/front_end/testcases/general/hierarchy.dart:47:8: Context: 'C1.mixedInAndImplementedInterfaceMember' is defined here.
@@ -92,6 +82,11 @@ library;
 // pkg/front_end/testcases/general/hierarchy.dart:52:8: Context: 'C2.mixedInAndImplementedInterfaceMember' is defined here.
 //   void mixedInAndImplementedInterfaceMember() {}
 //        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//
+// pkg/front_end/testcases/general/hierarchy.dart:24:7: Error: 'A1' can't be used in both 'extends' and 'implements' clauses.
+// Try removing one of the occurrences.
+// class A6 extends A1 implements A1 {}
+//       ^
 //
 import self as self;
 import "dart:core" as core;

@@ -53,6 +53,7 @@ defaultasset
 dname
 e.g
 enclose
+enhanced
 erase
 exhaustively
 exportable
@@ -72,6 +73,8 @@ guarded
 guides
 h
 https
+import.memory
+initializations
 int32x
 interact
 interop
@@ -88,6 +91,7 @@ list.filled
 loadlibrary
 macro
 member(s)
+memorytype
 migrate
 mocking
 modifier
@@ -137,6 +141,7 @@ strict
 stringokempty
 struct<#name
 structs
+stub
 super.namedconstructor
 superinterface
 supermixin
@@ -154,7 +159,9 @@ typeof
 u
 unavailable
 unsound
+unsupportederror
 v
 wasm:export
 wasm:import
+webassembly
 x

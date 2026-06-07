@@ -48,7 +48,7 @@ class E extends core::_Enum /*isEnum*/  {
     ;
   static factory f2() → self::E
     ;
-  static factory f3() → self::E
+  static const factory f3() → self::E
     return invalid-expression "pkg/front_end/testcases/enhanced_enums/constructor_calls.dart:22:26: Error: Enum factory constructors can't redirect to generative constructors.
   const factory E.f3() = E; // Error.
                          ^";
@@ -72,7 +72,7 @@ static method main() → dynamic
 
 Extra constant evaluation status:
 Evaluated: ConstructorInvocation @ org-dartlang-testcase:///constructor_calls.dart:6:3 -> InstanceConstant(const E{_Enum.index: 0, _Enum._name: "one"})
-Evaluated: ConstructorInvocation @ org-dartlang-testcase:///constructor_calls.dart:7:3 -> InstanceConstant(const E{_Enum.index: 1, _Enum._name: "two"})
+Evaluated: ConstructorInvocation @ org-dartlang-testcase:///constructor_calls.dart:7:7 -> InstanceConstant(const E{_Enum.index: 1, _Enum._name: "two"})
 Evaluated: StaticGet @ org-dartlang-testcase:///constructor_calls.dart:5:6 -> InstanceConstant(const E{_Enum.index: 0, _Enum._name: "one"})
 Evaluated: StaticGet @ org-dartlang-testcase:///constructor_calls.dart:5:6 -> InstanceConstant(const E{_Enum.index: 1, _Enum._name: "two"})
 Extra constant evaluation: evaluated: 15, effectively constant: 4

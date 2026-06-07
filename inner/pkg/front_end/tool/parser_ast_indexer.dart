@@ -16,8 +16,9 @@ class AstIndexer extends IgnoreSomeForCompatibilityAstVisitor {
   String? currentContainerName;
 
   String? nameOfEntitySpanning(int position) {
-    int? nodeIndex =
-        moveNodeIndexPastMetadata(findNodeIndexSpanningPosition(position));
+    int? nodeIndex = moveNodeIndexPastMetadata(
+      findNodeIndexSpanningPosition(position),
+    );
     if (nodeIndex != null) {
       return positionNodeName[nodeIndex];
     }
@@ -99,14 +100,14 @@ class AstIndexer extends IgnoreSomeForCompatibilityAstVisitor {
   }
 
   @override
-  void visitEnumEnd(EnumEnd node) {
+  void visitEnumDeclarationEnd(EnumDeclarationEnd node) {
     currentContainerName = node.getEnumIdentifier().token.lexeme;
     positionStartEndIndex.add(node.beginToken.charOffset);
     positionStartEndIndex.add(node.endToken.charEnd);
     nameIndex[currentContainerName!] = positionNodeIndex.length;
     positionNodeIndex.add(node);
     positionNodeName.add(currentContainerName!);
-    super.visitEnumEnd(node);
+    super.visitEnumDeclarationEnd(node);
     currentContainerName = null;
   }
 
@@ -196,7 +197,9 @@ class AstIndexer extends IgnoreSomeForCompatibilityAstVisitor {
   }
 
   void containerMethod(
-      BeginAndEndTokenParserAstNode node, String nameIdentifier) {
+    BeginAndEndTokenParserAstNode node,
+    String nameIdentifier,
+  ) {
     positionStartEndIndex.add(node.beginToken.charOffset);
     positionStartEndIndex.add(node.endToken.charEnd);
     // TODO(jensj): Setters.
@@ -207,7 +210,9 @@ class AstIndexer extends IgnoreSomeForCompatibilityAstVisitor {
   }
 
   void containerFields(
-      BeginAndEndTokenParserAstNode node, List<IdentifierHandle> names) {
+    BeginAndEndTokenParserAstNode node,
+    List<IdentifierHandle> names,
+  ) {
     positionStartEndIndex.add(node.beginToken.charOffset);
     positionStartEndIndex.add(node.endToken.charEnd);
     String? firstName;
@@ -221,102 +226,22 @@ class AstIndexer extends IgnoreSomeForCompatibilityAstVisitor {
   }
 
   @override
-  void visitClassConstructorEnd(ClassConstructorEnd node) {
+  void visitConstructorEnd(ConstructorEnd node) {
     containerMethod(node, node.getIdentifiers().last.token.lexeme);
   }
 
   @override
-  void visitClassFactoryMethodEnd(ClassFactoryMethodEnd node) {
+  void visitFactoryEnd(FactoryEnd node) {
     containerMethod(node, node.getIdentifiers().last.token.lexeme);
   }
 
   @override
-  void visitClassFieldsEnd(ClassFieldsEnd node) {
+  void visitFieldsEnd(FieldsEnd node) {
     containerFields(node, node.getFieldIdentifiers());
   }
 
   @override
-  void visitClassMethodEnd(ClassMethodEnd node) {
-    containerMethod(node, node.getNameIdentifier());
-  }
-
-  @override
-  void visitMixinConstructorEnd(MixinConstructorEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitMixinFactoryMethodEnd(MixinFactoryMethodEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitMixinFieldsEnd(MixinFieldsEnd node) {
-    containerFields(node, node.getFieldIdentifiers());
-  }
-
-  @override
-  void visitMixinMethodEnd(MixinMethodEnd node) {
-    containerMethod(node, node.getNameIdentifier());
-  }
-
-  @override
-  void visitEnumConstructorEnd(EnumConstructorEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitEnumFactoryMethodEnd(EnumFactoryMethodEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitEnumFieldsEnd(EnumFieldsEnd node) {
-    containerFields(node, node.getFieldIdentifiers());
-  }
-
-  @override
-  void visitEnumMethodEnd(EnumMethodEnd node) {
-    containerMethod(node, node.getNameIdentifier());
-  }
-
-  @override
-  void visitExtensionConstructorEnd(ExtensionConstructorEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitExtensionFactoryMethodEnd(ExtensionFactoryMethodEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitExtensionFieldsEnd(ExtensionFieldsEnd node) {
-    containerFields(node, node.getFieldIdentifiers());
-  }
-
-  @override
-  void visitExtensionMethodEnd(ExtensionMethodEnd node) {
-    containerMethod(node, node.getNameIdentifier());
-  }
-
-  @override
-  void visitExtensionTypeConstructorEnd(ExtensionTypeConstructorEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitExtensionTypeFactoryMethodEnd(ExtensionTypeFactoryMethodEnd node) {
-    containerMethod(node, node.getIdentifiers().last.token.lexeme);
-  }
-
-  @override
-  void visitExtensionTypeFieldsEnd(ExtensionTypeFieldsEnd node) {
-    containerFields(node, node.getFieldIdentifiers());
-  }
-
-  @override
-  void visitExtensionTypeMethodEnd(ExtensionTypeMethodEnd node) {
+  void visitMethodEnd(MethodEnd node) {
     containerMethod(node, node.getNameIdentifier());
   }
 }

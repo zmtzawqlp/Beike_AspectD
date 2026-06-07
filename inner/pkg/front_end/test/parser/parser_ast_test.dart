@@ -39,23 +39,27 @@ void canParseTopLevelIshOfAllFrontendFiles() {
           data,
           includeBody: true,
           includeComments: true,
-          enableTripleShift: true,
         );
         splitIntoChunks(ast, data);
         for (ParserAstNode child in ast.children!) {
           if (child.isClass()) {
             splitIntoChunks(
-                child.asClass().getClassOrMixinOrExtensionBody(), data);
+              child.asClass().getClassOrMixinOrExtensionBody(),
+              data,
+            );
           } else if (child.isMixinDeclaration()) {
-            splitIntoChunks(
-                child.asMixinDeclaration().getClassOrMixinOrExtensionBody(),
-                data);
+            MixinDeclarationEnd declaration = child.asMixinDeclaration();
+            splitIntoChunks(declaration.getClassOrMixinOrExtensionBody(), data);
+            declaration.getNoMixinBody();
           } else if (child.isExtension()) {
-            splitIntoChunks(
-                child.asExtension().getClassOrMixinOrExtensionBody(), data);
+            ExtensionDeclarationEnd declaration = child.asExtension();
+            splitIntoChunks(declaration.getClassOrMixinOrExtensionBody(), data);
+            declaration.getNoExtensionBody();
           } else if (child.isExtensionType()) {
             splitIntoChunks(
-                child.asExtensionType().getClassOrMixinOrExtensionBody(), data);
+              child.asExtensionType().getClassOrMixinOrExtensionBody(),
+              data,
+            );
           } else if (child.isEnum()) {
             for (MemberEnd member in child.asEnum().getMembers()) {
               processItem(member, data);
@@ -68,8 +72,10 @@ void canParseTopLevelIshOfAllFrontendFiles() {
       }
     }
   }
-  print("Processed $processed files in $directory in ${stopwatch.elapsed}. "
-      "Encountered $errors errors.");
+  print(
+    "Processed $processed files in $directory in ${stopwatch.elapsed}. "
+    "Encountered $errors errors.",
+  );
   if (errors != 0) {
     throw "Got errors.";
   }
@@ -77,10 +83,14 @@ void canParseTopLevelIshOfAllFrontendFiles() {
 
 void testTopLevelStuff() {
   File file = new File.fromUri(
-      base.resolve("parser_ast_test_data/top_level_stuff.txt"));
+    base.resolve("parser_ast_test_data/top_level_stuff.txt"),
+  );
   Uint8List data = file.readAsBytesSync();
-  CompilationUnitEnd ast =
-      getAST(data, includeBody: true, includeComments: true);
+  CompilationUnitEnd ast = getAST(
+    data,
+    includeBody: true,
+    includeComments: true,
+  );
   expect(2, ast.getImports().length);
   expect(2, ast.getExports().length);
 
@@ -90,13 +100,15 @@ void testTopLevelStuff() {
   expect('import "top_level_stuff_helper.dart";', foundChunks[1]);
   expect('export "top_level_stuff_helper.dart";', foundChunks[2]);
   expect(
-      'import "top_level_stuff_helper.dart" show a, b, '
-      'c hide d, e, f show foo;',
-      foundChunks[3]);
+    'import "top_level_stuff_helper.dart" show a, b, '
+    'c hide d, e, f show foo;',
+    foundChunks[3],
+  );
   expect(
-      'export "top_level_stuff_helper.dart" show a, b, '
-      'c hide d, e, f show foo;',
-      foundChunks[4]);
+    'export "top_level_stuff_helper.dart" show a, b, '
+    'c hide d, e, f show foo;',
+    foundChunks[4],
+  );
   expect("part 'top_level_stuff_helper.dart';", foundChunks[5]);
   expect('@metadataOneOnThisOne("bla")', foundChunks[6]);
   expect("@metadataTwoOnThisOne", foundChunks[7]);
@@ -131,15 +143,17 @@ void testTopLevelStuff() {
   expect("@AnnotationAtEOF", foundChunks[22]);
 
   file = new File.fromUri(
-      base.resolve("parser_ast_test_data/top_level_stuff_helper.txt"));
+    base.resolve("parser_ast_test_data/top_level_stuff_helper.txt"),
+  );
   data = file.readAsBytesSync();
   ast = getAST(data, includeBody: true, includeComments: true);
   foundChunks = splitIntoChunks(ast, data);
   expect(1, foundChunks.length);
   expect("part of 'top_level_stuff.txt';", foundChunks[0]);
 
-  file =
-      new File.fromUri(base.resolve("parser_ast_test_data/script_handle.txt"));
+  file = new File.fromUri(
+    base.resolve("parser_ast_test_data/script_handle.txt"),
+  );
   data = file.readAsBytesSync();
   ast = getAST(data, includeBody: true, includeComments: true);
   foundChunks = splitIntoChunks(ast, data);
@@ -150,8 +164,11 @@ void testTopLevelStuff() {
 void testClassStuff() {
   File file = new File.fromUri(base.resolve("parser_ast_test_data/class.txt"));
   Uint8List data = file.readAsBytesSync();
-  CompilationUnitEnd ast =
-      getAST(data, includeBody: true, includeComments: true);
+  CompilationUnitEnd ast = getAST(
+    data,
+    includeBody: true,
+    includeComments: true,
+  );
   List<TopLevelDeclarationEnd> classes = ast.getClasses();
   expect(2, classes.length);
 
@@ -166,14 +183,16 @@ void testClassStuff() {
   expect(null, withClauseDecl);
   List<MemberEnd> members = cls.getClassOrMixinOrExtensionBody().getMembers();
   expect(5, members.length);
-  expect(members[0].isClassConstructor(), true);
-  expect(members[1].isClassFactoryMethod(), true);
-  expect(members[2].isClassMethod(), true);
-  expect(members[3].isClassMethod(), true);
-  expect(members[4].isClassFields(), true);
+  expect(members[0].isConstructor(), true);
+  expect(members[1].isFactory(), true);
+  expect(members[2].isMethod(), true);
+  expect(members[3].isMethod(), true);
+  expect(members[4].isFields(), true);
 
-  List<String> chunks =
-      splitIntoChunks(cls.getClassOrMixinOrExtensionBody(), data);
+  List<String> chunks = splitIntoChunks(
+    cls.getClassOrMixinOrExtensionBody(),
+    data,
+  );
   expect(5, chunks.length);
   expect("""Foo() {
     // Constructor
@@ -188,19 +207,19 @@ void testClassStuff() {
   expect("int field1, field2 = 42;", chunks[4]);
 
   chunks = processItem(
-      members[0].getClassConstructor().getBlockFunctionBody()!, data);
+    members[0].getConstructor().getBlockFunctionBody()!,
+    data,
+  );
   expect(1, chunks.length);
   expect("""{
     // Constructor
   }""", chunks[0]);
-  chunks =
-      processItem(members[2].getClassMethod().getBlockFunctionBody()!, data);
+  chunks = processItem(members[2].getMethod().getBlockFunctionBody()!, data);
   expect(1, chunks.length);
   expect("""{
     // instance method.
   }""", chunks[0]);
-  chunks =
-      processItem(members[3].getClassMethod().getBlockFunctionBody()!, data);
+  chunks = processItem(members[3].getMethod().getBlockFunctionBody()!, data);
   expect(1, chunks.length);
   expect("""{
     // static method.
@@ -208,10 +227,10 @@ void testClassStuff() {
 
   // TODO: Move (something like) this into the check-all-files-thing.
   for (MemberEnd member in cls.getClassOrMixinOrExtensionBody().getMembers()) {
-    if (member.isClassConstructor()) continue;
-    if (member.isClassFactoryMethod()) continue;
-    if (member.isClassFields()) continue;
-    if (member.isClassMethod()) continue;
+    if (member.isConstructor()) continue;
+    if (member.isFactory()) continue;
+    if (member.isFields()) continue;
+    if (member.isMethod()) continue;
     throw "$member --- ${member.children}";
   }
 
@@ -231,8 +250,11 @@ void testClassStuff() {
 void testMixinStuff() {
   File file = new File.fromUri(base.resolve("parser_ast_test_data/mixin.txt"));
   Uint8List data = file.readAsBytesSync();
-  CompilationUnitEnd ast =
-      getAST(data, includeBody: true, includeComments: true);
+  CompilationUnitEnd ast = getAST(
+    data,
+    includeBody: true,
+    includeComments: true,
+  );
   List<TopLevelDeclarationEnd> mixins = ast.getMixinDeclarations();
   expect(mixins.length, 1);
 
@@ -240,15 +262,16 @@ void testMixinStuff() {
   MixinDeclarationEnd mxn = decl.asMixinDeclaration();
   expect("B", decl.getIdentifier().token.lexeme);
 
-  List<MemberEnd> members = mxn.getClassOrMixinOrExtensionBody().getMembers();
+  ClassOrMixinOrExtensionBodyEnd? body = mxn.getClassOrMixinOrExtensionBody();
+  expect(false, body == null);
+  List<MemberEnd> members = body.getMembers();
   expect(4, members.length);
-  expect(members[0].isMixinFields(), true);
-  expect(members[1].isMixinMethod(), true);
-  expect(members[2].isMixinFactoryMethod(), true);
-  expect(members[3].isMixinConstructor(), true);
+  expect(members[0].isFields(), true);
+  expect(members[1].isMethod(), true);
+  expect(members[2].isFactory(), true);
+  expect(members[3].isConstructor(), true);
 
-  List<String> chunks =
-      splitIntoChunks(mxn.getClassOrMixinOrExtensionBody(), data);
+  List<String> chunks = splitIntoChunks(body, data);
   expect(4, chunks.length);
   expect("static int staticField = 0;", chunks[0]);
   expect("""void foo() {
@@ -266,10 +289,13 @@ void expect<E>(E expect, E actual) {
   if (expect != actual) throw "Expected '$expect' but got '$actual'";
 }
 
-List<String> splitIntoChunks(ParserAstNode ast, List<int> data) {
+List<String> splitIntoChunks(ParserAstNode? ast, List<int> data) {
   List<String> foundChunks = [];
-  for (ParserAstNode child in ast.children!) {
-    foundChunks.addAll(processItem(child, data));
+  List<ParserAstNode>? children = ast?.children;
+  if (children != null) {
+    for (ParserAstNode child in children) {
+      foundChunks.addAll(processItem(child, data));
+    }
   }
   return foundChunks;
 }
@@ -280,8 +306,11 @@ List<String> processItem(ParserAstNode item, List<int> data) {
     // Check that we can get the identifier without throwing.
     cls.getClassIdentifier();
     return [
-      getCutContent(data, cls.beginToken.offset,
-          cls.endToken.offset + cls.endToken.length)
+      getCutContent(
+        data,
+        cls.beginToken.offset,
+        cls.endToken.offset + cls.endToken.length,
+      ),
     ];
   } else if (item.isMetadata()) {
     MetadataStarEnd metadataStar = item.asMetadata();
@@ -291,8 +320,13 @@ List<String> processItem(ParserAstNode item, List<int> data) {
       for (MetadataEnd metadata in entries) {
         // Check that we can get the identifiers without throwing.
         metadata.getIdentifiers();
-        chunks.add(getCutContent(
-            data, metadata.beginToken.offset, metadata.endToken.charEnd));
+        chunks.add(
+          getCutContent(
+            data,
+            metadata.beginToken.offset,
+            metadata.endToken.charEnd,
+          ),
+        );
       }
       return chunks;
     }
@@ -300,266 +334,199 @@ List<String> processItem(ParserAstNode item, List<int> data) {
   } else if (item.isImport()) {
     ImportEnd import = item.asImport();
     return [
-      getCutContent(data, import.importKeyword.offset,
-          import.semicolon!.offset + import.semicolon!.length)
+      getCutContent(
+        data,
+        import.importKeyword.offset,
+        import.semicolon!.offset + import.semicolon!.length,
+      ),
     ];
   } else if (item.isExport()) {
     ExportEnd export = item.asExport();
     return [
-      getCutContent(data, export.exportKeyword.offset,
-          export.semicolon.offset + export.semicolon.length)
+      getCutContent(
+        data,
+        export.exportKeyword.offset,
+        export.semicolon.offset + export.semicolon.length,
+      ),
     ];
   } else if (item.isLibraryName()) {
     LibraryNameEnd name = item.asLibraryName();
     return [
-      getCutContent(data, name.libraryKeyword.offset,
-          name.semicolon.offset + name.semicolon.length)
+      getCutContent(
+        data,
+        name.libraryKeyword.offset,
+        name.semicolon.offset + name.semicolon.length,
+      ),
     ];
   } else if (item.isPart()) {
     PartEnd part = item.asPart();
     return [
-      getCutContent(data, part.partKeyword.offset,
-          part.semicolon.offset + part.semicolon.length)
+      getCutContent(
+        data,
+        part.partKeyword.offset,
+        part.semicolon.offset + part.semicolon.length,
+      ),
     ];
   } else if (item.isPartOf()) {
     PartOfEnd partOf = item.asPartOf();
     return [
-      getCutContent(data, partOf.partKeyword.offset,
-          partOf.semicolon.offset + partOf.semicolon.length)
+      getCutContent(
+        data,
+        partOf.partKeyword.offset,
+        partOf.semicolon.offset + partOf.semicolon.length,
+      ),
     ];
   } else if (item.isTopLevelMethod()) {
     TopLevelMethodEnd method = item.asTopLevelMethod();
     // Check that we can get the identifier without throwing.
     method.getNameIdentifier();
     return [
-      getCutContent(data, method.beginToken.offset,
-          method.endToken.offset + method.endToken.length)
+      getCutContent(
+        data,
+        method.beginToken.offset,
+        method.endToken.offset + method.endToken.length,
+      ),
     ];
   } else if (item.isTopLevelFields()) {
     TopLevelFieldsEnd fields = item.asTopLevelFields();
     // Check that we can get the identifiers without throwing.
     fields.getFieldIdentifiers();
     return [
-      getCutContent(data, fields.beginToken.offset,
-          fields.endToken.offset + fields.endToken.length)
+      getCutContent(
+        data,
+        fields.beginToken.offset,
+        fields.endToken.offset + fields.endToken.length,
+      ),
     ];
   } else if (item.isEnum()) {
-    EnumEnd declaration = item.asEnum();
+    EnumDeclarationEnd declaration = item.asEnum();
     // Check that we can get the identifier without throwing.
     declaration.getEnumIdentifier();
     return [
       getCutContent(
-          data,
-          declaration.enumKeyword.offset,
-          declaration.leftBrace.endGroup!.offset +
-              declaration.leftBrace.endGroup!.length)
+        data,
+        declaration.enumKeyword.offset,
+        declaration.leftBrace.endGroup!.offset +
+            declaration.leftBrace.endGroup!.length,
+      ),
     ];
   } else if (item.isMixinDeclaration()) {
     MixinDeclarationEnd mixinDecl = item.asMixinDeclaration();
     // Check that we can get the identifier without throwing.
     mixinDecl.getMixinIdentifier();
     return [
-      getCutContent(data, mixinDecl.beginToken.offset,
-          mixinDecl.endToken.offset + mixinDecl.endToken.length)
+      getCutContent(
+        data,
+        mixinDecl.beginToken.offset,
+        mixinDecl.endToken.offset + mixinDecl.endToken.length,
+      ),
     ];
   } else if (item.isNamedMixinDeclaration()) {
     NamedMixinApplicationEnd namedMixinDecl = item.asNamedMixinDeclaration();
     // Check that we can get the identifier without throwing.
     namedMixinDecl.getMixinIdentifier();
     return [
-      getCutContent(data, namedMixinDecl.begin.offset,
-          namedMixinDecl.endToken.offset + namedMixinDecl.endToken.length)
+      getCutContent(
+        data,
+        namedMixinDecl.begin.offset,
+        namedMixinDecl.endToken.offset + namedMixinDecl.endToken.length,
+      ),
     ];
   } else if (item.isTypedef()) {
     TypedefEnd typedefDecl = item.asTypedef();
     // Check that we can get the identifier without throwing.
     typedefDecl.getNameIdentifier();
     return [
-      getCutContent(data, typedefDecl.typedefKeyword.offset,
-          typedefDecl.endToken.offset + typedefDecl.endToken.length)
+      getCutContent(
+        data,
+        typedefDecl.typedefKeyword.offset,
+        typedefDecl.endToken.offset + typedefDecl.endToken.length,
+      ),
     ];
   } else if (item.isExtension()) {
     ExtensionDeclarationEnd extensionDecl = item.asExtension();
     // Check that we can get the identifier without throwing.
     extensionDecl.getExtensionName();
     return [
-      getCutContent(data, extensionDecl.extensionKeyword.offset,
-          extensionDecl.endToken.offset + extensionDecl.endToken.length)
+      getCutContent(
+        data,
+        extensionDecl.extensionKeyword.offset,
+        extensionDecl.endToken.offset + extensionDecl.endToken.length,
+      ),
     ];
   } else if (item.isExtensionType()) {
     ExtensionTypeDeclarationEnd extensionTypeDecl = item.asExtensionType();
     // Check that we can get the identifier without throwing.
     extensionTypeDecl.getExtensionTypeName();
     return [
-      getCutContent(data, extensionTypeDecl.extensionKeyword.offset,
-          extensionTypeDecl.endToken.offset + extensionTypeDecl.endToken.length)
+      getCutContent(
+        data,
+        extensionTypeDecl.extensionKeyword.offset,
+        extensionTypeDecl.endToken.offset + extensionTypeDecl.endToken.length,
+      ),
     ];
   } else if (item.isScript()) {
     ScriptHandle script = item.asScript();
     return [
       getCutContent(
-          data, script.token.offset, script.token.offset + script.token.length)
+        data,
+        script.token.offset,
+        script.token.offset + script.token.length,
+      ),
     ];
   } else if (item is MemberEnd) {
-    if (item.isClassConstructor()) {
-      ClassConstructorEnd decl = item.getClassConstructor();
+    if (item.isConstructor()) {
+      ConstructorEnd decl = item.getConstructor();
       // Check that we can get the identifiers without throwing.
       decl.getIdentifiers();
       return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
+        getCutContent(
+          data,
+          decl.beginToken.offset,
+          decl.endToken.offset + decl.endToken.length,
+        ),
       ];
-    } else if (item.isClassFactoryMethod()) {
-      ClassFactoryMethodEnd decl = item.getClassFactoryMethod();
+    } else if (item.isFactory()) {
+      FactoryEnd decl = item.getFactory();
       // Check that we can get the identifiers without throwing.
       decl.getIdentifiers();
       return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
+        getCutContent(
+          data,
+          decl.beginToken.offset,
+          decl.endToken.offset + decl.endToken.length,
+        ),
       ];
-    } else if (item.isClassMethod()) {
-      ClassMethodEnd decl = item.getClassMethod();
+    } else if (item.isMethod()) {
+      MethodEnd decl = item.getMethod();
       // Check that we can get the identifier without throwing.
       decl.getNameIdentifier();
       return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
+        getCutContent(
+          data,
+          decl.beginToken.offset,
+          decl.endToken.offset + decl.endToken.length,
+        ),
       ];
-    } else if (item.isClassFields()) {
-      ClassFieldsEnd decl = item.getClassFields();
+    } else if (item.isFields()) {
+      FieldsEnd decl = item.getFields();
       // Check that we can get the identifiers without throwing.
       decl.getFieldIdentifiers();
       return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
+        getCutContent(
+          data,
+          decl.beginToken.offset,
+          decl.endToken.offset + decl.endToken.length,
+        ),
       ];
-    } else if (item.isMixinFields()) {
-      MixinFieldsEnd decl = item.getMixinFields();
-      // Check that we can get the identifiers without throwing.
-      decl.getFieldIdentifiers();
+    } else if (item.isPrimaryConstructorBody()) {
+      PrimaryConstructorBodyEnd decl = item.getPrimaryConstructorBody();
       return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isMixinMethod()) {
-      MixinMethodEnd decl = item.getMixinMethod();
-      // Check that we can get the identifier without throwing.
-      decl.getNameIdentifier();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isMixinFactoryMethod()) {
-      MixinFactoryMethodEnd decl = item.getMixinFactoryMethod();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isMixinConstructor()) {
-      MixinConstructorEnd decl = item.getMixinConstructor();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionMethod()) {
-      ExtensionMethodEnd decl = item.getExtensionMethod();
-      // Check that we can get the identifier without throwing.
-      decl.getNameIdentifier();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionFields()) {
-      ExtensionFieldsEnd decl = item.getExtensionFields();
-      // Check that we can get the identifiers without throwing.
-      decl.getFieldIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionConstructor()) {
-      ExtensionConstructorEnd decl = item.getExtensionConstructor();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionFactoryMethod()) {
-      ExtensionFactoryMethodEnd decl = item.getExtensionFactoryMethod();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionTypeMethod()) {
-      ExtensionTypeMethodEnd decl = item.getExtensionTypeMethod();
-      // Check that we can get the identifier without throwing.
-      decl.getNameIdentifier();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionTypeFields()) {
-      ExtensionTypeFieldsEnd decl = item.getExtensionTypeFields();
-      // Check that we can get the identifiers without throwing.
-      decl.getFieldIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionTypeConstructor()) {
-      ExtensionTypeConstructorEnd decl = item.getExtensionTypeConstructor();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isExtensionTypeFactoryMethod()) {
-      ExtensionTypeFactoryMethodEnd decl = item.getExtensionTypeFactoryMethod();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isEnumMethod()) {
-      EnumMethodEnd decl = item.getEnumMethod();
-      // Check that we can get the identifier without throwing.
-      decl.getNameIdentifier();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isEnumFields()) {
-      EnumFieldsEnd decl = item.getEnumFields();
-      // Check that we can get the identifiers without throwing.
-      decl.getFieldIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isEnumConstructor()) {
-      EnumConstructorEnd decl = item.getEnumConstructor();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
-      ];
-    } else if (item.isEnumFactoryMethod()) {
-      EnumFactoryMethodEnd decl = item.getEnumFactoryMethod();
-      // Check that we can get the identifiers without throwing.
-      decl.getIdentifiers();
-      return [
-        getCutContent(data, decl.beginToken.offset,
-            decl.endToken.offset + decl.endToken.length)
+        getCutContent(
+          data,
+          decl.beginToken.offset,
+          decl.endToken.offset + decl.endToken.length,
+        ),
       ];
     } else {
       if (item.type == ParserAstType.BEGIN) return const [];
@@ -573,8 +540,11 @@ List<String> processItem(ParserAstNode item, List<int> data) {
   } else if (item.isFunctionBody()) {
     BlockFunctionBodyEnd decl = item.asFunctionBody();
     return [
-      getCutContent(data, decl.beginToken.offset,
-          decl.endToken.offset + decl.endToken.length)
+      getCutContent(
+        data,
+        decl.beginToken.offset,
+        decl.endToken.offset + decl.endToken.length,
+      ),
     ];
   } else {
     if (item.type == ParserAstType.BEGIN) return const [];

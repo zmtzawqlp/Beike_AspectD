@@ -13,7 +13,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class FromSuperAbstract extends SuperAbstract implements Interface {}
 //       ^^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/general/hierarchy/no_such_method.dart:9:7: Context: 'Interface.field' is defined here.
@@ -43,7 +42,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class FromMixinAbstract extends MixinAbstract implements Interface {}
 //       ^^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/general/hierarchy/no_such_method.dart:9:7: Context: 'Interface.field' is defined here.
@@ -73,7 +71,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class FromInterfaceAbstract implements InterfaceAbstract, Interface {}
 //       ^^^^^^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/general/hierarchy/no_such_method.dart:9:7: Context: 'Interface.field' is defined here.
@@ -103,7 +100,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class FromInterfaceConcrete implements InterfaceConcrete, Interface {}
 //       ^^^^^^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/general/hierarchy/no_such_method.dart:9:7: Context: 'Interface.field' is defined here.
@@ -133,7 +129,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class DeclaredAbstract implements Interface {
 //       ^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/general/hierarchy/no_such_method.dart:9:7: Context: 'Interface.field' is defined here.
@@ -443,4 +438,4 @@ Evaluated: MapLiteral @ org-dartlang-testcase:///no_such_method.dart:69:7 -> Map
 Evaluated: SymbolLiteral @ org-dartlang-testcase:///no_such_method.dart:69:7 -> SymbolConstant(#setter=)
 Evaluated: ListLiteral @ org-dartlang-testcase:///no_such_method.dart:69:7 -> ListConstant(const <Type>[])
 Evaluated: MapLiteral @ org-dartlang-testcase:///no_such_method.dart:69:7 -> MapConstant(const <Symbol, dynamic>{})
-Extra constant evaluation: evaluated: 283, effectively constant: 114
+Extra constant evaluation: evaluated: 285, effectively constant: 114

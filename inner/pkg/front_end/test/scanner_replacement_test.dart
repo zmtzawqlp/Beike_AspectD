@@ -2,11 +2,13 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+import 'package:_fe_analyzer_shared/src/base/errors.dart';
 import 'package:_fe_analyzer_shared/src/scanner/error_token.dart';
-import 'package:_fe_analyzer_shared/src/scanner/errors.dart'
-    show ScannerErrorCode, translateErrorToken;
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token.dart';
+import 'package:analyzer/src/dart/scanner/translate_error_token.dart'
+    show translateErrorToken;
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
 import 'package:test/test.dart';
 import 'package:test_reflective_loader/test_reflective_loader.dart';
 
@@ -27,14 +29,20 @@ void main() {
 @reflectiveTest
 class ScannerTest_Replacement extends ScannerTestBase {
   @override
-  Token scanWithListener(String source, ErrorListener listener,
-      {ScannerConfiguration? configuration}) {
+  Token scanWithListener(
+    String source,
+    ErrorListener listener, {
+    ScannerConfiguration? configuration,
+  }) {
     // Process the source similar to
     // pkg/analyzer/lib/src/dart/scanner/scanner.dart
     // to simulate replacing the analyzer scanner
 
-    ScannerResult result =
-        scanString(source, configuration: configuration, includeComments: true);
+    ScannerResult result = scanString(
+      source,
+      configuration: configuration,
+      includeComments: true,
+    );
 
     Token tokens = result.tokens;
     assertValidTokenStream(tokens, errorsFirst: true);
@@ -64,7 +72,7 @@ class ScannerTest_Replacement extends ScannerTestBase {
     expect(open.isSynthetic, isFalse);
     expect(close.isSynthetic, isTrue);
     listener.assertErrors([
-      new TestError(1, ScannerErrorCode.EXPECTED_TOKEN, [expectedCloser]),
+      new TestError(1, diag.expectedToken, [expectedCloser]),
     ]);
   }
 
@@ -83,7 +91,7 @@ class ScannerTest_Replacement extends ScannerTestBase {
     expect(token.next!.isEof, isTrue);
     expect(listener.errors, hasLength(1));
     TestError error = listener.errors[0];
-    expect(error.diagnosticCode, ScannerErrorCode.MISSING_DIGIT);
+    expect(error.diagnosticCode, diag.missingDigit);
     expect(error.offset, source.length - 1);
   }
 
@@ -157,8 +165,8 @@ class ScannerTest_Replacement extends ScannerTestBase {
     expect(closeParen2.isSynthetic, isTrue);
     expect(eof.isEof, isTrue);
     listener.assertErrors([
-      new TestError(6, ScannerErrorCode.EXPECTED_TOKEN, [')']),
-      new TestError(7, ScannerErrorCode.EXPECTED_TOKEN, [')']),
+      new TestError(6, diag.expectedToken, [')']),
+      new TestError(7, diag.expectedToken, [')']),
     ]);
   }
 
@@ -181,9 +189,9 @@ class ScannerTest_Replacement extends ScannerTestBase {
     expect(eof.isEof, true);
 
     listener.assertErrors([
-      new TestError(4, ScannerErrorCode.EXPECTED_TOKEN, [')']),
-      new TestError(4, ScannerErrorCode.EXPECTED_TOKEN, [']']),
-      new TestError(4, ScannerErrorCode.EXPECTED_TOKEN, ['}']),
+      new TestError(4, diag.expectedToken, [')']),
+      new TestError(4, diag.expectedToken, [']']),
+      new TestError(4, diag.expectedToken, ['}']),
     ]);
   }
 
@@ -199,9 +207,16 @@ class ScannerTest_Replacement extends ScannerTestBase {
     // The default recovery strategy used by scanString
     // places all error tokens at the head of the stream.
     while (token.type == TokenType.BAD_INPUT) {
-      translateErrorToken(token as ErrorToken,
-          (ScannerErrorCode errorCode, int offset, List<Object>? arguments) {
-        listener.errors.add(new TestError(offset, errorCode, arguments));
+      translateErrorToken(token as ErrorToken, (
+        LocatedDiagnostic locatedDiagnostic,
+      ) {
+        listener.errors.add(
+          new TestError(
+            locatedDiagnostic.offset,
+            locatedDiagnostic.locatableDiagnostic.code,
+            locatedDiagnostic.locatableDiagnostic.arguments,
+          ),
+        );
       });
       token = token.next!;
     }

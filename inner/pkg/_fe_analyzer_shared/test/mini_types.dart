@@ -11,6 +11,7 @@ import 'dart:core' hide Type;
 
 import 'package:_fe_analyzer_shared/src/types/shared_type.dart';
 import 'package:collection/collection.dart';
+import 'package:test/test.dart';
 
 /// Surrounds [s] with parentheses if [condition] is `true`, otherwise returns
 /// [s] unchanged.
@@ -167,10 +168,9 @@ class FunctionType extends Type implements SharedFunctionType {
     }
     if (typeParametersShared.isNotEmpty) {
       // Check if types are equal under a consistent renaming of type formals
-      var freshTypeParameterGenerator =
-          FreshTypeParameterGenerator()
-            ..excludeNamesUsedIn(this)
-            ..excludeNamesUsedIn(other);
+      var freshTypeParameterGenerator = FreshTypeParameterGenerator()
+        ..excludeNamesUsedIn(this)
+        ..excludeNamesUsedIn(other);
       var thisSubstitution = <TypeParameter, Type>{};
       var otherSubstitution = <TypeParameter, Type>{};
       var thisTypeFormalBounds = <Type>[];
@@ -893,16 +893,13 @@ abstract class Type implements SharedType, _Substitutable<Type> {
   /// - A function type (e.g. `void Function()`)
   /// - A promoted type variable type (e.g. `T&int`)
   @override
-  String toString({bool parenthesizeIfComplex = false}) =>
-      isQuestionType
-          ? _parenthesizeIf(
-            parenthesizeIfComplex,
-            '${_toStringWithoutSuffix(parenthesizeIfComplex: true)}'
-            '?',
-          )
-          : _toStringWithoutSuffix(
-            parenthesizeIfComplex: parenthesizeIfComplex,
-          );
+  String toString({bool parenthesizeIfComplex = false}) => isQuestionType
+      ? _parenthesizeIf(
+          parenthesizeIfComplex,
+          '${_toStringWithoutSuffix(parenthesizeIfComplex: true)}'
+          '?',
+        )
+      : _toStringWithoutSuffix(parenthesizeIfComplex: parenthesizeIfComplex);
 
   /// Returns a string representation of the portion of this string that
   /// precedes the nullability suffix.
@@ -964,6 +961,14 @@ class TypeParameter extends TypeNameInfo implements SharedTypeParameter {
     // formals with the same name (and bound) have the same hash code.
     return Object.hash(name, bound);
   }
+
+  @override
+  // TODO(paulberry): Implement isLegacyCovariant.
+  bool get isLegacyCovariant => true;
+
+  @override
+  // TODO(paulberry): Implement variance.
+  Variance get variance => Variance.covariant;
 
   @override
   String toString() => name;
@@ -1217,11 +1222,10 @@ class TypeSystem {
     'Future': (_) => [Type('Object')],
     'int': (_) => [Type('num'), Type('Object')],
     'Iterable': (_) => [Type('Object')],
-    'List':
-        (args) => [
-          PrimaryType(TypeRegistry.iterable, args: args),
-          Type('Object'),
-        ],
+    'List': (args) => [
+      PrimaryType(TypeRegistry.iterable, args: args),
+      Type('Object'),
+    ],
     'Map': (_) => [Type('Object')],
     'Object': (_) => [],
     'num': (_) => [Type('Object')],
@@ -1241,6 +1245,50 @@ class TypeSystem {
     List<Type> Function(List<Type>) template,
   ) {
     _superInterfaceTemplates[className] = template;
+  }
+
+  /// If [t] derives a future type `F` (as defined in the "Function Expressions"
+  /// section of the language spec), returns `F`. Otherwise returns `null`.
+  Type? derivedFutureType(Type t) {
+    // (Note: comments below are pulled from the definition of "derives a future
+    // type" in the "Function Expressions" section of the language spec.)
+
+    // We say that a type T derives a future type F in the following cases,
+    // using the first applicable case:
+    // - If T is a type which is introduced by a class, mixin, or enum
+    //   declaration, and if T or a direct or indirect superinterface of T is
+    //   Future<U> for some U, then T derives the future type Future<U>.
+    if (t case PrimaryType(isInterfaceType: true, isQuestionType: false)) {
+      for (var f in [t, ..._getSuperInterfaces(t)]) {
+        if (f case PrimaryType(nameInfo: TypeNameInfo(name: 'Future'))) {
+          return f;
+        }
+      }
+    }
+
+    // - If T is the type FutureOr<U> for some U, then T derives the future type
+    //   FutureOr<U>.
+    if (t is FutureOrType) {
+      return t;
+    }
+
+    // - If T is S? for some S, and S derives the future type F, then T derives
+    //   the future type F?.
+    if (t.isQuestionType) {
+      if (derivedFutureType(t.asQuestionType(false)) case var f?) {
+        return f.asQuestionType(true);
+      }
+    }
+
+    // - If T is a type variable with bound B, and B derives the future type F,
+    //   then T derives the future type F.
+    if (t case TypeParameterType(bound: var b)) {
+      if (derivedFutureType(b) case var f?) {
+        return f;
+      }
+    }
+
+    return null;
   }
 
   Type factor(Type t, Type s) {
@@ -1285,6 +1333,11 @@ class TypeSystem {
     //   types with a single name and no type arguments (this covers both
     //   primitive types and type variables).
     switch ((t0, t1)) {
+      case (InvalidType(), _):
+      case (_, InvalidType()):
+        // `InvalidType` is treated as a top and a bottom type, which is
+        // consistent with CFE and analyzer implementations.
+        return true;
       case (
             PrimaryType(nameInfo: var t0Info, isQuestionType: false, args: []),
             PrimaryType(nameInfo: var t1Info, isQuestionType: false, args: []),
@@ -1316,7 +1369,7 @@ class TypeSystem {
     if (_isTop(t1)) return true;
 
     // Left Top: if T0 is dynamic or void then T0 <: T1 if Object? <: T1
-    if (t0 is DynamicType || t0 is InvalidType || t0 is VoidType) {
+    if (t0 is DynamicType || t0 is VoidType) {
       return isSubtype(_objectQuestionType, t1);
     }
 
@@ -1355,7 +1408,6 @@ class TypeSystem {
       //   false).
       if (t0 is NullType ||
           t0 is DynamicType ||
-          t0 is InvalidType ||
           t0 is VoidType ||
           t0.isQuestionType) {
         return false;
@@ -1544,12 +1596,7 @@ class TypeSystem {
     // Super-Interface: T0 is an interface type with super-interfaces S0,...Sn
     bool isSuperInterfaceSubtype() {
       if (t0 is! PrimaryType) return false;
-      var superInterfaceTemplate = _superInterfaceTemplates[t0.name];
-      if (superInterfaceTemplate == null) {
-        assert(false, 'Superinterfaces for $t0 not known');
-        return false;
-      }
-      var superInterfaces = superInterfaceTemplate(t0.args);
+      var superInterfaces = _getSuperInterfaces(t0);
 
       // - and Si <: T1 for some i
       for (var superInterface in superInterfaces) {
@@ -1719,6 +1766,14 @@ class TypeSystem {
     if (isRecordSubtype()) return true;
 
     return false;
+  }
+
+  List<Type> _getSuperInterfaces(PrimaryType t) {
+    var superInterfaceTemplate = _superInterfaceTemplates[t.name];
+    if (superInterfaceTemplate == null) {
+      fail('Superinterfaces for $t not known');
+    }
+    return superInterfaceTemplate(t.args);
   }
 
   bool _isTop(Type t) {
@@ -2419,10 +2474,10 @@ extension on List<NamedFunctionParameter> {
         newType == null
             ? namedFunctionParameter
             : NamedFunctionParameter(
-              isRequired: namedFunctionParameter.isRequired,
-              name: namedFunctionParameter.name,
-              type: newType,
-            ),
+                isRequired: namedFunctionParameter.isRequired,
+                name: namedFunctionParameter.name,
+                type: newType,
+              ),
       );
     }
     return newList;
@@ -2446,10 +2501,10 @@ extension on List<NamedFunctionParameter> {
         newType == null
             ? namedFunctionParameter
             : NamedFunctionParameter(
-              isRequired: namedFunctionParameter.isRequired,
-              name: namedFunctionParameter.name,
-              type: newType,
-            ),
+                isRequired: namedFunctionParameter.isRequired,
+                name: namedFunctionParameter.name,
+                type: newType,
+              ),
       );
     }
     return newList;

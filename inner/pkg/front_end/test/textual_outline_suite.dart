@@ -22,6 +22,7 @@ import 'package:testing/testing.dart'
         Step,
         TestDescription;
 
+import 'testing/experimental_features.dart';
 import 'utils/kernel_chain.dart' show MatchContext;
 import 'utils/suite_utils.dart';
 import 'testing/environment_keys.dart';
@@ -31,26 +32,11 @@ const int minSupportedMajorVersion = 2;
 const int minSupportedMinorVersion = 12;
 
 const List<Map<String, String>> EXPECTATIONS = [
-  {
-    "name": "ExpectationFileMismatch",
-    "group": "Fail",
-  },
-  {
-    "name": "ExpectationFileMissing",
-    "group": "Fail",
-  },
-  {
-    "name": "EmptyOutput",
-    "group": "Fail",
-  },
-  {
-    "name": "UnknownChunk",
-    "group": "Fail",
-  },
-  {
-    "name": "FormatterCrash",
-    "group": "Fail",
-  },
+  {"name": "ExpectationFileMismatch", "group": "Fail"},
+  {"name": "ExpectationFileMissing", "group": "Fail"},
+  {"name": "EmptyOutput", "group": "Fail"},
+  {"name": "UnknownChunk", "group": "Fail"},
+  {"name": "FormatterCrash", "group": "Fail"},
 ];
 
 Future<Context> createContext(Chain suite, Map<String, String> environment) {
@@ -58,11 +44,11 @@ Future<Context> createContext(Chain suite, Map<String, String> environment) {
 }
 
 void main([List<String> arguments = const []]) => internalMain(
-      createContext,
-      arguments: arguments,
-      displayName: "textual outline suite",
-      configurationPath: "../testing.json",
-    );
+  createContext,
+  arguments: arguments,
+  displayName: "textual outline suite",
+  configurationPath: "../testing.json",
+);
 
 class Context extends ChainContext with MatchContext {
   final SuiteFolderOptions suiteFolderOptions;
@@ -79,20 +65,19 @@ class Context extends ChainContext with MatchContext {
   bool get canBeFixWithUpdateExpectations => true;
 
   Context(Uri baseUri, Map<String, String> environment)
-      : suiteFolderOptions = new SuiteFolderOptions(baseUri),
-        updateExpectations =
-            environment[EnvironmentKeys.updateExpectations] == "true",
-        forcedExperimentalFlags =
-            SuiteFolderOptions.computeForcedExperimentalFlags(environment);
+    : suiteFolderOptions = new SuiteFolderOptions(baseUri),
+      updateExpectations =
+          environment[EnvironmentKeys.updateExpectations] == "true",
+      forcedExperimentalFlags =
+          SuiteFolderOptions.computeForcedExperimentalFlags(environment);
 
   @override
-  final List<Step> steps = const <Step>[
-    const TextualOutline(),
-  ];
+  final List<Step> steps = const <Step>[const TextualOutline()];
 
   @override
-  final ExpectationSet expectationSet =
-      new ExpectationSet.fromJsonList(EXPECTATIONS);
+  final ExpectationSet expectationSet = new ExpectationSet.fromJsonList(
+    EXPECTATIONS,
+  );
 }
 
 class TextualOutline extends Step<TestDescription, TestDescription, Context> {
@@ -103,13 +88,15 @@ class TextualOutline extends Step<TestDescription, TestDescription, Context> {
 
   @override
   Future<Result<TestDescription>> run(
-      TestDescription description, Context context) async {
-    FolderOptions folderOptions =
-        context.suiteFolderOptions.computeFolderOptions(description);
+    TestDescription description,
+    Context context,
+  ) async {
+    FolderOptions folderOptions = context.suiteFolderOptions
+        .computeFolderOptions(description);
     Map<ExperimentalFlag, bool> experimentalFlags = folderOptions
         .computeExplicitExperimentalFlags(context.forcedExperimentalFlags);
-    Map<ExperimentalFlag, bool> experimentalFlagsExplicit =
-        folderOptions.computeExplicitExperimentalFlags(const {});
+    Map<ExperimentalFlag, bool> experimentalFlagsExplicit = folderOptions
+        .computeExplicitExperimentalFlags(const {});
 
     bool allowFormatterCrash = false;
     for (MapEntry<ExperimentalFlag, bool> entry
@@ -125,24 +112,28 @@ class TextualOutline extends Step<TestDescription, TestDescription, Context> {
     Uint8List bytes = new File.fromUri(description.uri).readAsBytesSync();
     for (bool modelled in [false, true]) {
       TextualOutlineInfoForTesting info = new TextualOutlineInfoForTesting();
+      ExperimentalFeaturesFromFlags experimentalFeatures =
+          new ExperimentalFeaturesFromFlags(experimentalFlags);
       String? result = textualOutline(
         bytes,
         new ScannerConfiguration(
-          enableTripleShift: isExperimentEnabled(ExperimentalFlag.tripleShift,
-              explicitExperimentalFlags: experimentalFlags),
+          enableTripleShift: isExperimentEnabled(
+            ExperimentalFlag.tripleShift,
+            explicitExperimentalFlags: experimentalFlags,
+          ),
         ),
         throwOnUnexpected: true,
         performModelling: modelled,
         returnNullOnError: false,
-        enablePatterns: isExperimentEnabled(ExperimentalFlag.patterns,
-            explicitExperimentalFlags: experimentalFlags),
-        enableEnhancedParts: isExperimentEnabled(ExperimentalFlag.enhancedParts,
-            explicitExperimentalFlags: experimentalFlags),
+        experimentalFeatures: experimentalFeatures,
         infoForTesting: info,
       );
       if (result == null) {
         return new Result(
-            null, context.expectationSet["EmptyOutput"], description.uri);
+          null,
+          context.expectationSet["EmptyOutput"],
+          description.uri,
+        );
       }
 
       bool containsUnknownChunk = info.hasUnknownChunk;
@@ -171,16 +162,16 @@ class TextualOutline extends Step<TestDescription, TestDescription, Context> {
           // an older language version, it will contain a `// @dart=x.y`
           // comment, which takes precedence over this argument.
           result = new DartFormatter(
-                  languageVersion:
-                      DartFormatter.latestShortStyleLanguageVersion,
-                  experimentFlags: experimentFlags)
-              .format(result);
+            languageVersion: DartFormatter.latestShortStyleLanguageVersion,
+            experimentFlags: experimentFlags,
+          ).format(result);
         } catch (e, st) {
           formatterException = e;
           formatterExceptionSt = st;
           if (e is FormatterException) {
             for (var error in e.errors) {
-              if (error.diagnosticCode.name == "EXPERIMENT_NOT_ENABLED") {
+              if (error.diagnosticCode.lowerCaseName.toUpperCase() ==
+                  "EXPERIMENT_NOT_ENABLED") {
                 allowFormatterCrash = true;
               }
             }
@@ -193,22 +184,32 @@ class TextualOutline extends Step<TestDescription, TestDescription, Context> {
         filename = ".textual_outline_modelled.expect";
       }
 
-      Result<TestDescription> expectMatch =
-          await context.match<TestDescription>(
-              filename, result!, description.uri, description);
+      Result<TestDescription> expectMatch = await context
+          .match<TestDescription>(
+            filename,
+            result!,
+            description.uri,
+            description,
+          );
       if (expectMatch.outcome != Expectation.pass) return expectMatch;
 
       if (containsUnknownChunk) {
         return new Result(
-            null, context.expectationSet["UnknownChunk"], description.uri);
+          null,
+          context.expectationSet["UnknownChunk"],
+          description.uri,
+        );
       }
 
       if (formatterException != null &&
           !info.hasParserErrors &&
           !allowFormatterCrash) {
         return new Result(
-            null, context.expectationSet["FormatterCrash"], formatterException,
-            trace: formatterExceptionSt);
+          null,
+          context.expectationSet["FormatterCrash"],
+          formatterException,
+          trace: formatterExceptionSt,
+        );
       }
     }
 

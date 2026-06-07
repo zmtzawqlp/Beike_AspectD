@@ -5,18 +5,20 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:_fe_analyzer_shared/src/parser/experimental_features.dart';
 import 'package:_fe_analyzer_shared/src/parser/parser.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token.dart';
 import 'package:_fe_analyzer_shared/src/scanner/utf8_bytes_scanner.dart';
 import 'package:dart_style/dart_style.dart' show DartFormatter;
 
-import 'utils/io_utils.dart' show computeRepoDirUri;
+import 'utils/io_utils.dart' show computeRepoDirUri, getPackageVersionFor;
 
 void main(List<String> args) {
   final Uri repoDir = computeRepoDirUri();
   String generated = generateTestParser(repoDir);
-  new File.fromUri(computeTestParserUri(repoDir))
-      .writeAsStringSync(generated, flush: true);
+  new File.fromUri(
+    computeTestParserUri(repoDir),
+  ).writeAsStringSync(generated, flush: true);
 }
 
 Uri computeTestParserUri(Uri repoDir) {
@@ -25,11 +27,14 @@ Uri computeTestParserUri(Uri repoDir) {
 
 String generateTestParser(Uri repoDir) {
   StringBuffer out = new StringBuffer();
-  File f = new File.fromUri(repoDir
-      .resolve("pkg/_fe_analyzer_shared/lib/src/parser/parser_impl.dart"));
+  File f = new File.fromUri(
+    repoDir.resolve("pkg/_fe_analyzer_shared/lib/src/parser/parser_impl.dart"),
+  );
   Uint8List rawBytes = f.readAsBytesSync();
-  Utf8BytesScanner scanner =
-      new Utf8BytesScanner(rawBytes, includeComments: true);
+  Utf8BytesScanner scanner = new Utf8BytesScanner(
+    rawBytes,
+    includeComments: true,
+  );
   Token firstToken = scanner.tokenize();
 
   out.write(r"""
@@ -47,8 +52,10 @@ import 'package:_fe_analyzer_shared/src/parser/formal_parameter_kind.dart';
 import 'package:_fe_analyzer_shared/src/parser/identifier_context.dart';
 import 'package:_fe_analyzer_shared/src/parser/listener.dart' show Listener;
 import 'package:_fe_analyzer_shared/src/parser/member_kind.dart';
-import 'package:_fe_analyzer_shared/src/parser/parser.dart' show ConstantPatternContext, Parser;
-import 'package:_fe_analyzer_shared/src/parser/parser_impl.dart' show AwaitOrYieldContext, ForPartsContext, PatternContext;
+import 'package:_fe_analyzer_shared/src/parser/parser.dart'
+    show ConstantPatternContext, ExperimentalFeatures, Parser;
+import 'package:_fe_analyzer_shared/src/parser/parser_impl.dart'
+    show AwaitOrYieldContext, ForPartsContext, PatternContext;
 import 'package:_fe_analyzer_shared/src/parser/token_stream_rewriter.dart';
 import 'package:_fe_analyzer_shared/src/parser/type_info.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token.dart';
@@ -67,11 +74,10 @@ class TestParser extends Parser {
   bool _inhibitPrinting = false;
 
   TestParser(Listener listener, this.trace,
-      {required bool allowPatterns, required bool enableEnhancedParts})
+      {required ExperimentalFeatures experimentalFeatures})
       : super(listener,
             useImplicitCreationExpression: useImplicitCreationExpressionInCfe,
-            allowPatterns: allowPatterns,
-            enableFeatureEnhancedParts: enableEnhancedParts);
+            experimentalFeatures: experimentalFeatures);
 
   String createTrace() {
     List<String> traceLines = StackTrace.current.toString().split("\n");
@@ -109,14 +115,17 @@ class TestParser extends Parser {
 """);
 
   ParserCreatorListener listener = new ParserCreatorListener(out);
-  ClassMemberParser parser = new ClassMemberParser(listener);
+  ClassMemberParser parser = new ClassMemberParser(
+    listener,
+    experimentalFeatures: const DefaultExperimentalFeatures(),
+  );
   parser.parseUnit(firstToken);
 
   out.writeln("}");
 
   return new DartFormatter(
-          languageVersion: DartFormatter.latestShortStyleLanguageVersion)
-      .format("$out");
+    languageVersion: getPackageVersionFor("front_end"),
+  ).format("$out");
 }
 
 class ParserCreatorListener extends Listener {
@@ -130,16 +139,17 @@ class ParserCreatorListener extends Listener {
 
   @override
   void beginClassDeclaration(
-      Token begin,
-      Token? abstractToken,
-      Token? macroToken,
-      Token? sealedToken,
-      Token? baseToken,
-      Token? interfaceToken,
-      Token? finalToken,
-      Token? augmentToken,
-      Token? mixinToken,
-      Token name) {
+    Token begin,
+    Token? abstractToken,
+    Token? macroToken,
+    Token? sealedToken,
+    Token? baseToken,
+    Token? interfaceToken,
+    Token? finalToken,
+    Token? augmentToken,
+    Token? mixinToken,
+    Token name,
+  ) {
     if (name.lexeme == "Parser") insideParserClass = true;
   }
 
@@ -149,30 +159,59 @@ class ParserCreatorListener extends Listener {
   }
 
   @override
-  void beginMethod(
-      DeclarationKind declarationKind,
-      Token? augmentToken,
-      Token? externalToken,
-      Token? staticToken,
-      Token? covariantToken,
-      Token? varFinalOrConst,
-      Token? getOrSet,
-      Token name,
-      String? enclosingDeclarationName) {
+  void beginConstructor(
+    DeclarationKind declarationKind,
+    Token? augmentToken,
+    Token? externalToken,
+    Token? staticToken,
+    Token? covariantToken,
+    Token? varFinalOrConst,
+    Token? getOrSet,
+    Token? newToken,
+    Token name,
+    String? enclosingDeclarationName,
+  ) {
     currentMethodName = name.lexeme;
   }
 
   @override
-  void endClassConstructor(Token? getOrSet, Token beginToken, Token beginParam,
-      Token? beginInitializers, Token endToken) {
+  void beginMethod(
+    DeclarationKind declarationKind,
+    Token? augmentToken,
+    Token? externalToken,
+    Token? staticToken,
+    Token? covariantToken,
+    Token? varFinalOrConst,
+    Token? getOrSet,
+    Token name,
+    String? enclosingDeclarationName,
+  ) {
+    currentMethodName = name.lexeme;
+  }
+
+  @override
+  void endConstructor(
+    DeclarationKind kind,
+    Token beginToken,
+    Token? newToken,
+    Token beginParam,
+    Token? beginInitializers,
+    Token endToken,
+  ) {
     parameters.clear();
     parametersNamed.clear();
     currentMethodName = null;
   }
 
   @override
-  void endClassMethod(Token? getOrSet, Token beginToken, Token beginParam,
-      Token? beginInitializers, Token endToken) {
+  void endMethod(
+    DeclarationKind kind,
+    Token? getOrSet,
+    Token beginToken,
+    Token beginParam,
+    Token? beginInitializers,
+    Token endToken,
+  ) {
     if (insideParserClass &&
         !currentMethodName!.startsWith("_") &&
         currentMethodName != 'inhibitPrinting') {
@@ -269,15 +308,24 @@ class ParserCreatorListener extends Listener {
 
   @override
   void endFormalParameters(
-      int count, Token beginToken, Token endToken, MemberKind kind) {
+    int count,
+    Token beginToken,
+    Token endToken,
+    MemberKind kind,
+  ) {
     formalParametersNestLevel--;
   }
 
   Token? currentFormalParameterToken;
 
   @override
-  void beginFormalParameter(Token token, MemberKind kind, Token? requiredToken,
-      Token? covariantToken, Token? varFinalOrConst) {
+  void beginFormalParameter(
+    Token token,
+    MemberKind kind,
+    Token? requiredToken,
+    Token? covariantToken,
+    Token? varFinalOrConst,
+  ) {
     if (formalParametersNestLevel == 1) {
       currentFormalParameterToken = token;
     }
@@ -294,14 +342,16 @@ class ParserCreatorListener extends Listener {
 
   @override
   void endFormalParameter(
-      Token? thisKeyword,
-      Token? superKeyword,
-      Token? periodAfterThisOrSuper,
-      Token nameToken,
-      Token? initializerStart,
-      Token? initializerEnd,
-      FormalParameterKind kind,
-      MemberKind memberKind) {
+    Token? varOrFinal,
+    Token? thisKeyword,
+    Token? superKeyword,
+    Token? periodAfterThisOrSuper,
+    Token nameToken,
+    Token? initializerStart,
+    Token? initializerEnd,
+    FormalParameterKind kind,
+    MemberKind memberKind,
+  ) {
     if (formalParametersNestLevel != 1) {
       return;
     }

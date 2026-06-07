@@ -7,12 +7,22 @@ import 'package:testing/testing.dart' show Chain, ChainContext;
 import 'utils/suite_utils.dart';
 import 'parser_suite.dart';
 
-void main([List<String> arguments = const []]) => internalMain(createContext,
-    arguments: arguments,
-    displayName: "parser all suite",
-    configurationPath: "../testing.json");
+void main([List<String> arguments = const []]) => internalMain(
+  createContext,
+  arguments: arguments,
+  displayName: "parser all suite",
+  configurationPath: "../testing.json",
+);
 
 Future<ChainContext> createContext(
-    Chain suite, Map<String, String> environment) {
-  return new Future.value(new ContextChecksOnly(suite.name));
+  Chain suite,
+  Map<String, String> environment,
+) {
+  return new Future.value(
+    new ContextChecksOnly(
+      baseUri: suite.root,
+      suiteName: suite.name,
+      environment: environment,
+    ),
+  );
 }

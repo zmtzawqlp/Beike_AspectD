@@ -5,14 +5,16 @@
 import 'dart:convert';
 import 'dart:typed_data' show Uint8List;
 
+import 'package:_fe_analyzer_shared/src/base/errors.dart';
 import 'package:_fe_analyzer_shared/src/scanner/error_token.dart';
-import 'package:_fe_analyzer_shared/src/scanner/errors.dart';
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart'
     as usedForFuzzTesting;
 import 'package:_fe_analyzer_shared/src/scanner/scanner.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token.dart';
 import 'package:_fe_analyzer_shared/src/scanner/token_constants.dart';
-import 'package:front_end/src/codes/cfe_codes.dart';
+import 'package:analyzer/src/dart/scanner/translate_error_token.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:front_end/src/codes/diagnostic.dart' as fe_diag;
 import 'package:test/test.dart';
 import 'package:test_reflective_loader/test_reflective_loader.dart';
 
@@ -38,8 +40,9 @@ class ScannerTest_Cfe_FuzzTestAPI {
     // These two API are used when fuzz testing the scanner.
     String source = 'class A { }';
 
-    usedForFuzzTesting.ScannerResult result =
-        usedForFuzzTesting.scanString(source);
+    usedForFuzzTesting.ScannerResult result = usedForFuzzTesting.scanString(
+      source,
+    );
     expect(result.hasErrors, isFalse);
     expect(result.tokens.type, same(Keyword.CLASS));
 
@@ -54,19 +57,30 @@ class ScannerTest_Cfe_FuzzTestAPI {
 @reflectiveTest
 class ScannerTest_Cfe_UTF8 extends ScannerTest_Cfe {
   @override
-  Token scanWithListener(String source, ErrorListener listener,
-      {ScannerConfiguration? configuration}) {
+  Token scanWithListener(
+    String source,
+    ErrorListener listener, {
+    ScannerConfiguration? configuration,
+  }) {
     var bytes = encodeAsUtf8(source);
-    var result =
-        scan(bytes, configuration: configuration, includeComments: true);
+    var result = scan(
+      bytes,
+      configuration: configuration,
+      includeComments: true,
+    );
     var token = result.tokens;
 
     // Translate error tokens
     if (result.hasErrors) {
       while (token is ErrorToken) {
-        translateErrorToken(token,
-            (ScannerErrorCode errorCode, int offset, List<Object>? arguments) {
-          listener.errors.add(new TestError(offset, errorCode, arguments));
+        translateErrorToken(token, (LocatedDiagnostic locatedDiagnostic) {
+          listener.errors.add(
+            new TestError(
+              locatedDiagnostic.offset,
+              locatedDiagnostic.locatableDiagnostic.code,
+              locatedDiagnostic.locatableDiagnostic.arguments,
+            ),
+          );
         });
         token = token.next!;
       }
@@ -114,18 +128,29 @@ class ScannerTest_Cfe_UTF8 extends ScannerTest_Cfe {
 @reflectiveTest
 class ScannerTest_Cfe extends ScannerTestBase {
   @override
-  Token scanWithListener(String source, ErrorListener listener,
-      {ScannerConfiguration? configuration}) {
-    var result =
-        scanString(source, configuration: configuration, includeComments: true);
+  Token scanWithListener(
+    String source,
+    ErrorListener listener, {
+    ScannerConfiguration? configuration,
+  }) {
+    var result = scanString(
+      source,
+      configuration: configuration,
+      includeComments: true,
+    );
     var token = result.tokens;
 
     // Translate error tokens
     if (result.hasErrors) {
       while (token is ErrorToken) {
-        translateErrorToken(token,
-            (ScannerErrorCode errorCode, int offset, List<Object>? arguments) {
-          listener.errors.add(new TestError(offset, errorCode, arguments));
+        translateErrorToken(token, (LocatedDiagnostic locatedDiagnostic) {
+          listener.errors.add(
+            new TestError(
+              locatedDiagnostic.offset,
+              locatedDiagnostic.locatableDiagnostic.code,
+              locatedDiagnostic.locatableDiagnostic.arguments,
+            ),
+          );
         });
         token = token.next!;
       }
@@ -202,8 +227,10 @@ class ScannerTest_Cfe extends ScannerTestBase {
       } else if (token.lexeme == ')') {
         if (token.precedingComments != null) {
           ++spotCheckCount;
-          expect(token.precedingComments?.lexeme,
-              '/* comment before closing paren */');
+          expect(
+            token.precedingComments?.lexeme,
+            '/* comment before closing paren */',
+          );
           expect(token.precedingComments?.next, isNull);
         }
       }
@@ -232,7 +259,7 @@ class ScannerTest_Cfe extends ScannerTestBase {
     expect(token.next!.isEof, isTrue);
     expect(listener.errors, hasLength(1));
     TestError error = listener.errors[0];
-    expect(error.diagnosticCode, ScannerErrorCode.MISSING_DIGIT);
+    expect(error.diagnosticCode, diag.missingDigit);
     expect(error.offset, source.length - 1);
   }
 
@@ -260,8 +287,8 @@ class ScannerTest_Cfe extends ScannerTestBase {
     expect(openBrace.endToken, same(closeBrace));
     expect(openParen2.endToken, same(closeParen2));
     listener.assertErrors([
-      new TestError(6, ScannerErrorCode.EXPECTED_TOKEN, [')']),
-      new TestError(7, ScannerErrorCode.EXPECTED_TOKEN, [')']),
+      new TestError(6, diag.expectedToken, [')']),
+      new TestError(7, diag.expectedToken, [')']),
     ]);
   }
 
@@ -304,9 +331,9 @@ class ScannerTest_Cfe extends ScannerTestBase {
     expect(openBracket.endToken, same(closeBracket));
     expect(openParen.endToken, same(closeParen));
     listener.assertErrors([
-      new TestError(3, ScannerErrorCode.EXPECTED_TOKEN, ['}']),
-      new TestError(3, ScannerErrorCode.EXPECTED_TOKEN, [']']),
-      new TestError(3, ScannerErrorCode.EXPECTED_TOKEN, [')']),
+      new TestError(3, diag.expectedToken, ['}']),
+      new TestError(3, diag.expectedToken, [']']),
+      new TestError(3, diag.expectedToken, [')']),
     ]);
   }
 }
@@ -315,8 +342,14 @@ class ScannerTest_Cfe extends ScannerTestBase {
 abstract class ScannerTest_Fasta_Base {
   Token scan(String source, {bool? enableTripleShift});
 
-  void expectToken(Token token, TokenType type, int offset, int length,
-      {bool isSynthetic = false, String? lexeme}) {
+  void expectToken(
+    Token token,
+    TokenType type,
+    int offset,
+    int length, {
+    bool isSynthetic = false,
+    String? lexeme,
+  }) {
     String description = '${token.type} $token';
     expect(token.type, type, reason: description);
     expect(token.offset, offset, reason: description);
@@ -329,7 +362,10 @@ abstract class ScannerTest_Fasta_Base {
 
   void test_string_simple_interpolation_missingIdentifier() {
     Token token = scan("'\$x\$'");
-    expect((token as ErrorToken).errorCode, same(codeUnexpectedDollarInString));
+    expect(
+      (token as ErrorToken).errorCode,
+      same(fe_diag.unexpectedDollarInString),
+    );
 
     token = token.next!;
     expectToken(token, TokenType.STRING, 0, 1, lexeme: "'");
@@ -347,8 +383,14 @@ abstract class ScannerTest_Fasta_Base {
     expectToken(token, TokenType.STRING_INTERPOLATION_IDENTIFIER, 3, 1);
 
     token = token.next!;
-    expectToken(token, TokenType.IDENTIFIER, 4, 0,
-        lexeme: '', isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.IDENTIFIER,
+      4,
+      0,
+      lexeme: '',
+      isSynthetic: true,
+    );
 
     token = token.next!;
     expectToken(token, TokenType.STRING, 4, 1, lexeme: "'");
@@ -356,11 +398,11 @@ abstract class ScannerTest_Fasta_Base {
 
   void test_string_simple_unterminated_interpolation_block() {
     Token token = scan(r'"foo ${bar');
-    expect((token as ErrorToken).errorCode, same(codeUnmatchedToken));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unmatchedToken));
     var interpolationStartErrorToken = token as UnmatchedToken;
 
     token = token.next!;
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, '"');
 
     token = token.next!;
@@ -376,8 +418,14 @@ abstract class ScannerTest_Fasta_Base {
 
     // Expect interpolation to be terminated before string is closed
     token = token.next!;
-    expectToken(token, TokenType.CLOSE_CURLY_BRACKET, 10, 0,
-        isSynthetic: true, lexeme: '}');
+    expectToken(
+      token,
+      TokenType.CLOSE_CURLY_BRACKET,
+      10,
+      0,
+      isSynthetic: true,
+      lexeme: '}',
+    );
     expect(interpolationStart.endToken, same(token));
 
     token = token.next!;
@@ -386,19 +434,19 @@ abstract class ScannerTest_Fasta_Base {
 
   void test_string_simple_unterminated_interpolation_block2() {
     Token token = scan(r'"foo ${bar(baz[');
-    expect((token as ErrorToken).errorCode, same(codeUnmatchedToken));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unmatchedToken));
     var openSquareBracketErrorToken = token as UnmatchedToken;
 
     token = token.next!;
-    expect((token as ErrorToken).errorCode, same(codeUnmatchedToken));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unmatchedToken));
     var openParenErrorToken = token as UnmatchedToken;
 
     token = token.next!;
-    expect((token as ErrorToken).errorCode, same(codeUnmatchedToken));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unmatchedToken));
     var interpolationStartErrorToken = token as UnmatchedToken;
 
     token = token.next!;
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, '"');
 
     token = token.next!;
@@ -426,18 +474,36 @@ abstract class ScannerTest_Fasta_Base {
     expect(openSquareBracketErrorToken.begin, same(openSquareBracket));
 
     token = token.next!;
-    expectToken(token, TokenType.CLOSE_SQUARE_BRACKET, 15, 0,
-        isSynthetic: true, lexeme: ']');
+    expectToken(
+      token,
+      TokenType.CLOSE_SQUARE_BRACKET,
+      15,
+      0,
+      isSynthetic: true,
+      lexeme: ']',
+    );
     expect(openSquareBracket.endToken, same(token));
 
     token = token.next!;
-    expectToken(token, TokenType.CLOSE_PAREN, 15, 0,
-        isSynthetic: true, lexeme: ')');
+    expectToken(
+      token,
+      TokenType.CLOSE_PAREN,
+      15,
+      0,
+      isSynthetic: true,
+      lexeme: ')',
+    );
     expect(openParen.endToken, same(token));
 
     token = token.next!;
-    expectToken(token, TokenType.CLOSE_CURLY_BRACKET, 15, 0,
-        isSynthetic: true, lexeme: '}');
+    expectToken(
+      token,
+      TokenType.CLOSE_CURLY_BRACKET,
+      15,
+      0,
+      isSynthetic: true,
+      lexeme: '}',
+    );
     expect(interpolationStart.endToken, same(token));
 
     token = token.next!;
@@ -446,10 +512,13 @@ abstract class ScannerTest_Fasta_Base {
 
   void test_string_simple_missing_interpolation_identifier() {
     Token token = scan(r'"foo $');
-    expect((token as ErrorToken).errorCode, same(codeUnexpectedDollarInString));
+    expect(
+      (token as ErrorToken).errorCode,
+      same(fe_diag.unexpectedDollarInString),
+    );
 
     token = token.next!;
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, '"');
 
     token = token.next!;
@@ -459,8 +528,14 @@ abstract class ScannerTest_Fasta_Base {
     expectToken(token, TokenType.STRING_INTERPOLATION_IDENTIFIER, 5, 1);
 
     token = token.next!;
-    expectToken(token, TokenType.IDENTIFIER, 6, 0,
-        isSynthetic: true, lexeme: '');
+    expectToken(
+      token,
+      TokenType.IDENTIFIER,
+      6,
+      0,
+      isSynthetic: true,
+      lexeme: '',
+    );
 
     token = token.next!;
     expectToken(token, TokenType.STRING, 6, 0, isSynthetic: true, lexeme: '"');
@@ -468,62 +543,98 @@ abstract class ScannerTest_Fasta_Base {
 
   void test_string_multi_unterminated() {
     Token token = scan("'''string");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "'''");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 9,
-        lexeme: "'''string'''", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      9,
+      lexeme: "'''string'''",
+      isSynthetic: true,
+    );
   }
 
   void test_string_raw_multi_unterminated() {
     Token token = scan("r'''string");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "r'''");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 10,
-        lexeme: "r'''string'''", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      10,
+      lexeme: "r'''string'''",
+      isSynthetic: true,
+    );
   }
 
   void test_string_raw_simple_unterminated_eof() {
     Token token = scan("r'string");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "r'");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 8,
-        lexeme: "r'string'", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      8,
+      lexeme: "r'string'",
+      isSynthetic: true,
+    );
   }
 
   void test_string_raw_simple_unterminated_eol() {
     Token token = scan("r'string\n");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "r'");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 8,
-        lexeme: "r'string'", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      8,
+      lexeme: "r'string'",
+      isSynthetic: true,
+    );
   }
 
   void test_string_simple_unterminated_eof() {
     Token token = scan("'string");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "'");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 7,
-        lexeme: "'string'", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      7,
+      lexeme: "'string'",
+      isSynthetic: true,
+    );
   }
 
   void test_string_simple_unterminated_eol() {
     Token token = scan("'string\n");
-    expect((token as ErrorToken).errorCode, same(codeUnterminatedString));
+    expect((token as ErrorToken).errorCode, same(fe_diag.unterminatedString));
     expect((token as UnterminatedString).start, "'");
 
     token = token.next!;
-    expectToken(token, TokenType.STRING, 0, 7,
-        lexeme: "'string'", isSynthetic: true);
+    expectToken(
+      token,
+      TokenType.STRING,
+      0,
+      7,
+      lexeme: "'string'",
+      isSynthetic: true,
+    );
   }
 
   void test_match_angle_brackets() {
@@ -700,18 +811,23 @@ abstract class ScannerTest_Fasta_Base {
 @reflectiveTest
 class ScannerTest_Cfe_Direct_UTF8 extends ScannerTest_Cfe_Direct {
   @override
-  ScannerResult scanSource(source,
-      {bool includeComments = true, bool? enableTripleShift}) {
+  ScannerResult scanSource(
+    source, {
+    bool includeComments = true,
+    bool? enableTripleShift,
+  }) {
     Uint8List encoded = encodeAsUtf8(source);
 
     ScannerConfiguration? configuration;
     if (enableTripleShift == true) {
       configuration = new ScannerConfiguration(enableTripleShift: true);
     }
-    return usedForFuzzTesting.scan(encoded,
-        includeComments: includeComments,
-        configuration: configuration,
-        languageVersionChanged: languageVersionChanged);
+    return usedForFuzzTesting.scan(
+      encoded,
+      includeComments: includeComments,
+      configuration: configuration,
+      languageVersionChanged: languageVersionChanged,
+    );
   }
 }
 
@@ -721,26 +837,36 @@ class ScannerTest_Cfe_Direct extends ScannerTest_Fasta_Base {
   LanguageVersionToken? languageVersion;
 
   void languageVersionChanged(
-      Scanner scanner, LanguageVersionToken languageVersion) {
+    Scanner scanner,
+    LanguageVersionToken languageVersion,
+  ) {
     this.languageVersion = languageVersion;
   }
 
-  ScannerResult scanSource(source,
-      {bool includeComments = true, bool? enableTripleShift}) {
+  ScannerResult scanSource(
+    source, {
+    bool includeComments = true,
+    bool? enableTripleShift,
+  }) {
     ScannerConfiguration? configuration;
     if (enableTripleShift == true) {
       configuration = new ScannerConfiguration(enableTripleShift: true);
     }
-    return scanString(source,
-        includeComments: includeComments,
-        configuration: configuration,
-        languageVersionChanged: languageVersionChanged);
+    return scanString(
+      source,
+      includeComments: includeComments,
+      configuration: configuration,
+      languageVersionChanged: languageVersionChanged,
+    );
   }
 
   @override
   Token scan(String source, {bool? enableTripleShift}) {
-    var result = scanSource(source,
-        includeComments: true, enableTripleShift: enableTripleShift);
+    var result = scanSource(
+      source,
+      includeComments: true,
+      enableTripleShift: enableTripleShift,
+    );
     final Token first = result.tokens;
     Token token = first;
     while (!token.isEof) {
@@ -775,14 +901,11 @@ main() {}
 ''');
     expect(languageVersion!.major, 2);
     expect(languageVersion!.minor, 3);
-    expectComments(
-        result.tokens,
-        [
-          '// some other comment',
-          '// @dart = 2.3',
-          '// yet another comment',
-        ],
-        1);
+    expectComments(result.tokens, [
+      '// some other comment',
+      '// @dart = 2.3',
+      '// yet another comment',
+    ], 1);
   }
 
   void test_languageVersion_beforeFunction() {
@@ -910,8 +1033,11 @@ main() {}
     expect(token.lexeme, 'var');
     int index = 0;
     while (!token.isEof) {
-      expect(token.charOffset, lineStarts[index],
-          reason: 'token # $index : $token, ${token.type}');
+      expect(
+        token.charOffset,
+        lineStarts[index],
+        reason: 'token # $index : $token, ${token.type}',
+      );
       ++index;
       token = token.next!;
     }
@@ -930,15 +1056,21 @@ main() {}
     expect(token.lexeme, 'var');
     int index = 0;
     while (!token.isEof) {
-      expect(token.charOffset, lineStarts[index],
-          reason: 'token # $index : $token, ${token.type}');
+      expect(
+        token.charOffset,
+        lineStarts[index],
+        reason: 'token # $index : $token, ${token.type}',
+      );
       ++index;
       token = token.next!;
     }
   }
 
   void expectComments(
-      Token? token, List<String> expectedComments, int versionIndex) {
+    Token? token,
+    List<String> expectedComments,
+    int versionIndex,
+  ) {
     int index = 0;
     token = token!.precedingComments;
     while (token != null) {
@@ -955,8 +1087,11 @@ main() {}
         fail('Unexpected comment at index $index');
       }
       if (token is CommentToken) {
-        expect(token.lexeme, expectedComments[index],
-            reason: 'comment at $index');
+        expect(
+          token.lexeme,
+          expectedComments[index],
+          reason: 'comment at $index',
+        );
       } else {
         fail('Expected comment token at index $index');
       }

@@ -90,13 +90,21 @@ class C7 {
 }
 
 class C8 {
-  factory C8() = C8._;
-  C8._() {}
+  factory C8.fact1() = C8;
+  factory C8.fact2() = C8.fact3;
+  factory C8.fact3() => C8();
+  C8() {}
+  const factory C8.fact4() = C8.constConstr;
+  const C8.constConstr();
 }
 
 class C9 {
-  factory C9() = C9._;
-  C9._() {}
+  factory C9.fact1() = C9;
+  factory C9.fact2() = C9.fact3;
+  factory C9.fact3() => C9();
+  C9() {}
+  const factory C9.fact4() = C9.constConstr;
+  const C9.constConstr();
 }
 
 extension type ExtType1(int raw) {}
@@ -104,3 +112,58 @@ extension type ExtType1(int raw) {}
 extension Ext1 on int {
   bool get isPositive => this > 0;
 }
+
+extension Ext2 on int {
+  bool get isNegative2 => this < 0;
+}
+
+extension Ext3 on int {
+  bool get isNegative3 => this < 0;
+}
+
+extension Ext4 on int {
+  bool get isNegative4 => this < 0;
+}
+
+extension Ext5 on int {
+  bool get isNegative5 => this < 0;
+}
+
+extension type ExtType2(int raw) {
+  bool get isPositive => raw > 0;
+}
+
+extension type ExtType3(int raw) {
+  bool get isPositive => raw > 0;
+}
+
+extension type ExtType4(int raw) {
+  bool get isPositive => raw > 0;
+}
+
+extension type ExtType5._(int raw) {
+  ExtType5.plus1(int n) : this._(n + 1);
+  bool get isPositive => raw > 0;
+}
+
+class C10 {}
+
+extension type ExtType10(int raw) {}
+
+class C11 {}
+
+extension type ExtType11(int raw) {}
+
+class C12 {}
+
+extension type ExtType12(int raw) {}
+
+class C13 {}
+
+extension type ExtType13(int raw) {}
+
+class C14 {} // Not exposed
+
+class C15 implements C14 {}
+
+class C16 implements C14 {}

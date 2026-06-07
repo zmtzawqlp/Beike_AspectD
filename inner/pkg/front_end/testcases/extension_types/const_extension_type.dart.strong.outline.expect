@@ -20,7 +20,7 @@ static const field self::Class<core::int> b1 = const self::Class::•<core::int>
 static const field self::ExtensionType<self::Class<core::int>>% /* erasure=self::Class<core::int>, declared=! */ b2 = const self::ExtensionType|constructor#<self::Class<core::int>>(const self::Class::•<core::int>());
 static const field self::Class<core::bool> b3 = const self::Class::•<core::bool>();
 static const field self::ExtensionType<self::Class<core::bool>>% /* erasure=self::Class<core::bool>, declared=! */ b4 = const self::ExtensionType|constructor#<self::Class<core::bool>>(const self::Class::•<core::bool>());
-static extension-type-member method ExtensionType|constructor#<T extends core::Object? = dynamic>(self::ExtensionType|constructor#::T% id) → self::ExtensionType<self::ExtensionType|constructor#::T%>% /* erasure=self::ExtensionType|constructor#::T%, declared=! */ {
+static extension-type-member const method ExtensionType|constructor#<T extends core::Object? = dynamic>(self::ExtensionType|constructor#::T% id) → self::ExtensionType<self::ExtensionType|constructor#::T%>% /* erasure=self::ExtensionType|constructor#::T%, declared=! */ {
   lowered final self::ExtensionType<self::ExtensionType|constructor#::T%>% /* erasure=self::ExtensionType|constructor#::T%, declared=! */ #this = id;
   return #this;
 }
@@ -38,7 +38,7 @@ Evaluated: TypeLiteral @ org-dartlang-testcase:///const_extension_type.dart:12:1
 Evaluated: TypeLiteral @ org-dartlang-testcase:///const_extension_type.dart:13:12 -> TypeLiteralConstant(Class<bool>)
 Evaluated: TypeLiteral @ org-dartlang-testcase:///const_extension_type.dart:14:12 -> TypeLiteralConstant(Class<bool>)
 Evaluated: ConstructorInvocation @ org-dartlang-testcase:///const_extension_type.dart:16:18 -> InstanceConstant(const Class<int>{})
-Evaluated: FactoryConstructorInvocation @ org-dartlang-testcase:///const_extension_type.dart:17:18 -> InstanceConstant(const Class<int>{})
+Evaluated: StaticInvocation @ org-dartlang-testcase:///const_extension_type.dart:17:18 -> InstanceConstant(const Class<int>{})
 Evaluated: ConstructorInvocation @ org-dartlang-testcase:///const_extension_type.dart:18:18 -> InstanceConstant(const Class<bool>{})
-Evaluated: FactoryConstructorInvocation @ org-dartlang-testcase:///const_extension_type.dart:19:18 -> InstanceConstant(const Class<bool>{})
+Evaluated: StaticInvocation @ org-dartlang-testcase:///const_extension_type.dart:19:18 -> InstanceConstant(const Class<bool>{})
 Extra constant evaluation: evaluated: 12, effectively constant: 8

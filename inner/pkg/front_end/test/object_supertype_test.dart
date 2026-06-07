@@ -5,7 +5,7 @@
 import "dart:convert" show json;
 
 import "package:_fe_analyzer_shared/src/messages/diagnostic_message.dart"
-    show DiagnosticMessage, getMessageCodeObject;
+    show CfeDiagnosticMessage, getMessageCodeObject;
 import "package:expect/async_helper.dart" show asyncTest;
 import "package:expect/expect.dart" show Expect;
 import "package:front_end/src/api_prototype/compiler_options.dart"
@@ -13,46 +13,54 @@ import "package:front_end/src/api_prototype/compiler_options.dart"
 import "package:front_end/src/api_prototype/memory_file_system.dart"
     show MemoryFileSystem;
 import "package:front_end/src/base/compiler_context.dart" show CompilerContext;
-import "package:front_end/src/base/messages.dart"
-    show Code, codeObjectExtends, codeObjectImplements, codeObjectMixesIn;
+import "package:front_end/src/base/messages.dart" show Code;
 import "package:front_end/src/base/processed_options.dart"
     show ProcessedOptions;
+import "package:front_end/src/codes/diagnostic.dart" as diag;
 import "package:front_end/src/kernel_generator_impl.dart";
 import "package:front_end/src/source/source_loader.dart"
     show defaultDartCoreSource;
 
-Future<List<DiagnosticMessage>> outline(String objectHeader) async {
+Future<List<CfeDiagnosticMessage>> outline(String objectHeader) async {
   final Uri base = Uri.parse("org-dartlang-test:///");
 
   final MemoryFileSystem fs = new MemoryFileSystem(base);
 
   final Uri librariesSpecificationUri = base.resolve("sdk/libraries.json");
 
-  fs.entityForUri(librariesSpecificationUri).writeAsStringSync(json.encode({
-        "none": {
-          "libraries": {
-            "core": {
-              "uri": "lib/core/core.dart",
+  fs
+      .entityForUri(librariesSpecificationUri)
+      .writeAsStringSync(
+        json.encode({
+          "none": {
+            "libraries": {
+              "core": {"uri": "lib/core/core.dart"},
             },
           },
-        },
-      }));
+        }),
+      );
 
-  fs.entityForUri(base.resolve("sdk/lib/core/core.dart")).writeAsStringSync(
-      defaultDartCoreSource
-          .replaceAll("class Object {", "$objectHeader")
-          .replaceAll("const Object();", ""));
+  fs
+      .entityForUri(base.resolve("sdk/lib/core/core.dart"))
+      .writeAsStringSync(
+        defaultDartCoreSource
+            .replaceAll("class Object {", "$objectHeader")
+            .replaceAll("const Object();", ""),
+      );
 
-  final List<DiagnosticMessage> messages = <DiagnosticMessage>[];
+  final List<CfeDiagnosticMessage> messages = <CfeDiagnosticMessage>[];
 
-  CompilerContext context = new CompilerContext(new ProcessedOptions(
+  CompilerContext context = new CompilerContext(
+    new ProcessedOptions(
       options: new CompilerOptions()
         ..onDiagnostic = messages.add
         ..sdkRoot = base.resolve("sdk/")
         ..fileSystem = fs
         ..compileSdk = true
         ..librariesSpecificationUri = librariesSpecificationUri,
-      inputs: [Uri.parse("dart:core"), Uri.parse("dart:collection")]));
+      inputs: [Uri.parse("dart:core"), Uri.parse("dart:collection")],
+    ),
+  );
 
   await context.runInContext<void>((CompilerContext c) async {
     await context.options.validateOptions(errorOnMissingInput: false);
@@ -63,27 +71,35 @@ Future<List<DiagnosticMessage>> outline(String objectHeader) async {
 
 Future<void> test() async {
   Set<String> normalErrors = (await outline("class Object {"))
-      .map((DiagnosticMessage message) => getMessageCodeObject(message)!.name)
+      .map(
+        (CfeDiagnosticMessage message) => getMessageCodeObject(message)!.name,
+      )
       .toSet();
 
   Future<void> check(String objectHeader, List<Code> expectedCodes) async {
-    List<DiagnosticMessage> messages = (await outline(objectHeader))
-        .where((DiagnosticMessage message) =>
-            !normalErrors.contains(getMessageCodeObject(message)!.name))
+    List<CfeDiagnosticMessage> messages = (await outline(objectHeader))
+        .where(
+          (CfeDiagnosticMessage message) =>
+              !normalErrors.contains(getMessageCodeObject(message)!.name),
+        )
         .toList();
     Expect.setEquals(
-        expectedCodes,
-        messages.map((DiagnosticMessage m) => getMessageCodeObject(m)),
-        objectHeader);
+      expectedCodes,
+      messages.map((CfeDiagnosticMessage m) => getMessageCodeObject(m)),
+      objectHeader,
+    );
   }
 
-  await check("class Object extends String {", <Code>[codeObjectExtends]);
+  await check("class Object extends String {", <Code>[diag.objectExtends]);
 
-  await check(
-      "class Object implements String, bool {", <Code>[codeObjectImplements]);
+  await check("class Object implements String, bool {", <Code>[
+    diag.objectImplements,
+  ]);
 
-  await check("class Object = Object with bool ; class Blah {",
-      <Code>[codeObjectExtends, codeObjectMixesIn]);
+  await check("class Object = Object with bool ; class Blah {", <Code>[
+    diag.objectExtends,
+    diag.objectMixesIn,
+  ]);
 }
 
 void main() {

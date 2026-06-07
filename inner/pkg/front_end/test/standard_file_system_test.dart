@@ -1,7 +1,6 @@
 // Copyright (c) 2016, the Dart project authors.  Please see the AUTHORS file
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
-// SharedOptions=--supermixin
 
 library front_end.test.standard_file_system_test;
 
@@ -24,8 +23,9 @@ void main() {
   });
 }
 
-final Matcher _throwsFileSystemException =
-    throwsA(const TypeMatcher<FileSystemException>());
+final Matcher _throwsFileSystemException = throwsA(
+  const TypeMatcher<FileSystemException>(),
+);
 
 @reflectiveTest
 class DirectoryTest extends _BaseTest {
@@ -158,31 +158,40 @@ class StandardFileSystemTest extends _BaseTest {
   }
 
   void test_entityForPath_absolutize() {
-    expect(entityForPath('file.txt').uri,
-        p.toUri(new io.File('file.txt').absolute.path));
+    expect(
+      entityForPath('file.txt').uri,
+      p.toUri(new io.File('file.txt').absolute.path),
+    );
   }
 
   void test_entityForPath_normalize_dot() {
-    expect(entityForPath(p.join(tempPath, '.', 'file.txt')).uri,
-        p.toUri(p.join(tempPath, 'file.txt')));
+    expect(
+      entityForPath(p.join(tempPath, '.', 'file.txt')).uri,
+      p.toUri(p.join(tempPath, 'file.txt')),
+    );
   }
 
   void test_entityForPath_normalize_dotDot() {
-    expect(entityForPath(p.join(tempPath, 'foo', '..', 'file.txt')).uri,
-        p.toUri(p.join(tempPath, 'file.txt')));
+    expect(
+      entityForPath(p.join(tempPath, 'foo', '..', 'file.txt')).uri,
+      p.toUri(p.join(tempPath, 'file.txt')),
+    );
   }
 
   void test_entityForUri() {
     expect(
-        StandardFileSystem.instance
-            .entityForUri(Uri.parse('${tempUri}file.txt'))
-            .uri,
-        p.toUri(p.join(tempPath, 'file.txt')));
+      StandardFileSystem.instance
+          .entityForUri(Uri.parse('${tempUri}file.txt'))
+          .uri,
+      p.toUri(p.join(tempPath, 'file.txt')),
+    );
   }
 
   void test_entityForUri_bareUri_absolute() {
-    expect(StandardFileSystem.instance.entityForUri(Uri.parse('/file.txt')).uri,
-        Uri.parse('file:///file.txt'));
+    expect(
+      StandardFileSystem.instance.entityForUri(Uri.parse('/file.txt')).uri,
+      Uri.parse('file:///file.txt'),
+    );
   }
 
   void test_entityForUri_fileUri_relative() {
@@ -195,36 +204,42 @@ class StandardFileSystemTest extends _BaseTest {
       Uri.parse('file:file.txt'),
       Uri.parse('file:/file.txt'),
       Uri.parse('file://file.txt'),
-      Uri.parse('file:///file.txt')
+      Uri.parse('file:///file.txt'),
     ]) {
       if (!uri.path.startsWith('/')) {
-        expect(() => StandardFileSystem.instance.entityForUri(uri),
-            throwsA(const TypeMatcher<Error>()));
+        expect(
+          () => StandardFileSystem.instance.entityForUri(uri),
+          throwsA(const TypeMatcher<Error>()),
+        );
       }
     }
   }
 
   Future<void> test_entityForUri_nonFileUri() async {
     await expectLater(
-        () => StandardFileSystem.instance
-            .entityForUri(Uri.parse('package:foo/bar.dart')),
-        _throwsFileSystemException);
+      () => StandardFileSystem.instance.entityForUri(
+        Uri.parse('package:foo/bar.dart'),
+      ),
+      _throwsFileSystemException,
+    );
   }
 
   void test_entityForUri_normalize_dot() {
     expect(
-        StandardFileSystem.instance
-            .entityForUri(Uri.parse('${tempUri}./file.txt'))
-            .uri,
-        p.toUri(p.join(tempPath, 'file.txt')));
+      StandardFileSystem.instance
+          .entityForUri(Uri.parse('${tempUri}./file.txt'))
+          .uri,
+      p.toUri(p.join(tempPath, 'file.txt')),
+    );
   }
 
   void test_entityForUri_normalize_dotDot() {
     expect(
-        StandardFileSystem.instance
-            .entityForUri(Uri.parse('${tempUri}foo/../file.txt'))
-            .uri,
-        p.toUri(p.join(tempPath, 'file.txt')));
+      StandardFileSystem.instance
+          .entityForUri(Uri.parse('${tempUri}foo/../file.txt'))
+          .uri,
+      p.toUri(p.join(tempPath, 'file.txt')),
+    );
   }
 }
 

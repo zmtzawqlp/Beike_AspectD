@@ -8,7 +8,11 @@
       "name": "messages",
       "kind": "Chain",
       "source": "test/messages_suite.dart",
-      "root": "./",
+      "root": "../",
+      "subRoots": [
+        "_fe_analyzer_shared/",
+        "front_end/"
+      ],
       "status": "messages.status"
     },
     {
@@ -26,6 +30,17 @@
         "/testcases/.*_lib[0-9]*\\.dart$",
         "/testcases/dartino/",
         "/testcases/expression/"
+      ]
+    },
+    {
+      "name": "instrumenter",
+      "kind": "Chain",
+      "source": "tool/flame/instrumenter_suite.dart",
+      "root": "tool/flame/testcases/",
+      "status": "tool/flame/instrumenter.status",
+      "includeEndsWith": [
+        ".count.dart",
+        ".countCalls.dart"
       ]
     },
     {
@@ -212,8 +227,8 @@
       ],
       "exclude": [
         "kernel/lib/transformations/.*\\.dart$",
-        "_fe_analyzer_shared/lib/src/messages/codes_generated\\.dart$",
-        "front_end/lib/src/codes/cfe_codes_generated\\.dart$"
+        "_fe_analyzer_shared/lib/src/messages/diagnostic\\.g\\.dart$",
+        "front_end/lib/src/codes/diagnostic\\.g\\.dart$"
       ]
     },
     {
@@ -230,6 +245,16 @@
         ".dart"
       ],
       "status": "test/dartdoctest_suite.status"
+    },
+    {
+      "name": "coverage_merger",
+      "kind": "Chain",
+      "source": "test/coverage_merger_suite.dart",
+      "root": "test/coverage_merger_tests/",
+      "includeEndsWith": [
+        ".dart"
+      ],
+      "status": "test/coverage_merger_suite.status"
     },
     {
       "name": "spelling_test_src",
@@ -249,8 +274,8 @@
         ".dart"
       ],
       "exclude": [
-        "_fe_analyzer_shared/lib/src/messages/codes_generated\\.dart$",
-        "front_end/lib/src/codes/cfe_codes_generated\\.dart$"
+        "_fe_analyzer_shared/lib/src/messages/diagnostic\\.g\\.dart$",
+        "front_end/lib/src/codes/diagnostic\\.g\\.dart$"
       ]
     },
     {

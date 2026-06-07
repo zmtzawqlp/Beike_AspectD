@@ -45,6 +45,7 @@ agree
 agreeing
 ahe
 ai
+aid
 aiki
 ainv
 aka
@@ -102,6 +103,7 @@ assigning
 assigns
 association
 assured
+assures
 ast
 asy
 atm
@@ -117,6 +119,7 @@ augmented
 augmenting
 augments
 author
+authoritative
 auto
 automagically
 automatic
@@ -223,6 +226,7 @@ caller's
 callers
 callsite
 came
+camel
 canary
 canonicalizer
 canonicalizing
@@ -276,6 +280,7 @@ class's
 clause's
 clazz
 cli
+clickable
 client's
 clil
 clock
@@ -288,9 +293,11 @@ cmdlines
 cn
 cnt
 co
+code's
 codebase
 codec
 codes
+coherently
 collides
 collision
 coloring
@@ -328,6 +335,7 @@ concatenate
 concept
 conceptual
 concerned
+concerning
 conciser
 conclusions
 concurrently
@@ -357,10 +365,12 @@ containment
 contextually
 continuations
 contra
+contrary
 contribute
 conveniently
 convention
 conversely
+conversions
 converter
 coordinated
 coordinating
@@ -375,6 +385,7 @@ counted
 counters
 covariances
 coverage
+covering
 cp
 cpu
 cr
@@ -425,6 +436,7 @@ debuggable
 debugger
 dec
 decl
+deconstruct
 decoupled
 decreases
 dedupe
@@ -435,16 +447,19 @@ deeply
 def
 defaulting
 defeat
+deficiency
 defs
 deftypes
 degrades
 degree
 del
+delaying
 delegated
 delegating
 delim
 delimit
 delimiting
+delivered
 demands
 demangle
 demangled
@@ -481,6 +496,7 @@ deterministic
 dev
 developed
 device
+diag
 dictates
 dies
 diff
@@ -524,6 +540,7 @@ doc
 docs
 doesn\'t
 dom
+domain
 dominator
 dont
 doubles
@@ -532,6 +549,7 @@ downloaded
 downloading
 dq
 dquote
+draft
 drawn
 ds
 dsdk
@@ -562,6 +580,7 @@ efficiently
 ei
 eight
 eighth
+elaborated
 elected
 elem
 eliminating
@@ -574,6 +593,7 @@ emitting
 emptied
 en
 encapsulation
+encompasses
 end'ed
 end's
 endpoint
@@ -647,6 +667,7 @@ expr
 expression's
 ext
 extenders
+extern
 extracted
 extracts
 extras
@@ -659,6 +680,7 @@ fairly
 falsity
 fangorn
 fasta
+faulty
 favored
 favoring
 fc
@@ -761,6 +783,7 @@ glyph
 gn
 gobble
 goldens
+googleapis
 googlesource
 goto
 gotos
@@ -851,6 +874,7 @@ implementers
 impls
 imply
 implying
+importability
 importantly
 imprecise
 improperly
@@ -869,6 +893,7 @@ indentations
 independently
 indexer
 indexing
+indicator
 indirection
 individual
 individually
@@ -883,6 +908,7 @@ influences
 informative
 infos
 infrastructure
+ing
 inhabit
 inhabits
 inhibit
@@ -891,6 +917,7 @@ initializations
 initializer's
 injecting
 inlines
+insensitive
 insertion
 insists
 inspect
@@ -964,6 +991,7 @@ jensj
 jit
 jmesserly
 job
+john
 johnniwinther
 js
 jsframevalues
@@ -977,6 +1005,7 @@ jvm
 k
 kallentu
 kb
+kebab
 kernel's
 keyed
 kick
@@ -1038,11 +1067,13 @@ listenable
 listening
 listens
 listing
+literate
 lives
 ll
 llub
 lm
 loadable
+locatable
 locationd
 logged
 logically
@@ -1070,12 +1101,14 @@ macos
 macro
 macro's
 macros
+maintained
 maintaining
 malbounded
 man
 manage
 managed
 manages
+mangle
 mangled
 manifest
 manipulating
@@ -1181,6 +1214,7 @@ nonzero
 noretcomp
 norm
 normalization
+normative
 notifier
 notify
 notifying
@@ -1306,6 +1340,7 @@ pieces
 pipe
 pkg
 pkgs
+placement
 play
 player
 plugin
@@ -1349,9 +1384,11 @@ preliminary
 preloaded
 premark
 preorder
+preparation
 prepares
 preprocess
 presented
+presenting
 pressure
 presubmit
 presumably
@@ -1390,6 +1427,7 @@ proto
 protobuf
 protocol
 prototype's
+provably
 prove
 proven
 provider
@@ -1437,6 +1475,7 @@ ranges
 ranked
 rapid
 rarely
+rate
 ratio
 rb
 rc
@@ -1449,6 +1488,7 @@ react
 realign
 realise
 reanalyze
+reapplied
 reapplies
 reapply
 reapplying
@@ -1544,6 +1584,7 @@ replaces
 replicated
 repo
 repositories
+reproduce
 reproduces
 repurpose
 repurposed
@@ -1612,6 +1653,7 @@ sanitize
 sanitized
 sanitizing
 saves
+saving
 saw
 say
 saying
@@ -1658,6 +1700,7 @@ severities
 sh
 sha
 shadowed
+shadows
 shaker
 shaking
 shallow
@@ -1708,6 +1751,7 @@ slowing
 smi
 smith
 sn
+snake
 socket
 sockets
 soft
@@ -1719,6 +1763,7 @@ sortable
 sourcemap
 sourcemaps
 spaced
+spanned
 spans
 sparse
 spawn
@@ -1881,6 +1926,7 @@ temp
 temporaries
 temps
 tempting
+tentative
 term
 termcap
 terminator
@@ -1889,6 +1935,7 @@ testers
 tex
 textualize
 textualized
+textually
 tfa
 th
 thereby
@@ -1913,6 +1960,7 @@ till
 timeout
 timer
 timestamp
+timestamped
 timestamps
 timings
 tiny
@@ -1927,10 +1975,12 @@ tokenize
 tokenized
 tokenizer
 tokenizing
+told
 tolerant
 tolerate
 tolerated
 tolerates
+tooling
 toplevel
 topmost
 topological
@@ -1999,6 +2049,7 @@ underestimate
 undergo
 undergoes
 undermine
+understanding
 undo
 undoable
 unduly
@@ -2006,6 +2057,7 @@ unequal
 unescape
 unexact
 unexpectedly
+unfilled
 unfiltered
 unfinalized
 unfold
@@ -2021,6 +2073,7 @@ unifies
 uniform
 unify
 uninferable
+uninferred
 uninhabited
 uninstantiable
 uninstantiated
@@ -2100,6 +2153,7 @@ verbatim
 verbosity
 versa
 versus
+vi
 viable
 vice
 video
@@ -2148,6 +2202,7 @@ winds
 wire
 wise
 wiser
+wish
 wishes
 witness
 witnesses

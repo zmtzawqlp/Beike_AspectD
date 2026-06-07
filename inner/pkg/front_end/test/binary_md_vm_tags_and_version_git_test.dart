@@ -4,9 +4,10 @@
 
 import 'dart:io' show File, Platform;
 
-import 'package:_fe_analyzer_shared/src/messages/severity.dart' show Severity;
+import 'package:_fe_analyzer_shared/src/messages/severity.dart'
+    show CfeSeverity;
 import 'package:front_end/src/api_prototype/compiler_options.dart'
-    show DiagnosticMessage;
+    show CfeDiagnosticMessage;
 import 'package:kernel/kernel.dart'
     show Class, Component, ConstantExpression, Field, IntConstant, Library;
 import 'package:kernel/target/targets.dart' show NoneTarget, TargetFlags;
@@ -28,8 +29,10 @@ Future<void> main() async {
   File binaryMd = new File("$repoDir/pkg/kernel/binary.md");
   String binaryMdContent = binaryMd.readAsStringSync();
 
-  BinaryMdDillReader binaryMdReader =
-      new BinaryMdDillReader(binaryMdContent, []);
+  BinaryMdDillReader binaryMdReader = new BinaryMdDillReader(
+    binaryMdContent,
+    [],
+  );
   binaryMdReader.setup();
 
   File vmTagFile = new File("$repoDir/runtime/vm/kernel_binary.h");
@@ -49,13 +52,13 @@ Future<void> main() async {
       while (true) {
         RegExpMatch? match = tagParser.firstMatch(line);
         if (match != null) {
-          int value = int.parse(match.group(2)!);
+          int value = int.parse(match[2]!);
           int end = value + 1;
-          if (uses8Tags(match.group(1)!)) {
+          if (uses8Tags(match[1]!)) {
             end = value + 8;
           }
           for (int j = value; j < end; j++) {
-            vmTagToName[j] = match.group(1)!;
+            vmTagToName[j] = match[1]!;
           }
         }
         if (!vmTagLines[i].trim().endsWith(r"\")) {
@@ -68,7 +71,7 @@ Future<void> main() async {
       while (true) {
         RegExpMatch? match = constantTagParser.firstMatch(line);
         if (match != null) {
-          vmConstantTagToName[int.parse(match.group(2)!)] = match.group(1)!;
+          vmConstantTagToName[int.parse(match[2]!)] = match[1]!;
         }
         if (vmTagLines[i].trim().startsWith("}")) {
           break;
@@ -80,27 +83,41 @@ Future<void> main() async {
   }
 
   final Uri kernelTagUri = Uri.base.resolve("pkg/kernel/lib/binary/tag.dart");
-  Component c = await normalCompileToComponent(kernelTagUri,
-      options: getOptions()
-        ..target = new NoneTarget(new TargetFlags())
-        ..onDiagnostic = (DiagnosticMessage message) {
-          if (message.severity == Severity.error) {
-            print(message.plainTextFormatted.join('\n'));
-          }
-        });
+  Component c = await normalCompileToComponent(
+    kernelTagUri,
+    options: getOptions()
+      ..target = new NoneTarget(new TargetFlags())
+      ..onDiagnostic = (CfeDiagnosticMessage message) {
+        if (message.severity == CfeSeverity.error) {
+          print(message.plainTextFormatted.join('\n'));
+        }
+      },
+  );
 
-  Library tagLibrary =
-      c.libraries.firstWhere((l) => l.fileUri.pathSegments.last == "tag.dart");
+  Library tagLibrary = c.libraries.firstWhere(
+    (l) => l.fileUri.pathSegments.last == "tag.dart",
+  );
   Class tagClass = tagLibrary.classes.firstWhere((c) => c.name == "Tag");
-  Class constantTagClass =
-      tagLibrary.classes.firstWhere((c) => c.name == "ConstantTag");
+  Class constantTagClass = tagLibrary.classes.firstWhere(
+    (c) => c.name == "ConstantTag",
+  );
 
   int? tagVersion;
   for (TagCompare compareMe in [
-    new TagCompare(binaryMdReader.tagToName, binaryMdReader.version,
-        vmTagToName, vmVersion, tagClass),
-    new TagCompare(binaryMdReader.constantTagToName, binaryMdReader.version,
-        vmConstantTagToName, vmVersion, constantTagClass)
+    new TagCompare(
+      binaryMdReader.tagToName,
+      binaryMdReader.version,
+      vmTagToName,
+      vmVersion,
+      tagClass,
+    ),
+    new TagCompare(
+      binaryMdReader.constantTagToName,
+      binaryMdReader.version,
+      vmConstantTagToName,
+      vmVersion,
+      constantTagClass,
+    ),
   ]) {
     Map<int, String> tagToName = {};
     for (Field f in compareMe.tagClass.fields) {
@@ -134,8 +151,9 @@ Future<void> main() async {
     Map<int, String> tagToNameMd = {};
     for (MapEntry<int, String> entry in compareMe.mdTagToName.entries) {
       if (entry.value.contains("<")) {
-        tagToNameMd[entry.key] =
-            entry.value.substring(0, entry.value.indexOf("<")).trim();
+        tagToNameMd[entry.key] = entry.value
+            .substring(0, entry.value.indexOf("<"))
+            .trim();
       } else {
         tagToNameMd[entry.key] = entry.value;
       }
@@ -193,6 +211,11 @@ class TagCompare {
   final int? vmVersion;
   final Class tagClass;
 
-  TagCompare(this.mdTagToName, this.mdVersion, this.vmTagToName, this.vmVersion,
-      this.tagClass);
+  TagCompare(
+    this.mdTagToName,
+    this.mdVersion,
+    this.vmTagToName,
+    this.vmVersion,
+    this.tagClass,
+  );
 }

@@ -25,27 +25,31 @@ import '../../common_test_utils.dart';
 final String pkgVmDir = Platform.script.resolve('../../..').toFilePath();
 
 runTestCase(Uri source) async {
-  await shakeAndRun(source);
-  await compileAOT(source);
+  await shakeAndRun(source, treeShakeProtobufMixins: false);
+  await shakeAndRun(source, treeShakeProtobufMixins: true);
+  await compileAOT(source, treeShakeProtobufMixins: false);
+  await compileAOT(source, treeShakeProtobufMixins: true);
 }
 
-Future<void> shakeAndRun(Uri source) async {
+Future<void> shakeAndRun(
+  Uri source, {
+  required bool treeShakeProtobufMixins,
+}) async {
   final target = VmTarget(TargetFlags());
   Component component = await compileTestCaseToKernelProgram(
     source,
     target: target,
   );
 
-  List<Class> messageClasses =
-      component.libraries
-          .expand(
-            (lib) => lib.classes.where(
-              (klass) =>
-                  klass.superclass != null &&
-                  klass.superclass!.name == "GeneratedMessage",
-            ),
-          )
-          .toList();
+  List<Class> messageClasses = component.libraries
+      .expand(
+        (lib) => lib.classes.where(
+          (klass) =>
+              !klass.isEliminatedMixin &&
+              _hasGeneratedMessageSuper(klass.superclass),
+        ),
+      )
+      .toList();
 
   globalTypeFlow.transformComponent(
     VmTarget(TargetFlags()),
@@ -53,12 +57,15 @@ Future<void> shakeAndRun(Uri source) async {
     component,
     treeShakeProtobufs: true,
     treeShakeSignatures: false,
+    treeShakeProtobufMixins: treeShakeProtobufMixins,
   );
 
   for (Class messageClass in messageClasses) {
     expect(
       messageClass.enclosingLibrary.classes.contains(messageClass),
-      messageClass.name.endsWith('Keep'),
+      // Either a keep class or a keep& mixin class.
+      (messageClass.name.endsWith('Keep') ||
+          messageClass.name.contains('Keep&')),
       reason: '${messageClass.toText(astTextStrategyForTesting)}',
     );
   }
@@ -85,7 +92,10 @@ Future<void> shakeAndRun(Uri source) async {
   }
 }
 
-Future<void> compileAOT(Uri source) async {
+Future<void> compileAOT(
+  Uri source, {
+  required bool treeShakeProtobufMixins,
+}) async {
   final target = VmTarget(TargetFlags(supportMirrors: false));
   Component component = await compileTestCaseToKernelProgram(
     source,
@@ -104,8 +114,19 @@ Future<void> compileAOT(Uri source) async {
       useGlobalTypeFlowAnalysis: true,
       enableAsserts: false,
       useProtobufTreeShakerV2: true,
+      protobufTreeShakerMixins: treeShakeProtobufMixins,
     ),
   );
+}
+
+bool _hasGeneratedMessageSuper(Class? cls) {
+  while (cls != null) {
+    if (cls.name == 'GeneratedMessage') {
+      return true;
+    }
+    cls = cls.superclass;
+  }
+  return false;
 }
 
 main() {

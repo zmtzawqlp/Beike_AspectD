@@ -1,6 +1,6 @@
 Problems reported:
 
-parser/nnbd/issue_40267_case_04:4:23: Expected ':' before this.
+parser/nnbd/issue_40267_case_04:5:23: Expected ':' before this.
     case x?[4]:{{{2}}}; // as case (x?[4]:{{{2}}}) [missing :]
                       ^
 
@@ -42,7 +42,7 @@ beginCompilationUnit(main)
                 handleLiteralSetOrMap(1, {, null, }, true)
               endConditionalExpression(?, :, })
               handleSwitchCaseNoWhenClause(})
-              handleRecoverableError(Message[ExpectedButGot, Expected ':' before this., null, {string: :}], ;, ;)
+              handleRecoverableError(Message[Template(ExpectedButGot), Expected ':' before this., null, {expected: :}], ;, ;)
             endCaseExpression(case, null, :)
             beginSwitchCase(0, 1, case)
               handleEmptyStatement(;)

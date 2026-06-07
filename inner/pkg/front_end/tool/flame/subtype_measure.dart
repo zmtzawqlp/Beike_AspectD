@@ -8,6 +8,7 @@ import 'package:kernel/ast.dart';
 import 'package:kernel/kernel.dart';
 
 import 'instrumenter.dart';
+import 'instrumenter.dart' as instrumenter;
 
 class SubtypeInstrumenterConfig implements InstrumenterConfig {
   const SubtypeInstrumenterConfig();
@@ -19,14 +20,12 @@ class SubtypeInstrumenterConfig implements InstrumenterConfig {
   String get beforeName => 'before';
 
   @override
-  Arguments createAfterArguments(
-      List<Procedure> procedures, List<Constructor> constructors) {
+  Arguments createAfterArguments(List<String> namesById) {
     return new Arguments([]);
   }
 
   @override
-  Arguments createBeforeArguments(
-      List<Procedure> procedures, List<Constructor> constructors) {
+  Arguments createBeforeArguments(List<String> namesById) {
     return new Arguments([]);
   }
 
@@ -35,8 +34,9 @@ class SubtypeInstrumenterConfig implements InstrumenterConfig {
     FunctionNode function = member.function!;
     return new Arguments([
       new ThisExpression(),
-      ...function.positionalParameters
-          .map<Expression>((e) => new VariableGet(e))
+      ...function.positionalParameters.map<Expression>(
+        (e) => new VariableGet(e),
+      ),
     ]);
   }
 
@@ -72,6 +72,38 @@ class SubtypeInstrumenterConfig implements InstrumenterConfig {
 
   @override
   String get libFilename => 'subtype_lib.dart';
+
+  @override
+  void wrapConstructor(
+    Constructor c,
+    List<String> namesById,
+    Procedure instrumenterEnter,
+    Procedure instrumenterExit,
+  ) {
+    instrumenter.wrapConstructor(
+      this,
+      c,
+      namesById,
+      instrumenterEnter,
+      instrumenterExit,
+    );
+  }
+
+  @override
+  void wrapProcedure(
+    Procedure p,
+    List<String> namesById,
+    Procedure instrumenterEnter,
+    Procedure instrumenterExit,
+  ) {
+    instrumenter.wrapProcedure(
+      this,
+      p,
+      namesById,
+      instrumenterEnter,
+      instrumenterExit,
+    );
+  }
 }
 
 Future<void> main(List<String> arguments) async {
@@ -79,7 +111,11 @@ Future<void> main(List<String> arguments) async {
   try {
     Uri output = parseCompilerArguments(arguments);
     await compileInstrumentationLibrary(
-        tmpDir, const SubtypeInstrumenterConfig(), arguments, output);
+      tmpDir,
+      const SubtypeInstrumenterConfig(),
+      arguments,
+      output,
+    );
   } finally {
     tmpDir.deleteSync(recursive: true);
   }

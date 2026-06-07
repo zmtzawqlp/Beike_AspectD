@@ -66,13 +66,14 @@ int countEmptyMixinBodies(Component component) {
   return empty;
 }
 
-Future<void> throwOnInsufficientUriToSource(Component component,
-    {FileSystem? fileSystem}) async {
+Future<void> throwOnInsufficientUriToSource(
+  Component component, {
+  FileSystem? fileSystem,
+}) async {
   UriFinder uriFinder = new UriFinder();
   component.accept(uriFinder);
   Set<Uri> uris = uriFinder.seenUris.toSet();
   uris.removeAll(component.uriToSource.keys);
-  uris.remove(null);
   if (uris.length != 0) {
     throw "Expected 0 uris with no source, but found ${uris.length} ($uris)";
   }

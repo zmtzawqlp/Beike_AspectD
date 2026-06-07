@@ -4,37 +4,43 @@
 
 import 'dart:io';
 
+import 'package:front_end/src/api_prototype/experimental_flags.dart';
 import 'package:testing/testing.dart'
     show Chain, ChainContext, Result, Step, TestDescription;
 import "package:yaml/yaml.dart" show YamlMap, loadYamlNode;
 
+import 'testing/folder_options.dart';
 import 'utils/suite_utils.dart';
 import 'parser_suite.dart'
     show ListenerStep, ParserTestListenerWithMessageFormatting;
 import 'testing_utils.dart' show checkEnvironment;
 
-void main([List<String> arguments = const []]) => internalMain(createContext,
-    arguments: arguments,
-    displayName: "parser equivalence suite",
-    configurationPath: "../testing.json");
+void main([List<String> arguments = const []]) => internalMain(
+  createContext,
+  arguments: arguments,
+  displayName: "parser equivalence suite",
+  configurationPath: "../testing.json",
+);
 
-Future<Context> createContext(
-    Chain suite, Map<String, String> environment) {
+Future<Context> createContext(Chain suite, Map<String, String> environment) {
   const Set<String> knownEnvironmentKeys = {};
   checkEnvironment(environment, knownEnvironmentKeys);
 
-  return new Future.value(new Context(suite.name));
+  return new Future.value(new Context(suite.root, suite.name, environment));
 }
 
 class Context extends ChainContext {
+  final SuiteFolderOptions folderOptions;
   final String suiteName;
+  final Map<ExperimentalFlag, bool> forcedExperimentalFlags;
 
-  Context(this.suiteName);
+  Context(Uri baseUri, this.suiteName, Map<String, String> environment)
+    : folderOptions = new SuiteFolderOptions(baseUri),
+      forcedExperimentalFlags =
+          SuiteFolderOptions.computeForcedExperimentalFlags(environment);
 
   @override
-  final List<Step> steps = const <Step>[
-    const ListenerCompareStep(),
-  ];
+  final List<Step> steps = const <Step>[const ListenerCompareStep()];
 }
 
 class ListenerCompareStep
@@ -46,21 +52,27 @@ class ListenerCompareStep
 
   @override
   Future<Result<TestDescription>> run(
-      TestDescription description, Context context) {
+    TestDescription description,
+    Context context,
+  ) {
+    Map<ExperimentalFlag, bool> experimentalFlags = description
+        .computeExplicitExperimentalFlags(context);
     Uri uri = description.uri;
     String contents = new File.fromUri(uri).readAsStringSync();
     YamlMap yaml = loadYamlNode(contents, sourceUrl: uri) as YamlMap;
-    List<Uri> files =
-        (yaml["files"] as List).map((s) => uri.resolve(s)).toList();
+    List<Uri> files = (yaml["files"] as List)
+        .map((s) => uri.resolve(s))
+        .toList();
     Set<String> filters = new Set<String>.from(yaml["filters"] ?? []);
     Set<String> ignored = new Set<String>.from(yaml["ignored"] ?? []);
 
     ParserTestListenerWithMessageFormatting? parserTestListenerFirst =
         ListenerStep.doListenerParsing(
-      files[0],
-      context.suiteName,
-      description.shortName,
-    );
+          files[0],
+          context.suiteName,
+          experimentalFlags,
+          description.shortName,
+        );
     if (parserTestListenerFirst == null) {
       return Future.value(crash(description, StackTrace.current));
     }
@@ -68,18 +80,24 @@ class ListenerCompareStep
     for (int i = 1; i < files.length; i++) {
       ParserTestListenerWithMessageFormatting? parserTestListener =
           ListenerStep.doListenerParsing(
-        files[i],
-        context.suiteName,
-        description.shortName,
-      );
+            files[i],
+            context.suiteName,
+            experimentalFlags,
+            description.shortName,
+          );
       if (parserTestListener == null) {
         return Future.value(crash(description, StackTrace.current));
       }
       String? compareResult = compare(
-          parserTestListenerFirst, parserTestListener, filters, ignored);
+        parserTestListenerFirst,
+        parserTestListener,
+        filters,
+        ignored,
+      );
       if (compareResult != null) {
         return Future.value(
-            fail(description, compareResult, StackTrace.current));
+          fail(description, compareResult, StackTrace.current),
+        );
       }
     }
 
@@ -87,15 +105,17 @@ class ListenerCompareStep
   }
 
   String? compare(
-      ParserTestListenerWithMessageFormatting a,
-      ParserTestListenerWithMessageFormatting b,
-      Set<String> filters,
-      Set<String> ignored) {
+    ParserTestListenerWithMessageFormatting a,
+    ParserTestListenerWithMessageFormatting b,
+    Set<String> filters,
+    Set<String> ignored,
+  ) {
     List<String> aLines = a.sb.toString().split("\n");
     List<String> bLines = b.sb.toString().split("\n");
 
-    bool doRemoveListenerArguments =
-        filters.contains("ignoreListenerArguments");
+    bool doRemoveListenerArguments = filters.contains(
+      "ignoreListenerArguments",
+    );
 
     int aIndex = 0;
     int bIndex = 0;
@@ -153,5 +173,19 @@ class ListenerCompareStep
     int index = s.indexOf("(");
     if (index < 0) return s;
     return s.substring(0, index);
+  }
+}
+
+extension on TestDescription {
+  FolderOptions computeFolderOptions(Context context) {
+    return context.folderOptions.computeFolderOptions(this);
+  }
+
+  Map<ExperimentalFlag, bool> computeExplicitExperimentalFlags(
+    Context context,
+  ) {
+    return computeFolderOptions(
+      context,
+    ).computeExplicitExperimentalFlags(context.forcedExperimentalFlags);
   }
 }

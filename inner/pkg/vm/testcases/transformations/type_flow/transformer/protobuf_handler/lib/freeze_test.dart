@@ -7,17 +7,18 @@ import 'package:test/test.dart';
 import 'generated/foo.pb.dart';
 
 main() {
-  FooKeep foo =
-      FooKeep()
-        ..barKeep = (BarKeep()..aKeep = 5)
-        ..mapKeep['foo'] = (BarKeep()..aKeep = 2)
-        ..aKeep = 43;
+  FooKeep foo = FooKeep()
+    ..barKeep = (BarKeep()..aKeep = 5)
+    ..mapKeep['foo'] = (BarKeep()..aKeep = 2)
+    ..mixinKeep = (MixinKeep()..aKeep = 42)
+    ..aKeep = 43;
   test('Freezing a message works', () {
     foo.freeze();
     expect(foo.barKeep.aKeep, 5);
     expect(foo.mapKeep['foo']!.aKeep, 2);
     expect(foo.hasHasKeep(), false);
     expect(foo.aKeep, 43);
+    expect(foo.mixinKeep.aKeep, 42);
     expect(
       () => foo.clearClearKeep(),
       throwsA(const TypeMatcher<UnsupportedError>()),

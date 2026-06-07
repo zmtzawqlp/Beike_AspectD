@@ -18,6 +18,7 @@ ac
 aci
 acn
 acr
+acts
 adapter
 adaptor
 adequately
@@ -49,6 +50,7 @@ aoo
 aotruntime
 applier
 approval
+approve
 approximation
 arbitrarily
 area
@@ -100,12 +102,14 @@ bivariant
 bkonyi
 bla
 blah
+bleeding
 bler
 blorp
 bold
 boo
 boollist
 bools
+bootstrapping
 bots
 boundaries
 boundarykey
@@ -249,6 +253,7 @@ deviation
 dfast
 dfuzz
 di
+diag
 diagnosticable
 dictionaries
 dictionary
@@ -385,6 +390,7 @@ gave
 gc
 gcd
 gclient
+gcs
 ge
 gesture
 gi
@@ -466,6 +472,8 @@ interactive
 interchangeable
 internet
 interpolate
+interpolator
+interpolators
 introducer
 inv
 involves
@@ -482,6 +490,7 @@ jlcontreras
 joo
 jsonrpc
 jumped
+kbytes
 kernels
 kitty
 ko
@@ -553,6 +562,7 @@ month
 moo
 mouse
 mrelease
+msec
 mstat
 mul
 mv
@@ -621,6 +631,7 @@ parallax
 parameterized
 partfoo
 party
+pascal
 pause
 paused
 pays
@@ -731,11 +742,13 @@ routines
 row
 rows
 rr
+rss
 rt
 ruin
 runtimes
 rv
 sanitize
+sarguments
 saves
 scaled
 scaling
@@ -761,6 +774,8 @@ series
 services
 setups
 severe
+sf
+sg
 sharp
 sheets
 shipped
@@ -778,6 +793,7 @@ slashes
 sleep
 slight
 sliver
+sm
 smoke
 snull
 somehow
@@ -921,6 +937,7 @@ vt
 vte
 waited
 waits
+wall
 walt
 warmup
 warmups

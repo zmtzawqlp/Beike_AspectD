@@ -9,7 +9,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class SubClass2 implements SuperClass {}
 //       ^^^^^^^^^
 // pkg/front_end/testcases/no_such_method_forwarders/access_no_nsm_lib.dart:9:8: Context: 'SuperClass.accessibleMethod' is defined here.
@@ -23,7 +22,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class SubSubClass2 extends SubClass2 {}
 //       ^^^^^^^^^^^^
 // pkg/front_end/testcases/no_such_method_forwarders/access_no_nsm_lib.dart:9:8: Context: 'SuperClass.accessibleMethod' is defined here.
@@ -37,7 +35,6 @@ library;
 //  - inherit an implementation from a superclass or mixin,
 //  - mark the class as abstract, or
 //  - provide a 'noSuchMethod' implementation.
-//
 // class SubAbstractSubClass2 extends AbstractSubClass2 {}
 //       ^^^^^^^^^^^^^^^^^^^^
 // pkg/front_end/testcases/no_such_method_forwarders/access_no_nsm_lib.dart:9:8: Context: 'SuperClass.accessibleMethod' is defined here.
@@ -146,4 +143,4 @@ Evaluated: SymbolLiteral @ org-dartlang-testcase:///access_no_nsm.dart:27:7 -> S
 Evaluated: ListLiteral @ org-dartlang-testcase:///access_no_nsm.dart:27:7 -> ListConstant(const <Type>[])
 Evaluated: ListLiteral @ org-dartlang-testcase:///access_no_nsm.dart:27:7 -> ListConstant(const <dynamic>[])
 Evaluated: MapLiteral @ org-dartlang-testcase:///access_no_nsm.dart:27:7 -> MapConstant(const <Symbol, dynamic>{})
-Extra constant evaluation: evaluated: 22, effectively constant: 8
+Extra constant evaluation: evaluated: 26, effectively constant: 8

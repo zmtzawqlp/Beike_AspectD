@@ -5,6 +5,8 @@
 
 # Script to run a benchmark compiled using dart2wasm. Assumes the Dart repo's
 # directory structure.
+#
+# This is also used by the test runner.
 
 set -e
 
@@ -22,25 +24,10 @@ PROG_NAME="$(follow_links "$BASH_SOURCE")"
 
 # Handle the case where dart-sdk/bin has been symlinked to.
 PROG_DIR="$(cd "${PROG_NAME%/*}" ; pwd -P)"
-SDK_DIR="$(cd "${PROG_DIR}/../../.." ; pwd -P)"
+source "$PROG_DIR/utils.sh"
 
 RUN_WASM="$SDK_DIR/pkg/dart2wasm/bin/run_wasm.js"
 
-function host_arch() {
-  # Use uname to determine the host architecture.
-  case `uname -m` in
-    x86_64)
-    echo "x64"
-    ;;
-    aarch64 | arm64 | armv8*)
-    echo "arm64"
-    ;;
-    *)
-    echo "Unsupported host architecture" `uname -m` >&2
-    exit 1
-    ;;
-  esac
-}
 
 function host_os() {
   if [[ `uname` == 'Darwin' ]]; then
@@ -50,7 +37,7 @@ function host_os() {
   fi
 }
 
-D8_BIN="$SDK_DIR/third_party/d8/$(host_os)/$(host_arch)/d8"
+D8_BIN="$SDK_DIR/third_party/d8/$(host_os)/$(get_host_arch)/d8"
 JSSHELL_BIN="$SDK_DIR/third_party/firefox_jsshell/js"
 JSC_BIN="$SDK_DIR/third_party/jsc/jsc"
 
@@ -60,7 +47,7 @@ SHELL_ARG_SEPERATOR="--"
 MJS_FILE=""
 WASM_FILE=""
 LINEAR_WASM_FILES=()
-ARGS=()
+EXTRA_JS_FILES=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --d8)
@@ -86,10 +73,15 @@ while [ $# -gt 0 ]; do
       shift
       ;;
 
+    *.js)
+      EXTRA_JS_FILES+=("$1")
+      shift
+      ;;
+
     *.wasm)
       if [ -z "$WASM_FILE" ]; then
         # First wasm file is the actual dart program
-        WASM_FILE="$(realpath "$1")"
+        WASM_FILE="$(get_realpath "$1")"
         MJS_FILE="${WASM_FILE%.wasm}.mjs"
       else
         # Following wasm files are imported linear memory modules
@@ -106,4 +98,4 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-exec "$SHELL_BIN" "${SHELL_OPTIONS[@]}" "$RUN_WASM" $SHELL_ARG_SEPERATOR "$MJS_FILE" "$WASM_FILE" "${LINEAR_WASM_FILES[@]}" -- "$@"
+exec "$SHELL_BIN" "${SHELL_OPTIONS[@]}" "${EXTRA_JS_FILES[@]}" "$RUN_WASM" $SHELL_ARG_SEPERATOR "$MJS_FILE" "$WASM_FILE" "${LINEAR_WASM_FILES[@]}" -- "$@"
