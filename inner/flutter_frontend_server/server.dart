@@ -274,6 +274,19 @@ class ToStringVisitor extends RecursiveVisitor {
     return false;
   }
 
+  Procedure _getSuperMethodTarget(Procedure node) {
+    Class? currentClass = node.enclosingClass?.superclass;
+    while (currentClass != null) {
+      for (final Procedure procedure in currentClass.procedures) {
+        if (procedure.name == node.name) {
+          return procedure;
+        }
+      }
+      currentClass = currentClass.superclass;
+    }
+    return node;
+  }
+
   @override
   void visitProcedure(Procedure node) {
     if (node.name.text == 'toString' &&
@@ -287,8 +300,10 @@ class ToStringVisitor extends RecursiveVisitor {
       node.function.body?.replaceWith(
         ReturnStatement(
           SuperMethodInvocation(
+            ThisExpression(),
             node.name,
-            Arguments(<Expression>[]),node
+            Arguments(<Expression>[]),
+            _getSuperMethodTarget(node),
           ),
         ),
       );
