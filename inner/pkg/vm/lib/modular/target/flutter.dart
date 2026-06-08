@@ -3,7 +3,9 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'package:kernel/ast.dart' show Component, Library;
+import 'package:kernel/class_hierarchy.dart' show ClassHierarchy;
 import 'package:kernel/core_types.dart' show CoreTypes;
+import 'package:kernel/reference_from_index.dart' show ReferenceFromIndex;
 import 'package:kernel/target/changed_structure_notifier.dart';
 import 'package:kernel/target/targets.dart';
 import 'package:kernel/transformations/track_widget_constructor_locations.dart';
@@ -11,6 +13,13 @@ import 'package:vm/modular/target/vm.dart' show VmTarget;
 
 abstract class FlutterProgramTransformer {
   void transform(Component component, {void Function(String msg)? logger});
+
+  /// Phase 1 hook: invoked before constant evaluation. Use this to emit
+  /// kernel nodes that need to be folded into Constants by the constant
+  /// evaluator (for example, AOP-specific widget creation tracking).
+  /// Default is a no-op.
+  void transformWidgetCreator(Component component,
+      {void Function(String msg)? logger}) {}
 }
 
 class FlutterTarget extends VmTarget {
@@ -68,14 +77,14 @@ class FlutterTarget extends VmTarget {
     void Function(String msg)? logger,
     ChangedStructureNotifier? changedStructureNotifier,
   }) {
-
-    if (_flutterProgramTransformers.length > 0) {
-      int flutterProgramTransformersLen = _flutterProgramTransformers.length;
-      for (int i=0; i<flutterProgramTransformersLen; i++) {
-        _flutterProgramTransformers[i].transform(component, logger: logger);
+    // Run AOP-specific widget creator tracking BEFORE constant evaluation so
+    // that the ConstConstructorInvocation nodes it emits get folded into
+    // Constants by the constant evaluator.
+    if (_flutterProgramTransformers.isNotEmpty) {
+      for (final FlutterProgramTransformer t in _flutterProgramTransformers) {
+        t.transformWidgetCreator(component, logger: logger);
       }
     }
-
     super.performPreConstantEvaluationTransformations(
       component,
       coreTypes,
@@ -84,8 +93,45 @@ class FlutterTarget extends VmTarget {
       logger: logger,
       changedStructureNotifier: changedStructureNotifier,
     );
-    if (flags.trackWidgetCreation) {
+    // When AOP-specific widget tracking is active, skip the stock
+    // WidgetCreatorTracker to avoid emitting two competing _location/aopLocation
+    // implementations on the same constructors.
+    if (flags.trackWidgetCreation && _flutterProgramTransformers.isEmpty) {
       _widgetTracker.transform(component, libraries, changedStructureNotifier);
+    }
+  }
+
+  @override
+  void performModularTransformationsOnLibraries(
+    Component component,
+    CoreTypes coreTypes,
+    ClassHierarchy hierarchy,
+    List<Library> libraries,
+    Map<String, String>? environmentDefines,
+    DiagnosticReporter diagnosticReporter,
+    ReferenceFromIndex? referenceFromIndex, {
+    void Function(String msg)? logger,
+    ChangedStructureNotifier? changedStructureNotifier,
+  }) {
+    super.performModularTransformationsOnLibraries(
+      component,
+      coreTypes,
+      hierarchy,
+      libraries,
+      environmentDefines,
+      diagnosticReporter,
+      referenceFromIndex,
+      logger: logger,
+      changedStructureNotifier: changedStructureNotifier,
+    );
+    // AOP transformers must run after constant evaluation so that
+    // annotations on aspect classes / members are already
+    // ConstantExpression instead of RedirectingFactoryInvocation.
+    if (_flutterProgramTransformers.isNotEmpty) {
+      final int len = _flutterProgramTransformers.length;
+      for (int i = 0; i < len; i++) {
+        _flutterProgramTransformers[i].transform(component, logger: logger);
+      }
     }
   }
 }
