@@ -7,10 +7,15 @@ import 'package:kernel/target/changed_structure_notifier.dart';
 
 // Parameter name used to track where widget constructor calls were made from.
 //
-// The parameter name contains a randomly generated hex string to avoid
-// collision with user generated parameters.
+// Distinct from the upstream stock tracker's parameter name (which uses
+// `creationLocationd_` without the `Aop` infix) so that the two trackers can
+// coexist on the same constructor: the stock tracker injects its own parameter
+// to drive DevTools' `_location` / `_HasCreationLocation`, while AOP injects
+// this one to drive `aopLocation` / `AopHasCreationLocation`. Suffix matches
+// the random hex used upstream just to keep collision-avoidance with user
+// code at the same level.
 const String _creationLocationParameterName =
-    r'$creationLocationd_0dea112b090073317d4';
+    r'$creationLocationAopd_0dea112b090073317d4';
 
 /// Name of private field added to the Widget class and any other classes that
 /// implement Widget.

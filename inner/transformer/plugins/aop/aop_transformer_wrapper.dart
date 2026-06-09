@@ -1,5 +1,4 @@
 import 'package:kernel/ast.dart';
-import 'package:vm/modular/target/flutter.dart';
 
 import 'beike_transformer/aop_addimpl_transformer.dart';
 import 'beike_transformer/aop_field_get_transformer.dart';
@@ -11,7 +10,11 @@ import 'transformer/aop_iteminfo.dart';
 import 'transformer/aop_mode.dart';
 import 'transformer/aop_tranform_utils.dart';
 
-class AopWrapperTransformer extends FlutterProgramTransformer {
+/// Top-level AOP transformer driver. Exposes two entry points so the kernel
+/// pipeline can run them around constant evaluation:
+///   * [transformWidgetCreator] — must run BEFORE constant evaluation.
+///   * [transform] — must run AFTER constant evaluation.
+class AopWrapperTransformer {
   AopWrapperTransformer({this.platformStrongComponent});
 
   List<AopItemInfo> aopItemInfoList = <AopItemInfo>[];
@@ -24,13 +27,11 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
   /// Phase 1: emit AOP-specific widget creation tracking. Must be invoked
   /// BEFORE constant evaluation because it produces ConstConstructorInvocation
   /// nodes that need to be folded into kernel Constants.
-  @override
   void transformWidgetCreator(Component program,
       {void Function(String msg)? logger}) {
     _aopWidgetCreatorTracker.transform(program, program.libraries, null);
   }
 
-  @override
   void transform(Component program, {void Function(String msg)? logger}) {
     // Phase 2: actual AOP processing (must run AFTER constant evaluation
     // so that annotations on aspect classes / members are stored as
