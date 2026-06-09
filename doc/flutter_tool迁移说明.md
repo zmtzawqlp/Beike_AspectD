@@ -1,12 +1,12 @@
 ﻿# flutter_tool 迁移说明
 
-本文档记录在升级 Flutter 版本时，如何迁移 Beike_AspectD 对 `flutter_tools` 的改造，并重新生成 `flutter_tool.patch`。
+本文档记录在升级 Flutter 版本时，如何迁移 Beike_AspectD 对 `flutter_tools` 的改造，并重新生成 `flutter_tools.patch`。
 
 ## 目标
 
 - 让目标 Flutter 版本继续支持 AOP 编译链路。
 - 保持 `aop_config.yaml` 有配置时开启 AOP，无配置时不影响原生编译。
-- 产出可复用的 `flutter_tool.patch`。
+- 产出可复用的 `flutter_tools.patch`。
 
 ## 迁移范围
 
@@ -61,22 +61,22 @@ git diff -- packages/flutter_tools/lib/src/aop \
   packages/flutter_tools/lib/src/build_system/targets/common.dart \
   packages/flutter_tools/lib/src/build_system/targets/web.dart \
   packages/flutter_tools/lib/src/commands/build_bundle.dart \
-  > /path/to/Beike_AspectD/flutter_tool.patch
+  > /path/to/Beike_AspectD/flutter_tools.patch
 ```
 
 - 如果当前工作区只包含 `flutter_tools` 迁移改动，也可以直接使用：
 
 ```bash
-git diff --binary --output=flutter_tool.patch
+git diff --binary --output=flutter_tools.patch
 ```
 
-- 覆盖仓库中的 `flutter_tool.patch`，并确认 patch 可重复应用。
+- 覆盖仓库中的 `flutter_tools.patch`，并确认 patch 可重复应用。
 
 6. 验证迁移结果
 - 在干净 Flutter 源码执行：
 
 ```bash
-git apply /path/to/Beike_AspectD/flutter_tool.patch
+git apply /path/to/Beike_AspectD/flutter_tools.patch
 ```
 
 - 删除工具缓存并触发重建：
