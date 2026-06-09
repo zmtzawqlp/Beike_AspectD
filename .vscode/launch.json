@@ -2,14 +2,29 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug debug_server.dart (inner packages)",
+            "name": "Debug debug_server.dart (aop_example)",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug_server.dart",
+            // cwd 必须指向 demo 目录。手动透传 flutter_tools 那行命令时，
+            // 命令里 `--initialize-from-dill build/...` 等是相对路径，
+            // 相对的就是 demo 目录。脚本里的 _targetDemoDir 也必须保持一致。
+            "cwd": "${workspaceFolder}/aop_example",
+            "vmAdditionalArgs": [
+                "--packages=${workspaceFolder}/inner/.dart_tool/package_config.json"
+            ],
+            "args": ["aop_example"]
+        },
+        {
+            "name": "Debug debug_server.dart (example)",
             "type": "dart",
             "request": "launch",
             "program": "${workspaceFolder}/bin/debug_server.dart",
             "cwd": "${workspaceFolder}/example",
             "vmAdditionalArgs": [
                 "--packages=${workspaceFolder}/inner/.dart_tool/package_config.json"
-            ]
+            ],
+            "args": ["example"]
         }
     ]
 }
