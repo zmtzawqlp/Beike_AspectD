@@ -34,20 +34,18 @@
 //   适合从 flutter_tools 日志中复制「Debug frontend_server start args:」
 //   那一行，去掉开头的 snapshot 路径后，作为 Program arguments 粘贴。
 
+// ignore_for_file: unintended_html_in_doc_comment
+
 import 'dart:convert';
 import 'dart:io';
 
 import '../inner/flutter_frontend_server/server.dart' as server;
 
 // 修改这里即可切换要调试的 demo 工程目录（例如: example、aop_exmaple）。
-const String _targetDemoDir = 'example';
-
+ 
 Future<void> main(List<String> args) async {
-  // 手动透传模式：若传入了参数，直接转发给 server.starter。
-  if (args.isNotEmpty) {
-    exitCode = await server.starter(args);
-    return;
-  }
+  
+  final targetDemoDir = args.first;
 
   // --- 自动发现模式 ---
 
@@ -61,10 +59,10 @@ Future<void> main(List<String> args) async {
   }
 
   final sep = Platform.pathSeparator;
-  final exampleDir = Directory('${repoRoot.path}${sep}$_targetDemoDir');
+  final exampleDir = Directory('${repoRoot.path}$sep$targetDemoDir');
   if (!exampleDir.existsSync()) {
     stderr.writeln(
-      'ERROR: $_targetDemoDir/ directory not found at: ${exampleDir.path}',
+      'ERROR: $targetDemoDir/ directory not found at: ${exampleDir.path}',
     );
     exitCode = 2;
     return;
@@ -74,7 +72,7 @@ Future<void> main(List<String> args) async {
   final flutterRoot = _findFlutterRoot(exampleDir);
   if (flutterRoot == null) {
     stderr.writeln('ERROR: Cannot determine Flutter SDK root.');
-    stderr.writeln('       Run `flutter pub get` inside $_targetDemoDir/ first.');
+    stderr.writeln('       Run `flutter pub get` inside $targetDemoDir/ first.');
     exitCode = 3;
     return;
   }
@@ -84,7 +82,7 @@ Future<void> main(List<String> args) async {
   if (buildHashDir == null) {
     stderr.writeln('ERROR: No flutter_build hash directory found.');
     stderr.writeln('       Run a build first:');
-    stderr.writeln('         cd $_targetDemoDir && flutter build apk --debug');
+    stderr.writeln('         cd $targetDemoDir && flutter build apk --debug');
     exitCode = 4;
     return;
   }
@@ -96,9 +94,9 @@ Future<void> main(List<String> args) async {
 
   final sdkRoot =
       '$flutterRoot${sep}bin${sep}cache${sep}artifacts${sep}engine'
-      '${sep}common${sep}flutter_patched_sdk${sep}';
+      '${sep}common${sep}flutter_patched_sdk$sep';
   final packageConfig =
-      '${exampleDir.path}${sep}.dart_tool${sep}package_config.json';
+      '${exampleDir.path}$sep.dart_tool${sep}package_config.json';
   final outputDill = '${buildHashDir.path}${sep}app.dill';
 
   // 删除旧的 dill，让 server 执行完整的全量编译。
@@ -141,7 +139,7 @@ Future<void> main(List<String> args) async {
     '--incremental',
     '--aop', '1',
     '--verbosity=error',
-    'package:$_targetDemoDir/main.dart',
+    'package:$targetDemoDir/main.dart',
   ];
 
   stdout.writeln('Flutter root  : $flutterRoot');
