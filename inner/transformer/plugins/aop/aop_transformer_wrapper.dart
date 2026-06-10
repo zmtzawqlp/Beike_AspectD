@@ -1,5 +1,4 @@
 import 'package:kernel/ast.dart';
-import 'package:vm/modular/target/flutter.dart';
 
 import 'beike_transformer/aop_addimpl_transformer.dart';
 import 'beike_transformer/aop_field_get_transformer.dart';
@@ -11,7 +10,11 @@ import 'transformer/aop_iteminfo.dart';
 import 'transformer/aop_mode.dart';
 import 'transformer/aop_tranform_utils.dart';
 
-class AopWrapperTransformer extends FlutterProgramTransformer {
+/// Top-level AOP transformer driver. Exposes two entry points so the kernel
+/// pipeline can run them around constant evaluation:
+///   * [transformWidgetCreator] — must run BEFORE constant evaluation.
+///   * [transform] — must run AFTER constant evaluation.
+class AopWrapperTransformer {
   AopWrapperTransformer({this.platformStrongComponent});
 
   List<AopItemInfo> aopItemInfoList = <AopItemInfo>[];
@@ -20,9 +23,24 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
 
   final WidgetCreatorTracker _aopWidgetCreatorTracker =
       WidgetCreatorTracker();
-  @override
-  void transform(Component program, {void Function(String msg)? logger}) {
+
+  /// Phase 1: emit AOP-specific widget creation tracking. Must be invoked
+  /// BEFORE constant evaluation because it produces ConstConstructorInvocation
+  /// nodes that need to be folded into kernel Constants.
+  void transformWidgetCreator(Component program,
+      {void Function(String msg)? logger}) {
     _aopWidgetCreatorTracker.transform(program, program.libraries, null);
+  }
+
+  void transform(Component program, {void Function(String msg)? logger}) {
+    // Phase 2: actual AOP processing (must run AFTER constant evaluation
+    // so that annotations on aspect classes / members are stored as
+    // ConstantExpression rather than RedirectingFactoryInvocation).
+    transformAspects(program, logger: logger);
+  }
+
+  void transformAspects(Component program,
+      {void Function(String msg)? logger}) {
     for (Library library in program.libraries) {
       componentLibraryMap.putIfAbsent(
           library.importUri.toString(), () => library);
@@ -203,11 +221,25 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
             reference.node ??= AopUtils.getNodeFromCanonicalName(
                 componentLibraryMap, reference.canonicalName);
           });
-          if (canonicalName == null || canonicalName.parent == null) {
+
+          // After constant evaluation, canonical names may be null while the
+          // resolved node is still available. Fall back to the class node to
+          // find the annotation's class/library identification.
+          String? annotationClsName = canonicalName?.name;
+          String? annotationLibName = canonicalName?.parent?.name;
+          if (annotationClsName == null || annotationLibName == null) {
+            final TreeNode? clsNode = instanceConstant.classReference.node;
+            if (clsNode is Class) {
+              annotationClsName = clsNode.name;
+              final Library? lib = clsNode.parent as Library?;
+              annotationLibName = lib?.importUri.toString();
+            }
+          }
+          if (annotationClsName == null || annotationLibName == null) {
             continue;
           }
           final AopMode? aopMode = AopUtils.getAopModeByNameAndImportUri(
-              canonicalName.name, canonicalName.parent!.name);
+              annotationClsName, annotationLibName);
           if (aopMode == null) {
             continue;
           }
@@ -223,27 +255,30 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
 
           instanceConstant.fieldValues
               .forEach((Reference reference, Constant constant) {
+            // Identify the annotation field name using the canonical name when
+            // available, otherwise fall back to the resolved Field node name.
+            String? fieldRefName = reference.canonicalName?.name;
+            if (fieldRefName == null) {
+              final NamedNode? n = reference.node;
+              if (n is Field) {
+                fieldRefName = n.name.text;
+              }
+            }
             if (constant is StringConstant) {
               final String value = constant.value;
-              if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationImportUri) {
+              if (fieldRefName == AopUtils.kAopAnnotationImportUri) {
                 importUri = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationClsName) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationClsName) {
                 clsName = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationMethodName) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationMethodName) {
                 methodName = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationSuperClsName) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationSuperClsName) {
                 superClsName = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationfieldName) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationfieldName) {
                 fieldName = value;
               }
             }
-            if (reference.canonicalName?.name ==
-                AopUtils.kAopAnnotationLineNum) {
+            if (fieldRefName == AopUtils.kAopAnnotationLineNum) {
               if (constant is DoubleConstant) {
                 final int value = constant.value.toInt();
                 lineNum = value - 1;
@@ -254,14 +289,11 @@ class AopWrapperTransformer extends FlutterProgramTransformer {
             }
             if (constant is BoolConstant) {
               final bool value = constant.value;
-              if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationIsRegex) {
+              if (fieldRefName == AopUtils.kAopAnnotationIsRegex) {
                 isRegex = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationExcludeCoreLib) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationExcludeCoreLib) {
                 excludeCoreLib = value;
-              } else if (reference.canonicalName?.name ==
-                  AopUtils.kAopAnnotationIsStatic) {
+              } else if (fieldRefName == AopUtils.kAopAnnotationIsStatic) {
                 isStatic = value;
               }
             }

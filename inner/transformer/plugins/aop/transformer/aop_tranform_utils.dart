@@ -346,8 +346,13 @@ class AopUtils {
           ne = NamedExpression(f.name.text, staticGet);
           filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
         } else {
+          // Use `f.name` directly (instead of constructing a new Name with the
+          // caller class' library) so that private fields keep the correct
+          // defining library reference. Otherwise accessing private members
+          // such as `_pendingPointerEvents` on a mixin-applied class fails
+          // with NoSuchMethodError at runtime.
           final InstanceGet property = InstanceGet(
-              InstanceAccessKind.Instance, thisE, Name(f.name.text, clz.parent as Library?),
+              InstanceAccessKind.Instance, thisE, f.name,
               interfaceTarget: f, resultType: f.type);
           final NamedExpression ne = NamedExpression(f.name.text, property);
           filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
@@ -380,14 +385,26 @@ class AopUtils {
 
               vals.forEach((Reference ref, Constant val) {
                 final ConstantExpression exp = ConstantExpression(val);
+                String refName = ref.canonicalName?.name ?? '';
+                if (refName.isEmpty) {
+                  final NamedNode? n = ref.node;
+                  if (n is Field) {
+                    refName = n.name.text;
+                  }
+                }
                 annotationParams.add(MapLiteralEntry(
-                    StringLiteral(ref.canonicalName!.name), exp));
+                    StringLiteral(refName), exp));
               });
 
-              final CanonicalName canonicalName =
-                  instanceConstant.classReference.canonicalName!;
+              String annoName = instanceConstant.classReference.canonicalName?.name ?? '';
+              if (annoName.isEmpty) {
+                final TreeNode? n = instanceConstant.classReference.node;
+                if (n is Class) {
+                  annoName = n.name;
+                }
+              }
               annotationMap.add(MapLiteralEntry(
-                  StringLiteral(canonicalName.name),
+                  StringLiteral(annoName),
                   MapLiteral(annotationParams)));
             }
           } else if (annotation is ConstructorInvocation) {
@@ -468,8 +485,10 @@ class AopUtils {
         ne = NamedExpression(f.name.text, staticGet);
         filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
       } else {
+        // Use `f.name` directly so private fields keep their defining-library
+        // reference; see note in concatArgumentsForAopMethod.
         final InstanceGet property = InstanceGet(
-            InstanceAccessKind.Instance, thisE, Name(f.name.text, clz.parent as Library?),
+            InstanceAccessKind.Instance, thisE, f.name,
             interfaceTarget: f, resultType: f.type);
         final NamedExpression ne = NamedExpression(f.name.text, property);
         filedsMap.add(MapLiteralEntry(StringLiteral(f.name.text), ne.value));
@@ -498,14 +517,26 @@ class AopUtils {
 
             vals.forEach((Reference ref, Constant val) {
               final ConstantExpression exp = ConstantExpression(val);
+              String refName = ref.canonicalName?.name ?? '';
+              if (refName.isEmpty) {
+                final NamedNode? n = ref.node;
+                if (n is Field) {
+                  refName = n.name.text;
+                }
+              }
               annotationParams.add(MapLiteralEntry(
-                  StringLiteral(ref.canonicalName!.name), exp));
+                  StringLiteral(refName), exp));
             });
 
-            final CanonicalName canonicalName =
-                instanceConstant.classReference.canonicalName!;
+            String annoName = instanceConstant.classReference.canonicalName?.name ?? '';
+            if (annoName.isEmpty) {
+              final TreeNode? n = instanceConstant.classReference.node;
+              if (n is Class) {
+                annoName = n.name;
+              }
+            }
             annotationMap.add(MapLiteralEntry(
-                StringLiteral(canonicalName.name),
+                StringLiteral(annoName),
                 MapLiteral(annotationParams)));
           }
         } else if (annotation is ConstructorInvocation) {
@@ -680,9 +711,20 @@ class AopUtils {
           final InstanceConstant instanceConstant = constant;
           final CanonicalName? canonicalName =
               instanceConstant.classReference.canonicalName;
-          if (canonicalName != null &&
-              canonicalName.name == AopUtils.kAopAnnotationClassAspect &&
-              canonicalName.parent?.name == AopUtils.kImportUriAopAspect) {
+          // Canonical names may be cleared after constant evaluation; fall
+          // back to the resolved class node when needed.
+          String? annotationClsName = canonicalName?.name;
+          String? annotationLibName = canonicalName?.parent?.name;
+          if (annotationClsName == null || annotationLibName == null) {
+            final TreeNode? node = instanceConstant.classReference.node;
+            if (node is Class) {
+              annotationClsName = node.name;
+              final Library? lib = node.parent as Library?;
+              annotationLibName = lib?.importUri.toString();
+            }
+          }
+          if (annotationClsName == AopUtils.kAopAnnotationClassAspect &&
+              annotationLibName == AopUtils.kImportUriAopAspect) {
             enabled = true;
             break;
           }

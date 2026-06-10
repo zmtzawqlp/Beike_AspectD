@@ -3,71 +3,65 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:io' hide FileSystemEntity;
 
 import 'package:args/args.dart';
 import 'package:frontend_server/frontend_server.dart' as frontend
     show
         FrontendCompiler,
         CompilerInterface,
-        listenAndCompile,
         argParser,
         usage,
         ProgramTransformer;
+import 'package:frontend_server/starter.dart' as frontend_starter
+    show starter;
 import 'package:kernel/ast.dart';
-import 'package:path/path.dart' as path;
 import 'package:vm/incremental_compiler.dart';
-import 'package:vm/modular/target/flutter.dart';
 
-import '../transformer/plugins/aop/aop_transformer_wrapper.dart';
+import '../transformer/plugins/aop/aop_flutter_target.dart';
 
-/// Wrapper around [FrontendCompiler] that adds [widgetCreatorTracker] kernel
-/// transformation to the compilation.
+/// Wrapper around [FrontendCompiler] that, when AOP is enabled, installs the
+/// [AspectdFlutterTarget] in the global `targets['flutter']` map BEFORE
+/// delegating to the underlying compiler. The target itself owns the AOP
+/// transformer instance, so AOP survives `recompile-delta` cycles without
+/// any extra bookkeeping here.
 class _FlutterFrontendCompiler implements frontend.CompilerInterface {
+  _FlutterFrontendCompiler(
+    StringSink? output, {
+    bool? unsafePackageSerialization,
+    frontend.ProgramTransformer? transformer,
+    this.aopTransform = false,
+  }) : _compiler = frontend.FrontendCompiler(
+          output,
+          transformer: transformer,
+          unsafePackageSerialization: unsafePackageSerialization,
+        );
 
-  _FlutterFrontendCompiler(StringSink? output,
-      {bool? unsafePackageSerialization,
-        bool? useDebuggerModuleNames,
-        bool? emitDebugMetadata,
-       frontend.ProgramTransformer? transformer,
-        this.aopTransform = false})
-      : _compiler = frontend.FrontendCompiler(output,
-            transformer: transformer,
-            unsafePackageSerialization: unsafePackageSerialization);
   final frontend.CompilerInterface _compiler;
-
-  final AopWrapperTransformer aspectdAopTransformer = AopWrapperTransformer();
   final bool aopTransform;
+  bool _targetInstalled = false;
+
+  void _ensureAopTargetInstalled() {
+    if (aopTransform && !_targetInstalled) {
+      installAspectdFlutterTarget();
+      _targetInstalled = true;
+    }
+  }
 
   @override
   Future<bool> compile(String filename, ArgResults options,
       {IncrementalCompiler? generator}) async {
-    print('aop: need perform ' + aopTransform.toString());
-
-    if (aopTransform == true &&
-        !FlutterTarget.flutterProgramTransformers
-            .contains(aspectdAopTransformer)) {
-      FlutterTarget.flutterProgramTransformers.add(aspectdAopTransformer);
-    }
-
+    print('aop: need perform $aopTransform');
+    _ensureAopTargetInstalled();
     return _compiler.compile(filename, options, generator: generator);
   }
 
   @override
-  Future<void> recompileDelta({String? entryPoint,bool recompileRestart = false}) async {
-    final List<FlutterProgramTransformer> transformers =
-        FlutterTarget.flutterProgramTransformers;
-    // 解决 reload 直接 clear 导致 AOP transformer 丢失问题
-    // 比如导致 AopHasCreationLocation 的 aopLocation 变成 _Location
-    if (aopTransform == true) {
-      if (!transformers.contains(aspectdAopTransformer)) {
-        transformers.add(aspectdAopTransformer);
-      }
-    } else {
-      transformers.clear();
-    }
-
-    return _compiler.recompileDelta(entryPoint: entryPoint,recompileRestart:recompileRestart);
+  Future<void> recompileDelta(
+      {String? entryPoint, bool recompileRestart = false}) async {
+    // Target instance lives inside IncrementalCompiler and already holds the
+    // AOP transformer; no static-list housekeeping needed.
+    return _compiler.recompileDelta(
+        entryPoint: entryPoint, recompileRestart: recompileRestart);
   }
 
   @override
@@ -116,15 +110,23 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
 
   @override
   Future<void> compileExpressionToJs(
-      String libraryUri,
-      String? scriptUri,
-      int line,
-      int column,
-      Map<String, String> jsModules,
-      Map<String, String> jsFrameValues,
-      String expression) {
-    return _compiler.compileExpressionToJs(libraryUri,scriptUri, line, column, jsModules,
-        jsFrameValues, expression,);
+    String libraryUri,
+    String? scriptUri,
+    int line,
+    int column,
+    Map<String, String> jsModules,
+    Map<String, String> jsFrameValues,
+    String expression,
+  ) {
+    return _compiler.compileExpressionToJs(
+      libraryUri,
+      scriptUri,
+      line,
+      column,
+      jsModules,
+      jsFrameValues,
+      expression,
+    );
   }
 
   @override
@@ -141,7 +143,7 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
   Future<bool> setNativeAssets(String nativeAssets) {
     return _compiler.setNativeAssets(nativeAssets);
   }
-  
+
   @override
   Future<bool> compileNativeAssetsOnly(ArgResults options,
       {IncrementalCompiler? generator}) {
@@ -149,10 +151,27 @@ class _FlutterFrontendCompiler implements frontend.CompilerInterface {
   }
 }
 
-/// Entry point for this module, that creates `_FrontendCompiler` instance and
-/// processes user input.
-/// `compiler` is an optional parameter so it can be replaced with mocked
-/// version for testing.
+bool _aopOptionRegistered = false;
+
+/// Idempotent: registers the `--aop` option exactly once on the shared
+/// `frontend.argParser`, so subsequent parses inside pkg `starter` accept it.
+void _registerAopOption() {
+  if (_aopOptionRegistered) {
+    return;
+  }
+  frontend.argParser.addOption('aop', help: 'aop transform');
+  _aopOptionRegistered = true;
+}
+
+/// Entry point for the Flutter-side frontend server.
+///
+/// Strategy: do the minimum amount of pre-processing required to wire AOP
+/// (parse `--aop`, build a [_FlutterFrontendCompiler], install the
+/// `AspectdFlutterTarget` lazily on first compile) and then hand the rest of
+/// the lifecycle off to the upstream pkg `starter`. This way we automatically
+/// inherit resident-compiler mode, native-assets-only mode, train mode, and
+/// any future modes added upstream — without duplicating the dispatch logic
+/// here.
 Future<int> starter(
   List<String> args, {
   frontend.CompilerInterface? compiler,
@@ -160,12 +179,11 @@ Future<int> starter(
   StringSink? output,
   frontend.ProgramTransformer? transformer,
 }) async {
-  ArgResults options;
+  _registerAopOption();
 
+  ArgResults options;
   try {
-    final ArgParser parser = frontend.argParser;
-    parser.addOption('aop', help: 'aop transform');
-    options = parser.parse(args);
+    options = frontend.argParser.parse(args);
   } catch (error) {
     print('ERROR: $error\n');
     print(frontend.usage);
@@ -174,65 +192,26 @@ Future<int> starter(
 
   final Set<String> deleteToStringPackageUris =
       (options['delete-tostring-package-uri'] as List<String>).toSet();
+  final bool aopEnabled = options['aop']?.toString() == '1';
 
-  if (options['train'] as bool) {
-    if (!options.rest.isNotEmpty) {
-      throw Exception('Must specify input.dart');
-    }
+  compiler ??= _FlutterFrontendCompiler(
+    output,
+    transformer: ToStringTransformer(transformer, deleteToStringPackageUris),
+    unsafePackageSerialization:
+        options['unsafe-package-serialization'] as bool,
+    aopTransform: aopEnabled,
+  );
 
-    final String input = options.rest[0];
-    final String sdkRoot = options['sdk-root'] as String;
-    final Directory temp =
-        Directory.systemTemp.createTempSync('train_frontend_server');
-    try {
-      for (int i = 0; i < 3; i++) {
-        final String outputTrainingDill = path.join(temp.path, 'app.dill');
-        options = frontend.argParser.parse(<String>[
-          '--incremental',
-          '--sdk-root=$sdkRoot',
-          '--output-dill=$outputTrainingDill',
-          '--target=flutter',
-          '--track-widget-creation',
-          '--enable-asserts',
-          '--gen-bytecode',
-          '--bytecode-options=source-positions,local-var-info,debugger-stops,instance-field-initializers,keep-unreachable-code,avoid-closure-call-instructions',
-        ]);
-        compiler ??= _FlutterFrontendCompiler(
-          output,
-          transformer: ToStringTransformer(transformer, deleteToStringPackageUris),
-        );
-
-        await compiler.compile(input, options);
-        compiler.acceptLastDelta();
-        await compiler.recompileDelta();
-        compiler.acceptLastDelta();
-        compiler.resetIncrementalCompiler();
-        await compiler.recompileDelta();
-        compiler.acceptLastDelta();
-        await compiler.recompileDelta();
-        compiler.acceptLastDelta();
-      }
-      return 0;
-    } finally {
-      temp.deleteSync(recursive: true);
-    }
-  }
-
-  compiler ??= _FlutterFrontendCompiler(output,
-      transformer: ToStringTransformer(transformer, deleteToStringPackageUris),
-      useDebuggerModuleNames: options['debugger-module-names'] as bool,
-      emitDebugMetadata: options['experimental-emit-debug-metadata'] as bool,
-      unsafePackageSerialization:
-          options['unsafe-package-serialization'] as bool,
-      aopTransform: options['aop'].toString() == '1' ? true : false);
-
-  if (options.rest.isNotEmpty) {
-    return await compiler.compile(options.rest[0], options) ? 0 : 254;
-  }
-
-  final Completer<int> completer = Completer<int>();
-  frontend.listenAndCompile(compiler, input ?? stdin, options, completer);
-  return completer.future;
+  // Delegate the full lifecycle (including --train, resident mode,
+  // --native-assets-only, single-shot compile and stdin server) to the
+  // upstream starter. Our compiler instance plugs the AOP target in lazily
+  // on its first `compile` call.
+  return frontend_starter.starter(
+    args,
+    compiler: compiler,
+    input: input,
+    output: output,
+  );
 }
 
 // Transformer/visitor for toString
@@ -241,8 +220,7 @@ Future<int> starter(
 /// A [RecursiveVisitor] that replaces [Object.toString] overrides with
 /// `super.toString()`.
 class ToStringVisitor extends RecursiveVisitor {
-  /// The [packageUris] must not be null.
-  ToStringVisitor(this._packageUris) : assert(_packageUris != null);
+  ToStringVisitor(this._packageUris);
 
   /// A set of package URIs to apply this transformer to, e.g. 'dart:ui' and
   /// 'package:flutter/foundation.dart'.
@@ -274,11 +252,23 @@ class ToStringVisitor extends RecursiveVisitor {
     return false;
   }
 
+  Procedure _getSuperMethodTarget(Procedure node) {
+    Class? currentClass = node.enclosingClass?.superclass;
+    while (currentClass != null) {
+      for (final Procedure procedure in currentClass.procedures) {
+        if (procedure.name == node.name) {
+          return procedure;
+        }
+      }
+      currentClass = currentClass.superclass;
+    }
+    return node;
+  }
+
   @override
   void visitProcedure(Procedure node) {
     if (node.name.text == 'toString' &&
         node.enclosingClass != null &&
-        node.enclosingLibrary != null &&
         !node.isStatic &&
         !node.isAbstract &&
         !node.enclosingClass!.isEnum &&
@@ -302,9 +292,7 @@ class ToStringVisitor extends RecursiveVisitor {
 /// Replaces [Object.toString] overrides with calls to super for the specified
 /// [packageUris].
 class ToStringTransformer extends frontend.ProgramTransformer {
-  /// The [packageUris] parameter must not be null, but may be empty.
-  ToStringTransformer(this._child, this._packageUris)
-      : assert(_packageUris != null);
+  ToStringTransformer(this._child, this._packageUris);
 
   final frontend.ProgramTransformer? _child;
 
@@ -319,21 +307,5 @@ class ToStringTransformer extends frontend.ProgramTransformer {
       component.visitChildren(ToStringVisitor(_packageUris));
     }
     _child?.transform(component);
-  }
-}
-
-class _ChainedProgramTransformer extends frontend.ProgramTransformer {
-  _ChainedProgramTransformer({
-    this.first,
-    this.second,
-  });
-
-  final frontend.ProgramTransformer? first;
-  final FlutterProgramTransformer? second;
-
-  @override
-  void transform(Component component) {
-    first?.transform(component);
-    second?.transform(component);
   }
 }
