@@ -194,13 +194,15 @@ Future<int> starter(
       (options['delete-tostring-package-uri'] as List<String>).toSet();
   final bool aopEnabled = options['aop']?.toString() == '1';
 
-  compiler ??= _FlutterFrontendCompiler(
-    output,
-    transformer: ToStringTransformer(transformer, deleteToStringPackageUris),
-    unsafePackageSerialization:
-        options['unsafe-package-serialization'] as bool,
-    aopTransform: aopEnabled,
-  );
+  if (aopEnabled) {
+    compiler ??= _FlutterFrontendCompiler(
+      output,
+      transformer: ToStringTransformer(transformer, deleteToStringPackageUris),
+      unsafePackageSerialization:
+          options['unsafe-package-serialization'] as bool,
+      aopTransform: true,
+    );
+  }
 
   // Delegate the full lifecycle (including --train, resident mode,
   // --native-assets-only, single-shot compile and stdin server) to the
